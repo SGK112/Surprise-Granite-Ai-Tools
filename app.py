@@ -14,7 +14,7 @@ client = openai.Client(api_key=OPENAI_API_KEY)
 
 @app.route("/")
 def home():
-    return "Surprise Granite AI Chatbot is Running!"
+    return "<h1>Surprise Granite AI Chatbot</h1><p>Your AI assistant is ready.</p>"
 
 @app.route("/chat", methods=["POST"])
 def chat():
