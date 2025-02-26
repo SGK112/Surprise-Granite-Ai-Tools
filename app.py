@@ -1,8 +1,12 @@
 from flask import Flask, request, jsonify
 import os
 import openai
+from flask_cors import CORS
 
 app = Flask(__name__)
+
+# Enable CORS for specific domains
+CORS(app, resources={r"/*": {"origins": ["https://www.surprisegranite.com", "https://www.remodely.ai"]}})
 
 # Load OpenAI API Key from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -36,4 +40,3 @@ def chat():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
