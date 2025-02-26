@@ -1,3 +1,5 @@
-Flask
-openai
-gunicorn
+Flask==3.1.0
+openai==1.x.x
+Flask-CORS==5.0.1
+gunicorn==23.0.0  # Add this line
+
