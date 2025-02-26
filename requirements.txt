@@ -1,5 +1,5 @@
 Flask==3.1.0
-openai==1.x.x
+openai==1.64.0
 Flask-CORS==5.0.1
 gunicorn==23.0.0  # Add this line
 
