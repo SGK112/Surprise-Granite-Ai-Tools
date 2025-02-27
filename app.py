@@ -4,10 +4,11 @@ import openai
 from flask_cors import CORS
 import requests, csv
 from io import StringIO
+import math
 
 app = Flask(__name__)
 
-# Enable CORS for domains (adjust if needed)
+# Enable CORS for approved domains
 CORS(app, resources={r"/*": {"origins": ["https://www.surprisegranite.com", "https://www.remodely.ai"]}})
 
 # Load OpenAI API Key from environment variables
@@ -15,17 +16,14 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
 
-# Set the API key for OpenAI
 openai.api_key = OPENAI_API_KEY
 
 def get_pricing_data():
     """
     Fetch pricing data from the Google Sheets CSV.
-    Expected CSV columns include "Material" and "Cost/SqFt".
-    Example rows:
-       Material: granite and quartz, Cost/SqFt: 45
-       Material: quartzite and marble, Cost/SqFt: 65
-       Material: dekton and porcelain, Cost/SqFt: 85
+    Expected CSV columns:
+      Color Name, Vendor Name, Thickness, Material, size, Total/SqFt, Cost/SqFt, Price Group, Tier
+    We use the lowercased "Color Name" as the key and store both the cost per sq ft and the Total/SqFt.
     """
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
     response = requests.get(url)
@@ -36,9 +34,16 @@ def get_pricing_data():
     reader = csv.DictReader(csv_file)
     pricing = {}
     for row in reader:
-        material = row["Material"].strip().lower()
-        price = float(row["Cost/SqFt"])
-        pricing[material] = price
+        color = row["Color Name"].strip().lower()
+        try:
+            cost_sqft = float(row["Cost/SqFt"])
+        except Exception:
+            cost_sqft = 50.0
+        try:
+            color_total_sqft = float(row["Total/SqFt"])
+        except Exception:
+            color_total_sqft = 100.0
+        pricing[color] = {"cost": cost_sqft, "total_sqft": color_total_sqft}
     return pricing
 
 @app.route("/")
@@ -51,28 +56,11 @@ def chat():
     user_input = data.get("message", "")
     if not user_input:
         return jsonify({"error": "Missing user input"}), 400
-
     try:
-        lower_input = user_input.lower()
-        # If pricing-related keywords are detected, include pricing data in the system prompt
-        if any(keyword in lower_input for keyword in ["price", "cost", "estimate"]):
-            try:
-                pricing_data = get_pricing_data()
-                pricing_summary = ", ".join([f"{mat.title()}: ${price}" for mat, price in pricing_data.items()])
-                system_message = (
-                    "You are a helpful remodeling assistant for Surprise Granite. "
-                    "When answering pricing questions, refer to the following pricing data: " + pricing_summary + "."
-                )
-            except Exception as ex:
-                system_message = "You are a helpful remodeling assistant for Surprise Granite."
-                print("Error fetching pricing data:", ex)
-        else:
-            system_message = "You are a helpful remodeling assistant for Surprise Granite."
-
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": system_message},
+                {"role": "system", "content": "You are a helpful remodeling assistant."},
                 {"role": "user", "content": user_input}
             ]
         )
@@ -82,71 +70,77 @@ def chat():
 
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
-    # Handle preflight OPTIONS request
+    # Respond to preflight OPTIONS requests for CORS
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
     data = request.json
     if not data or not data.get("totalSqFt"):
         return jsonify({"error": "Missing project data"}), 400
+
     try:
-        total_sq_ft = float(data.get("totalSqFt", 0))
+        # Extract input data
+        total_sq_ft = float(data.get("totalSqFt"))
         vendor = data.get("vendor", "default vendor")
-        color = data.get("color", "default color")
-        demo = data.get("demo", "no").lower()
-        customer_name = data.get("customerName", "N/A")
-        
-        material_type = data.get("materialType", "granite and quartz").strip().lower()
+        color = data.get("color", "").strip().lower()
+        demo = data.get("demo", "no")
         sink_qty = float(data.get("sinkQty", 0))
         cooktop_qty = float(data.get("cooktopQty", 0))
-        sink_type = data.get("sinkType", "standard").lower()
-        cooktop_type = data.get("cooktopType", "standard").lower()
-        backsplash = data.get("backsplash", "no").lower()
-        edge_detail = data.get("edgeDetail", "standard").lower()
+        sink_type = data.get("sinkType", "standard")
+        cooktop_type = data.get("cooktopType", "standard")
+        backsplash = data.get("backsplash", "no")
+        edge_detail = data.get("edgeDetail", "standard")
 
+        # Get pricing data from CSV
         pricing_data = get_pricing_data()
-        price_per_sqft = pricing_data.get(material_type, 50)
-        
+        pricing_info = pricing_data.get(color, {"cost": 50, "total_sqft": 100})
+        price_per_sqft = pricing_info["cost"]
+        color_total_sqft = pricing_info["total_sqft"]
+
+        # Calculate material cost and adjustments
         material_cost = total_sq_ft * price_per_sqft
-        if demo == "yes":
-            material_cost *= 1.10
+        if demo.lower() == "yes":
+            material_cost *= 1.10  # add 10% for demo
 
-        if edge_detail == "premium":
-            edge_multiplier = 1.05
-        elif edge_detail == "custom":
-            edge_multiplier = 1.10
+        sink_cost = sink_qty * (150 if sink_type.lower() == "premium" else 100)
+        cooktop_cost = cooktop_qty * (160 if cooktop_type.lower() == "premium" else 120)
+        backsplash_cost = total_sq_ft * 20 if backsplash.lower() == "yes" else 0
+
+        if edge_detail.lower() == "premium":
+            multiplier = 1.05
+        elif edge_detail.lower() == "custom":
+            multiplier = 1.10
         else:
-            edge_multiplier = 1.0
-        material_cost *= edge_multiplier
-
-        sink_cost = sink_qty * (150 if sink_type == "premium" else 100)
-        cooktop_cost = cooktop_qty * (160 if cooktop_type == "premium" else 120)
-        backsplash_cost = total_sq_ft * 20 if backsplash == "yes" else 0
+            multiplier = 1.0
+        material_cost *= multiplier
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        slab_size = 100
-        slab_count = int((total_sq_ft + slab_size - 1) // slab_size)
+        # Calculate slab count using a 20% waste factor:
+        effective_sq_ft = total_sq_ft * 1.20
+        slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
+        # Build prompt for GPT‑4 narrative estimate
         prompt = (
-            f"Customer: {customer_name}\n"
-            f"Project Area: {total_sq_ft} sq ft\n"
+            f"Customer: {data.get('customerName', 'N/A')}\n"
+            f"Job Name: {data.get('jobName', 'N/A')}\n"
+            f"Job Type: {data.get('jobType', 'fabricate and install')}\n"
+            f"Project Area: {total_sq_ft} sq ft (with 20% waste: {effective_sq_ft:.2f} sq ft)\n"
             f"Vendor: {vendor}\n"
-            f"Color: {color}\n"
-            f"Material Type: {material_type}\n"
-            f"Price per Sq Ft for {material_type}: ${price_per_sqft:.2f}\n"
+            f"Color: {color.title()}\n"
             f"Demo Required: {demo}\n"
-            f"Edge Detail: {edge_detail}\n"
-            f"Material Cost (after adjustments): ${material_cost:.2f}\n"
-            f"Sink Cuts (Qty): {sink_qty} ({sink_type})\n"
-            f"Sink Cost: ${sink_cost:.2f}\n"
-            f"Cooktop Cuts (Qty): {cooktop_qty} ({cooktop_type})\n"
-            f"Cooktop Cost: ${cooktop_cost:.2f}\n"
+            f"Sink Count: {sink_qty} ({sink_type})\n"
+            f"Cooktop Count: {cooktop_qty} ({cooktop_type})\n"
             f"Backsplash: {backsplash}\n"
+            f"Edge Detail: {edge_detail}\n"
+            f"Price per Sq Ft for {color.title()}: ${price_per_sqft:.2f}\n"
+            f"Material Cost: ${material_cost:.2f}\n"
+            f"Sink Cost: ${sink_cost:.2f}\n"
+            f"Cooktop Cost: ${cooktop_cost:.2f}\n"
             f"Backsplash Cost: ${backsplash_cost:.2f}\n"
             f"Preliminary Total: ${preliminary_total:.2f}\n"
             f"Slab Count: {slab_count}\n\n"
-            "Generate a detailed, professional estimate that includes a breakdown of costs, "
+            "Generate a detailed, professional estimate that includes a breakdown of material and labor costs, "
             "installation notes, and a personalized message for the customer."
         )
 
