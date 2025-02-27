@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import openai
 from flask_cors import CORS
+import requests, csv
+from io import StringIO
 
 app = Flask(__name__)
 
@@ -13,8 +15,32 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
 
-# Set the API key for the OpenAI library (do not use openai.Client)
+# Set the API key for the OpenAI library
 openai.api_key = OPENAI_API_KEY
+
+def get_pricing_data():
+    """
+    Fetch pricing data from the Google Sheets CSV.
+    Expected CSV columns: Material, Price
+    Example rows:
+       Material,Price
+       granite and quartz,45
+       quartzite and marble,65
+       dekton and porcelain,85
+    """
+    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
+    response = requests.get(url)
+    if response.status_code != 200:
+        raise Exception("Could not fetch pricing data")
+    csv_text = response.text
+    csv_file = StringIO(csv_text)
+    reader = csv.DictReader(csv_file)
+    pricing = {}
+    for row in reader:
+        material = row["Material"].strip().lower()
+        price = float(row["Price"])
+        pricing[material] = price
+    return pricing
 
 @app.route("/")
 def home():
@@ -38,9 +64,12 @@ def chat():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# New Estimator Endpoint
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
+    # Handle preflight OPTIONS request
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
     data = request.json
     if not data or not data.get("totalSqFt"):
         return jsonify({"error": "Missing project data"}), 400
@@ -50,17 +79,46 @@ def estimate():
         vendor = data.get("vendor", "default vendor")
         color = data.get("color", "default color")
         demo = data.get("demo", "no")
-        sink_cutout = float(data.get("sinkCutout", 0))
-        cooktop_cutout = float(data.get("cooktopCutout", 0))
+        
+        # New fields:
+        # Material type to determine price per sq ft, e.g., "granite and quartz", "quartzite and marble", "dekton and porcelain"
+        material_type = data.get("materialType", "granite and quartz").strip().lower()
+        # Sink and cooktop cuts are now quantities
+        sink_qty = float(data.get("sinkQty", 0))
+        cooktop_qty = float(data.get("cooktopQty", 0))
+        sink_type = data.get("sinkType", "standard")
+        cooktop_type = data.get("cooktopType", "standard")
+        backsplash = data.get("backsplash", "no")
         edge_detail = data.get("edgeDetail", "standard")
 
-        # Preliminary cost calculations (customize as needed)
-        material_cost = total_sq_ft * 50  # Example: $50 per sqft
+        # Fetch pricing data from Google Sheets; if material_type not found, default to $50 per sq ft
+        pricing_data = get_pricing_data()
+        price_per_sqft = pricing_data.get(material_type, 50)
+        
+        # Calculate material cost based on the dynamic price per sq ft
+        material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
             material_cost *= 1.10  # 10% extra if demo is required
-        sink_cost = sink_cutout * 50       # Example: $50 per sqft for sink cutout
-        cooktop_cost = cooktop_cutout * 75   # Example: $75 per sqft for cooktop cutout
-        
+
+        # Calculate sink cost: standard $100 per cut, premium $150 per cut
+        if sink_type.lower() == "premium":
+            sink_cost = sink_qty * 150
+        else:
+            sink_cost = sink_qty * 100
+
+        # Calculate cooktop cost: standard $120 per cut, premium $160 per cut
+        if cooktop_type.lower() == "premium":
+            cooktop_cost = cooktop_qty * 160
+        else:
+            cooktop_cost = cooktop_qty * 120
+
+        # Backsplash cost: if required, add $20 per sq ft
+        if backsplash.lower() == "yes":
+            backsplash_cost = total_sq_ft * 20
+        else:
+            backsplash_cost = 0
+
+        # Adjust material cost for edge details
         if edge_detail.lower() == "premium":
             multiplier = 1.05
         elif edge_detail.lower() == "custom":
@@ -68,30 +126,34 @@ def estimate():
         else:
             multiplier = 1.0
         material_cost *= multiplier
-        
-        preliminary_total = material_cost + sink_cost + cooktop_cost
-        
-        # Calculate the number of slabs needed (assuming a fixed slab size)
-        slab_size = 100  # Example slab size in sqft
+
+        preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
+
+        # Calculate the number of slabs needed (assuming each slab covers 100 sq ft)
+        slab_size = 100  
         slab_count = int((total_sq_ft + slab_size - 1) // slab_size)
 
-        # Build a prompt for GPT-4 to generate a narrative estimate
+        # Build a prompt for GPT-4 to generate a detailed, professional estimate
         prompt = (
             f"Customer: {data.get('customerName', 'N/A')}\n"
             f"Project Area: {total_sq_ft} sq ft\n"
             f"Vendor: {vendor}\n"
             f"Color: {color}\n"
+            f"Material Type: {material_type}\n"
             f"Demo Required: {demo}\n"
-            f"Sink Cutout: {sink_cutout} sq ft\n"
-            f"Cooktop Cutout: {cooktop_cutout} sq ft\n"
+            f"Sink Cuts (Qty): {sink_qty} ({sink_type})\n"
+            f"Cooktop Cuts (Qty): {cooktop_qty} ({cooktop_type})\n"
+            f"Backsplash: {backsplash}\n"
             f"Edge Detail: {edge_detail}\n"
+            f"Price per Sq Ft for {material_type}: ${price_per_sqft:.2f}\n"
             f"Material Cost: ${material_cost:.2f}\n"
             f"Sink Cost: ${sink_cost:.2f}\n"
             f"Cooktop Cost: ${cooktop_cost:.2f}\n"
+            f"Backsplash Cost: ${backsplash_cost:.2f}\n"
             f"Preliminary Total: ${preliminary_total:.2f}\n"
             f"Slab Count: {slab_count}\n\n"
             "Generate a detailed, professional estimate that includes a breakdown of costs, "
-            "notes on installation, and a personalized message for the customer."
+            "installation notes, and a personalized message for the customer."
         )
 
         ai_response = openai.ChatCompletion.create(
@@ -108,6 +170,7 @@ def estimate():
                 "material_cost": material_cost,
                 "sink_cost": sink_cost,
                 "cooktop_cost": cooktop_cost,
+                "backsplash_cost": backsplash_cost,
                 "preliminary_total": preliminary_total,
                 "slab_count": slab_count
             },
