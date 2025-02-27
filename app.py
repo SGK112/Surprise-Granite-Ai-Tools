@@ -7,7 +7,7 @@ from io import StringIO
 
 app = Flask(__name__)
 
-# Enable CORS for specific domains
+# Enable CORS for domains (adjust if needed)
 CORS(app, resources={r"/*": {"origins": ["https://www.surprisegranite.com", "https://www.remodely.ai"]}})
 
 # Load OpenAI API Key from environment variables
@@ -15,14 +15,14 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
 
-# Set the API key for the OpenAI library
+# Set the API key for OpenAI
 openai.api_key = OPENAI_API_KEY
 
 def get_pricing_data():
     """
     Fetch pricing data from the Google Sheets CSV.
     Expected CSV columns include "Material" and "Cost/SqFt".
-    For example:
+    Example rows:
        Material: granite and quartz, Cost/SqFt: 45
        Material: quartzite and marble, Cost/SqFt: 65
        Material: dekton and porcelain, Cost/SqFt: 85
@@ -54,21 +54,21 @@ def chat():
 
     try:
         lower_input = user_input.lower()
-        # If pricing-related keywords are detected, append pricing data to the system prompt.
+        # If pricing-related keywords are detected, include pricing data in the system prompt
         if any(keyword in lower_input for keyword in ["price", "cost", "estimate"]):
             try:
                 pricing_data = get_pricing_data()
                 pricing_summary = ", ".join([f"{mat.title()}: ${price}" for mat, price in pricing_data.items()])
                 system_message = (
-                    "You are a helpful remodeling assistant. "
+                    "You are a helpful remodeling assistant for Surprise Granite. "
                     "When answering pricing questions, refer to the following pricing data: " + pricing_summary + "."
                 )
             except Exception as ex:
-                system_message = "You are a helpful remodeling assistant."
+                system_message = "You are a helpful remodeling assistant for Surprise Granite."
                 print("Error fetching pricing data:", ex)
         else:
-            system_message = "You are a helpful remodeling assistant."
-            
+            system_message = "You are a helpful remodeling assistant for Surprise Granite."
+
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
@@ -82,6 +82,7 @@ def chat():
 
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
+    # Handle preflight OPTIONS request
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
@@ -95,7 +96,6 @@ def estimate():
         demo = data.get("demo", "no").lower()
         customer_name = data.get("customerName", "N/A")
         
-        # New fields:
         material_type = data.get("materialType", "granite and quartz").strip().lower()
         sink_qty = float(data.get("sinkQty", 0))
         cooktop_qty = float(data.get("cooktopQty", 0))
@@ -125,7 +125,7 @@ def estimate():
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        slab_size = 100  
+        slab_size = 100
         slab_count = int((total_sq_ft + slab_size - 1) // slab_size)
 
         prompt = (
