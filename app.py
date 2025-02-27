@@ -8,16 +8,16 @@ import math
 
 app = Flask(__name__)
 
-# List your approved domains (exactly as they appear in the browser)
+# Define the approved origins exactly as they appear in the browser
 approved_origins = [
     "https://www.surprisegranite.com",
     "https://www.remodely.ai"
 ]
 
-# Enable CORS for all routes with the approved origins
+# Enable CORS for all routes for these domains
 CORS(app, resources={r"/*": {"origins": approved_origins}})
 
-# Load OpenAI API Key from environment variables
+# Load the OpenAI API Key from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
@@ -26,16 +26,16 @@ openai.api_key = OPENAI_API_KEY
 
 def get_pricing_data():
     """
-    Fetch pricing data from the Google Sheets CSV.
+    Fetch pricing data from the published Google Sheets CSV.
     Expected CSV columns:
       Color Name, Vendor Name, Thickness, Material, size, Total/SqFt, Cost/SqFt, Price Group, Tier
     We use the lowercased "Color Name" as the key and store:
-      - "cost": Cost per square foot (as a float)
-      - "total_sqft": The total square footage available per color option (as a float)
+      - "cost": Cost per square foot (float)
+      - "total_sqft": Total square footage available per color option (float)
     """
-    url = ("https://docs.google.com/spreadsheets/d/e/"
-           "2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh"
-           "/pub?output=csv")
+    url = (
+        "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
+    )
     response = requests.get(url)
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
@@ -80,7 +80,7 @@ def chat():
 
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
-    # Respond to preflight OPTIONS requests
+    # Handle preflight OPTIONS requests for CORS
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
@@ -89,7 +89,7 @@ def estimate():
         return jsonify({"error": "Missing project data"}), 400
 
     try:
-        # Extract input data
+        # Extract and process input data
         total_sq_ft = float(data.get("totalSqFt"))
         vendor = data.get("vendor", "default vendor")
         color = data.get("color", "").strip().lower()
@@ -101,20 +101,23 @@ def estimate():
         backsplash = data.get("backsplash", "no")
         edge_detail = data.get("edgeDetail", "standard")
 
-        # Get pricing data from CSV
+        # Get live pricing data from the CSV
         pricing_data = get_pricing_data()
         pricing_info = pricing_data.get(color, {"cost": 50, "total_sqft": 100})
         price_per_sqft = pricing_info["cost"]
         color_total_sqft = pricing_info["total_sqft"]
 
-        # Calculate material cost and adjustments
+        # Calculate material cost and adjust for demo if needed
         material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
-            material_cost *= 1.10  # add 10% for demo
+            material_cost *= 1.10
+
+        # Calculate additional costs
         sink_cost = sink_qty * (150 if sink_type.lower() == "premium" else 100)
         cooktop_cost = cooktop_qty * (160 if cooktop_type.lower() == "premium" else 120)
         backsplash_cost = total_sq_ft * 20 if backsplash.lower() == "yes" else 0
 
+        # Adjust material cost based on edge detail
         if edge_detail.lower() == "premium":
             multiplier = 1.05
         elif edge_detail.lower() == "custom":
@@ -123,13 +126,14 @@ def estimate():
             multiplier = 1.0
         material_cost *= multiplier
 
+        # Preliminary total cost
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        # Calculate slab count (accounting for 20% waste)
+        # Calculate slab count using a 20% waste factor
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
-        # Build prompt for GPT‑4 narrative estimate
+        # Build a prompt for GPT‑4 to generate a detailed narrative estimate
         prompt = (
             f"Customer: {data.get('customerName', 'N/A')}\n"
             f"Job Name: {data.get('jobName', 'N/A')}\n"
