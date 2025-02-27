@@ -1,5 +1,15 @@
+# Flask for building the web backend
 Flask==3.1.0
+
+# OpenAI client library to interact with the GPT-4 API
 openai==1.64.0
+
+# Flask-CORS to handle cross-origin requests (from your frontends on surprisegranite.com and remodely.ai)
 Flask-CORS==5.0.1
-gunicorn==23.0.0  # Add this line
+
+# Gunicorn is used as the production WSGI server
+gunicorn==23.0.0
+
+# Requests module is needed to fetch pricing data from your Google Sheets CSV
+requests==2.32.3
 
