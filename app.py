@@ -8,8 +8,14 @@ import math
 
 app = Flask(__name__)
 
-# Enable CORS for approved domains
-CORS(app, resources={r"/*": {"origins": ["https://www.surprisegranite.com", "https://www.remodely.ai"]}})
+# List your approved domains (exactly as they appear in the browser)
+approved_origins = [
+    "https://www.surprisegranite.com",
+    "https://www.remodely.ai"
+]
+
+# Enable CORS for all routes with the approved origins
+CORS(app, resources={r"/*": {"origins": approved_origins}})
 
 # Load OpenAI API Key from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -23,15 +29,18 @@ def get_pricing_data():
     Fetch pricing data from the Google Sheets CSV.
     Expected CSV columns:
       Color Name, Vendor Name, Thickness, Material, size, Total/SqFt, Cost/SqFt, Price Group, Tier
-    The pricing data is stored in a dictionary keyed by the lowercased "Color Name".
+    We use the lowercased "Color Name" as the key and store:
+      - "cost": Cost per square foot (as a float)
+      - "total_sqft": The total square footage available per color option (as a float)
     """
-    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
+    url = ("https://docs.google.com/spreadsheets/d/e/"
+           "2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh"
+           "/pub?output=csv")
     response = requests.get(url)
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
     csv_text = response.text
     csv_file = StringIO(csv_text)
-    # Parse CSV assuming comma-separated values
     reader = csv.DictReader(csv_file)
     pricing = {}
     for row in reader:
@@ -71,7 +80,7 @@ def chat():
 
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
-    # Respond to preflight OPTIONS requests for CORS
+    # Respond to preflight OPTIONS requests
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
@@ -98,17 +107,14 @@ def estimate():
         price_per_sqft = pricing_info["cost"]
         color_total_sqft = pricing_info["total_sqft"]
 
-        # Calculate material cost (apply markup later based on job type)
+        # Calculate material cost and adjustments
         material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
             material_cost *= 1.10  # add 10% for demo
-
-        # Calculate sink and cooktop costs
         sink_cost = sink_qty * (150 if sink_type.lower() == "premium" else 100)
         cooktop_cost = cooktop_qty * (160 if cooktop_type.lower() == "premium" else 120)
         backsplash_cost = total_sq_ft * 20 if backsplash.lower() == "yes" else 0
 
-        # Adjust material cost for edge details
         if edge_detail.lower() == "premium":
             multiplier = 1.05
         elif edge_detail.lower() == "custom":
@@ -119,7 +125,7 @@ def estimate():
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        # Calculate slab count using a 20% waste factor:
+        # Calculate slab count (accounting for 20% waste)
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
