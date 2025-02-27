@@ -16,6 +16,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
 
+# Set the API key for the OpenAI library
 openai.api_key = OPENAI_API_KEY
 
 def get_pricing_data():
@@ -30,8 +31,9 @@ def get_pricing_data():
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
     csv_text = response.text
+    # Assuming the CSV is tab-delimited based on header formatting:
     csv_file = StringIO(csv_text)
-    reader = csv.DictReader(csv_file)
+    reader = csv.DictReader(csv_file, delimiter="\t")
     pricing = {}
     for row in reader:
         color = row["Color Name"].strip().lower()
@@ -97,15 +99,17 @@ def estimate():
         price_per_sqft = pricing_info["cost"]
         color_total_sqft = pricing_info["total_sqft"]
 
-        # Calculate material cost and adjustments
+        # Calculate material cost (apply markup later based on job type)
         material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
             material_cost *= 1.10  # add 10% for demo
 
+        # Calculate sink and cooktop costs
         sink_cost = sink_qty * (150 if sink_type.lower() == "premium" else 100)
         cooktop_cost = cooktop_qty * (160 if cooktop_type.lower() == "premium" else 120)
         backsplash_cost = total_sq_ft * 20 if backsplash.lower() == "yes" else 0
 
+        # Adjust material cost for edge details
         if edge_detail.lower() == "premium":
             multiplier = 1.05
         elif edge_detail.lower() == "custom":
@@ -116,11 +120,11 @@ def estimate():
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        # Calculate slab count using a 20% waste factor:
+        # Calculate slab count using a 20% waste factor
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
-        # Build prompt for GPT‑4 narrative estimate
+        # Build prompt for GPT-4 narrative estimate
         prompt = (
             f"Customer: {data.get('customerName', 'N/A')}\n"
             f"Job Name: {data.get('jobName', 'N/A')}\n"
