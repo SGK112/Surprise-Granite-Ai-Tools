@@ -8,16 +8,16 @@ import math
 
 app = Flask(__name__)
 
-# Define the approved origins exactly as they appear in the browser
+# Approved domains exactly as they appear in the browser
 approved_origins = [
     "https://www.surprisegranite.com",
     "https://www.remodely.ai"
 ]
 
-# Enable CORS for all routes for these domains
+# Enable CORS for all routes for the approved origins
 CORS(app, resources={r"/*": {"origins": approved_origins}})
 
-# Load the OpenAI API Key from environment variables
+# Load OpenAI API Key from environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
@@ -31,11 +31,11 @@ def get_pricing_data():
       Color Name, Vendor Name, Thickness, Material, size, Total/SqFt, Cost/SqFt, Price Group, Tier
     We use the lowercased "Color Name" as the key and store:
       - "cost": Cost per square foot (float)
-      - "total_sqft": Total square footage available per color option (float)
+      - "total_sqft": The slab area for that color option (float)
     """
-    url = (
-        "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
-    )
+    url = ("https://docs.google.com/spreadsheets/d/e/"
+           "2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh"
+           "/pub?output=csv")
     response = requests.get(url)
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
@@ -70,7 +70,7 @@ def chat():
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful remodeling assistant."},
+                {"role": "system", "content": "You are a helpful remodeling assistant for Surprise Granite."},
                 {"role": "user", "content": user_input}
             ]
         )
@@ -89,7 +89,7 @@ def estimate():
         return jsonify({"error": "Missing project data"}), 400
 
     try:
-        # Extract and process input data
+        # Extract input data
         total_sq_ft = float(data.get("totalSqFt"))
         vendor = data.get("vendor", "default vendor")
         color = data.get("color", "").strip().lower()
@@ -100,24 +100,24 @@ def estimate():
         cooktop_type = data.get("cooktopType", "standard")
         backsplash = data.get("backsplash", "no")
         edge_detail = data.get("edgeDetail", "standard")
+        job_name = data.get("jobName", "N/A")
+        job_type = data.get("jobType", "fabricate and install")
+        customer_name = data.get("customerName", "Valued Customer")
 
-        # Get live pricing data from the CSV
+        # Get live pricing data from CSV
         pricing_data = get_pricing_data()
         pricing_info = pricing_data.get(color, {"cost": 50, "total_sqft": 100})
         price_per_sqft = pricing_info["cost"]
         color_total_sqft = pricing_info["total_sqft"]
 
-        # Calculate material cost and adjust for demo if needed
+        # Calculate material cost and adjustments
         material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
-            material_cost *= 1.10
-
-        # Calculate additional costs
+            material_cost *= 1.10  # add 10% for demo
         sink_cost = sink_qty * (150 if sink_type.lower() == "premium" else 100)
         cooktop_cost = cooktop_qty * (160 if cooktop_type.lower() == "premium" else 120)
         backsplash_cost = total_sq_ft * 20 if backsplash.lower() == "yes" else 0
 
-        # Adjust material cost based on edge detail
         if edge_detail.lower() == "premium":
             multiplier = 1.05
         elif edge_detail.lower() == "custom":
@@ -126,41 +126,60 @@ def estimate():
             multiplier = 1.0
         material_cost *= multiplier
 
-        # Preliminary total cost
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        # Calculate slab count using a 20% waste factor
+        # Calculate slab count (accounting for 20% waste)
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
-        # Build a prompt for GPT‑4 to generate a detailed narrative estimate
+        # Determine labor rate based on job type and material category
+        # For simplicity, assume:
+        # - "fabricate and install": Granite/Quartz: $45, Quartzite/Marble: $65, Dekton/Porcelain: $85 per sq ft
+        # - "slab only": add 35% markup instead of 30%
+        if job_type.lower() == "slab only":
+            markup = 1.35
+        else:
+            markup = 1.30
+
+        # Here you might determine the labor rate based on vendor/material specifics.
+        # For this example, we use a base labor rate and then apply the markup.
+        base_labor_rate = 45  # default for Granite/Quartz
+        # (You could extend this logic based on more specific inputs.)
+
+        labor_cost = total_sq_ft * base_labor_rate * markup
+
+        total_project_cost = preliminary_total + labor_cost
+        final_cost_per_sqft = (total_project_cost / total_sq_ft).toFixed(2) if total_sq_ft else "0.00"
+
+        # Build a detailed prompt for GPT‑4 to generate a professional estimate
         prompt = (
-            f"Customer: {data.get('customerName', 'N/A')}\n"
-            f"Job Name: {data.get('jobName', 'N/A')}\n"
-            f"Job Type: {data.get('jobType', 'fabricate and install')}\n"
+            f"Surprise Granite Detailed Estimate\n\n"
+            f"Customer: Mr./Ms. {customer_name}\n"
+            f"Job Name: {job_name}\n"
+            f"Job Type: {job_type}\n"
             f"Project Area: {total_sq_ft} sq ft (with 20% waste: {effective_sq_ft:.2f} sq ft)\n"
             f"Vendor: {vendor}\n"
-            f"Color: {color.title()}\n"
-            f"Demo Required: {demo}\n"
-            f"Sink Count: {sink_qty} ({sink_type})\n"
-            f"Cooktop Count: {cooktop_qty} ({cooktop_type})\n"
-            f"Backsplash: {backsplash}\n"
-            f"Edge Detail: {edge_detail}\n"
+            f"Material (Color): {color.title()}\n"
             f"Price per Sq Ft for {color.title()}: ${price_per_sqft:.2f}\n"
             f"Material Cost: ${material_cost:.2f}\n"
-            f"Sink Cost: ${sink_cost:.2f}\n"
-            f"Cooktop Cost: ${cooktop_cost:.2f}\n"
+            f"Sink Count: {sink_qty} ({sink_type}), Cost: ${sink_cost:.2f}\n"
+            f"Cooktop Count: {cooktop_qty} ({cooktop_type}), Cost: ${cooktop_cost:.2f}\n"
             f"Backsplash Cost: ${backsplash_cost:.2f}\n"
-            f"Preliminary Total: ${preliminary_total:.2f}\n"
-            f"Slab Count: {slab_count}\n\n"
-            "Generate a detailed, professional estimate that includes a breakdown of material and labor costs, "
-            "installation notes, and a personalized message for the customer."
+            f"Number of Slabs Needed: {slab_count} (Each slab: {color_total_sqft} sq ft)\n"
+            f"Preliminary Total (Materials): ${preliminary_total:.2f}\n"
+            f"Labor Cost (at base rate ${base_labor_rate} per sq ft with markup {int((markup-1)*100)}%): ${labor_cost:.2f}\n"
+            f"Total Project Cost: ${total_project_cost:.2f}\n"
+            f"Final Cost Per Sq Ft: ${final_cost_per_sqft}\n\n"
+            "Using the above pricing details from Surprise Granite, generate a comprehensive, professional, "
+            "and detailed written estimate that includes a breakdown of material and labor costs, installation notes, "
+            "and a personalized closing message addressing the customer by name. "
+            "Ensure that the estimate is specific to Surprise Granite pricing and does not include generic information."
         )
 
         ai_response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert estimator in remodeling and construction."},
+                {"role": "system", "content": "You are an expert estimator at Surprise Granite. Provide a highly detailed and professional estimate strictly based on Surprise Granite pricing details."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -172,6 +191,7 @@ def estimate():
                 "sink_cost": sink_cost,
                 "cooktop_cost": cooktop_cost,
                 "backsplash_cost": backsplash_cost,
+                "labor_cost": labor_cost,
                 "preliminary_total": preliminary_total,
                 "slab_count": slab_count
             },
