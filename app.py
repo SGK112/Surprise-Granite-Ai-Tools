@@ -16,7 +16,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key. Please set it in environment variables.")
 
-# Set the API key for the OpenAI library
 openai.api_key = OPENAI_API_KEY
 
 def get_pricing_data():
@@ -24,16 +23,16 @@ def get_pricing_data():
     Fetch pricing data from the Google Sheets CSV.
     Expected CSV columns:
       Color Name, Vendor Name, Thickness, Material, size, Total/SqFt, Cost/SqFt, Price Group, Tier
-    We use the lowercased "Color Name" as the key and store both the cost per sq ft and the Total/SqFt.
+    The pricing data is stored in a dictionary keyed by the lowercased "Color Name".
     """
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv"
     response = requests.get(url)
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
     csv_text = response.text
-    # Assuming the CSV is tab-delimited based on header formatting:
     csv_file = StringIO(csv_text)
-    reader = csv.DictReader(csv_file, delimiter="\t")
+    # Parse CSV assuming comma-separated values
+    reader = csv.DictReader(csv_file)
     pricing = {}
     for row in reader:
         color = row["Color Name"].strip().lower()
@@ -120,11 +119,11 @@ def estimate():
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
 
-        # Calculate slab count using a 20% waste factor
+        # Calculate slab count using a 20% waste factor:
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
 
-        # Build prompt for GPT-4 narrative estimate
+        # Build prompt for GPT‑4 narrative estimate
         prompt = (
             f"Customer: {data.get('customerName', 'N/A')}\n"
             f"Job Name: {data.get('jobName', 'N/A')}\n"
