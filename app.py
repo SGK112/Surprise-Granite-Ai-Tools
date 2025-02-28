@@ -144,12 +144,11 @@ def estimate():
         # Here you might determine the labor rate based on vendor/material specifics.
         # For this example, we use a base labor rate and then apply the markup.
         base_labor_rate = 45  # default for Granite/Quartz
-        # (You could extend this logic based on more specific inputs.)
 
         labor_cost = total_sq_ft * base_labor_rate * markup
 
         total_project_cost = preliminary_total + labor_cost
-        final_cost_per_sqft = (total_project_cost / total_sq_ft).toFixed(2) if total_sq_ft else "0.00"
+        final_cost_per_sqft = f"{(total_project_cost / total_sq_ft):.2f}" if total_sq_ft else "0.00"
 
         # Build a detailed prompt for GPT‑4 to generate a professional estimate
         prompt = (
@@ -196,6 +195,79 @@ def estimate():
                 "slab_count": slab_count
             },
             "estimate": narrative
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/millwork-estimate", methods=["POST", "OPTIONS"])
+def millwork_estimate():
+    # Handle preflight OPTIONS requests for CORS
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    data = request.json
+    required_fields = ["roomLength", "roomWidth", "cabinetStyle", "woodType"]
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"error": f"Missing {field}"}), 400
+
+    try:
+        # Extract and parse inputs
+        room_length = float(data.get("roomLength"))
+        room_width = float(data.get("roomWidth"))
+        cabinet_style = data.get("cabinetStyle").strip().lower()
+        wood_type = data.get("woodType").strip().lower()
+
+        # Calculate area
+        area = room_length * room_width
+
+        # Base cost per square foot for millwork (example value)
+        base_cost = 50.0
+
+        # Determine multipliers based on cabinet style
+        style_multiplier = 1.0
+        if cabinet_style == "modern":
+            style_multiplier = 1.2
+        elif cabinet_style == "traditional":
+            style_multiplier = 1.1
+
+        # Determine multipliers based on wood type
+        wood_multiplier = 1.0
+        if wood_type == "oak":
+            wood_multiplier = 1.3
+        elif wood_type == "maple":
+            wood_multiplier = 1.2
+
+        # Calculate the estimated cost
+        estimated_cost = area * base_cost * style_multiplier * wood_multiplier
+
+        # Build a detailed prompt for GPT‑4
+        prompt = (
+            f"Millwork Estimate Details:\n"
+            f"Room dimensions: {room_length} ft x {room_width} ft (Area: {area} sq ft)\n"
+            f"Cabinet Style: {cabinet_style.title()}\n"
+            f"Wood Type: {wood_type.title()}\n"
+            f"Base cost per sq ft: ${base_cost:.2f}\n"
+            f"Style Multiplier: {style_multiplier}\n"
+            f"Wood Multiplier: {wood_multiplier}\n"
+            f"Calculated Estimated Cost: ${estimated_cost:.2f}\n\n"
+            "Please provide a comprehensive, professional, and friendly written estimate for millwork services based on the above details."
+        )
+
+        # Generate narrative estimate with GPT‑4
+        ai_response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a professional millwork estimator."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        narrative = ai_response.choices[0].message.content
+
+        return jsonify({
+            "area": area,
+            "estimatedCost": estimated_cost,
+            "narrative": narrative
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
