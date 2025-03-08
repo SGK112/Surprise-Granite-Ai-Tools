@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My AI Calculator</title>
+  <!-- Link to your CSS file -->
+  <link rel="stylesheet" href="calc.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>My AI Calculator</h1>
+    <!-- Example form or filter UI -->
+    <form class="filter-form" onsubmit="return false;">
+      <label for="tierSelect">Tier:</label>
+      <select id="tierSelect">
+        <option value="">All</option>
+        <option value="Low Tier">Low Tier</option>
+        <option value="Medium Tier">Medium Tier</option>
+        <option value="High Tier">High Tier</option>
+      </select>
+      <button type="button" onclick="applyFilter()">Filter</button>
+    </form>
+    
+    <!-- The table for displaying your data -->
+    <table id="priceTable"></table>
+  </div>
+
+  <!-- Link to your JavaScript file -->
+  <script src="calc.js"></script>
+  <script>
+    // Example function to apply a filter using the PriceCalculator class
+    function applyFilter() {
+      const tierValue = document.getElementById("tierSelect").value;
+      if (window.calc) {
+        window.calc.filterData({ tier: tierValue });
+      }
+    }
+  </script>
+</body>
+</html>
