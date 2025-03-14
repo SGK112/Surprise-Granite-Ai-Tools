@@ -2,39 +2,1081 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My AI Calculator</title>
-  <!-- Link to your CSS file -->
-  <link rel="stylesheet" href="calc.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Surprise Granite - Chatbot &amp; Countertop Estimator</title>
+  <style>
+    /* ---------------- Chatbot Styles ---------------- */
+    #chatBubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 28px;
+      font-size: 18px;
+      cursor: pointer;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      animation: breathe 2s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+    #chatModal {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      width: 360px;
+      max-height: 500px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+    }
+    #chatModal header {
+      background: #007BFF;
+      color: #fff;
+      padding: 12px;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #chatModal header h3 {
+      margin: 0;
+      font-size: 20px;
+    }
+    #chatModal header button {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    #chatContent {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      border-top: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+    }
+    #chatInputArea {
+      display: flex;
+      padding: 12px;
+    }
+    #chatInputArea input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    #chatInputArea button {
+      margin-left: 8px;
+      padding: 10px 16px;
+      border: none;
+      background: #007BFF;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .chat-message {
+      margin-bottom: 10px;
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      clear: both;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .chat-message.assistant {
+      background-color: #e0e0e0;
+      float: left;
+      border-bottom-left-radius: 0;
+    }
+    .chat-message.user {
+      background-color: #007BFF;
+      color: #fff;
+      float: right;
+      border-bottom-right-radius: 0;
+    }
+
+    /* ---------------- Estimator Page Styles ---------------- */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      color: #333;
+      line-height: 1.6;
+      scroll-behavior: smooth;
+    }
+    .container {
+      width: 90%;
+      max-width: 960px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      margin-top: 0;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+      background: linear-gradient(45deg, #007bff, #00bfff);
+      border-radius: 6px;
+    }
+    h2, h3, h4 { margin-top: 0; color: #222; }
+    p { margin: 10px 0; }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: bold;
+    }
+    label.required::after { content: " *"; color: red; }
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    select, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #0056b3;
+      box-shadow: 0 0 5px rgba(0,123,255,0.5);
+    }
+    .flex-row {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    @media (min-width: 600px) { .flex-row { flex-direction: row; } }
+    .flex-col { flex: 1; min-width: 240px; }
+    button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: background 0.3s;
+    }
+    button:hover { background: #0056b3; }
+    .section-divider {
+      margin: 30px 0 10px;
+      border: none;
+      border-top: 1px solid #ccc;
+    }
+    .output-container {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .print-btn { display: inline-block; margin-top: 10px; }
+    .loading {
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #007bff;
+    }
+    .loading:before {
+      content: "";
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 3px solid rgba(0,123,255,0.3);
+      border-radius: 50%;
+      border-top-color: #007bff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .checkbox-container {
+      display: inline-block;
+      position: relative;
+      padding-left: 30px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 1rem;
+    }
+    .checkbox-container input {
+      position: absolute;
+      opacity: 0;
+      height: 0;
+      width: 0;
+    }
+    .checkbox-checkmark {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 20px;
+      width: 20px;
+      background-color: #ccc;
+      border-radius: 4px;
+    }
+    .checkbox-container:hover input ~ .checkbox-checkmark {
+      background-color: #b3d7ff;
+    }
+    .checkbox-container input:checked ~ .checkbox-checkmark {
+      background-color: #007bff;
+    }
+    .checkbox-container .checkbox-checkmark:after {
+      content: "";
+      position: absolute;
+      display: none;
+    }
+    .checkbox-container input:checked ~ .checkbox-checkmark:after {
+      display: block;
+    }
+    .checkbox-container .checkbox-checkmark:after {
+      left: 6px;
+      top: 2px;
+      width: 5px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+    #previousEstimates {
+      margin-top: 20px;
+      background: #fafafa;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    #previousEstimates h3 { margin-top: 0; color: #444; }
+    #estimateList .estimate-snippet {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 8px;
+      margin-bottom: 6px;
+      border-radius: 4px;
+    }
+    .snippet-details { font-size: 0.9rem; color: #333; }
+    .view-btn {
+      background: #28a745;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .view-btn:hover { background: #218838; }
+    #locationDisplay { display: none; }
+  </style>
 </head>
 <body>
+  <!-- ---------------- Estimator Section ---------------- -->
   <div class="container">
-    <h1>My AI Calculator</h1>
-    <!-- Example form or filter UI -->
-    <form class="filter-form" onsubmit="return false;">
-      <label for="tierSelect">Tier:</label>
-      <select id="tierSelect">
-        <option value="">All</option>
-        <option value="Low Tier">Low Tier</option>
-        <option value="Medium Tier">Medium Tier</option>
-        <option value="High Tier">High Tier</option>
-      </select>
-      <button type="button" onclick="applyFilter()">Filter</button>
-    </form>
+    <h1>Surprise Granite Countertop Estimator</h1>
+    <p>Fill in your details and generate your estimate. When you click Print/Save, only the generated estimate (with our full Terms &amp; Conditions in the footer) will be printed.</p>
     
-    <!-- The table for displaying your data -->
-    <table id="priceTable"></table>
+    <!-- Dummy location display -->
+    <div id="locationDisplay"></div>
+    
+    <!-- Loading Message -->
+    <div id="loadingMsg" class="loading">Loading material data... Please wait.</div>
+    
+    <!-- Customer Information -->
+    <div class="section" id="customerInfo">
+      <h2>Your Information</h2>
+      <div class="flex-row">
+        <div class="flex-col">
+          <label for="customerName" class="required">Name</label>
+          <input type="text" id="customerName" placeholder="Your full name" required />
+        </div>
+        <div class="flex-col">
+          <label for="customerPhone">Phone Number</label>
+          <input type="text" id="customerPhone" placeholder="(555) 123-4567" />
+        </div>
+        <div class="flex-col">
+          <label for="customerEmail" class="required">Email Address</label>
+          <input type="email" id="customerEmail" placeholder="you@example.com" required />
+        </div>
+      </div>
+      <div class="flex-row">
+        <div class="flex-col">
+          <label for="projectAddress">Project Address</label>
+          <input type="text" id="projectAddress" placeholder="123 Main St, City, State" />
+        </div>
+      </div>
+    </div>
+    
+    <hr class="section-divider" />
+    
+    <!-- Project Details -->
+    <div class="section" id="projectDetails">
+      <h2>Project Details</h2>
+      <!-- Slab Only Checkbox -->
+      <label class="checkbox-container">Slab Only (No Labor/Installation)
+        <input type="checkbox" id="slabOnly" onchange="toggleSlabSection()" />
+        <span class="checkbox-checkmark"></span>
+      </label>
+      <div class="flex-row">
+        <div class="flex-col">
+          <label for="markupType" class="required">Pricing Type</label>
+          <select id="markupType">
+            <option value="retail">Retail (35% Markup)</option>
+            <option value="contractor">Contractor (20% Markup)</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex-row">
+        <div class="flex-col">
+          <label for="vendorSelect" class="required">Stone Vendor</label>
+          <select id="vendorSelect" onchange="populateColors()">
+            <option value="">-- Select Vendor --</option>
+          </select>
+        </div>
+        <div class="flex-col">
+          <label for="colorSelect" class="required">Stone Color</label>
+          <select id="colorSelect">
+            <option value="">-- Select Color --</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Slab Only Section -->
+      <div id="slabOnlySection" style="display:none;">
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="slabCount">Number of Slabs Needed</label>
+            <input type="number" id="slabCount" placeholder="e.g., 1" min="1" value="1" />
+          </div>
+          <div class="flex-col">
+            <label for="deliveryMethod">Delivery Method</label>
+            <select id="deliveryMethod">
+              <option value="0">Local Pickup (Free)</option>
+              <option value="200">Delivery (+$200)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Labor & Installation Section -->
+      <div id="laborInstallSection">
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="laborTier" class="required">Labor Cost ($/sq ft)</label>
+            <select id="laborTier">
+              <option value="45">45 (Standard)</option>
+              <option value="65">65 (Mid-Range)</option>
+              <option value="85">85 (Premium)</option>
+            </select>
+          </div>
+          <div class="flex-col">
+            <label for="squareFootage" class="required">Approx. Square Footage</label>
+            <input type="number" id="squareFootage" placeholder="e.g., 50" min="1" />
+          </div>
+        </div>
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="demoSqft">Demo Option (Cost per Sq Ft)</label>
+            <select id="demoSqft">
+              <option value="0">No Demo</option>
+              <option value="5">$5.00 × Approx Sq Ft</option>
+              <option value="10">$10.00 × Approx Sq Ft</option>
+              <option value="15">$15.00 × Approx Sq Ft</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="backsplashLinearFt">Backsplash Linear Feet</label>
+            <input type="number" id="backsplashLinearFt" placeholder="Enter linear feet" min="0" step="0.1" />
+          </div>
+          <div class="flex-col">
+            <label for="backsplashHeight">Backsplash Height</label>
+            <select id="backsplashHeight" onchange="toggleFullHeightInput()">
+              <option value="0">No Backsplash</option>
+              <option value="4">4″</option>
+              <option value="6">6″</option>
+              <option value="18">18″</option>
+              <option value="full">Full Height</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex-row" id="fullHeightRow" style="display:none;">
+          <div class="flex-col">
+            <label for="backsplashFullHeight">Enter Full Height (in inches)</label>
+            <input type="number" id="backsplashFullHeight" placeholder="Enter height in inches" min="0" step="0.1" />
+          </div>
+        </div>
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="bathroomSinks"># of Bathroom Sinks (Up to 3 = $550; each extra +$50)</label>
+            <input type="number" id="bathroomSinks" placeholder="e.g., 2" min="0" />
+          </div>
+          <div class="flex-col">
+            <label for="kitchenReconnect">Kitchen Reconnect?</label>
+            <select id="kitchenReconnect">
+              <option value="0">No</option>
+              <option value="750">Yes - $750</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex-row">
+          <div class="flex-col">
+            <label for="cooktopInstallation">Cooktop Installation?</label>
+            <select id="cooktopInstallation">
+              <option value="0">No</option>
+              <option value="250">Yes (+$250)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <label for="additionalNotes">Additional Project Notes</label>
+      <textarea id="additionalNotes" rows="3" placeholder="e.g., special requests..."></textarea>
+    </div>
+    
+    <hr class="section-divider" />
+    
+    <!-- Representative Information -->
+    <div class="section" id="repInfo">
+      <h2>Representative Information</h2>
+      <div class="flex-row">
+        <div class="flex-col">
+          <label for="repName">Rep Name</label>
+          <input type="text" id="repName" placeholder="Enter rep name" />
+        </div>
+        <div class="flex-col">
+          <label for="repPhone">Rep Phone Number</label>
+          <input type="text" id="repPhone" placeholder="Enter rep phone number" />
+        </div>
+      </div>
+    </div>
+    
+    <hr class="section-divider" />
+    
+    <!-- Action Buttons -->
+    <div class="section">
+      <button onclick="generateEstimate()">Generate Estimate</button>
+      <button type="button" onclick="clearForm()">Clear Form</button>
+    </div>
+    
+    <!-- Estimate Output -->
+    <div class="output-container" id="estimateOutput" style="display:none;">
+      <div id="estimateContent"></div>
+      <div>
+        <button id="printBtn" class="print-btn" onclick="printEstimate()">Print/Save</button>
+      </div>
+    </div>
+    
+    <!-- Previous Estimates -->
+    <div id="previousEstimates">
+      <h3>Previous Estimates</h3>
+      <div id="estimateList"></div>
+    </div>
   </div>
-
-  <!-- Link to your JavaScript file -->
-  <script src="calc.js"></script>
+  
+  <!-- ---------------- Chatbot Section ---------------- -->
+  <button id="chatBubble">Chat</button>
+  <div id="chatModal">
+    <header>
+      <h3>Assistant</h3>
+      <button id="closeModal">&times;</button>
+    </header>
+    <div id="chatContent">
+      <div class="chat-message assistant">Hello! How can I help you today?</div>
+    </div>
+    <div id="chatInputArea">
+      <input type="text" id="chatInputField" placeholder="Type your message..." />
+      <button id="sendChatBtn">Send</button>
+    </div>
+  </div>
+  
+  <!-- ---------------- Combined JavaScript ---------------- -->
   <script>
-    // Example function to apply a filter using the PriceCalculator class
-    function applyFilter() {
-      const tierValue = document.getElementById("tierSelect").value;
-      if (window.calc) {
-        window.calc.filterData({ tier: tierValue });
+    /* ----- Chatbot Script ----- */
+    const BASE_URL = "https://chatbot.surprisegranite.com";
+    const chatBubble = document.getElementById('chatBubble');
+    const chatModal = document.getElementById('chatModal');
+    const closeModal = document.getElementById('closeModal');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const chatInputField = document.getElementById('chatInputField');
+    const chatContent = document.getElementById('chatContent');
+
+    chatBubble.addEventListener('click', () => {
+      chatModal.style.display = (chatModal.style.display === 'flex') ? 'none' : 'flex';
+    });
+
+    closeModal.addEventListener('click', () => {
+      chatModal.style.display = 'none';
+    });
+
+    function appendMessage(text, sender = 'assistant') {
+      const msg = document.createElement('div');
+      msg.classList.add('chat-message', sender);
+      msg.textContent = text;
+      chatContent.appendChild(msg);
+      chatContent.scrollTop = chatContent.scrollHeight;
+    }
+
+    async function sendChatMessage(message) {
+      try {
+        const response = await fetch(BASE_URL + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: message })
+        });
+        if (!response.ok) {
+          throw new Error("HTTP error! status: " + response.status);
+        }
+        const data = await response.json();
+        return data.response;
+      } catch (error) {
+        console.error("Error sending chat message:", error);
+        return "Sorry, something went wrong.";
       }
+    }
+
+    sendChatBtn.addEventListener('click', async () => {
+      const userMsg = chatInputField.value.trim();
+      if (!userMsg) return;
+      appendMessage(userMsg, 'user');
+      chatInputField.value = '';
+      const responseText = await sendChatMessage(userMsg);
+      appendMessage(responseText, 'assistant');
+    });
+
+    chatInputField.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        sendChatBtn.click();
+      }
+    });
+
+    /* ----- Estimator Script ----- */
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv";
+    let stoneData = {};
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchCSVData();
+      loadPreviousEstimates();
+    });
+    
+    async function fetchCSVData() {
+      try {
+        const loadingMsg = document.getElementById("loadingMsg");
+        const res = await fetch(CSV_URL);
+        if (!res.ok) throw new Error("Failed to fetch CSV");
+        const csvText = await res.text();
+        const lines = csvText.trim().split(/\r?\n/);
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].split(",");
+          if (row.length < 9) continue;
+          const colorName = row[0]?.trim() || "";
+          const vendorName = row[1]?.trim() || "";
+          const thickness = row[2]?.trim() || "";
+          const matType = row[3]?.trim() || "";
+          const totalSqFt = parseFloat(row[5]?.trim()) || 0;
+          const costSqFt = parseFloat(row[6]?.trim()) || 0;
+          const priceGroup = row[7]?.trim() || "";
+          const tier = row[8]?.trim() || "";
+          if (!vendorName) continue;
+          if (!stoneData[vendorName]) stoneData[vendorName] = [];
+          stoneData[vendorName].push({
+            color: colorName,
+            materialType: matType,
+            basePrice: costSqFt,
+            slabSize: totalSqFt,
+            thickness: thickness,
+            priceGroup: priceGroup,
+            tier: tier
+          });
+        }
+        populateVendors();
+        loadingMsg.classList.add("hidden");
+      } catch (err) {
+        console.error("Error loading CSV data:", err);
+        document.getElementById("loadingMsg").textContent = "Error loading material data.";
+      }
+    }
+    
+    function populateVendors() {
+      const vendorSelect = document.getElementById("vendorSelect");
+      vendorSelect.innerHTML = '<option value="">-- Select Vendor --</option>';
+      const vendors = Object.keys(stoneData).sort();
+      vendors.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        vendorSelect.appendChild(opt);
+      });
+    }
+    
+    function populateColors() {
+      const vendor = document.getElementById("vendorSelect").value;
+      const colorSelect = document.getElementById("colorSelect");
+      colorSelect.innerHTML = '<option value="">-- Select Color --</option>';
+      if (vendor && stoneData[vendor]) {
+        stoneData[vendor].forEach(item => {
+          const opt = document.createElement("option");
+          opt.value = item.color;
+          let thicknessDisplay = item.thickness;
+          if (thicknessDisplay && !thicknessDisplay.toLowerCase().endsWith("cm")) {
+            thicknessDisplay += "cm";
+          }
+          opt.textContent = `${item.color} (${item.materialType}, $${item.basePrice.toFixed(2)}/sqft, Slab~${item.slabSize}, Thickness: ${thicknessDisplay || "N/A"})`;
+          opt.setAttribute("data-thickness", item.thickness);
+          colorSelect.appendChild(opt);
+        });
+      }
+    }
+    
+    function formatCurrency(value) {
+      return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    }
+    
+    const taxRate = 0.0825;
+    const setupFee = 250;
+    const termsAndConditions = `
+TERMS AND CONDITIONS (Updated 01/11/2025):
+
+This agreement is made in accordance with the laws of the State of Arizona and becomes legally binding upon execution by both parties. The services listed in the Scope of Work (SOW) are offered as a bundled package, with pricing based on all items being provided together. Changes, exclusions, or additions to the SOW require written agreement and may affect the overall project cost and timeline. Any changes after signing the contract must be documented through a written Change Order approved by Surprise Granite. Materials and labor are allocated specifically for your project upon signing, and any delays or additional costs caused by changes or cancellations are the Client’s responsibility. Frequent changes, additions, or cancellations may result in added labor, material, and administrative charges.
+
+Surprise Granite is not responsible for moving furniture, fixtures, or appliances that may obstruct the workspace. Clients must ensure the area is clear before work begins. Additionally, Clients are responsible for ensuring that angle stops and shut-off valves are functional prior to the start of the project. Surprise Granite may address such issues for an additional fee. A non-refundable setup fee of $250 is required to ensure accurate estimates and quality installation, and this fee will be credited toward the total project balance once the contract is signed. Clients are also responsible for paint and drywall touch-ups unless explicitly included in the SOW. Temporary facilities required for the project must be provided and maintained by the Client unless specified otherwise.
+
+Surprise Granite will take all reasonable precautions when performing services such as cutting granite, installing sinks, repairing cracks or fissures, or other work. However, due to the nature of the work, the Client acknowledges that additional damages may occur. Surprise Granite is not liable for pre-existing issues, unforeseen damages arising during the work, or defects in Client-supplied materials. Furthermore, slight variations in material color, texture, and veining are natural and do not constitute defects. The Client must inspect the completed work upon notification of project completion and raise any concerns in writing within three business days. Failure to do so constitutes acceptance of the work.
+
+Payment terms are as follows: a 60% deposit is required upon signing the contract to cover material procurement and labor scheduling. A payment of 20% is due upon material delivery, with the remaining 20% due upon project completion. Non-payment of any installment may result in a lien being filed in accordance with Arizona Revised Statutes (ARS) § 33-981, securing Surprise Granite's right to payment for services rendered. Refund requests are evaluated on a case-by-case basis due to the customized nature of the services provided.
+
+Surprise Granite is not responsible for remnants of material left after the project is completed unless specific arrangements are made in writing prior to installation. The company provides a lifetime installation guarantee for residential projects and a minimum two-year warranty on structural work as required by ARS § 12-1365. Commercial projects carry a limited professional guarantee. No warranty is provided for the design, color, or texture of materials. Disputes may be mediated with mutual written consent, but payment disputes may proceed directly to litigation as allowed under ARS § 12-1501. All disputes will be governed by Arizona law, with Maricopa County as the venue for litigation.
+
+Surprise Granite will perform basic cleanup of the work area upon project completion, including removing debris directly related to the installation or remodeling. Additional cleaning or debris removal is the Client’s responsibility unless otherwise specified in the SOW. If the Client delays the project or restricts access to the premises, additional charges may apply for rescheduling or storage of materials. Surprise Granite is not responsible for personal belongings left in the workspace. Clients must remove or secure items to prevent accidental damage.
+
+If hazardous materials such as asbestos or lead are discovered during the project, work will halt immediately. The Client is responsible for hiring certified remediation services before work resumes. Surprise Granite is not responsible for the identification, removal, or mitigation of hazardous materials.
+
+If a specified material becomes unavailable, Surprise Granite will notify the Client immediately and provide alternative options. Any changes in cost or timeline resulting from material substitutions will be documented in a Change Order. The Client agrees not to solicit or hire any subcontractor or employee of Surprise Granite for services outside this agreement for a period of one year following project completion.
+
+This document constitutes the entire agreement between the parties and supersedes all prior agreements. By signing electronically, both parties confirm they have read and understood these terms. Electronic approval of the estimate serves as the Client’s acknowledgment of the binding nature of this contract and initiates invoicing and project execution.
+`;
+    
+    function generateEstimate() {
+      const name = document.getElementById("customerName").value.trim();
+      const vendor = document.getElementById("vendorSelect").value;
+      const color = document.getElementById("colorSelect").value;
+      
+      if (!name || !vendor || !color) {
+        alert("Please fill in Name, Vendor, and Stone Color.");
+        return;
+      }
+      
+      // Retrieve stone data.
+      const colorObj = (stoneData[vendor] || []).find(it => it.color === color);
+      if (!colorObj) {
+        alert("Selected stone data not found. Please re-check your selection.");
+        return;
+      }
+      const { basePrice, slabSize, thickness, materialType, priceGroup, tier } = colorObj;
+      const markupType = document.getElementById("markupType").value;
+      const markupPercent = (markupType === "retail") ? 0.35 : 0.20;
+      let finalMaterialPrice = basePrice * (1 + taxRate) * (1 + markupPercent);
+      if (thickness === "3") finalMaterialPrice *= 1.15;
+      
+      const repName = document.getElementById("repName").value.trim();
+      const repPhone = document.getElementById("repPhone").value.trim();
+      
+      let subTotal = 0, finalBase = 0, estimateHTML = "";
+      const slabOnly = document.getElementById("slabOnly").checked;
+      
+      if (slabOnly) {
+        const slabCount = parseInt(document.getElementById("slabCount").value) || 1;
+        const deliveryFee = parseFloat(document.getElementById("deliveryMethod").value) || 0;
+        const materialCost = slabCount * slabSize * finalMaterialPrice;
+        subTotal = materialCost + setupFee + deliveryFee;
+        finalBase = subTotal - setupFee;
+        estimateHTML = buildSlabOnlyHTML({
+          name,
+          phone: document.getElementById("customerPhone").value.trim(),
+          email: document.getElementById("customerEmail").value.trim(),
+          address: document.getElementById("projectAddress").value.trim(),
+          markupType,
+          vendor,
+          color,
+          thickness,
+          materialType,
+          priceGroup,
+          tier,
+          basePrice,
+          finalMaterialPrice,
+          slabCount,
+          slabSize,
+          deliveryFee,
+          subTotal,
+          finalBase,
+          repName,
+          repPhone
+        });
+      } else {
+        const sqft = parseFloat(document.getElementById("squareFootage").value) || 0;
+        if (sqft <= 0) {
+          alert("Please enter a valid Approx. Square Footage for labor-based projects.");
+          return;
+        }
+        const laborTier = parseFloat(document.getElementById("laborTier").value) || 0;
+        const demoMultiplier = parseFloat(document.getElementById("demoSqft").value) || 0;
+        const demoCost = sqft * demoMultiplier;
+        
+        const backsplashLinearFt = parseFloat(document.getElementById("backsplashLinearFt").value) || 0;
+        const backsplashHeightSelect = document.getElementById("backsplashHeight").value;
+        let backsplashHeightInInches = 0;
+        if (backsplashHeightSelect === "full") {
+          backsplashHeightInInches = parseFloat(document.getElementById("backsplashFullHeight").value) || 0;
+        } else {
+          backsplashHeightInInches = parseFloat(backsplashHeightSelect);
+        }
+        const backsplashArea = backsplashLinearFt * (backsplashHeightInInches / 12);
+        
+        const bathSinks = parseInt(document.getElementById("bathroomSinks").value) || 0;
+        let bathReconnectFee = 0;
+        if (bathSinks > 0) {
+          bathReconnectFee = (bathSinks <= 3) ? 550 : 550 + ((bathSinks - 3) * 50);
+        }
+        const kitchenFee = parseFloat(document.getElementById("kitchenReconnect").value) || 0;
+        const cooktopFee = parseFloat(document.getElementById("cooktopInstallation").value) || 0;
+        
+        const baseSqftWithWaste = sqft * 1.20;
+        const effectiveSqFt = baseSqftWithWaste + backsplashArea;
+        const usedSlabSize = (slabSize > 0) ? slabSize : effectiveSqFt;
+        const slabCount = Math.ceil(effectiveSqFt / usedSlabSize);
+        
+        const materialCost = slabCount * usedSlabSize * finalMaterialPrice;
+        const laborCost = laborTier * sqft;
+        const totalReconnect = bathReconnectFee + kitchenFee + cooktopFee;
+        
+        subTotal = materialCost + laborCost + totalReconnect + setupFee + demoCost;
+        finalBase = subTotal - setupFee;
+        estimateHTML = buildLaborHTML({
+          name,
+          phone: document.getElementById("customerPhone").value.trim(),
+          email: document.getElementById("customerEmail").value.trim(),
+          address: document.getElementById("projectAddress").value.trim(),
+          markupType,
+          vendor,
+          color,
+          thickness,
+          materialType,
+          priceGroup,
+          tier,
+          basePrice,
+          finalMaterialPrice,
+          slabSize,
+          slabCount,
+          usedSlabSize,
+          laborTier,
+          sqft,
+          baseSqftWithWaste,
+          demoCost,
+          backsplashArea,
+          bathReconnectFee,
+          kitchenFee,
+          cooktopFee,
+          subTotal,
+          finalBase,
+          repName,
+          repPhone
+        });
+      }
+      
+      document.getElementById("estimateContent").innerHTML = estimateHTML;
+      document.getElementById("estimateOutput").style.display = "block";
+      document.getElementById("estimateOutput").scrollIntoView({ behavior: 'smooth' });
+      
+      storeEstimateLocal(name, subTotal, estimateHTML);
+      loadPreviousEstimates();
+    }
+    
+    function buildSlabOnlyHTML(data) {
+      const { name, phone, email, address, markupType, vendor, color, thickness, materialType, priceGroup, tier, basePrice, finalMaterialPrice, slabCount, slabSize, deliveryFee, subTotal, finalBase, repName, repPhone } = data;
+      let thicknessDisplay = thickness;
+      if (thicknessDisplay && !thicknessDisplay.toLowerCase().endsWith("cm")) {
+        thicknessDisplay += "cm";
+      }
+      const deposit_60 = finalBase * 0.60;
+      const secondPayment_20 = finalBase * 0.20;
+      const finalPayment_20 = finalBase * 0.20;
+      
+      return `
+        <h2>Your Professional Estimate (Slab Only)</h2>
+        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <hr/>
+        <h3>Client &amp; Project Details</h3>
+        <p><strong>Name:</strong> ${name}</p>
+        ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
+        ${email ? `<p><strong>Email:</strong> ${email}</p>` : ""}
+        ${address ? `<p><strong>Address:</strong> ${address}</p>` : ""}
+        <hr/>
+        <h3>Stone Selection</h3>
+        <p>
+          <strong>Pricing Type:</strong> ${markupType === "retail" ? "Retail (35% Markup)" : "Contractor (20% Markup)"}<br/>
+          <strong>Vendor:</strong> ${vendor}<br/>
+          <strong>Stone Color:</strong> ${color} (Thickness: ${thicknessDisplay || "N/A"})<br/>
+          <strong>Material Type:</strong> ${materialType}<br/>
+          <strong>Price Group / Tier:</strong> ${(priceGroup || "N/A")} / ${(tier || "N/A")}<br/>
+          <strong>Base Price:</strong> ${formatCurrency(basePrice)}/sqft<br/>
+          <strong>Final Price (with tax &amp; markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
+        </p>
+        <p><strong>Slab Size (from CSV):</strong> ~${slabSize} sq ft per slab</p>
+        <p><strong># of Slabs Needed:</strong> ${slabCount}</p>
+        <hr/>
+        <h3>Cost Breakdown</h3>
+        <p><strong>Material Cost:</strong> ${formatCurrency(slabCount * slabSize * finalMaterialPrice)}</p>
+        <p><strong>Setup Fee:</strong> ${formatCurrency(setupFee)} (Credited upon signing)</p>
+        ${deliveryFee > 0 ? `<p><strong>Delivery Fee:</strong> ${formatCurrency(deliveryFee)}</p>` : "<p><strong>Local Pickup:</strong> Free</p>"}
+        <h4>Subtotal (Before Setup Credit): ${formatCurrency(subTotal)}</h4>
+        <hr/>
+        <h3>Representative Information</h3>
+        <p><strong>Rep Name:</strong> ${repName || "N/A"}</p>
+        <p><strong>Rep Phone:</strong> ${repPhone || "N/A"}</p>
+        <hr/>
+        <h3>Payment Schedule</h3>
+        <p>Setup fee of ${formatCurrency(setupFee)} is credited upon contract signing.<br/>
+           Subtotal After Credit: ${formatCurrency(finalBase)}</p>
+        <ul>
+          <li><strong>60% Deposit:</strong> ${formatCurrency(deposit_60)}</li>
+          <li><strong>20% at Material Delivery:</strong> ${formatCurrency(secondPayment_20)}</li>
+          <li><strong>20% at Project Completion:</strong> ${formatCurrency(finalPayment_20)}</li>
+        </ul>
+        <hr/>
+        <h3>Terms &amp; Conditions</h3>
+        <div class="terms">${termsAndConditions}</div>
+        <div class="signature-area">
+          <p><strong>Client Signature:</strong> __________________________ Date: ___________</p>
+          <p><strong>Surprise Granite Rep:</strong> _____________________ Date: ___________</p>
+        </div>
+      `;
+    }
+    
+    function buildLaborHTML(data) {
+      const { name, phone, email, address, markupType, vendor, color, thickness, materialType, priceGroup, tier, basePrice, finalMaterialPrice, slabSize, slabCount, usedSlabSize, laborTier, sqft, baseSqftWithWaste, demoCost, backsplashArea, bathReconnectFee, kitchenFee, cooktopFee, subTotal, finalBase, repName, repPhone } = data;
+      let thicknessDisplay = thickness;
+      if (thicknessDisplay && !thicknessDisplay.toLowerCase().endsWith("cm")) {
+        thicknessDisplay += "cm";
+      }
+      const deposit_60 = finalBase * 0.60;
+      const secondPayment_20 = finalBase * 0.20;
+      const finalPayment_20 = finalBase * 0.20;
+      const laborCost = laborTier * sqft;
+      const totalReconnect = bathReconnectFee + kitchenFee + cooktopFee;
+      
+      return `
+        <h2>Your Professional Estimate (Full Labor)</h2>
+        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <hr/>
+        <h3>Client &amp; Project Details</h3>
+        <p><strong>Name:</strong> ${name}</p>
+        ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
+        ${email ? `<p><strong>Email:</strong> ${email}</p>` : ""}
+        ${address ? `<p><strong>Address:</strong> ${address}</p>` : ""}
+        <hr/>
+        <h3>Stone Selection</h3>
+        <p>
+          <strong>Pricing Type:</strong> ${markupType === "retail" ? "Retail (35% Markup)" : "Contractor (20% Markup)"}<br/>
+          <strong>Vendor:</strong> ${vendor}<br/>
+          <strong>Stone Color:</strong> ${color} (Thickness: ${thicknessDisplay || "N/A"})<br/>
+          <strong>Material Type:</strong> ${materialType}<br/>
+          <strong>Price Group / Tier:</strong> ${(priceGroup || "N/A")} / ${(tier || "N/A")}<br/>
+          <strong>Base Price:</strong> ${formatCurrency(basePrice)}/sqft<br/>
+          <strong>Final Price (with tax &amp; markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
+        </p>
+        <p><strong>Approx Sq Ft (Entered):</strong> ${sqft} sq ft</p>
+        <p><strong>Base Area w/ 20% Waste:</strong> ${baseSqftWithWaste.toFixed(2)} sq ft</p>
+        <p><strong>Backsplash Area:</strong> ${backsplashArea.toFixed(2)} sq ft</p>
+        <p><strong>Total Effective Slab Count:</strong> ${slabCount} slab(s) × ${usedSlabSize} sq ft each</p>
+        <hr/>
+        <h3>Cost Breakdown</h3>
+        <p><strong>Material Cost:</strong> ${formatCurrency(slabCount * usedSlabSize * finalMaterialPrice)}</p>
+        <p><strong>Labor Cost:</strong> ${formatCurrency(laborCost)} (at $${laborTier}/sq ft)</p>
+        <p><strong>Demo Cost:</strong> ${demoCost > 0 ? formatCurrency(demoCost) : "No demo"}</p>
+        <p><strong>Reconnect Fees:</strong><br/>
+           - Bathroom: ${bathReconnectFee > 0 ? formatCurrency(bathReconnectFee) : "None"}<br/>
+           - Kitchen: ${kitchenFee > 0 ? formatCurrency(kitchenFee) : "None"}<br/>
+           - Cooktop: ${cooktopFee > 0 ? formatCurrency(cooktopFee) : "None"}
+        </p>
+        <p><strong>Setup Fee:</strong> ${formatCurrency(setupFee)} (Credited upon signing)</p>
+        <h4>Subtotal (Before Setup Credit): ${formatCurrency(subTotal)}</h4>
+        <hr/>
+        <h3>Representative Information</h3>
+        <p><strong>Rep Name:</strong> ${repName || "N/A"}</p>
+        <p><strong>Rep Phone:</strong> ${repPhone || "N/A"}</p>
+        <hr/>
+        <h3>Payment Schedule</h3>
+        <p>Setup fee of ${formatCurrency(setupFee)} is credited upon contract signing.<br/>
+           Subtotal After Credit: ${formatCurrency(finalBase)}</p>
+        <ul>
+          <li><strong>60% Deposit:</strong> ${formatCurrency(deposit_60)}</li>
+          <li><strong>20% at Material Delivery:</strong> ${formatCurrency(secondPayment_20)}</li>
+          <li><strong>20% at Project Completion:</strong> ${formatCurrency(finalPayment_20)}</li>
+        </ul>
+        <hr/>
+        <h3>Terms &amp; Conditions</h3>
+        <div class="terms">${termsAndConditions}</div>
+        <div class="signature-area">
+          <p><strong>Client Signature:</strong> __________________________ Date: ___________</p>
+          <p><strong>Surprise Granite Rep:</strong> _____________________ Date: ___________</p>
+        </div>
+      `;
+    }
+    
+    function storeEstimateLocal(name, subTotal, fullHTML) {
+      try {
+        const snippet = {
+          date: new Date().toLocaleString(),
+          name: name || "No Name",
+          total: subTotal,
+          html: fullHTML
+        };
+        let existing = JSON.parse(localStorage.getItem("previousEstimates") || "[]");
+        existing.push(snippet);
+        if (existing.length > 10) existing.shift();
+        localStorage.setItem("previousEstimates", JSON.stringify(existing));
+      } catch(e) {
+        console.warn("Error storing estimate in localStorage:", e);
+      }
+    }
+    
+    function loadPreviousEstimates() {
+      try {
+        const estimateList = document.getElementById("estimateList");
+        estimateList.innerHTML = "";
+        const existing = JSON.parse(localStorage.getItem("previousEstimates") || "[]");
+        existing.forEach((est, idx) => {
+          const div = document.createElement("div");
+          div.classList.add("estimate-snippet");
+          const details = document.createElement("div");
+          details.classList.add("snippet-details");
+          details.innerHTML = `<strong>${idx+1}.</strong> <em>${est.date}</em> - <strong>${est.name}</strong> (Subtotal: ${formatCurrency(est.total)})`;
+          const viewBtn = document.createElement("button");
+          viewBtn.classList.add("view-btn");
+          viewBtn.innerText = "View";
+          viewBtn.onclick = () => {
+            document.getElementById("estimateContent").innerHTML = est.html;
+            document.getElementById("estimateOutput").style.display = "block";
+            document.getElementById("estimateOutput").scrollIntoView({ behavior: 'smooth' });
+          };
+          div.appendChild(details);
+          div.appendChild(viewBtn);
+          estimateList.appendChild(div);
+        });
+      } catch(e) {
+        console.warn("Error loading estimates from localStorage:", e);
+      }
+    }
+    
+    function clearForm() {
+      document.getElementById("customerName").value = "";
+      document.getElementById("customerPhone").value = "";
+      document.getElementById("customerEmail").value = "";
+      document.getElementById("projectAddress").value = "";
+      document.getElementById("markupType").value = "retail";
+      document.getElementById("vendorSelect").value = "";
+      document.getElementById("colorSelect").innerHTML = '<option value="">-- Select Color --</option>';
+      
+      document.getElementById("slabOnly").checked = false;
+      document.getElementById("slabOnlySection").style.display = "none";
+      document.getElementById("slabCount").value = "1";
+      document.getElementById("deliveryMethod").value = "0";
+      
+      document.getElementById("laborInstallSection").style.display = "block";
+      document.getElementById("laborTier").value = "45";
+      document.getElementById("squareFootage").value = "";
+      document.getElementById("demoSqft").value = "0";
+      document.getElementById("backsplashLinearFt").value = "0";
+      document.getElementById("backsplashHeight").value = "0";
+      document.getElementById("backsplashFullHeight").value = "";
+      document.getElementById("bathroomSinks").value = "";
+      document.getElementById("kitchenReconnect").value = "0";
+      document.getElementById("cooktopInstallation").value = "0";
+      
+      document.getElementById("additionalNotes").value = "";
+      document.getElementById("repName").value = "";
+      document.getElementById("repPhone").value = "";
+      
+      document.getElementById("estimateOutput").style.display = "none";
+      document.getElementById("estimateContent").innerHTML = "";
+    }
+    
+    function toggleSlabSection() {
+      const slabOnly = document.getElementById("slabOnly").checked;
+      document.getElementById("slabOnlySection").style.display = slabOnly ? "block" : "none";
+      document.getElementById("laborInstallSection").style.display = slabOnly ? "none" : "block";
+    }
+    function toggleFullHeightInput() {
+      const sel = document.getElementById("backsplashHeight").value;
+      document.getElementById("fullHeightRow").style.display = (sel === "full") ? "flex" : "none";
+    }
+    
+    /* ----- Print Estimate Function (Added) ----- */
+    function printEstimate() {
+      const estimateContent = document.getElementById("estimateContent").innerHTML;
+      if (!estimateContent) {
+        alert("No estimate to print. Please generate an estimate first.");
+        return;
+      }
+      const printWindow = window.open('', 'PrintWindow', 'width=800,height=600');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print Estimate</title>
+            <style>
+              body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 20px;
+                color: #000;
+                background: #fff;
+              }
+              h2, h3, h4, p, ul {
+                margin: 0 0 10px;
+              }
+              .terms {
+                font-size: 0.9rem;
+                margin-top: 20px;
+                color: #000 !important;
+              }
+              .signature-area {
+                margin-top: 20px;
+              }
+              hr { margin: 20px 0; }
+            </style>
+          </head>
+          <body>
+            ${estimateContent}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
     }
   </script>
 </body>
