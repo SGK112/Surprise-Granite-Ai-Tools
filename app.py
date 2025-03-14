@@ -29,11 +29,8 @@ def get_pricing_data():
       - "Color Name"
       - "Cost/SqFt"
       - "Total/SqFt"
-    The rest of the data is ignored.
     """
-    url = ("https://docs.google.com/spreadsheets/d/e/"
-           "2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh"
-           "/pub?output=csv")
+    url = ("https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv")
     response = requests.get(url, timeout=10)
     if response.status_code != 200:
         raise Exception("Could not fetch pricing data")
@@ -64,6 +61,66 @@ def chat():
     user_input = data.get("message", "").strip()
     if not user_input:
         return jsonify({"error": "Missing user input"}), 400
+
+    lower_msg = user_input.lower()
+
+    # --- Labor Data Lookup ---
+    if "labor" in lower_msg or ("cost" in lower_msg and "labor" in lower_msg):
+        labor_csv_url = os.getenv("LABOR_CSV_URL")
+        try:
+            response_csv = requests.get(labor_csv_url, timeout=10)
+            response_csv.raise_for_status()
+            csv_text = response_csv.text
+            csv_file = StringIO(csv_text)
+            # Assuming your labor CSV is tab-delimited. Adjust delimiter if needed.
+            reader = csv.DictReader(csv_file, delimiter='\t')
+            labor_data = list(reader)
+            response_text = "Current Labor Rates:\n"
+            for row in labor_data:
+                # Adjust these header names if they differ in your CSV.
+                code = row.get("Code", "N/A")
+                service = row.get("Service Description", "N/A")
+                unit = row.get("Unit", "N/A")
+                rate = row.get("Rate", "N/A")
+                description = row.get("Description", "")
+                response_text += f"- {code}: {service} ({unit}) at {rate}"
+                if description:
+                    response_text += f" - {description}"
+                response_text += "\n"
+        except Exception as e:
+            response_text = f"Error retrieving labor data: {str(e)}"
+        return jsonify({"response": response_text})
+
+    # --- Materials Data Lookup ---
+    elif "material" in lower_msg or "stone" in lower_msg or ("price" in lower_msg and ("stone" in lower_msg or "material" in lower_msg)):
+        materials_csv_url = os.getenv("MATERIALS_CSV_URL")
+        try:
+            response_csv = requests.get(materials_csv_url, timeout=10)
+            response_csv.raise_for_status()
+            csv_text = response_csv.text
+            csv_file = StringIO(csv_text)
+            # Assuming your materials CSV is tab-delimited. Adjust delimiter if needed.
+            reader = csv.DictReader(csv_file, delimiter='\t')
+            materials_data = list(reader)
+            response_text = "Current Stone Prices:\n"
+            for row in materials_data:
+                color_name = row.get("Color Name", "Unknown")
+                vendor_name = row.get("Vendor Name", "Unknown")
+                thickness = row.get("Thickness", "N/A")
+                material = row.get("Material", "N/A")
+                size = row.get("size", "N/A")
+                total_sqft = row.get("Total/SqFt", "N/A")
+                cost_sqft = row.get("Cost/SqFt", "N/A")
+                price_group = row.get("Price Group", "N/A")
+                tier = row.get("Tier", "N/A")
+                response_text += (f"- {color_name}: {material} from {vendor_name}, Thickness: {thickness}, "
+                                  f"Size: {size}, Total SqFt: {total_sqft}, Cost/SqFt: {cost_sqft}, "
+                                  f"Group: {price_group}, Tier: {tier}\n")
+        except Exception as e:
+            response_text = f"Error retrieving materials data: {str(e)}"
+        return jsonify({"response": response_text})
+
+    # --- Fallback: Standard GPT‑4 Chat ---
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -78,7 +135,6 @@ def chat():
 
 @app.route("/api/estimate", methods=["POST", "OPTIONS"])
 def estimate():
-    # Handle preflight OPTIONS requests for CORS
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
@@ -87,7 +143,6 @@ def estimate():
         return jsonify({"error": "Missing project data"}), 400
 
     try:
-        # Extract and clean input data
         total_sq_ft = float(data.get("totalSqFt"))
         vendor = data.get("vendor", "default vendor").strip()
         color = data.get("color", "").strip().lower()
@@ -97,51 +152,36 @@ def estimate():
         sink_type = data.get("sinkType", "standard").strip().lower()
         cooktop_type = data.get("cooktopType", "standard").strip().lower()
         backsplash = data.get("backsplash", "no").strip().lower()
-        # Tile option: expected as a float ($35, $65, or $85)
         tile_option = float(data.get("tileOption", 0))
         edge_detail = data.get("edgeDetail", "standard").strip().lower()
         job_name = data.get("jobName", "N/A").strip()
         job_type = data.get("jobType", "fabricate and install").strip().lower()
         customer_name = data.get("customerName", "Valued Customer").strip()
 
-        # Get live pricing data from CSV
         pricing_data = get_pricing_data()
         pricing_info = pricing_data.get(color, {"cost": 50, "total_sqft": 100})
         price_per_sqft = pricing_info["cost"]
         color_total_sqft = pricing_info["total_sqft"]
 
-        # Calculate material cost and adjustments
         material_cost = total_sq_ft * price_per_sqft
         if demo.lower() == "yes":
-            material_cost *= 1.10  # add 10% for demo
+            material_cost *= 1.10
         sink_cost = sink_qty * (150 if sink_type == "premium" else 100)
         cooktop_cost = cooktop_qty * (160 if cooktop_type == "premium" else 120)
-        # If backsplash is yes, use tile_option if > 0; otherwise default to $20/sqft
         backsplash_cost = total_sq_ft * (tile_option if tile_option > 0 else 20) if backsplash == "yes" else 0
 
-        if edge_detail == "premium":
-            multiplier = 1.05
-        elif edge_detail == "custom":
-            multiplier = 1.10
-        else:
-            multiplier = 1.0
+        multiplier = 1.05 if edge_detail == "premium" else 1.10 if edge_detail == "custom" else 1.0
         material_cost *= multiplier
 
         preliminary_total = material_cost + sink_cost + cooktop_cost + backsplash_cost
-
-        # Calculate slab count assuming 20% waste
         effective_sq_ft = total_sq_ft * 1.20
         slab_count = math.ceil(effective_sq_ft / color_total_sqft)
-
-        # Determine labor rate: use base labor rate $45 with a markup factor.
         markup = 1.35 if job_type == "slab only" else 1.30
-        base_labor_rate = 45  # default for Granite/Quartz
+        base_labor_rate = 45
         labor_cost = total_sq_ft * base_labor_rate * markup
-
         total_project_cost = preliminary_total + labor_cost
         final_cost_per_sqft = f"{(total_project_cost / total_sq_ft):.2f}" if total_sq_ft else "0.00"
 
-        # Build a detailed prompt for GPT‑4 to generate a professional estimate
         prompt = (
             f"Surprise Granite Detailed Estimate\n\n"
             f"Customer: Mr./Ms. {customer_name}\n"
