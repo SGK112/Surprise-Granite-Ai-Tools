@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: sg-chatbot-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    branch: main
+    autoDeploy: true
