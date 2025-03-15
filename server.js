@@ -13,7 +13,7 @@ const axios = require("axios");
 const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
-const { Configuration, OpenAIApi } = require("openai"); // OpenAI integration
+const { Configuration, OpenAIApi } = require("openai");
 const fs = require("fs");
 
 // TOS URL (Google Doc)
@@ -47,7 +47,7 @@ let materialsData = [];
 // Create Express app
 const app = express();
 
-// Use explicit CORS options (adjust origin if needed)
+// Use explicit CORS options
 const corsOptions = {
   origin: "https://www.surprisegranite.com",
   optionsSuccessStatus: 200,
@@ -70,18 +70,16 @@ const BUSINESS_INFO = {
 
 const SYSTEM_INSTRUCTIONS = `
 You are CARI, the Surprise Granite Design Assistant.
-You must:
-- Greet customers politely and remain in character as "CARI."
-- Provide accurate countertop estimates (if asked) using a 35% markup and a 20% waste factor, plus labor from local data.
-- For images, analyze stone type or blueprint details if asked, or state if uncertain.
-- For scheduling, reference the Thryv Zap token: ${THRYV_ZAPIER_TOKEN}.
-- Surprise Granite Info:
+Your role is to provide helpful, professional responses related to countertops, remodeling, estimates, and scheduling.
+Always remain in character as CARI.
+When asked about pricing, reference local data when available.
+Surprise Granite Info:
   Name: ${BUSINESS_INFO.name}
   Address: ${BUSINESS_INFO.address}
   Phone: ${BUSINESS_INFO.phone}
   Email: ${BUSINESS_INFO.email}
   Google: ${BUSINESS_INFO.googleBusiness}
-- TOS available at /api/get-tos.
+TOS is available at /api/get-tos.
 `;
 
 /**
@@ -106,7 +104,6 @@ function loadLocalData() {
 
 /**
  * GET /api/get-tos
- * Returns TOS content fetched from the Google Doc.
  */
 app.get("/api/get-tos", async (req, res) => {
   try {
@@ -120,7 +117,6 @@ app.get("/api/get-tos", async (req, res) => {
 
 /**
  * GET /api/get-business-info
- * Returns business contact information.
  */
 app.get("/api/get-business-info", (req, res) => {
   res.json(BUSINESS_INFO);
@@ -128,7 +124,6 @@ app.get("/api/get-business-info", (req, res) => {
 
 /**
  * GET /api/get-instructions
- * Returns system instructions for the assistant.
  */
 app.get("/api/get-instructions", (req, res) => {
   res.json({ instructions: SYSTEM_INSTRUCTIONS });
@@ -136,14 +131,12 @@ app.get("/api/get-instructions", (req, res) => {
 
 /**
  * POST /api/schedule
- * Receives scheduling requests.
  */
 app.post("/api/schedule", (req, res) => {
   const { clientName, desiredDate } = req.body;
   if (!clientName || !desiredDate) {
     return res.status(400).json({ error: "Missing 'clientName' or 'desiredDate'." });
   }
-  // Integration with Zapier can be added here.
   res.json({
     message: "Scheduling request received! We'll follow up soon.",
     zapierTokenUsed: THRYV_ZAPIER_TOKEN,
@@ -154,7 +147,6 @@ app.post("/api/schedule", (req, res) => {
 
 /**
  * POST /api/get-estimate
- * Computes countertop estimates using local pricing data.
  */
 app.post("/api/get-estimate", (req, res) => {
   try {
@@ -178,14 +170,13 @@ app.post("/api/get-estimate", (req, res) => {
         slabCount = Math.ceil(finalSqFt / slabArea);
       }
     }
-    // Look up material in local JSON (using the "Material" field)
+    // Look up material in local JSON using the "Material" field.
     const matRow = materialsData.find(
       (row) => row.Material?.trim().toLowerCase() === material.trim().toLowerCase()
     );
     if (!matRow) {
       return res.status(404).json({ error: `Material '${material}' not found.` });
     }
-    // Use the "Cost/SqFt" field from the JSON data
     const baseCostStr = matRow["Cost/SqFt"] || "0";
     const baseCost = parseFloat(baseCostStr);
     if (isNaN(baseCost)) {
@@ -231,7 +222,6 @@ app.post("/api/get-estimate", (req, res) => {
 
 /**
  * POST /api/upload-image
- * Handles file uploads (for stone or blueprint analysis).
  */
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
@@ -252,6 +242,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 /**
  * POST /api/chat
  * Uses OpenAI to generate an AI-based response.
+ * Incorporates local material data if keywords are detected.
  */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -262,9 +253,23 @@ app.post("/api/chat", async (req, res) => {
     if (!OPENAI_API_KEY) {
       return res.status(500).json({ error: "OpenAI API key not configured on server." });
     }
+    // Inject local data if keywords (e.g., "frost n" or "arizona tile") are mentioned.
+    let materialInjection = "";
+    const lowerMsg = userMessage.toLowerCase();
+    if (lowerMsg.includes("frost n") || lowerMsg.includes("arizona tile")) {
+      // Find the matching material using "Color Name" and "Vendor Name"
+      const matRow = materialsData.find(row =>
+        row["Color Name"]?.toLowerCase().includes("frost-n") &&
+        row["Vendor Name"]?.toLowerCase().includes("arizona tile")
+      );
+      if (matRow) {
+        materialInjection = `\nLocal Material Info: Frost N from Arizona Tile has a base cost of ${matRow["Cost/SqFt"]} per sq ft and a typical thickness of ${matRow.Thickness}.`;
+      }
+    }
+    const systemPromptFinal = SYSTEM_INSTRUCTIONS + materialInjection;
     const messages = [
-      { role: "system", content: SYSTEM_INSTRUCTIONS },
-      { role: "user", content: userMessage },
+      { role: "system", content: systemPromptFinal },
+      { role: "user", content: userMessage }
     ];
     const response = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
@@ -282,7 +287,6 @@ app.post("/api/chat", async (req, res) => {
 
 /**
  * POST /api/email-history
- * Emails a copy of the chat history using EmailJS.
  */
 app.post("/api/email-history", async (req, res) => {
   const { email, chatHistory } = req.body;
@@ -310,7 +314,6 @@ app.post("/api/email-history", async (req, res) => {
 
 /**
  * GET / (Test Route)
- * Lists available endpoints.
  */
 app.get("/", (req, res) => {
   res.send(`
