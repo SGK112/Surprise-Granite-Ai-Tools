@@ -54,7 +54,7 @@ const GOOGLE_BUSINESS_PAGE = "https://g.co/kgs/Y9XGbpd";
 const THRYV_ZAPIER_TOKEN =
   "3525b8f45f2822007b06b67d39a8b48aae9e9b3b67c3071569048d6850ba341d";
 
-// EmailJS configuration (set via .env file or replace with your values)
+// EmailJS configuration (set via .env or fallback values)
 const EMAILJS_SERVICE_ID = "service_jmjjix9";
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || "template_chatHistory";
 const EMAILJS_USER_ID = process.env.EMAILJS_USER_ID || "user_placeholder";
@@ -65,8 +65,12 @@ let materialsData = [];
 
 const app = express();
 
-// Basic middleware for security and CORS.
-app.use(cors());
+// Use explicit CORS options (update origin as needed)
+const corsOptions = {
+  origin: "https://www.surprisegranite.com",
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(express.json());
 
@@ -101,7 +105,7 @@ You are CARI, the Surprise Granite Design Assistant.
 `;
 
 /**
- * Utility function to fetch and parse CSV from a URL.
+ * Utility function to fetch and parse a CSV file from a URL.
  */
 async function fetchAndParseCSV(url) {
   try {
@@ -195,7 +199,7 @@ app.post("/api/schedule", (req, res) => {
  * Computes countertop estimates:
  * 1. Base sq ft = (lengthInches * widthInches) / 144.
  * 2. Final sq ft = base sq ft * 1.2 (adds 20% waste).
- * 3. Optional slab count = ceil(final sq ft / (slab area)).
+ * 3. Optional: Slab count = ceil(final sq ft / (slab area)).
  * 4. Material cost (with 35% markup) and labor cost are added.
  */
 app.post("/api/get-estimate", (req, res) => {
@@ -304,7 +308,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded." });
     }
     // TODO: Integrate your AI image recognition or blueprint analysis logic here.
-    // Optionally, delete the file after processing.
+    // Optionally delete the uploaded file after processing.
     return res.json({
       message: "Image received! AI analysis pending...",
       fileName: req.file.filename,
@@ -390,7 +394,7 @@ app.get("/", (req, res) => {
 /**
  * Start the server after loading CSV data.
  */
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 loadCSVData().then(() => {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
