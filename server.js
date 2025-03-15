@@ -1,30 +1,7 @@
 /**
  * server.js
  *
- * Node.js/Express server for Surprise Granite Chatbot Backend.
- *
- * Features:
- * - Loads labor & materials CSVs from published Google Sheets.
- * - Computes countertop estimates:
- *     • Calculates square footage from length & width (inches), adds 20% waste.
- *     • Computes slab count if slab dimensions provided.
- *     • Applies a 35% markup on material costs.
- *     • Adds labor cost from CSV data.
- * - Provides endpoints for:
- *     • POST /api/get-estimate – Real-time quote estimates.
- *     • POST /api/upload-image – Image upload for stone/blueprint analysis.
- *     • POST /api/chat – AI natural language chat responses (placeholder).
- *     • POST /api/schedule – Scheduling endpoint using the Thryv Zap token.
- *     • POST /api/email-history – Emails a copy of the chat history via EmailJS.
- *     • GET  /api/get-tos – Retrieves TOS from a Google Doc.
- *     • GET  /api/get-business-info – Returns business contact info.
- *     • GET  /api/get-instructions – Returns instructions for the assistant.
- *
- * Additional integrations:
- * - Business info includes your Google Business page.
- * - The AI chat always remains in character as "CARI, the Surprise Granite Design Assistant."
- * - For image analysis and chat, placeholders (TODO) indicate where to integrate external AI services.
- * - Email history endpoint uses EmailJS.
+ * Node.js/Express server for Surprise Granite Chatbot Backend with OpenAI integration.
  */
 
 require("dotenv").config();
@@ -34,6 +11,7 @@ const axios = require("axios");
 const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
+const { Configuration, OpenAIApi } = require("openai"); // <-- For OpenAI
 const path = require("path");
 const fs = require("fs");
 
@@ -59,15 +37,25 @@ const EMAILJS_SERVICE_ID = "service_jmjjix9";
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || "template_chatHistory";
 const EMAILJS_USER_ID = process.env.EMAILJS_USER_ID || "user_placeholder";
 
+// OpenAI Configuration
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Ensure this is set in Render
+if (!OPENAI_API_KEY) {
+  console.warn("Warning: OPENAI_API_KEY is not set. The /api/chat endpoint will fail.");
+}
+const openaiConfig = new Configuration({
+  apiKey: OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(openaiConfig);
+
 // In-memory storage for CSV data.
 let laborData = [];
 let materialsData = [];
 
 const app = express();
 
-// Use explicit CORS options (update origin as needed)
+// Use explicit CORS options (adjust origin if needed)
 const corsOptions = {
-  origin: "https://www.surprisegranite.com",
+  origin: "https://www.surprisegranite.com", // or "*", or your front-end domain
   optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
@@ -86,21 +74,19 @@ const BUSINESS_INFO = {
   googleBusiness: GOOGLE_BUSINESS_PAGE,
 };
 
-const INSTRUCTIONS = `
+const SYSTEM_INSTRUCTIONS = `
 You are CARI, the Surprise Granite Design Assistant.
-- Greet customers politely and remain in character.
-- Provide accurate countertop estimates:
-  • Calculate sq ft: (lengthInches * widthInches) / 144, then add 20% waste.
-  • Apply a 35% markup on material costs.
-  • Add labor cost from our CSV data.
-- For image uploads, analyze stone type or blueprint details; if uncertain, advise follow-up by a human rep.
-- For scheduling, use our Thryv Zap token: ${THRYV_ZAPIER_TOKEN}.
-- Business Info:
+You must:
+- Greet customers politely and remain in character as "CARI."
+- Provide accurate countertop estimates (if asked) using a 35% markup and a 20% waste factor, plus labor from CSV data. 
+- For images, analyze stone type or blueprint details if user asks, or disclaim if uncertain.
+- For scheduling, reference Thryv Zap token: ${THRYV_ZAPIER_TOKEN}.
+- Surprise Granite Info:
   Name: ${BUSINESS_INFO.name}
   Address: ${BUSINESS_INFO.address}
   Phone: ${BUSINESS_INFO.phone}
   Email: ${BUSINESS_INFO.email}
-  Google Business Page: ${BUSINESS_INFO.googleBusiness}
+  Google: ${BUSINESS_INFO.googleBusiness}
 - TOS available at /api/get-tos.
 `;
 
@@ -173,7 +159,7 @@ app.get("/api/get-business-info", (req, res) => {
  * Returns guidelines for the assistant.
  */
 app.get("/api/get-instructions", (req, res) => {
-  res.json({ instructions: INSTRUCTIONS });
+  res.json({ instructions: SYSTEM_INSTRUCTIONS });
 });
 
 /**
@@ -308,7 +294,6 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded." });
     }
     // TODO: Integrate your AI image recognition or blueprint analysis logic here.
-    // Optionally delete the uploaded file after processing.
     return res.json({
       message: "Image received! AI analysis pending...",
       fileName: req.file.filename,
@@ -321,8 +306,8 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 
 /**
  * POST /api/chat
- * Endpoint for AI-based natural language chat.
- * The assistant must remain in character as CARI, the Surprise Granite Design Assistant.
+ * Uses OpenAI to generate an AI-based natural language response.
+ * The assistant remains in character as CARI, the Surprise Granite Design Assistant.
  */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -330,11 +315,30 @@ app.post("/api/chat", async (req, res) => {
     if (!userMessage) {
       return res.status(400).json({ error: "No userMessage provided." });
     }
-    // TODO: Integrate your chosen LLM (e.g., OpenAI API) with INSTRUCTIONS as the system prompt.
-    const aiReply = `CARI says: Thank you for your message! (Placeholder response)`;
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "OpenAI API key not configured on server. Please set OPENAI_API_KEY.",
+      });
+    }
+
+    // Build the conversation prompt
+    const messages = [
+      { role: "system", content: SYSTEM_INSTRUCTIONS },
+      { role: "user", content: userMessage },
+    ];
+
+    // Call OpenAI's Chat Completion
+    const response = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages,
+      max_tokens: 250,
+      temperature: 0.7,
+    });
+
+    const aiReply = response.data.choices[0].message.content.trim();
     return res.json({ response: aiReply });
   } catch (error) {
-    console.error("Error in /api/chat:", error);
+    console.error("Error in /api/chat:", error?.response?.data || error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -376,12 +380,12 @@ app.post("/api/email-history", async (req, res) => {
  */
 app.get("/", (req, res) => {
   res.send(`
-    <h1>Surprise Granite Chatbot Backend</h1>
+    <h1>Surprise Granite Chatbot Backend (OpenAI Integrated)</h1>
     <p>Available Endpoints:</p>
     <ul>
       <li><strong>POST</strong> /api/get-estimate</li>
       <li><strong>POST</strong> /api/upload-image</li>
-      <li><strong>POST</strong> /api/chat</li>
+      <li><strong>POST</strong> /api/chat (OpenAI)</li>
       <li><strong>POST</strong> /api/schedule</li>
       <li><strong>POST</strong> /api/email-history</li>
       <li><strong>GET</strong> /api/get-tos</li>
