@@ -5,6 +5,7 @@
  * 
  * This version loads pricing data from local JSON files (materials.json and labor.json)
  * rather than using CSV data from external sources.
+ * It also uses Fuse.js to enable fuzzy searching over materials data.
  */
 
 require("dotenv").config();
@@ -15,6 +16,9 @@ const cors = require("cors");
 const helmet = require("helmet");
 const { Configuration, OpenAIApi } = require("openai");
 const fs = require("fs");
+
+// Require Fuse.js for fuzzy searching
+const Fuse = require("fuse.js");
 
 // TOS URL (Google Doc)
 const TOS_URL =
@@ -43,6 +47,21 @@ const openai = new OpenAIApi(openaiConfig);
 // Global data storage for local pricing data
 let laborData = [];
 let materialsData = [];
+
+// Fuse.js instance
+let fuse;
+
+/**
+ * Initialize Fuse.js with materialsData.
+ */
+function initFuse() {
+  const options = {
+    keys: ["Color Name", "Vendor Name", "Material"],
+    threshold: 0.3, // Adjust threshold for matching sensitivity
+  };
+  fuse = new Fuse(materialsData, options);
+  console.log("Fuse.js initialized for materials search.");
+}
 
 // Create Express app
 const app = express();
@@ -177,6 +196,14 @@ app.post("/api/get-estimate", (req, res) => {
     if (!matRow) {
       return res.status(404).json({ error: `Material '${material}' not found.` });
     }
+    // Attempt to calculate slab square footage from the "size" field.
+    let slabSqFt = null;
+    if (matRow["size"]) {
+      const dims = matRow["size"].split("x").map(s => parseFloat(s.trim()));
+      if (dims.length === 2 && !isNaN(dims[0]) && !isNaN(dims[1])) {
+        slabSqFt = parseFloat(((dims[0] * dims[1]) / 144).toFixed(2));
+      }
+    }
     const baseCostStr = matRow["Cost/SqFt"] || "0";
     const baseCost = parseFloat(baseCostStr);
     if (isNaN(baseCost)) {
@@ -206,6 +233,7 @@ app.post("/api/get-estimate", (req, res) => {
       slabLengthInches: slabLengthInches || null,
       slabWidthInches: slabWidthInches || null,
       slabCount,
+      slabSqFt,
       baseSqFt: parseFloat(baseSqFt.toFixed(2)),
       finalSqFt: parseFloat(finalSqFt.toFixed(2)),
       baseCost,
@@ -242,7 +270,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 /**
  * POST /api/chat
  * Uses OpenAI to generate an AI-based response.
- * Incorporates local material data if keywords are detected.
+ * Incorporates local material data using Fuse.js if keywords are detected.
  */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -253,17 +281,22 @@ app.post("/api/chat", async (req, res) => {
     if (!OPENAI_API_KEY) {
       return res.status(500).json({ error: "OpenAI API key not configured on server." });
     }
-    // Inject local data if keywords (e.g., "frost n" or "arizona tile") are mentioned.
     let materialInjection = "";
     const lowerMsg = userMessage.toLowerCase();
-    if (lowerMsg.includes("frost n") || lowerMsg.includes("arizona tile")) {
-      // Find the matching material using "Color Name" and "Vendor Name"
-      const matRow = materialsData.find(row =>
-        row["Color Name"]?.toLowerCase().includes("frost-n") &&
-        row["Vendor Name"]?.toLowerCase().includes("arizona tile")
-      );
-      if (matRow) {
-        materialInjection = `\nLocal Material Info: Frost N from Arizona Tile has a base cost of ${matRow["Cost/SqFt"]} per sq ft and a typical thickness of ${matRow.Thickness}.`;
+
+    // Use Fuse.js for a broad search if the query might be material-related.
+    if (lowerMsg.includes("frost") || lowerMsg.includes("tile") || lowerMsg.includes("granite") || lowerMsg.includes("quartz")) {
+      const searchResults = fuse.search(userMessage);
+      if (searchResults.length > 0) {
+        const bestMatch = searchResults[0].item;
+        let slabSqFt = "";
+        if (bestMatch["size"]) {
+          const dims = bestMatch["size"].split("x").map(s => parseFloat(s.trim()));
+          if (dims.length === 2 && !isNaN(dims[0]) && !isNaN(dims[1])) {
+            slabSqFt = ((dims[0] * dims[1]) / 144).toFixed(2);
+          }
+        }
+        materialInjection = `\nLocal Material Info: ${bestMatch["Color Name"]} from ${bestMatch["Vendor Name"]} (${bestMatch.Material}) has a typical thickness of ${bestMatch.Thickness} and a slab size of ${bestMatch["size"]} (approx. ${slabSqFt} sq ft) with a cost of ${bestMatch["Cost/SqFt"]} per sq ft.`;
       }
     }
     const systemPromptFinal = SYSTEM_INSTRUCTIONS + materialInjection;
@@ -335,6 +368,7 @@ app.get("/", (req, res) => {
 // Start the server after loading local JSON data.
 const PORT = process.env.PORT || 5000;
 loadLocalData();
+initFuse();  // Initialize Fuse.js after loading data.
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
