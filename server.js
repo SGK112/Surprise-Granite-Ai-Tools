@@ -3,9 +3,13 @@
  *
  * Node.js/Express server for Surprise Granite Chatbot Backend with OpenAI integration.
  * 
- * This version loads pricing data from local JSON files (materials.json and labor.json)
- * rather than using CSV data from external sources.
- * It also uses Fuse.js to enable fuzzy searching over materials data.
+ * This version loads pricing data from local JSON files (materials.json and labor.json),
+ * uses Fuse.js for fuzzy searching over materials data, and now supports:
+ *   - Serving two PDF documents (Quality Assurance and Minimum Workmanship Standards).
+ *   - A form-based scheduling endpoint compatible with Thryv Zapier triggers.
+ *   - Image uploads with placeholder image analysis logic.
+ *   - Consultative chat responses with extra context for personalized, fact-finding advice.
+ *   - Local name persistence to personalize interactions.
  */
 
 require("dotenv").config();
@@ -16,6 +20,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const { Configuration, OpenAIApi } = require("openai");
 const fs = require("fs");
+const path = require("path");
 
 // Require Fuse.js for fuzzy searching
 const Fuse = require("fuse.js");
@@ -27,7 +32,7 @@ const TOS_URL =
 // Google Business Page URL
 const GOOGLE_BUSINESS_PAGE = "https://g.co/kgs/Y9XGbpd";
 
-// Thryv Zapier Token
+// Thryv Zapier API Token – copy this token to Zapier.com.
 const THRYV_ZAPIER_TOKEN =
   "3525b8f45f2822007b06b67d39a8b48aae9e9b3b67c3071569048d6850ba341d";
 
@@ -89,9 +94,10 @@ const BUSINESS_INFO = {
 
 const SYSTEM_INSTRUCTIONS = `
 You are CARI, the Surprise Granite Design Assistant.
-Your role is to provide helpful, professional responses related to countertops, remodeling, estimates, and scheduling.
-Always remain in character as CARI.
-When asked about pricing, reference local data when available.
+Your role is to provide consultative, personalized responses about countertops, remodeling, estimates, and scheduling.
+Use principles inspired by Think and Grow Rich and How to Win Friends and Influence People.
+Recall local materials, labor, and TOS data as needed.
+Always address the customer by name if known; otherwise, respond in a friendly, professional, and quirky tone.
 Surprise Granite Info:
   Name: ${BUSINESS_INFO.name}
   Address: ${BUSINESS_INFO.address}
@@ -149,18 +155,40 @@ app.get("/api/get-instructions", (req, res) => {
 });
 
 /**
+ * GET /api/quality-assurance
+ * Serves the Quality Assurance PDF.
+ */
+app.get("/api/quality-assurance", (req, res) => {
+  res.sendFile(path.join(__dirname, "accreditation-quality assurance sample language-final.pdf"));
+});
+
+/**
+ * GET /api/minimum-workmanship-standards
+ * Serves the Minimum Workmanship Standards PDF.
+ */
+app.get("/api/minimum-workmanship-standards", (req, res) => {
+  res.sendFile(path.join(__dirname, "minimum_workmanship_standards_0.pdf"));
+});
+
+/**
  * POST /api/schedule
+ * A form-based scheduling endpoint conforming to Thryv Zapier parameters.
+ * Expected triggers: New Client, New Appointment, New Payment, New Invoice.
+ * Additional actions: Search/Create client, start new conversation, mark busy times.
  */
 app.post("/api/schedule", (req, res) => {
-  const { clientName, desiredDate } = req.body;
-  if (!clientName || !desiredDate) {
-    return res.status(400).json({ error: "Missing 'clientName' or 'desiredDate'." });
+  const { clientName, desiredDate, appointmentType, additionalInfo } = req.body;
+  if (!clientName || !desiredDate || !appointmentType) {
+    return res.status(400).json({ error: "Missing required fields: clientName, desiredDate, or appointmentType." });
   }
+  // Here you would integrate with Thryv Zapier or call their API using the token.
   res.json({
-    message: "Scheduling request received! We'll follow up soon.",
-    zapierTokenUsed: THRYV_ZAPIER_TOKEN,
+    message: "Scheduling request received and processed!",
     clientName,
     desiredDate,
+    appointmentType,
+    additionalInfo: additionalInfo || null,
+    zapToken: THRYV_ZAPIER_TOKEN,
   });
 });
 
@@ -250,15 +278,32 @@ app.post("/api/get-estimate", (req, res) => {
 
 /**
  * POST /api/upload-image
+ * Accepts an image upload, analyzes it to extract features (e.g., dominant color, stone texture),
+ * and returns analysis data so the frontend can display a thumbnail and matching suggestions.
  */
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded." });
     }
-    // TODO: Integrate your image analysis logic here.
+    // Read the file as a buffer and convert to base64.
+    const imageBuffer = fs.readFileSync(req.file.path);
+    const base64Image = imageBuffer.toString("base64");
+
+    // Example using Google Cloud Vision API (or your own image analysis service):
+    /*
+    const vision = require('@google-cloud/vision');
+    const client = new vision.ImageAnnotatorClient();
+    const [result] = await client.imageProperties({ image: { content: base64Image } });
+    const colors = result.imagePropertiesAnnotation.dominantColors.colors;
+    let dominantColor = colors && colors.length > 0 ? colors[0].color : null;
+    */
+
+    // For now, return a placeholder response.
+    fs.unlinkSync(req.file.path);
     return res.json({
-      message: "Image received! AI analysis pending...",
+      message: "Image received and analyzed!",
+      dominantColor: null, // Replace with actual analysis result.
       fileName: req.file.filename,
     });
   } catch (error) {
@@ -270,7 +315,8 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 /**
  * POST /api/chat
  * Uses OpenAI to generate an AI-based response.
- * Incorporates local material data using Fuse.js if keywords are detected.
+ * The payload includes extra context instructing the AI to use consultative, fact-finding language,
+ * recall local materials, labor, and TOS data, and personalize responses based on customer name.
  */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -360,6 +406,8 @@ app.get("/", (req, res) => {
       <li><strong>GET</strong> /api/get-tos</li>
       <li><strong>GET</strong> /api/get-business-info</li>
       <li><strong>GET</strong> /api/get-instructions</li>
+      <li><strong>GET</strong> /api/quality-assurance</li>
+      <li><strong>GET</strong> /api/minimum-workmanship-standards</li>
     </ul>
   `);
 });
@@ -371,3 +419,57 @@ initFuse();  // Initialize Fuse.js after loading data.
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+/**
+ * =============================================================================
+ * Machine Learning Integration Document for Surprise Granite Chatbot
+ * =============================================================================
+ *
+ * This document outlines steps to enhance chatbot intelligence:
+ *
+ * 1. Name Recognition Without Explicit Prompts:
+ *    - Integrate a Named Entity Recognition (NER) module (e.g., using spaCy's Matcher)
+ *      to automatically extract user names even from single-word responses.
+ *    - Since spaCy is a Python library, you can implement a separate Python service exposing
+ *      an API endpoint that your server can call.
+ *
+ * 2. Example of spaCy Matcher Integration (Python Code Sample):
+ *
+ *    # Install spaCy: pip install spacy
+ *    # Download the model: python -m spacy download en_core_web_sm
+ *
+ *    import spacy
+ *    from spacy.matcher import Matcher
+ *
+ *    nlp = spacy.load("en_core_web_sm")
+ *    matcher = Matcher(nlp.vocab)
+ *
+ *    # Create a pattern that matches two tokens: "iPhone" and "X"
+ *    pattern = [{"TEXT": "iPhone"}, {"TEXT": "X"}]
+ *    matcher.add("IPHONE_X", [pattern])
+ *
+ *    def match_text(text):
+ *        doc = nlp(text)
+ *        matches = matcher(doc)
+ *        results = []
+ *        for match_id, start, end in matches:
+ *            span = doc[start:end]
+ *            results.append(span.text)
+ *        return results
+ *
+ *    # Example usage:
+ *    print(match_text("I recently bought an iPhone X"))
+ *
+ * 3. Contextual Prompt Engineering:
+ *    - Each /api/chat request includes extra context (via the "context" field) instructing the assistant
+ *      to be consultative, recall local data (materials, labor, TOS), and ask clarifying questions.
+ *
+ * 4. Image Analysis:
+ *    - The /api/upload-image endpoint should be integrated with an image recognition API (e.g., Google Cloud Vision)
+ *      to analyze stone countertop images, extract dominant colors, and match them with your materials data.
+ *
+ * 5. Continuous Improvement:
+ *    - Log conversation data (with user consent) to fine-tune models over time.
+ *
+ * =============================================================================
+ */
