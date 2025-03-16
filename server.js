@@ -283,7 +283,6 @@ app.post("/api/chat", async (req, res) => {
     }
     let materialInjection = "";
     const lowerMsg = userMessage.toLowerCase();
-
     // Use Fuse.js for a broad search if the query might be material-related.
     if (lowerMsg.includes("frost") || lowerMsg.includes("tile") || lowerMsg.includes("granite") || lowerMsg.includes("quartz")) {
       const searchResults = fuse.search(userMessage);
