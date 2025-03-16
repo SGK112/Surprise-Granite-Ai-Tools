@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Surprise Granite - Chatbot &amp; Countertop Estimator</title>
+  <title>Surprise Granite - Chatbot & Countertop Estimator</title>
+  <link href="https://fonts.googleapis.com/css?family=Raleway|Ubuntu&display=swap" rel="stylesheet">
   <style>
     /* ---------------- Chatbot Styles ---------------- */
     #chatBubble {
@@ -110,7 +111,7 @@
       float: right;
       border-bottom-right-radius: 0;
     }
-
+    
     /* ---------------- Estimator Page Styles ---------------- */
     * { box-sizing: border-box; }
     body {
@@ -297,7 +298,7 @@
   <!-- ---------------- Estimator Section ---------------- -->
   <div class="container">
     <h1>Surprise Granite Countertop Estimator</h1>
-    <p>Fill in your details and generate your estimate. When you click Print/Save, only the generated estimate (with our full Terms &amp; Conditions in the footer) will be printed.</p>
+    <p>Fill in your details and generate your estimate. When you click Print/Save, only the generated estimate (with our full Terms & Conditions in the footer) will be printed.</p>
     
     <!-- Dummy location display -->
     <div id="locationDisplay"></div>
@@ -517,7 +518,7 @@
   <!-- ---------------- Combined JavaScript ---------------- -->
   <script>
     /* ----- Chatbot Script ----- */
-    const BASE_URL = "https://chatbot.surprisegranite.com";
+    const BASE_URL = "https://your-deployed-backend.onrender.com";
     const chatBubble = document.getElementById('chatBubble');
     const chatModal = document.getElementById('chatModal');
     const closeModal = document.getElementById('closeModal');
@@ -543,10 +544,10 @@
 
     async function sendChatMessage(message) {
       try {
-        const response = await fetch(BASE_URL + "/chat", {
+        const response = await fetch(BASE_URL + "/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: message })
+          body: JSON.stringify({ userMessage: message })
         });
         if (!response.ok) {
           throw new Error("HTTP error! status: " + response.status);
@@ -690,7 +691,6 @@ This document constitutes the entire agreement between the parties and supersede
         return;
       }
       
-      // Retrieve stone data.
       const colorObj = (stoneData[vendor] || []).find(it => it.color === color);
       if (!colorObj) {
         alert("Selected stone data not found. Please re-check your selection.");
@@ -829,7 +829,7 @@ This document constitutes the entire agreement between the parties and supersede
         <h2>Your Professional Estimate (Slab Only)</h2>
         <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
         <hr/>
-        <h3>Client &amp; Project Details</h3>
+        <h3>Client & Project Details</h3>
         <p><strong>Name:</strong> ${name}</p>
         ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
         ${email ? `<p><strong>Email:</strong> ${email}</p>` : ""}
@@ -843,7 +843,7 @@ This document constitutes the entire agreement between the parties and supersede
           <strong>Material Type:</strong> ${materialType}<br/>
           <strong>Price Group / Tier:</strong> ${(priceGroup || "N/A")} / ${(tier || "N/A")}<br/>
           <strong>Base Price:</strong> ${formatCurrency(basePrice)}/sqft<br/>
-          <strong>Final Price (with tax &amp; markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
+          <strong>Final Price (with tax & markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
         </p>
         <p><strong>Slab Size (from CSV):</strong> ~${slabSize} sq ft per slab</p>
         <p><strong># of Slabs Needed:</strong> ${slabCount}</p>
@@ -867,7 +867,7 @@ This document constitutes the entire agreement between the parties and supersede
           <li><strong>20% at Project Completion:</strong> ${formatCurrency(finalPayment_20)}</li>
         </ul>
         <hr/>
-        <h3>Terms &amp; Conditions</h3>
+        <h3>Terms & Conditions</h3>
         <div class="terms">${termsAndConditions}</div>
         <div class="signature-area">
           <p><strong>Client Signature:</strong> __________________________ Date: ___________</p>
@@ -892,7 +892,7 @@ This document constitutes the entire agreement between the parties and supersede
         <h2>Your Professional Estimate (Full Labor)</h2>
         <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
         <hr/>
-        <h3>Client &amp; Project Details</h3>
+        <h3>Client & Project Details</h3>
         <p><strong>Name:</strong> ${name}</p>
         ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
         ${email ? `<p><strong>Email:</strong> ${email}</p>` : ""}
@@ -906,7 +906,7 @@ This document constitutes the entire agreement between the parties and supersede
           <strong>Material Type:</strong> ${materialType}<br/>
           <strong>Price Group / Tier:</strong> ${(priceGroup || "N/A")} / ${(tier || "N/A")}<br/>
           <strong>Base Price:</strong> ${formatCurrency(basePrice)}/sqft<br/>
-          <strong>Final Price (with tax &amp; markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
+          <strong>Final Price (with tax & markup):</strong> ${formatCurrency(finalMaterialPrice)}/sqft
         </p>
         <p><strong>Approx Sq Ft (Entered):</strong> ${sqft} sq ft</p>
         <p><strong>Base Area w/ 20% Waste:</strong> ${baseSqftWithWaste.toFixed(2)} sq ft</p>
@@ -938,7 +938,7 @@ This document constitutes the entire agreement between the parties and supersede
           <li><strong>20% at Project Completion:</strong> ${formatCurrency(finalPayment_20)}</li>
         </ul>
         <hr/>
-        <h3>Terms &amp; Conditions</h3>
+        <h3>Terms & Conditions</h3>
         <div class="terms">${termsAndConditions}</div>
         <div class="signature-area">
           <p><strong>Client Signature:</strong> __________________________ Date: ___________</p>
@@ -1030,12 +1030,17 @@ This document constitutes the entire agreement between the parties and supersede
       document.getElementById("slabOnlySection").style.display = slabOnly ? "block" : "none";
       document.getElementById("laborInstallSection").style.display = slabOnly ? "none" : "block";
     }
+    
     function toggleFullHeightInput() {
       const sel = document.getElementById("backsplashHeight").value;
       document.getElementById("fullHeightRow").style.display = (sel === "full") ? "flex" : "none";
     }
     
-    /* ----- Print Estimate Function (Added) ----- */
+    function formatCurrency(value) {
+      return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    }
+    
+    /* ----- Print Estimate Function ----- */
     function printEstimate() {
       const estimateContent = document.getElementById("estimateContent").innerHTML;
       if (!estimateContent) {
@@ -1078,6 +1083,114 @@ This document constitutes the entire agreement between the parties and supersede
       printWindow.print();
       printWindow.close();
     }
+    
+    /* ----- Chatbot Section ----- */
+    const BASE_CHAT_URL = "https://chatbot.surprisegranite.com";
+    const chatInputField = document.getElementById("chatInputField");
+    const sendChatBtn = document.getElementById("sendChatBtn");
+    const chatContentArea = document.getElementById("chatContent");
+    const typingIndicator = document.getElementById("typing-indicator");
+
+    async function sendChatMessage(message) {
+      try {
+        const response = await fetch(BASE_URL + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userMessage: message })
+        });
+        if (!response.ok) {
+          throw new Error("HTTP error! status: " + response.status);
+        }
+        const data = await response.json();
+        return data.response;
+      } catch (error) {
+        console.error("Error sending chat message:", error);
+        return "Sorry, something went wrong.";
+      }
+    }
+
+    sendChatBtn.addEventListener("click", async () => {
+      const userMsg = chatInputField.value.trim();
+      if (!userMsg) return;
+      appendChatMessage(userMsg, "user");
+      chatInputField.value = "";
+      const responseText = await sendChatMessage(userMsg);
+      appendChatMessage(responseText, "assistant");
+    });
+
+    chatInputField.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        sendChatBtn.click();
+      }
+    });
+
+    function appendChatMessage(text, sender = "assistant") {
+      const msg = document.createElement("div");
+      msg.classList.add("chat-message", sender);
+      msg.textContent = text;
+      chatContentArea.appendChild(msg);
+      chatContentArea.scrollTop = chatContentArea.scrollHeight;
+    }
+
+    /* ----- File Upload for Chatbot (Image Recognition) ----- */
+    const fileInput = document.getElementById("sg-file-input");
+    // Add capture attribute in HTML input tag: capture="environment"
+    fileInput.setAttribute("capture", "environment");
+    
+    fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      // Preview the image in the chat as a user message
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const previewMsg = document.createElement("div");
+        previewMsg.classList.add("chat-message", "user");
+        const img = document.createElement("img");
+        img.src = event.target.result;
+        img.style.maxWidth = "100%";
+        img.style.borderRadius = "8px";
+        previewMsg.appendChild(img);
+        chatContentArea.appendChild(previewMsg);
+        chatContentArea.scrollTop = chatContentArea.scrollHeight;
+        chatHistory += "User sent an image.\n";
+      };
+      reader.readAsDataURL(file);
+      
+      // Prepare the file for upload using FormData
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        showTypingIndicator();
+        const response = await fetch(`${BASE_URL}/api/upload-image`, {
+          method: "POST",
+          body: formData
+        });
+        if (!response.ok) {
+          throw new Error(`Server responded with status ${response.status}`);
+        }
+        const data = await response.json();
+        appendChatMessage(`Image uploaded and analyzed: ${JSON.stringify(data)}`, "assistant");
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        appendChatMessage("There was an error uploading the image.", "assistant");
+      }
+    });
+
+    function showTypingIndicator() {
+      typingIndicator.style.display = "block";
+      chatContentArea.scrollTop = chatContentArea.scrollHeight;
+    }
+    
+    /* ----- Inactivity Nudge ----- */
+    let inactivityTimeout;
+    function resetInactivityTimer() {
+      clearTimeout(inactivityTimeout);
+      inactivityTimeout = setTimeout(() => {
+        appendChatMessage("Just checking in—please let me know if you need anything else!", "assistant");
+      }, 60000);
+    }
+    resetInactivityTimer();
   </script>
 </body>
 </html>
