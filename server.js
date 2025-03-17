@@ -8,7 +8,7 @@
  *   - Serving two PDF documents (Quality Assurance and Minimum Workmanship Standards).
  *   - A form-based scheduling endpoint conforming to Thryv Zapier parameters.
  *   - Image uploads with placeholder image analysis logic.
- *   - Consultative chat responses with extra context.
+ *   - Consultative chat responses with extra context and conversation history to avoid repeated greetings.
  *   - Shopify API integration using the Admin API token (SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_TOKEN).
  *
  * Additionally, a Machine Learning Integration Document is appended at the bottom.
@@ -68,6 +68,12 @@ let materialsData = [];
 let fuse;
 
 /**
+ * In-memory conversation history.
+ * NOTE: For production, store conversation per user session in a DB or session store.
+ */
+let conversationHistory = [];
+
+/**
  * Initialize Fuse.js with materialsData.
  */
 function initFuse() {
@@ -108,7 +114,8 @@ You are CARI, the Surprise Granite Design Assistant.
 Your role is to provide consultative, personalized responses about countertops, remodeling, estimates, and scheduling.
 Use principles inspired by Think and Grow Rich and How to Win Friends and Influence People.
 Recall local materials, labor, and TOS data as needed.
-Always address the customer by name if known; otherwise, respond in a friendly, professional, and quirky tone.
+Avoid reintroducing yourself after the initial greeting.
+Always address the customer by name if known.
 Surprise Granite Info:
   Name: ${BUSINESS_INFO.name}
   Address: ${BUSINESS_INFO.address}
@@ -190,7 +197,6 @@ app.post("/api/schedule", (req, res) => {
   if (!clientName || !desiredDate || !appointmentType) {
     return res.status(400).json({ error: "Missing required fields: clientName, desiredDate, or appointmentType." });
   }
-  // Integration with Thryv Zapier can be added here using the THRYV_ZAPIER_TOKEN if needed.
   res.json({
     message: "Scheduling request received and processed!",
     clientName,
@@ -226,7 +232,6 @@ app.post("/api/get-estimate", (req, res) => {
         slabCount = Math.ceil(finalSqFt / slabArea);
       }
     }
-    // Look up material in local JSON using the "Material" field.
     const matRow = materialsData.find(
       (row) => row.Material?.trim().toLowerCase() === material.trim().toLowerCase()
     );
@@ -286,24 +291,23 @@ app.post("/api/get-estimate", (req, res) => {
 
 /**
  * POST /api/upload-image
- * Accepts an image upload and uses placeholder code for image analysis (e.g., to detect color or stone texture).
+ * Accepts an image upload and uses placeholder code for image analysis.
  */
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded." });
     }
-    // Read the file as a buffer and convert to base64 for analysis if desired.
     const imageBuffer = fs.readFileSync(req.file.path);
     const base64Image = imageBuffer.toString("base64");
 
-    // Example: If using Google Cloud Vision or another service, you'd call it here.
+    // Insert image recognition logic here (e.g., Google Cloud Vision API)
 
     fs.unlinkSync(req.file.path);
     return res.json({
       message: "Image received and analyzed!",
       fileName: req.file.filename,
-      dominantColor: null // Replace with actual result from your analysis.
+      dominantColor: null // Replace with actual analysis result.
     });
   } catch (error) {
     console.error("Error in /api/upload-image:", error);
@@ -313,10 +317,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 
 /**
  * POST /api/chat
- * Uses OpenAI to generate an AI-based response.
- * The payload includes extra context for consultative, fact-finding responses
- * referencing local materials, labor, TOS data, and principles from "Think and Grow Rich"
- * and "How to Win Friends and Influence People."
+ * Uses OpenAI to generate a response, including conversation context.
  */
 app.post("/api/chat", async (req, res) => {
   try {
@@ -328,28 +329,13 @@ app.post("/api/chat", async (req, res) => {
       return res.status(500).json({ error: "OpenAI API key not configured on server." });
     }
 
-    let materialInjection = "";
-    const lowerMsg = userMessage.toLowerCase();
-    // Use Fuse.js for broad searching if the query might be material-related.
-    if (lowerMsg.includes("frost") || lowerMsg.includes("tile") || lowerMsg.includes("granite") || lowerMsg.includes("quartz")) {
-      const searchResults = fuse.search(userMessage);
-      if (searchResults.length > 0) {
-        const bestMatch = searchResults[0].item;
-        let slabSqFt = "";
-        if (bestMatch["size"]) {
-          const dims = bestMatch["size"].split("x").map(s => parseFloat(s.trim()));
-          if (dims.length === 2 && !isNaN(dims[0]) && !isNaN(dims[1])) {
-            slabSqFt = ((dims[0] * dims[1]) / 144).toFixed(2);
-          }
-        }
-        materialInjection = `\nLocal Material Info: ${bestMatch["Color Name"]} from ${bestMatch["Vendor Name"]} (${bestMatch.Material}) has a typical thickness of ${bestMatch.Thickness} and a slab size of ${bestMatch["size"]} (approx. ${slabSqFt} sq ft) with a cost of ${bestMatch["Cost/SqFt"]} per sq ft.`;
-      }
-    }
+    // Append user message to conversation history
+    conversationHistory.push({ role: "user", content: userMessage });
 
-    const systemPromptFinal = SYSTEM_INSTRUCTIONS + materialInjection;
+    // Construct the full conversation, including system prompt and previous messages.
     const messages = [
-      { role: "system", content: systemPromptFinal },
-      { role: "user", content: userMessage }
+      { role: "system", content: SYSTEM_INSTRUCTIONS },
+      ...conversationHistory
     ];
 
     const response = await openai.createChatCompletion({
@@ -359,6 +345,10 @@ app.post("/api/chat", async (req, res) => {
       temperature: 0.7,
     });
     const aiReply = response.data.choices[0].message.content.trim();
+
+    // Append assistant response to conversation history
+    conversationHistory.push({ role: "assistant", content: aiReply });
+
     return res.json({ response: aiReply });
   } catch (error) {
     console.error("Error in /api/chat:", error?.response?.data || error);
@@ -419,7 +409,7 @@ app.get("/", (req, res) => {
 // Start the server after loading local JSON data.
 const PORT = process.env.PORT || 5000;
 loadLocalData();
-initFuse();  // Initialize Fuse.js after loading data.
+initFuse();
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
@@ -429,26 +419,16 @@ app.listen(PORT, () => {
  * Machine Learning Integration Document for Surprise Granite Chatbot
  * =============================================================================
  *
- * This document outlines steps to enhance chatbot intelligence:
- *
  * 1. Name Recognition Without Explicit Prompts:
- *    - Integrate a Named Entity Recognition (NER) module (e.g., using spaCy's Matcher)
- *      to automatically extract user names even from single-word responses.
- *    - Since spaCy is a Python library, implement a separate Python service that exposes an API
- *      endpoint your Node.js server can call.
+ *    - Integrate a Named Entity Recognition (NER) module (using spaCy’s Matcher) in a separate Python service.
  *
  * 2. Example of spaCy Matcher Integration (Python Code Sample):
- *
- *    # Install spaCy: pip install spacy
- *    # Download the model: python -m spacy download en_core_web_sm
  *
  *    import spacy
  *    from spacy.matcher import Matcher
  *
  *    nlp = spacy.load("en_core_web_sm")
  *    matcher = Matcher(nlp.vocab)
- *
- *    # Create a pattern that matches two tokens: "iPhone" and "X"
  *    pattern = [{"TEXT": "iPhone"}, {"TEXT": "X"}]
  *    matcher.add("IPHONE_X", [pattern])
  *
@@ -461,20 +441,14 @@ app.listen(PORT, () => {
  *            results.append(span.text)
  *        return results
  *
- *    # Example usage:
- *    print(match_text("I recently bought an iPhone X"))
- *
  * 3. Contextual Prompt Engineering:
- *    - Each /api/chat request includes extra context instructing the assistant to be consultative,
- *      recall local data (materials, labor, TOS), and ask clarifying questions.
+ *    - Include conversation history and directives in the system prompt.
  *
  * 4. Image Analysis:
- *    - In /api/upload-image, integrate an image recognition API (or your custom ML model)
- *      to analyze stone countertop images, extract dominant colors or textures, and map them to your
- *      materials data for matching suggestions.
+ *    - Integrate an image recognition API (e.g., Google Cloud Vision) in /api/upload-image.
  *
  * 5. Continuous Improvement:
- *    - Log conversation data (with user consent) to fine-tune models over time.
+ *    - Log conversation data (with user consent) for future fine-tuning.
  *
  * =============================================================================
  */
