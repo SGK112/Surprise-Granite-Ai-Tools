@@ -12,6 +12,7 @@
  *   - Shopify API integration using the Admin API token (SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_TOKEN).
  *   - A new /api/materials endpoint for front-end vendor/stone population.
  *   - An enhanced /api/get-estimate endpoint that can handle demoCost, edgeType, sinkCuts, and backsplashLinearFt for more accurate quotes.
+ *   - A new /api/professional-estimate endpoint that uses OpenAI to produce a full professional estimate summary.
  *
  * Additionally, a Machine Learning Integration Document is appended at the bottom.
  */
@@ -250,7 +251,7 @@ app.post("/api/get-estimate", (req, res) => {
     const baseSqFt = (lengthNum * widthNum) / 144;
     const finalSqFt = baseSqFt * 1.2;
 
-    // Calculate slab count if slab dimensions are provided
+    // Slab count logic
     let slabCount = 0;
     if (slabLengthInches && slabWidthInches) {
       const sLen = parseFloat(slabLengthInches);
@@ -276,10 +277,10 @@ app.post("/api/get-estimate", (req, res) => {
       return res.status(400).json({ error: `Invalid base cost for material: ${material}` });
     }
 
-    // Calculate marked up cost (35% markup)
+    // Markup (35% markup)
     const markedUpCost = baseCost * 1.35;
 
-    // Determine labor cost using laborKey (or default)
+    // Labor cost logic
     let laborCost = 0;
     if (laborKey) {
       const laborRow = laborData.find(
@@ -295,39 +296,30 @@ app.post("/api/get-estimate", (req, res) => {
       }
     }
 
-    // Calculate material total cost
+    // Material total cost
     let materialTotal = markedUpCost * finalSqFt;
 
-    // Additional costs
+    // Additional cost logic
     let extraCosts = 0;
-
-    // Demo cost per sq ft
     if (demoCost) {
       const demoFloat = parseFloat(demoCost);
       if (!isNaN(demoFloat) && demoFloat > 0) {
         extraCosts += demoFloat * baseSqFt;
       }
     }
-
-    // Edge type additional cost
     if (edgeType) {
       if (edgeType.toLowerCase() === "bullnose") {
         extraCosts += 2 * finalSqFt;
       } else if (edgeType.toLowerCase() === "eased") {
         extraCosts += 1.5 * finalSqFt;
       }
-      // Default or standard edge may have no extra cost.
     }
-
-    // Sink cuts cost (e.g., $50 each)
     if (sinkCuts) {
       const sinks = parseInt(sinkCuts, 10);
       if (!isNaN(sinks) && sinks > 0) {
         extraCosts += sinks * 50;
       }
     }
-
-    // Backsplash cost per linear foot (e.g., $5 per ft)
     if (backsplashLinearFt) {
       const bsf = parseFloat(backsplashLinearFt);
       if (!isNaN(bsf) && bsf > 0) {
@@ -335,10 +327,9 @@ app.post("/api/get-estimate", (req, res) => {
       }
     }
 
-    // Final total estimate
     const totalEstimate = materialTotal + laborCost + extraCosts;
 
-    // Attempt to calculate slab size for reference
+    // Calculate slab size for reference, if available.
     let slabSqFt = null;
     if (matRow["size"]) {
       const dims = matRow["size"].split("x").map(s => parseFloat(s.trim()));
@@ -367,9 +358,74 @@ app.post("/api/get-estimate", (req, res) => {
       backsplashLinearFt: backsplashLinearFt || 0,
       extraCosts: parseFloat(extraCosts.toFixed(2)),
       totalEstimate: parseFloat(totalEstimate.toFixed(2)),
+      // Include individual cost components for AI integration if needed
+      materialTotal,
     });
   } catch (error) {
     console.error("Error in /api/get-estimate:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/professional-estimate
+ * This endpoint computes the numeric estimate (using /api/get-estimate logic)
+ * then uses OpenAI to generate a professional, natural‑language estimate summary.
+ */
+app.post("/api/professional-estimate", async (req, res) => {
+  try {
+    // First, compute the numerical estimate using the same fields as /api/get-estimate.
+    const estimateResponse = await new Promise((resolve, reject) => {
+      // We simulate an internal call by reusing the logic from /api/get-estimate.
+      // (Alternatively, you could refactor the estimation logic into a separate function.)
+      const reqClone = { body: req.body };
+      const resClone = {
+        json: (data) => resolve(data),
+        status: (code) => ({ json: (data) => reject(data) })
+      };
+      app._router.handle(reqClone, resClone, () => {});
+    });
+
+    if (estimateResponse.error) {
+      return res.status(400).json({ error: estimateResponse.error });
+    }
+
+    // Build a professional prompt that includes the numerical breakdown.
+    const prompt = `
+Please create a detailed, professional estimate summary for a countertop project using the following details:
+
+Material: ${estimateResponse.material}
+Dimensions: ${req.body.lengthInches} inches by ${req.body.widthInches} inches
+Base Area (sq ft): ${estimateResponse.baseSqFt}
+Final Area with Waste (sq ft): ${estimateResponse.finalSqFt}
+Material Cost (after 35% markup): $${estimateResponse.markedUpCost} per sq ft, Total Material Cost: $${estimateResponse.materialTotal.toFixed(2)}
+Labor Cost: $${estimateResponse.laborCost}
+Additional Costs: $${estimateResponse.extraCosts}
+Total Estimate: $${estimateResponse.totalEstimate}
+
+Please write the estimate in a clear, professional tone that includes recommendations for next steps and any important notes.
+`;
+
+    // Use OpenAI to generate the professional summary.
+    const messages = [
+      { role: "system", content: "You are a professional estimator." },
+      { role: "user", content: prompt }
+    ];
+
+    const aiResponse = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages,
+      max_tokens: 300,
+      temperature: 0.7,
+    });
+    const professionalEstimate = aiResponse.data.choices[0].message.content.trim();
+
+    return res.json({ 
+      professionalEstimate,
+      calculation: estimateResponse
+    });
+  } catch (error) {
+    console.error("Error in /api/professional-estimate:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -488,6 +544,7 @@ app.get("/", (req, res) => {
       <li><strong>GET</strong> /api/quality-assurance</li>
       <li><strong>GET</strong> /api/minimum-workmanship-standards</li>
       <li><strong>GET</strong> /api/materials</li>
+      <li><strong>POST</strong> /api/professional-estimate</li>
     </ul>
   `);
 });
