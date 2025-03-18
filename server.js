@@ -2,7 +2,7 @@
  * server.js
  *
  * Node.js/Express server for Surprise Granite Chatbot Backend with OpenAI integration.
- * 
+ *
  * This version loads pricing data from local JSON files (materials.json and labor.json),
  * uses Fuse.js for fuzzy searching over materials data, and now supports:
  *   - Serving two PDF documents (Quality Assurance and Minimum Workmanship Standards).
@@ -10,6 +10,8 @@
  *   - Image uploads with placeholder image analysis logic.
  *   - Consultative chat responses with extra context and conversation history to avoid repeated greetings.
  *   - Shopify API integration using the Admin API token (SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_TOKEN).
+ *   - A new /api/materials endpoint for front-end vendor/stone population.
+ *   - An enhanced /api/get-estimate endpoint that can handle demoCost, edgeType, sinkCuts, and backsplashLinearFt for more accurate quotes.
  *
  * Additionally, a Machine Learning Integration Document is appended at the bottom.
  */
@@ -189,6 +191,14 @@ app.get("/api/minimum-workmanship-standards", (req, res) => {
 });
 
 /**
+ * GET /api/materials
+ * Returns the entire materialsData array so the front end can populate vendor & stone color.
+ */
+app.get("/api/materials", (req, res) => {
+  res.json(materialsData);
+});
+
+/**
  * POST /api/schedule
  * Form-based scheduling endpoint conforming to Thryv Zapier parameters.
  */
@@ -209,10 +219,24 @@ app.post("/api/schedule", (req, res) => {
 
 /**
  * POST /api/get-estimate
+ * Enhanced to handle optional fields: demoCost, edgeType, sinkCuts, backsplashLinearFt.
  */
 app.post("/api/get-estimate", (req, res) => {
   try {
-    const { material, lengthInches, widthInches, slabLengthInches, slabWidthInches, laborKey } = req.body;
+    const {
+      material,
+      lengthInches,
+      widthInches,
+      slabLengthInches,
+      slabWidthInches,
+      laborKey,
+      demoCost,           // optional
+      edgeType,           // optional
+      sinkCuts,           // optional
+      backsplashLinearFt, // optional
+    } = req.body;
+
+    // Basic validation
     if (!material || !lengthInches || !widthInches) {
       return res.status(400).json({ error: "Missing 'material', 'lengthInches', or 'widthInches'." });
     }
@@ -221,8 +245,12 @@ app.post("/api/get-estimate", (req, res) => {
     if (isNaN(lengthNum) || isNaN(widthNum) || lengthNum <= 0 || widthNum <= 0) {
       return res.status(400).json({ error: "Invalid 'lengthInches' or 'widthInches'. Must be positive numbers." });
     }
+
+    // Base area with 20% waste
     const baseSqFt = (lengthNum * widthNum) / 144;
     const finalSqFt = baseSqFt * 1.2;
+
+    // Calculate slab count if slab dimensions are provided
     let slabCount = 0;
     if (slabLengthInches && slabWidthInches) {
       const sLen = parseFloat(slabLengthInches);
@@ -232,25 +260,26 @@ app.post("/api/get-estimate", (req, res) => {
         slabCount = Math.ceil(finalSqFt / slabArea);
       }
     }
+
+    // Look up material in materialsData
     const matRow = materialsData.find(
       (row) => row.Material?.trim().toLowerCase() === material.trim().toLowerCase()
     );
     if (!matRow) {
       return res.status(404).json({ error: `Material '${material}' not found.` });
     }
-    let slabSqFt = null;
-    if (matRow["size"]) {
-      const dims = matRow["size"].split("x").map(s => parseFloat(s.trim()));
-      if (dims.length === 2 && !isNaN(dims[0]) && !isNaN(dims[1])) {
-        slabSqFt = parseFloat(((dims[0] * dims[1]) / 144).toFixed(2));
-      }
-    }
+
+    // Parse base cost from JSON
     const baseCostStr = matRow["Cost/SqFt"] || "0";
     const baseCost = parseFloat(baseCostStr);
     if (isNaN(baseCost)) {
       return res.status(400).json({ error: `Invalid base cost for material: ${material}` });
     }
+
+    // Calculate marked up cost (35% markup)
     const markedUpCost = baseCost * 1.35;
+
+    // Determine labor cost using laborKey (or default)
     let laborCost = 0;
     if (laborKey) {
       const laborRow = laborData.find(
@@ -265,8 +294,59 @@ app.post("/api/get-estimate", (req, res) => {
         laborCost = parseFloat(defaultLaborRow.Cost) || 0;
       }
     }
-    const materialTotal = markedUpCost * finalSqFt;
-    const totalEstimate = materialTotal + laborCost;
+
+    // Calculate material total cost
+    let materialTotal = markedUpCost * finalSqFt;
+
+    // Additional costs
+    let extraCosts = 0;
+
+    // Demo cost per sq ft
+    if (demoCost) {
+      const demoFloat = parseFloat(demoCost);
+      if (!isNaN(demoFloat) && demoFloat > 0) {
+        extraCosts += demoFloat * baseSqFt;
+      }
+    }
+
+    // Edge type additional cost
+    if (edgeType) {
+      if (edgeType.toLowerCase() === "bullnose") {
+        extraCosts += 2 * finalSqFt;
+      } else if (edgeType.toLowerCase() === "eased") {
+        extraCosts += 1.5 * finalSqFt;
+      }
+      // Default or standard edge may have no extra cost.
+    }
+
+    // Sink cuts cost (e.g., $50 each)
+    if (sinkCuts) {
+      const sinks = parseInt(sinkCuts, 10);
+      if (!isNaN(sinks) && sinks > 0) {
+        extraCosts += sinks * 50;
+      }
+    }
+
+    // Backsplash cost per linear foot (e.g., $5 per ft)
+    if (backsplashLinearFt) {
+      const bsf = parseFloat(backsplashLinearFt);
+      if (!isNaN(bsf) && bsf > 0) {
+        extraCosts += bsf * 5;
+      }
+    }
+
+    // Final total estimate
+    const totalEstimate = materialTotal + laborCost + extraCosts;
+
+    // Attempt to calculate slab size for reference
+    let slabSqFt = null;
+    if (matRow["size"]) {
+      const dims = matRow["size"].split("x").map(s => parseFloat(s.trim()));
+      if (dims.length === 2 && !isNaN(dims[0]) && !isNaN(dims[1])) {
+        slabSqFt = parseFloat(((dims[0] * dims[1]) / 144).toFixed(2));
+      }
+    }
+
     return res.json({
       material,
       lengthInches,
@@ -281,6 +361,11 @@ app.post("/api/get-estimate", (req, res) => {
       markedUpCost: parseFloat(markedUpCost.toFixed(2)),
       laborKey: laborKey || "Default",
       laborCost,
+      demoCost: demoCost || 0,
+      edgeType: edgeType || "Standard",
+      sinkCuts: sinkCuts || 0,
+      backsplashLinearFt: backsplashLinearFt || 0,
+      extraCosts: parseFloat(extraCosts.toFixed(2)),
       totalEstimate: parseFloat(totalEstimate.toFixed(2)),
     });
   } catch (error) {
@@ -332,7 +417,7 @@ app.post("/api/chat", async (req, res) => {
     // Append user message to conversation history
     conversationHistory.push({ role: "user", content: userMessage });
 
-    // Construct the full conversation, including system prompt and previous messages.
+    // Construct full conversation with system prompt and history
     const messages = [
       { role: "system", content: SYSTEM_INSTRUCTIONS },
       ...conversationHistory
@@ -402,6 +487,7 @@ app.get("/", (req, res) => {
       <li><strong>GET</strong> /api/get-instructions</li>
       <li><strong>GET</strong> /api/quality-assurance</li>
       <li><strong>GET</strong> /api/minimum-workmanship-standards</li>
+      <li><strong>GET</strong> /api/materials</li>
     </ul>
   `);
 });
