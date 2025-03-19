@@ -77,12 +77,19 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path); // Delete image after encoding
 
+    // OpenAI Vision API Call (Fixed)
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
         { role: "system", content: "You are an expert in identifying countertop materials and suggesting remodeling ideas." },
         { role: "user", content: "Analyze this image and describe the countertop material. Suggest remodeling ideas." },
-        { role: "user", content: { type: "image_url", image_url: `data:image/jpeg;base64,${imageBase64}` } },
+        { 
+          role: "user", 
+          content: [
+            { type: "text", text: "Here is the image to analyze:" },
+            { type: "image_url", image_url: `data:image/jpeg;base64,${imageBase64}` }
+          ]
+        }
       ],
       max_tokens: 300,
     });
@@ -90,7 +97,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     res.json({ response: response.choices[0].message.content });
   } catch (error) {
     console.error("Error analyzing image:", error);
-    res.status(500).json({ error: "Failed to analyze image." });
+    res.status(500).json({ error: error.message || "Failed to analyze image." });
   }
 });
 
