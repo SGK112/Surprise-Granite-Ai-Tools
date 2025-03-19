@@ -6,3 +6,6 @@ services:
     startCommand: npm start
     branch: main
     autoDeploy: true
+    instances: 1  # Added instance count to specify the number of containers to run
+    healthCheckPath: /health  # Optionally add health check endpoint
+    timeout: 120  # Optionally set a timeout for deployments (in seconds)
