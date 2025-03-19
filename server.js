@@ -20,9 +20,9 @@ const { ChatbotController } = require('./chatbotController'); // Importing the C
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // File paths
-const COLORS_FILE = __dirname + "/colors.json";
-const MATERIALS_FILE = __dirname + "/materials.json";
-const LABOR_FILE = __dirname + "/labor.json";
+const COLORS_FILE = path.join(__dirname, "colors.json");
+const MATERIALS_FILE = path.join(__dirname, "materials.json");
+const LABOR_FILE = path.join(__dirname, "labor.json");
 
 // Business Info
 const BUSINESS_INFO = {
@@ -39,6 +39,7 @@ let materialsData = [];
 let laborData = [];
 
 function loadData() {
+  // Load colors from file
   if (fs.existsSync(COLORS_FILE)) {
     try {
       colorsData = JSON.parse(fs.readFileSync(COLORS_FILE, "utf-8"));
@@ -57,6 +58,7 @@ function loadData() {
     scrapeColors();
   }
 
+  // Load materials from file
   if (fs.existsSync(MATERIALS_FILE)) {
     try {
       materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
@@ -66,6 +68,7 @@ function loadData() {
     }
   }
 
+  // Load labor pricing from file
   if (fs.existsSync(LABOR_FILE)) {
     try {
       laborData = JSON.parse(fs.readFileSync(LABOR_FILE, "utf-8"));
