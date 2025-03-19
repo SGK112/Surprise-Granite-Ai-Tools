@@ -14,6 +14,7 @@ const { OpenAI } = require("openai");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
+const { ChatbotController } = require('./chatbotController'); // Importing the Chatbot Controller
 
 // OpenAI Configuration
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -173,6 +174,12 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: error.message || "Failed to analyze image." });
   }
 });
+
+/**
+ * 📞 POST /api/chat
+ * Handles user messages and provides chatbot responses using OpenAI.
+ */
+app.post("/api/chat", ChatbotController.handleChat);  // Chatbot route
 
 /**
  * 🚀 Server Startup
