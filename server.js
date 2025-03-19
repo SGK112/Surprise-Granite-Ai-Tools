@@ -13,11 +13,15 @@ const helmet = require("helmet");
 const { OpenAI } = require("openai");
 const fs = require("fs");
 const path = require("path");
-const Fuse = require("fuse.js");
-const Shopify = require("shopify-api-node");
+const { exec } = require("child_process");
 
 // OpenAI Configuration
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// File paths
+const COLORS_FILE = __dirname + "/colors.json";
+const MATERIALS_FILE = __dirname + "/materials.json";
+const LABOR_FILE = __dirname + "/labor.json";
 
 // Business Info
 const BUSINESS_INFO = {
@@ -28,36 +32,65 @@ const BUSINESS_INFO = {
   googleBusiness: "https://g.co/kgs/Y9XGbpd",
 };
 
-// System Instructions for AI
-const SYSTEM_INSTRUCTIONS = `
-You are CARI, the Surprise Granite Design Assistant.
-You provide consultative, personalized responses about countertops, remodeling, estimates, and scheduling.
-Avoid reintroducing yourself after the initial greeting.
-Surprise Granite Info:
-  Name: ${BUSINESS_INFO.name}
-  Address: ${BUSINESS_INFO.address}
-  Phone: ${BUSINESS_INFO.phone}
-  Email: ${BUSINESS_INFO.email}
-  Google: ${BUSINESS_INFO.googleBusiness}
-`;
-
-// Shopify API Configuration
-const shopify = new Shopify({
-  shopName: process.env.SHOPIFY_SHOP_DOMAIN,
-  accessToken: process.env.SHOPIFY_ADMIN_TOKEN,
-});
-
-// Data Storage for Pricing
-let laborData = [];
+// Load materials, labor, and color data
+let colorsData = [];
 let materialsData = [];
-let conversationHistory = [];
+let laborData = [];
 
-// Initialize Fuse.js for material search
-let fuse;
-function initFuse() {
-  fuse = new Fuse(materialsData, { keys: ["Color Name", "Vendor Name", "Material"], threshold: 0.3 });
-  console.log("Fuse.js initialized for materials search.");
+function loadData() {
+  if (fs.existsSync(COLORS_FILE)) {
+    try {
+      colorsData = JSON.parse(fs.readFileSync(COLORS_FILE, "utf-8"));
+      if (colorsData.length === 0) {
+        console.log("📂 colors.json is empty. Scraping new colors...");
+        scrapeColors();
+      } else {
+        console.log(`✅ Loaded ${colorsData.length} colors from colors.json`);
+      }
+    } catch (error) {
+      console.error("❌ Error reading colors.json:", error.message);
+      scrapeColors();
+    }
+  } else {
+    console.log("📂 colors.json not found. Running scraper...");
+    scrapeColors();
+  }
+
+  if (fs.existsSync(MATERIALS_FILE)) {
+    try {
+      materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
+      console.log(`✅ Loaded ${materialsData.length} materials from materials.json`);
+    } catch (error) {
+      console.error("❌ Error reading materials.json:", error.message);
+    }
+  }
+
+  if (fs.existsSync(LABOR_FILE)) {
+    try {
+      laborData = JSON.parse(fs.readFileSync(LABOR_FILE, "utf-8"));
+      console.log(`✅ Loaded ${laborData.length} labor pricing entries from labor.json`);
+    } catch (error) {
+      console.error("❌ Error reading labor.json:", error.message);
+    }
+  }
 }
+
+// Function to run the scraper
+function scrapeColors() {
+  exec("node scraper.js", (error, stdout, stderr) => {
+    if (error) {
+      console.error(`❌ Scraping failed: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`⚠️ Scraper warnings: ${stderr}`);
+    }
+    console.log(`✅ Scraper output: ${stdout}`);
+  });
+}
+
+// Load all data when the server starts
+loadData();
 
 // Express App Setup
 const app = express();
@@ -67,8 +100,40 @@ app.use(express.json());
 const upload = multer({ dest: "uploads/" });
 
 /**
+ * 📜 GET /api/materials
+ * Returns the entire materialsData array.
+ */
+app.get("/api/materials", (req, res) => {
+  res.json(materialsData);
+});
+
+/**
+ * 📜 GET /api/labor
+ * Returns the laborData array.
+ */
+app.get("/api/labor", (req, res) => {
+  res.json(laborData);
+});
+
+/**
+ * 📂 GET /api/quality-assurance
+ * Serves the Quality Assurance PDF.
+ */
+app.get("/api/quality-assurance", (req, res) => {
+  res.sendFile(path.join(__dirname, "accreditation-quality assurance sample language-final.pdf"));
+});
+
+/**
+ * 📂 GET /api/workmanship-standards
+ * Serves the Minimum Workmanship Standards PDF.
+ */
+app.get("/api/workmanship-standards", (req, res) => {
+  res.sendFile(path.join(__dirname, "minimum_workmanship_standards_0.pdf"));
+});
+
+/**
  * 📸 POST /api/upload-image
- * Uses OpenAI Vision API to analyze countertops and remodeling ideas.
+ * Uses OpenAI Vision API to analyze countertops and match them to real colors.
  */
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
@@ -77,94 +142,35 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path); // Delete image after encoding
 
-    // OpenAI Vision API Call (Enhanced for Color Detection)
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
         { 
           role: "system", 
-          content: "You are an expert in countertop materials and provide professional remodeling suggestions. Analyze images to identify countertop type, color, texture, pattern, and ideal design pairings." 
-        },
-        { 
-          role: "user", 
-          content: "Analyze this image and describe the countertop. Identify its material (granite, quartz, marble, etc.), color, pattern (solid, veined, speckled), and finish (matte, polished, leathered). Suggest complementary cabinet colors, backsplash, and flooring for a modern kitchen or bathroom." 
+          content: `You are an expert in countertop materials and provide professional remodeling suggestions. 
+          Analyze images to identify countertop type, color, texture, and pattern. 
+          Match the color to known granite or quartz shades and suggest complementary design choices.
+          
+          Known Colors:
+          ${colorsData.map(c => `- ${c.name}: ${c.description}`).join("\n")}
+
+          If an exact match is unclear, describe the color and suggest the closest known option.` 
         },
         { 
           role: "user", 
           content: [
             { type: "text", text: "Here is the image to analyze:" },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } } // ✅ Fixed Image Format
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
           ]
         }
       ],
-      max_tokens: 500, // Increased response detail
+      max_tokens: 500, 
     });
 
     res.json({ response: response.choices[0].message.content });
   } catch (error) {
     console.error("Error analyzing image:", error);
     res.status(500).json({ error: error.message || "Failed to analyze image." });
-  }
-});
-
-/**
- * 🗣️ POST /api/chat
- * Handles AI-powered chat interactions.
- */
-app.post("/api/chat", async (req, res) => {
-  try {
-    const { userMessage } = req.body;
-    if (!userMessage) return res.status(400).json({ error: "No userMessage provided." });
-
-    conversationHistory.push({ role: "user", content: userMessage });
-
-    const messages = [
-      { role: "system", content: SYSTEM_INSTRUCTIONS },
-      ...conversationHistory,
-    ];
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
-      messages,
-      max_tokens: 250,
-    });
-
-    const aiReply = response.choices[0].message.content.trim();
-    conversationHistory.push({ role: "assistant", content: aiReply });
-
-    res.json({ response: aiReply });
-  } catch (error) {
-    console.error("Error in /api/chat:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-/**
- * 📑 POST /api/professional-estimate
- * Uses OpenAI to generate a professional countertop estimate.
- */
-app.post("/api/professional-estimate", async (req, res) => {
-  try {
-    const { material, lengthInches, widthInches } = req.body;
-    if (!material || !lengthInches || !widthInches) return res.status(400).json({ error: "Missing required fields." });
-
-    const prompt = `
-      Please create a professional estimate summary for a countertop project with:
-      - Material: ${material}
-      - Dimensions: ${lengthInches} x ${widthInches} inches
-      - Style suggestions & installation considerations
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
-      messages: [{ role: "system", content: "You are a professional estimator." }, { role: "user", content: prompt }],
-      max_tokens: 400,
-    });
-
-    res.json({ estimate: response.choices[0].message.content.trim() });
-  } catch (error) {
-    console.error("Error in /api/professional-estimate:", error);
-    res.status(500).json({ error: "Internal server error" });
   }
 });
 
