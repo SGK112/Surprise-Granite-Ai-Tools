@@ -16,6 +16,9 @@ const path = require("path");
 const Fuse = require("fuse.js");
 const Shopify = require("shopify-api-node");
 
+// OpenAI Configuration
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 // Business Info
 const BUSINESS_INFO = {
   name: "Surprise Granite",
@@ -38,9 +41,6 @@ Surprise Granite Info:
   Google: ${BUSINESS_INFO.googleBusiness}
 `;
 
-// OpenAI Configuration
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 // Shopify API Configuration
 const shopify = new Shopify({
   shopName: process.env.SHOPIFY_SHOP_DOMAIN,
@@ -61,7 +61,7 @@ function initFuse() {
 
 // Express App Setup
 const app = express();
-app.use(cors({ origin: "*" })); // Allow all origins for now
+app.use(cors({ origin: "*" })); // Allow all origins
 app.use(helmet());
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
