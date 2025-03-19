@@ -87,7 +87,7 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
           role: "user", 
           content: [
             { type: "text", text: "Here is the image to analyze:" },
-            { type: "image_url", image_url: `data:image/jpeg;base64,${imageBase64}` }
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } } // ✅ Fixed Image Format
           ]
         }
       ],
