@@ -1,6 +1,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const fs = require("fs");
+const path = require("path");
 
 // Define multiple sources for scraping
 const SOURCES = [
@@ -10,7 +11,7 @@ const SOURCES = [
     parse: ($) => $(".product-grid-item").map((i, el) => ({
       name: $(el).find(".product-title").text().trim(),
       description: "Quartz countertop from MSI Surfaces",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.msisurfaces.com")
     })).get()
   },
   {
@@ -19,7 +20,7 @@ const SOURCES = [
     parse: ($) => $(".product-grid-item").map((i, el) => ({
       name: $(el).find(".product-title").text().trim(),
       description: "Granite countertop from MSI Surfaces",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.msisurfaces.com")
     })).get()
   },
   {
@@ -28,7 +29,7 @@ const SOURCES = [
     parse: ($) => $(".product-item").map((i, el) => ({
       name: $(el).find(".product-title").text().trim(),
       description: "Quartz countertop from Arizona Tile",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.arizonatile.com")
     })).get()
   },
   {
@@ -37,7 +38,7 @@ const SOURCES = [
     parse: ($) => $(".product-grid__item").map((i, el) => ({
       name: $(el).find(".product-tile__title").text().trim(),
       description: "Quartz countertop from Daltile",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.daltile.com")
     })).get()
   },
   {
@@ -46,7 +47,7 @@ const SOURCES = [
     parse: ($) => $(".product-color").map((i, el) => ({
       name: $(el).find(".product-color__title").text().trim(),
       description: "Countertop material from Cosentino",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.cosentino.com")
     })).get()
   },
   {
@@ -55,7 +56,7 @@ const SOURCES = [
     parse: ($) => $(".product-card").map((i, el) => ({
       name: $(el).find(".product-card__title").text().trim(),
       description: "Quartz countertop from Cambria",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.cambriausa.com")
     })).get()
   },
   {
@@ -64,7 +65,7 @@ const SOURCES = [
     parse: ($) => $(".tile-item").map((i, el) => ({
       name: $(el).find(".tile-title").text().trim(),
       description: "Countertop material from Arc Surfaces",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://arcsurfaces.com")
     })).get()
   },
   {
@@ -73,10 +74,18 @@ const SOURCES = [
     parse: ($) => $(".product-grid-item").map((i, el) => ({
       name: $(el).find(".product-title").text().trim(),
       description: "Countertop from Surprise Granite",
-      imageUrl: $(el).find("img").attr("src")
+      imageUrl: fixImageUrl($(el).find("img").attr("src"), "https://www.surprisegranite.com")
     })).get()
   }
 ];
+
+// Fix relative image URLs to absolute URLs
+function fixImageUrl(url, baseUrl) {
+  if (url && !url.startsWith('http')) {
+    return new URL(url, baseUrl).href; // Resolve relative URL to absolute
+  }
+  return url;
+}
 
 async function scrapeColors() {
   let allColors = [];
