@@ -77,17 +77,17 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path); // Delete image after encoding
 
-    // OpenAI Vision API Call (Improved)
+    // OpenAI Vision API Call (Enhanced for Color Detection)
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
         { 
           role: "system", 
-          content: "You are an expert in identifying countertop materials and providing professional remodeling suggestions." 
+          content: "You are an expert in countertop materials and provide professional remodeling suggestions. Analyze images to identify countertop type, color, texture, pattern, and ideal design pairings." 
         },
         { 
           role: "user", 
-          content: "Analyze this image and describe the countertop material. Identify if it's quartz, granite, marble, or another material. Describe the texture, finish (matte, polished, leathered), durability, and maintenance required. Also, suggest complementary cabinet colors, flooring, and lighting for a modern kitchen or bathroom." 
+          content: "Analyze this image and describe the countertop. Identify its material (granite, quartz, marble, etc.), color, pattern (solid, veined, speckled), and finish (matte, polished, leathered). Suggest complementary cabinet colors, backsplash, and flooring for a modern kitchen or bathroom." 
         },
         { 
           role: "user", 
