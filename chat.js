@@ -34,20 +34,28 @@ recordButton.addEventListener("click", function () {
 
 // Function to send message to AI backend
 async function sendMessage(message) {
+  // Ensure there's content to send
+  if (!message.trim()) return;
+
   chatOutput.innerHTML += `<p><strong>You:</strong> ${message}</p>`;
+  chatInput.value = ""; // Clear input after sending
 
   try {
     const response = await fetch("https://surprise-granite-connections-dev.onrender.com/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userMessage: message })
+      body: JSON.stringify({ message }) // Adjusted to match expected backend parameter
     });
 
     const data = await response.json();
-    chatOutput.innerHTML += `<p><strong>AI:</strong> ${data.response}</p>`;
-    speakResponse(data.response); // Convert AI response to speech
+    chatOutput.innerHTML += `<p><strong>AI:</strong> ${data.message}</p>`;
+    speakResponse(data.message); // Convert AI response to speech
+
+    scrollToBottom(); // Scroll chat to the bottom after sending/receiving
   } catch (error) {
     console.error("Error sending message:", error);
+    chatOutput.innerHTML += `<p><strong>AI:</strong> Sorry, I couldn't process your request. Please try again.</p>`;
+    scrollToBottom();
   }
 }
 
@@ -55,14 +63,22 @@ async function sendMessage(message) {
 function speakResponse(text) {
   const speech = new SpeechSynthesisUtterance(text);
   const voices = window.speechSynthesis.getVoices();
-  
+
+  // Wait for voices to be available, if needed
+  if (voices.length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      speakResponse(text); // Retry once voices are loaded
+    };
+    return;
+  }
+
   // Select the most human-like voice
-  let bestVoice = voices.find(voice => 
-    voice.name.includes("US English") || 
-    voice.name.includes("UK English") || 
-    voice.name.includes("Daniel") || 
+  let bestVoice = voices.find(voice =>
+    voice.name.includes("US English") ||
+    voice.name.includes("UK English") ||
+    voice.name.includes("Daniel") ||
     voice.name.includes("Samantha") ||
-    voice.name.includes("Alex") 
+    voice.name.includes("Alex")
   );
 
   speech.voice = bestVoice || voices[0]; // Use best match or default voice
@@ -73,11 +89,13 @@ function speakResponse(text) {
   window.speechSynthesis.speak(speech);
 }
 
+// Scroll chat to the bottom after a new message
+function scrollToBottom() {
+  chatOutput.scrollTop = chatOutput.scrollHeight;
+}
+
 // Send message manually when clicking send button
 sendButton.addEventListener("click", function () {
   const message = chatInput.value;
-  if (message.trim()) {
-    sendMessage(message);
-    chatInput.value = ""; // Clear input after sending
-  }
+  sendMessage(message);
 });
