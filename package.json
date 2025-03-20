@@ -5,11 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"  // Added dev script to run the server with nodemon for development
+    "dev": "nodemon server.js"  
   },
   "dependencies": {
     "axios": "^1.4.0",
-    "cheerio": "^1.0.0-rc.12", // If this is too unstable, consider upgrading to a stable release
+    "cheerio": "^1.0.0-rc.12", 
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -18,9 +18,9 @@
     "multer": "^1.4.5-lts.1",
     "openai": "^4.87.4",
     "shopify-api-node": "^3.6.0",
-    "nodemon": "^2.0.22"  // Added nodemon for hot-reloading during development
+    "nodemon": "^2.0.22"  
   },
   "engines": {
-    "node": ">=16.0.0"  // Added engine for node.js version compatibility
+    "node": ">=16.0.0"  
   }
 }
