@@ -11,7 +11,12 @@ const MATERIALS_FILE = path.join(__dirname, "materials.json");
 let materialsData = [];
 
 if (fs.existsSync(MATERIALS_FILE)) {
-  materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
+  try {
+    materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
+  } catch (error) {
+    console.error("Error loading materials.json:", error);
+    materialsData = [];
+  }
 }
 
 // Function to apply a 35% markup
@@ -38,10 +43,16 @@ class ChatbotController {
         });
       }
 
+      // Ensure materialsData is loaded correctly
+      if (!materialsData || materialsData.length === 0) {
+        return res.json({ message: "Material data is currently unavailable." });
+      }
+
       // Handle material pricing requests
       const materialMatch = materialsData.find(m =>
-        userMessage.toLowerCase().includes(m.name.toLowerCase())
+        m.name && userMessage.toLowerCase().includes(m.name.toLowerCase())
       );
+
       if (materialMatch) {
         const markedUpPrice = applyMarkup(materialMatch.price);
         return res.json({
