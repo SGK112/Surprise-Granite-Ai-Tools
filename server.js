@@ -14,7 +14,7 @@ const { OpenAI } = require("openai");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
-const { ChatbotController } = require("./chatbotController"); // Importing the Chatbot Controller
+const { ChatbotController } = require('./chatbotController'); // Importing the Chatbot Controller
 
 // OpenAI Configuration
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -47,7 +47,7 @@ function loadData() {
         console.log("📂 colors.json is empty. Scraping new colors...");
         scrapeColors();
       } else {
-        console.log(`✅ Loaded ${colorsData.length} colors from colors.json`);
+        console.log(✅ Loaded ${colorsData.length} colors from colors.json);
       }
     } catch (error) {
       console.error("❌ Error reading colors.json:", error.message);
@@ -62,7 +62,7 @@ function loadData() {
   if (fs.existsSync(MATERIALS_FILE)) {
     try {
       materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
-      console.log(`✅ Loaded ${materialsData.length} materials from materials.json`);
+      console.log(✅ Loaded ${materialsData.length} materials from materials.json);
     } catch (error) {
       console.error("❌ Error reading materials.json:", error.message);
     }
@@ -72,7 +72,7 @@ function loadData() {
   if (fs.existsSync(LABOR_FILE)) {
     try {
       laborData = JSON.parse(fs.readFileSync(LABOR_FILE, "utf-8"));
-      console.log(`✅ Loaded ${laborData.length} labor pricing entries from labor.json`);
+      console.log(✅ Loaded ${laborData.length} labor pricing entries from labor.json);
     } catch (error) {
       console.error("❌ Error reading labor.json:", error.message);
     }
@@ -83,13 +83,13 @@ function loadData() {
 function scrapeColors() {
   exec("node scraper.js", (error, stdout, stderr) => {
     if (error) {
-      console.error(`❌ Scraping failed: ${error.message}`);
+      console.error(❌ Scraping failed: ${error.message});
       return;
     }
     if (stderr) {
-      console.error(`⚠️ Scraper warnings: ${stderr}`);
+      console.error(⚠️ Scraper warnings: ${stderr});
     }
-    console.log(`✅ Scraper output: ${stdout}`);
+    console.log(✅ Scraper output: ${stdout});
   });
 }
 
@@ -102,13 +102,6 @@ app.use(cors({ origin: "*" })); // Allow all origins
 app.use(helmet());
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
-
-/**
- * ✅ Default Route (Prevents "Cannot GET /" Errors)
- */
-app.get("/", (req, res) => {
-  res.send("✅ Surprise Granite Chatbot API is running! 🚀");
-});
 
 /**
  * 📜 GET /api/materials
@@ -158,20 +151,20 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
       messages: [
         { 
           role: "system", 
-          content: `You are an expert in countertop materials and provide professional remodeling suggestions. 
+          content: You are an expert in countertop materials and provide professional remodeling suggestions. 
           Analyze images to identify countertop type, color, texture, and pattern. 
           Match the color to known granite or quartz shades and suggest complementary design choices.
           
           Known Colors:
-          ${colorsData.map(c => `- ${c.name}: ${c.description}`).join("\n")}
+          ${colorsData.map(c => - ${c.name}: ${c.description}).join("\n")}
 
-          If an exact match is unclear, describe the color and suggest the closest known option.` 
+          If an exact match is unclear, describe the color and suggest the closest known option. 
         },
         { 
           role: "user", 
           content: [
             { type: "text", text: "Here is the image to analyze:" },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+            { type: "image_url", image_url: { url: data:image/jpeg;base64,${imageBase64} } }
           ]
         }
       ],
@@ -196,5 +189,5 @@ app.post("/api/chat", ChatbotController.handleChat);  // Chatbot route
  */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(✅ Server running on port ${PORT});
 });
