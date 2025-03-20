@@ -93,12 +93,24 @@ async function scrapeColors() {
   for (const source of SOURCES) {
     try {
       console.log(`🔍 Scraping from ${source.name}...`);
-      const { data } = await axios.get(source.url);
+      
+      const { data } = await axios.get(source.url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        },
+        timeout: 15000  // Set timeout to 15 seconds
+      });
+
       const $ = cheerio.load(data);
       const colors = source.parse($);
       
-      allColors = [...allColors, ...colors];
-      console.log(`✅ Scraped ${colors.length} colors from ${source.name}`);
+      if (colors.length > 0) {
+        allColors = [...allColors, ...colors];
+        console.log(`✅ Scraped ${colors.length} colors from ${source.name}`);
+      } else {
+        console.warn(`⚠️ No colors found on ${source.name}. The page structure might have changed.`);
+      }
+
     } catch (error) {
       console.error(`❌ Failed to scrape ${source.name}:`, error.message);
     }
@@ -108,7 +120,7 @@ async function scrapeColors() {
     fs.writeFileSync("colors.json", JSON.stringify(allColors, null, 2));
     console.log("✅ Colors saved to colors.json");
   } else {
-    console.log("⚠️ No colors scraped.");
+    console.warn("⚠️ No colors scraped. Check website structures or bot protection.");
   }
 }
 
