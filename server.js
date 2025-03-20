@@ -14,7 +14,7 @@ const { OpenAI } = require("openai");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
-const { ChatbotController } = require('./chatbotController'); // Importing the Chatbot Controller
+const { ChatbotController } = require("./chatbotController"); // Importing the Chatbot Controller
 
 // OpenAI Configuration
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -102,6 +102,13 @@ app.use(cors({ origin: "*" })); // Allow all origins
 app.use(helmet());
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
+
+/**
+ * ✅ Default Route (Prevents "Cannot GET /" Errors)
+ */
+app.get("/", (req, res) => {
+  res.send("✅ Surprise Granite Chatbot API is running! 🚀");
+});
 
 /**
  * 📜 GET /api/materials
