@@ -185,6 +185,13 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 app.post("/api/chat", ChatbotController.handleChat);  // Chatbot route
 
 /**
+ * ✅ Default Route (Prevents "Cannot GET /" Error)
+ */
+app.get("/", (req, res) => {
+  res.send("✅ Surprise Granite Chatbot API is running! 🚀");
+});
+
+/**
  * 🚀 Server Startup
  */
 const PORT = process.env.PORT || 5000;
