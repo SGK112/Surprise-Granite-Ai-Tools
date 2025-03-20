@@ -14,7 +14,7 @@ if (fs.existsSync(MATERIALS_FILE)) {
   try {
     materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
   } catch (error) {
-    console.error("Error loading materials.json:", error);
+    console.error("❌ Error loading materials.json:", error);
     materialsData = [];
   }
 }
@@ -35,22 +35,9 @@ class ChatbotController {
         return res.status(400).json({ error: "User message is required" });
       }
 
-      // Restrict chatbot topics to remodeling and countertops only
-      const restrictedTopics = ["travel", "flights", "cars", "insurance", "stocks", "movies"];
-      if (restrictedTopics.some(topic => userMessage.toLowerCase().includes(topic))) {
-        return res.json({
-          message: "I'm here to assist with countertops, remodeling, and interior design. How can I help?",
-        });
-      }
-
-      // Ensure materialsData is loaded correctly
-      if (!materialsData || materialsData.length === 0) {
-        return res.json({ message: "Material data is currently unavailable." });
-      }
-
       // Handle material pricing requests
       const materialMatch = materialsData.find(m =>
-        m.name && userMessage.toLowerCase().includes(m.name.toLowerCase())
+        userMessage.toLowerCase().includes(m.name.toLowerCase())
       );
 
       if (materialMatch) {
@@ -73,7 +60,7 @@ class ChatbotController {
 
       res.json({ message: response.choices[0].message.content });
     } catch (error) {
-      console.error("Error during chatbot interaction:", error);
+      console.error("❌ Chatbot error:", error);
       res.status(500).json({ error: "Something went wrong while processing your request." });
     }
   }
@@ -99,7 +86,7 @@ class ChatbotController {
 
       res.json({ message: response.choices[0].message.content });
     } catch (error) {
-      console.error("Image processing error:", error);
+      console.error("❌ Image processing error:", error);
       res.status(500).json({ error: "Failed to analyze the image." });
     }
   }
