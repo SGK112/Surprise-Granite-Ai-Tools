@@ -47,7 +47,7 @@ function loadData() {
         console.log("📂 colors.json is empty. Scraping new colors...");
         scrapeColors();
       } else {
-        console.log(✅ Loaded ${colorsData.length} colors from colors.json);
+        console.log(`✅ Loaded ${colorsData.length} colors from colors.json);
       }
     } catch (error) {
       console.error("❌ Error reading colors.json:", error.message);
@@ -62,7 +62,7 @@ function loadData() {
   if (fs.existsSync(MATERIALS_FILE)) {
     try {
       materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
-      console.log(✅ Loaded ${materialsData.length} materials from materials.json);
+      console.log(`✅ Loaded ${materialsData.length} materials from materials.json);
     } catch (error) {
       console.error("❌ Error reading materials.json:", error.message);
     }
@@ -72,7 +72,7 @@ function loadData() {
   if (fs.existsSync(LABOR_FILE)) {
     try {
       laborData = JSON.parse(fs.readFileSync(LABOR_FILE, "utf-8"));
-      console.log(✅ Loaded ${laborData.length} labor pricing entries from labor.json);
+      console.log(`✅ Loaded ${laborData.length} labor pricing entries from labor.json);
     } catch (error) {
       console.error("❌ Error reading labor.json:", error.message);
     }
@@ -89,7 +89,7 @@ function scrapeColors() {
     if (stderr) {
       console.error(⚠️ Scraper warnings: ${stderr});
     }
-    console.log(✅ Scraper output: ${stdout});
+    console.log(`✅ Scraper output: ${stdout});
   });
 }
 
@@ -189,5 +189,5 @@ app.post("/api/chat", ChatbotController.handleChat);  // Chatbot route
  */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(✅ Server running on port ${PORT});
+  console.log(`✅ Server running on port ${PORT});
 });
