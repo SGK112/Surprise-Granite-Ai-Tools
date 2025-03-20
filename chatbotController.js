@@ -1,35 +1,95 @@
-// Import the OpenAI class from the OpenAI package
-const { OpenAI } = require('openai');
+const { OpenAI } = require("openai");
+const fs = require("fs");
+const path = require("path");
 
-// Ensure you have your API key set in your environment variables
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Using your API key securely from the .env file
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Load materials data
+const MATERIALS_FILE = path.join(__dirname, "materials.json");
+let materialsData = [];
+
+if (fs.existsSync(MATERIALS_FILE)) {
+  materialsData = JSON.parse(fs.readFileSync(MATERIALS_FILE, "utf-8"));
+}
+
+// Function to apply a 35% markup
+function applyMarkup(price) {
+  return (price * 1.35).toFixed(2);
+}
+
 class ChatbotController {
+  /**
+   * Handles text-based chat messages from users.
+   */
   static async handleChat(req, res) {
     try {
-      // Check if the user message is provided in the request body
       const userMessage = req.body.message;
       if (!userMessage) {
-        return res.status(400).json({ error: 'User message is required' });
+        return res.status(400).json({ error: "User message is required" });
       }
 
-      // Send the message to OpenAI's chat API (we're using gpt-4 for a better response)
+      // Restrict chatbot topics to remodeling and countertops only
+      const restrictedTopics = ["travel", "flights", "cars", "insurance", "stocks", "movies"];
+      if (restrictedTopics.some(topic => userMessage.toLowerCase().includes(topic))) {
+        return res.json({
+          message: "I'm here to assist with countertops, remodeling, and interior design. How can I help?",
+        });
+      }
+
+      // Handle material pricing requests
+      const materialMatch = materialsData.find(m =>
+        userMessage.toLowerCase().includes(m.name.toLowerCase())
+      );
+      if (materialMatch) {
+        const markedUpPrice = applyMarkup(materialMatch.price);
+        return res.json({
+          message: `The price for ${materialMatch.name} is **$${markedUpPrice} per square foot**.`,
+        });
+      }
+
+      // OpenAI chatbot response
       const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo", // Using GPT-4 (or use the appropriate version)
-        messages: [{ role: "user", content: userMessage }],
+        model: "gpt-4-turbo",
+        messages: [
+          { role: "system", content: "You are a countertop and remodeling assistant for Surprise Granite." },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 300,
+        temperature: 0.8,
       });
 
-      // Extract the response from the API
-      const botReply = response.choices[0].message.content;
-
-      // Return the bot's reply to the client
-      res.json({ message: botReply });
+      res.json({ message: response.choices[0].message.content });
     } catch (error) {
-      // Log the error and send a generic error message
-      console.error('Error during chatbot interaction:', error);
-      res.status(500).json({ error: 'Something went wrong while processing your request' });
+      console.error("Error during chatbot interaction:", error);
+      res.status(500).json({ error: "Something went wrong while processing your request." });
+    }
+  }
+
+  /**
+   * Handles image uploads and uses AI to analyze the countertop material.
+   */
+  static async handleImageUpload(req, res) {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+
+      const imageBase64 = fs.readFileSync(req.file.path, "base64");
+      fs.unlinkSync(req.file.path);
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          { role: "system", content: "You are an expert in countertop materials. Identify materials and suggest closest matches with vendor details." },
+          { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] },
+        ],
+        max_tokens: 500,
+      });
+
+      res.json({ message: response.choices[0].message.content });
+    } catch (error) {
+      console.error("Image processing error:", error);
+      res.status(500).json({ error: "Failed to analyze the image." });
     }
   }
 }
