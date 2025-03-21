@@ -84,31 +84,24 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
-    const relevantColors = colorsData.filter(c => c.name && c.material && c.vendor && c.colorFamily);
-    const formattedColors = relevantColors.map(c => `• ${c.name} (${c.material}, ${c.vendor}) - ${c.colorFamily}`).join("\n");
-
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
         {
           role: "system",
           content: `
-You are a countertop material expert at Surprise Granite.
+You are a professional countertop designer and materials expert at Surprise Granite.
 
-You will be given a countertop image and a list of real slabs we carry.
+You will be given an image of a countertop. Do not guess wildly. Use your visual understanding and professional experience to:
 
-First, analyze the image: determine material type, veining/speckling, color family, and whether it’s natural or engineered.
+1. Identify the likely material (granite, quartz, marble, quartzite, etc.)
+2. Describe the color family (e.g., black speckled, white with veining, gold with movement)
+3. Suggest a possible match based on known industry patterns (e.g., Calacatta Laza, Black Galaxy, Carrara Morro)
+4. Indicate whether it's natural stone or engineered
+5. Mention potential vendors (e.g., MSI, Daltile, Cambria) if relevant
+6. Give a 3–5 sentence explanation like you're helping a customer choose slabs
 
-Then, compare it to the slab list below and find the best match.
-
-Respond with:
-- Closest match (or “closest match might be...”)
-- Vendor, material, size (if known)
-- Family and natural vs engineered
-- A short professional showroom-style summary
-
-Here are the slabs we carry:
-${formattedColors}
+Only name a match if you're confident. If you're not sure, say: "This resembles patterns like..." and give a few possibilities.
           `
         },
         {
