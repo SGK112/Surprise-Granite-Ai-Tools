@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Calacatta Laza",
+    "description": "Quartz countertop from MSI Surfaces",
+    "vendor": "MSI",
+    "material": "Quartz",
+    "size": "126x63",
+    "colorFamily": "White with gray veining"
+  },
+  {
+    "name": "Black Galaxy",
+    "description": "Granite countertop from Daltile",
+    "vendor": "Daltile",
+    "material": "Granite",
+    "size": "120x60",
+    "colorFamily": "Black with gold speckles"
+  },
+  {
+    "name": "Carrara Morro",
+    "description": "Quartz countertop from Cambria",
+    "vendor": "Cambria",
+    "material": "Quartz",
+    "size": "130x65",
+    "colorFamily": "White with soft gray veining"
+  }
+]
