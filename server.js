@@ -98,7 +98,7 @@ app.post("/api/chat", async (req, res) => {
 
     res.json({ response: aiReply });
   } catch (error) {
-    console.error("❌ Error in /api/chat:", error);
+    console.error("\u274c Error in /api/chat:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -118,11 +118,30 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 
     console.log("📸 Image received, sending to OpenAI...");
 
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
-        { role: "system", content: "Analyze this image and describe the countertop type, color, and material." },
-        { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
+        {
+          role: "system",
+          content: `
+You are a countertop material expert at Surprise Granite. Your job is to:
+- Identify the type of material (granite, quartz, quartzite, marble, etc.)
+- Name the color or pattern if you recognize it, or say "closest match"
+- Describe the color family (e.g. beige, white with veining, black speckled)
+- Say which vendors it might be from (e.g. MSI, Arizona Tile, Daltile, Cambria)
+- Specify whether it is natural stone or engineered quartz
+- Do not make up facts. If unsure, suggest possibilities like “could be from...”
+
+Respond with a 3–5 sentence analysis.
+          `
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Here is the countertop image. Please analyze it carefully." },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+          ]
+        }
       ],
       max_tokens: 500
     });
@@ -133,14 +152,13 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
 
     res.json({ response: response.choices[0].message.content });
   } catch (error) {
-    console.error("❌ Error in /api/upload-image:", error);
+    console.error("\u274c Error in /api/upload-image:", error);
     res.status(500).json({ error: "Failed to analyze image." });
   }
 });
 
 /**
  * 📂 GET /api/materials
- * Fetches countertop materials from a local JSON file.
  */
 app.get("/api/materials", (req, res) => {
   res.json(materialsData);
@@ -148,7 +166,6 @@ app.get("/api/materials", (req, res) => {
 
 /**
  * 📂 GET /api/business-info
- * Fetches Surprise Granite business details.
  */
 app.get("/api/business-info", (req, res) => {
   res.json(BUSINESS_INFO);
@@ -156,7 +173,6 @@ app.get("/api/business-info", (req, res) => {
 
 /**
  * 📂 GET /api/get-instructions
- * Provides chatbot system instructions for debugging.
  */
 app.get("/api/get-instructions", (req, res) => {
   res.json({ instructions: SYSTEM_INSTRUCTIONS });
@@ -164,7 +180,6 @@ app.get("/api/get-instructions", (req, res) => {
 
 /**
  * ✅ GET /
- * Default endpoint to confirm API is live.
  */
 app.get("/", (req, res) => {
   res.send("✅ Surprise Granite Chatbot API is running! 🚀");
