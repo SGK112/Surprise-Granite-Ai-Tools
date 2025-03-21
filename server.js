@@ -49,7 +49,17 @@ You are CARI, the Surprise Granite Design Assistant.
 Answer professionally and help users with estimates, materials, and design advice.
 `;
 
-app.use(cors({ origin: "https://www.surprisegranite.com" }));
+app.use(
+  cors({
+    origin: [
+      "https://www.surprisegranite.com",
+      "https://surprise-granite-ai.vercel.app",  // Allow Vercel frontend
+      "http://localhost:8081"  // Allow local Vue development
+    ],
+    methods: "GET,POST,PUT,DELETE",
+    allowedHeaders: "Content-Type",
+  })
+);
 app.use(helmet());
 app.use(express.json());
 
