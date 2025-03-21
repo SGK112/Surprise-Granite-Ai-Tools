@@ -43,6 +43,42 @@ const SOURCES = [
           imageUrl: fixUrl($(el).find("img").attr("src"), "https://www.arizonatile.com")
         }))
         .get(),
+  },
+  {
+    name: "Cambria Quartz",
+    url: "https://www.cambriausa.com/quartz-countertops/quartz-colors",
+    parse: ($) =>
+      $(".product-card")
+        .map((_, el) => ({
+          name: $(el).find(".product-card__title").text().trim(),
+          description: "Quartz countertop from Cambria",
+          imageUrl: fixUrl($(el).find("img").attr("src"), "https://www.cambriausa.com")
+        }))
+        .get()
+  },
+  {
+    name: "Daltile Quartz",
+    url: "https://www.daltile.com/countertops-product-category/ONE-Quartz-Surfaces",
+    parse: ($) =>
+      $(".product-grid__item")
+        .map((_, el) => ({
+          name: $(el).find(".product-tile__title").text().trim(),
+          description: "Quartz countertop from Daltile",
+          imageUrl: fixUrl($(el).find("img").attr("src"), "https://www.daltile.com")
+        }))
+        .get()
+  },
+  {
+    name: "Cosentino Colors",
+    url: "https://www.cosentino.com/usa/colors/",
+    parse: ($) =>
+      $(".product-color")
+        .map((_, el) => ({
+          name: $(el).find(".product-color__title").text().trim(),
+          description: "Countertop material from Cosentino (Silestone or Dekton)",
+          imageUrl: fixUrl($(el).find("img").attr("src"), "https://www.cosentino.com")
+        }))
+        .get()
   }
 ];
 
