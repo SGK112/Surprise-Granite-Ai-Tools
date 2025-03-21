@@ -84,18 +84,32 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
-    const topColors = colorsData.slice(0, 40).map(c => `• Name: ${c.name}\n  Material: ${c.material || "Unknown"}\n  Vendor: ${c.vendor || "Unknown"}\n  Size: ${c.size || "Standard"}\n  Family: ${c.colorFamily || "Unknown"}`).join("\n\n");
+    const relevantColors = colorsData.filter(c => c.name && c.material && c.vendor && c.colorFamily);
+    const formattedColors = relevantColors.map(c => `• ${c.name} (${c.material}, ${c.vendor}) - ${c.colorFamily}`).join("\n");
 
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [
         {
           role: "system",
-          content: `You are a countertop expert. Match the uploaded image to the list of products:
+          content: `
+You are a countertop material expert at Surprise Granite.
 
-${topColors}
+You will be given a countertop image and a list of real slabs we carry.
 
-If you find a match, name it. If unsure, say \"closest match might be...\". Mention material, vendor, family, and size.`
+First, analyze the image: determine material type, veining/speckling, color family, and whether it’s natural or engineered.
+
+Then, compare it to the slab list below and find the best match.
+
+Respond with:
+- Closest match (or “closest match might be...”)
+- Vendor, material, size (if known)
+- Family and natural vs engineered
+- A short professional showroom-style summary
+
+Here are the slabs we carry:
+${formattedColors}
+          `
         },
         {
           role: "user",
