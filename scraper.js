@@ -88,6 +88,17 @@ function fixUrl(url, base) {
   return url.startsWith("http") ? url : new URL(url, base).href;
 }
 
+function deduplicateColors(colors) {
+  const seen = new Map();
+  for (const item of colors) {
+    const key = item.name.toLowerCase();
+    if (!seen.has(key)) {
+      seen.set(key, item);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 async function scrapeAll() {
   const allColors = [];
 
@@ -113,9 +124,11 @@ async function scrapeAll() {
     }
   }
 
-  if (allColors.length > 0) {
-    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(allColors, null, 2));
-    console.log(`📁 Saved ${allColors.length} colors to ${OUTPUT_FILE}`);
+  const uniqueColors = deduplicateColors(allColors);
+
+  if (uniqueColors.length > 0) {
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(uniqueColors, null, 2));
+    console.log(`📁 Saved ${uniqueColors.length} unique colors to ${OUTPUT_FILE}`);
   } else {
     console.warn("⚠️ No colors were scraped. Existing data remains unchanged.");
   }
