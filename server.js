@@ -36,6 +36,7 @@ const BUSINESS_INFO = {
 // Global Data Storage
 let laborData = [];
 let materialsData = [];
+let colorsData = [];
 let conversationHistory = [];
 
 // Fuse.js for Fuzzy Searching
@@ -69,33 +70,21 @@ app.use(express.json());
 
 /**
  * 📞 POST /api/chat
- * Handles user chatbot responses using OpenAI GPT-4 with context retention.
  */
 app.post("/api/chat", async (req, res) => {
   try {
     const { userMessage } = req.body;
-    if (!userMessage) {
-      return res.status(400).json({ error: "User message is required" });
-    }
-
-    // Append user message to conversation history
+    if (!userMessage) return res.status(400).json({ error: "User message is required" });
     conversationHistory.push({ role: "user", content: userMessage });
-
-    const messages = [
-      { role: "system", content: SYSTEM_INSTRUCTIONS },
-      ...conversationHistory
-    ];
-
+    const messages = [{ role: "system", content: SYSTEM_INSTRUCTIONS }, ...conversationHistory];
     const response = await openai.createChatCompletion({
       model: "gpt-4-turbo",
       messages,
       max_tokens: 250,
       temperature: 0.7,
     });
-
     const aiReply = response.data.choices[0].message.content.trim();
     conversationHistory.push({ role: "assistant", content: aiReply });
-
     res.json({ response: aiReply });
   } catch (error) {
     console.error("\u274c Error in /api/chat:", error);
@@ -105,18 +94,18 @@ app.post("/api/chat", async (req, res) => {
 
 /**
  * 📸 POST /api/upload-image
- * Handles image uploads and processes countertop images using OpenAI Vision API.
  */
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded." });
-    }
-
+    if (!req.file) return res.status(400).json({ error: "No file uploaded." });
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
+    console.log("\ud83d\udcf8 Image received, sending to OpenAI...");
 
-    console.log("📸 Image received, sending to OpenAI...");
+    const topColors = colorsData
+      .slice(0, 40)
+      .map(c => `- ${c.name} (${c.description})`)
+      .join("\n");
 
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
@@ -124,15 +113,20 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
         {
           role: "system",
           content: `
-You are a countertop material expert at Surprise Granite. Your job is to:
-- Identify the type of material (granite, quartz, quartzite, marble, etc.)
-- Name the color or pattern if you recognize it, or say "closest match"
-- Describe the color family (e.g. beige, white with veining, black speckled)
-- Say which vendors it might be from (e.g. MSI, Arizona Tile, Daltile, Cambria)
-- Specify whether it is natural stone or engineered quartz
-- Do not make up facts. If unsure, suggest possibilities like “could be from...”
+You are a countertop material expert at Surprise Granite.
 
-Respond with a 3–5 sentence analysis.
+Here is a list of real countertop options we carry:
+${topColors}
+
+Your job is to:
+- Identify the type of material (granite, quartz, quartzite, marble, etc.)
+- Suggest the closest match from the list above (if applicable)
+- Describe the color family (e.g. beige, white with veining, black speckled)
+- Say which vendor it might be from
+- Indicate if it's natural stone or engineered quartz
+
+If unsure, say “closest match might be...” and give your best expert guess.
+Keep the response to 3–5 sentences.
           `
         },
         {
@@ -201,6 +195,14 @@ function loadLocalData() {
     console.log(`✅ Loaded ${laborData.length} labor records.`);
   } catch (err) {
     console.error("❌ Error loading labor data:", err);
+  }
+
+  try {
+    const rawColors = fs.readFileSync("./colors.json", "utf8");
+    colorsData = JSON.parse(rawColors);
+    console.log(`✅ Loaded ${colorsData.length} colors.`);
+  } catch (err) {
+    console.error("❌ Error loading colors:", err);
   }
 }
 
