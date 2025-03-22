@@ -59,7 +59,10 @@ app.use(
   })
 );
 app.use(helmet());
-app.use(express.json());
+
+// 🔧 Allow large file uploads (fix 413 error)
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 app.post("/api/chat", async (req, res) => {
   try {
