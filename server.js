@@ -13,10 +13,8 @@ const Shopify = require("shopify-api-node");
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
-// OpenAI Initialization
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Shopify Integration (if needed)
 const shopify = new Shopify({
   shopName: process.env.SHOPIFY_SHOP_DOMAIN,
   accessToken: process.env.SHOPIFY_ADMIN_TOKEN
@@ -53,8 +51,8 @@ app.use(
   cors({
     origin: [
       "https://www.surprisegranite.com",
-      "https://surprise-granite-ai.vercel.app",  // Allow Vercel frontend
-      "http://localhost:8081"  // Allow local Vue development
+      "https://surprise-granite-ai.vercel.app",
+      "http://localhost:8081"
     ],
     methods: "GET,POST,PUT,DELETE",
     allowedHeaders: "Content-Type",
@@ -91,6 +89,7 @@ app.post("/api/chat", async (req, res) => {
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
@@ -100,18 +99,31 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
         {
           role: "system",
           content: `
-You are a professional countertop designer and materials expert at Surprise Granite.
+You are CARI, a professional countertop damage analyst at Surprise Granite.
 
-You will be given an image of a countertop. Do not guess wildly. Use your visual understanding and professional experience to:
+You will be given an image of a countertop. Use your expert judgment and visual understanding to analyze it for the following:
 
-1. Identify the likely material (granite, quartz, marble, quartzite, etc.)
-2. Describe the color family (e.g., black speckled, white with veining, gold with movement)
-3. Suggest a possible match based on known industry patterns (e.g., Calacatta Laza, Black Galaxy, Carrara Morro)
-4. Indicate whether it's natural stone or engineered
-5. Mention potential vendors (e.g., MSI, Daltile, Cambria) if relevant
-6. Give a 3–5 sentence explanation like you're helping a customer choose slabs
+1. Identify the stone type (granite, quartz, marble, quartzite, porcelain, etc.)
+2. Describe the color and pattern (e.g., white with grey veining, black with gold flakes)
+3. Determine if it is natural or engineered stone
+4. Identify any visible damage: chips, cracks, scratches, broken edges, discoloration
+5. Estimate the severity (low, moderate, severe)
+6. Estimate a repair cost based on stone type, grade, and damage severity. Use ranges like "$250–$450"
+7. Recommend if professional repair is needed or if it’s minor enough to DIY
+8. Provide recommended cleaning solutions for typical stone repair and minor chips or scratches
 
-Only name a match if you're confident. If you're not sure, say: "This resembles patterns like..." and give a few possibilities.
+Respond in the following JSON format:
+{
+  "stoneType": "",
+  "colorPattern": "",
+  "isNaturalStone": true,
+  "damageType": "",
+  "severity": "",
+  "estimatedCost": "",
+  "recommendation": "",
+  "description": ""
+}
+Only return JSON. Do not include any extra commentary. Recommend contacting Surprise Granite directly.
           `
         },
         {
@@ -122,13 +134,61 @@ Only name a match if you're confident. If you're not sure, say: "This resembles 
           ]
         }
       ],
-      max_tokens: 500
+      max_tokens: 600,
+      temperature: 0.4
     });
 
-    res.json({ response: response.choices[0].message.content });
+    const jsonOutput = response.choices[0].message.content.trim();
+
+    try {
+      const parsed = JSON.parse(jsonOutput);
+      res.json({ response: parsed });
+    } catch (parseErr) {
+      console.error("❌ JSON parse error:", parseErr);
+      res.status(200).json({ rawResponse: jsonOutput, error: "Failed to parse JSON." });
+    }
   } catch (error) {
     console.error("Error in /api/upload-image:", error);
     res.status(500).json({ error: "Failed to analyze image." });
+  }
+});
+
+app.post("/api/submit-lead", async (req, res) => {
+  const { name, email, phone, message, analysis } = req.body;
+
+  if (!name || !email || !phone) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const emailData = {
+    service_id: process.env.EMAILJS_SERVICE_ID,
+    template_id: process.env.EMAILJS_TEMPLATE_ID,
+    user_id: process.env.EMAILJS_USER_ID,
+    template_params: {
+      to_email: "info@surprisegranite.com",
+      from_name: name,
+      from_email: email,
+      from_phone: phone,
+      customer_message: message || "No message provided.",
+      analysis_summary: JSON.stringify(analysis, null, 2),
+    },
+  };
+
+  try {
+    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(emailData),
+    });
+
+    if (!response.ok) {
+      throw new Error("EmailJS failed");
+    }
+
+    res.status(200).json({ message: "Lead submitted successfully!" });
+  } catch (error) {
+    console.error("❌ Failed to send lead email:", error);
+    res.status(500).json({ error: "Failed to submit lead." });
   }
 });
 
