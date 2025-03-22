@@ -6,7 +6,6 @@ const cors = require("cors");
 const helmet = require("helmet");
 const OpenAI = require("openai");
 const fs = require("fs");
-const path = require("path");
 const Fuse = require("fuse.js");
 const Shopify = require("shopify-api-node");
 
@@ -17,7 +16,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const shopify = new Shopify({
   shopName: process.env.SHOPIFY_SHOP_DOMAIN,
-  accessToken: process.env.SHOPIFY_ADMIN_TOKEN
+  accessToken: process.env.SHOPIFY_ADMIN_TOKEN,
 });
 
 const BUSINESS_INFO = {
@@ -28,17 +27,11 @@ const BUSINESS_INFO = {
   googleBusiness: "https://g.co/kgs/Y9XGbpd",
 };
 
-let laborData = [];
-let materialsData = [];
-let colorsData = [];
-let conversationHistory = [];
-
+let materialsData = [], laborData = [], colorsData = [], conversationHistory = [];
 let fuse;
+
 function initFuse() {
-  const options = {
-    keys: ["Color Name", "Vendor Name", "Material"],
-    threshold: 0.3,
-  };
+  const options = { keys: ["Color Name", "Vendor Name", "Material"], threshold: 0.3 };
   fuse = new Fuse(materialsData, options);
 }
 
@@ -47,23 +40,20 @@ You are CARI, the Surprise Granite Design Assistant.
 Answer professionally and help users with estimates, materials, and design advice.
 `;
 
-app.use(
-  cors({
-    origin: [
-      "https://www.surprisegranite.com",
-      "https://surprise-granite-ai.vercel.app",
-      "http://localhost:8081"
-    ],
-    methods: "GET,POST,PUT,DELETE",
-    allowedHeaders: "Content-Type",
-  })
-);
+app.use(cors({
+  origin: [
+    "https://www.surprisegranite.com",
+    "https://surprise-granite-ai.vercel.app",
+    "http://localhost:8081"
+  ],
+  methods: "GET,POST,PUT,DELETE",
+  allowedHeaders: "Content-Type"
+}));
 app.use(helmet());
-
-// 🔧 Allow large file uploads (fix 413 error)
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
+// --- CHAT ROUTE ---
 app.post("/api/chat", async (req, res) => {
   try {
     const { userMessage } = req.body;
@@ -76,12 +66,11 @@ app.post("/api/chat", async (req, res) => {
       model: "gpt-4-turbo",
       messages,
       max_tokens: 300,
-      temperature: 0.7,
+      temperature: 0.802,
     });
 
     const aiReply = response.choices[0].message.content.trim();
     conversationHistory.push({ role: "assistant", content: aiReply });
-
     res.json({ response: aiReply });
   } catch (error) {
     console.error("Error in /api/chat:", error);
@@ -89,6 +78,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+// --- IMAGE ANALYSIS ROUTE ---
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -138,18 +128,14 @@ Only return JSON. Do not include any extra commentary.
         }
       ],
       max_tokens: 600,
-      temperature: 0.4
+      temperature: 0.802
     });
 
     const raw = response.choices[0].message.content.trim();
-    let jsonOutput = raw;
+    const match = raw.match(/\{[\s\S]*\}/);
+    const jsonOutput = match ? match[0] : raw;
 
     try {
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) {
-        jsonOutput = match[0];
-      }
-
       const parsed = JSON.parse(jsonOutput);
       res.json({ response: parsed });
     } catch (err) {
@@ -162,6 +148,7 @@ Only return JSON. Do not include any extra commentary.
   }
 });
 
+// --- LEAD FORM SUBMISSION ---
 app.post("/api/submit-lead", async (req, res) => {
   const { name, email, phone, message, analysis } = req.body;
 
@@ -190,10 +177,7 @@ app.post("/api/submit-lead", async (req, res) => {
       body: JSON.stringify(emailData),
     });
 
-    if (!response.ok) {
-      throw new Error("EmailJS failed");
-    }
-
+    if (!response.ok) throw new Error("EmailJS failed");
     res.status(200).json({ message: "Lead submitted successfully!" });
   } catch (error) {
     console.error("❌ Failed to send lead email:", error);
@@ -201,42 +185,63 @@ app.post("/api/submit-lead", async (req, res) => {
   }
 });
 
-app.get("/api/materials", (req, res) => {
-  res.json(materialsData);
+// --- OPENAI TEXT-TO-SPEECH (TTS) ---
+app.post("/api/speak", async (req, res) => {
+  try {
+    const { text, voice = "shimmer", speed = 1.0 } = req.body;
+    if (!text) return res.status(400).json({ error: "Text is required." });
+
+    const apiKey = process.env.OPENAI_API_KEY_TTS || process.env.OPENAI_API_KEY;
+
+    const ttsResponse = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        input: text,
+        voice,
+        speed: parseFloat(speed)
+      }),
+    });
+
+    if (!ttsResponse.ok) throw new Error(`OpenAI TTS failed: ${ttsResponse.status}`);
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    const buffer = await ttsResponse.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("TTS error:", err);
+    res.status(500).json({ error: "TTS request failed." });
+  }
 });
 
-app.get("/api/business-info", (req, res) => {
-  res.json(BUSINESS_INFO);
-});
+// --- STATIC DATA ROUTES ---
+app.get("/api/materials", (req, res) => res.json(materialsData));
+app.get("/api/business-info", (req, res) => res.json(BUSINESS_INFO));
+app.get("/api/get-instructions", (req, res) => res.json({ instructions: SYSTEM_INSTRUCTIONS }));
+app.get("/", (req, res) => res.send("✅ Surprise Granite Chatbot API is running! 🚀"));
 
-app.get("/api/get-instructions", (req, res) => {
-  res.json({ instructions: SYSTEM_INSTRUCTIONS });
-});
-
-app.get("/", (req, res) => {
-  res.send("✅ Surprise Granite Chatbot API is running! 🚀");
-});
-
+// --- INIT & START ---
 function loadLocalData() {
   try {
-    const rawMaterials = fs.readFileSync("./materials.json", "utf8");
-    materialsData = JSON.parse(rawMaterials);
+    materialsData = JSON.parse(fs.readFileSync("./materials.json", "utf8"));
     console.log(`✅ Loaded ${materialsData.length} materials.`);
   } catch (err) {
     console.error("❌ Error loading materials:", err);
   }
 
   try {
-    const rawLabor = fs.readFileSync("./labor.json", "utf8");
-    laborData = JSON.parse(rawLabor);
+    laborData = JSON.parse(fs.readFileSync("./labor.json", "utf8"));
     console.log(`✅ Loaded ${laborData.length} labor records.`);
   } catch (err) {
     console.error("❌ Error loading labor data:", err);
   }
 
   try {
-    const rawColors = fs.readFileSync("./colors.json", "utf8");
-    colorsData = JSON.parse(rawColors);
+    colorsData = JSON.parse(fs.readFileSync("./colors.json", "utf8"));
     console.log(`✅ Loaded ${colorsData.length} colors.`);
   } catch (err) {
     console.error("❌ Error loading colors:", err);
@@ -247,5 +252,4 @@ const PORT = process.env.PORT || 5000;
 loadLocalData();
 initFuse();
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+  console.log(`✅ Server running on port ${PORT
