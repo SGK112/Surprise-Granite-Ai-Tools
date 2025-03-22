@@ -53,7 +53,7 @@ app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
-// --- CHAT ROUTE ---
+// --- CHAT ---
 app.post("/api/chat", async (req, res) => {
   try {
     const { userMessage } = req.body;
@@ -78,7 +78,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// --- IMAGE ANALYSIS ROUTE ---
+// --- IMAGE ANALYSIS ---
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -185,7 +185,7 @@ app.post("/api/submit-lead", async (req, res) => {
   }
 });
 
-// --- OPENAI TEXT-TO-SPEECH (TTS) ---
+// --- TEXT-TO-SPEECH (TTS) ---
 app.post("/api/speak", async (req, res) => {
   try {
     const { text, voice = "shimmer", speed = 1.0 } = req.body;
@@ -218,13 +218,13 @@ app.post("/api/speak", async (req, res) => {
   }
 });
 
-// --- STATIC DATA ROUTES ---
+// --- STATIC INFO ROUTES ---
 app.get("/api/materials", (req, res) => res.json(materialsData));
 app.get("/api/business-info", (req, res) => res.json(BUSINESS_INFO));
 app.get("/api/get-instructions", (req, res) => res.json({ instructions: SYSTEM_INSTRUCTIONS }));
 app.get("/", (req, res) => res.send("✅ Surprise Granite Chatbot API is running! 🚀"));
 
-// --- INIT & START ---
+// --- LOAD STATIC DATA ---
 function loadLocalData() {
   try {
     materialsData = JSON.parse(fs.readFileSync("./materials.json", "utf8"));
@@ -252,4 +252,5 @@ const PORT = process.env.PORT || 5000;
 loadLocalData();
 initFuse();
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT
+  console.log(`✅ Server running on port ${PORT}`);
+});
