@@ -65,7 +65,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages,
-      max_tokens: 300,
+      max_tokens: 600,
       temperature: 0.802,
     });
 
@@ -127,7 +127,7 @@ Only return JSON. Do not include any extra commentary.
           ]
         }
       ],
-      max_tokens: 600,
+      max_tokens: 800,
       temperature: 0.802
     });
 
