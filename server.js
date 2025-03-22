@@ -123,7 +123,7 @@ Respond in the following JSON format:
   "recommendation": "",
   "description": ""
 }
-Only return JSON. Do not include any extra commentary. Recommend contacting Surprise Granite directly.
+Only return JSON. Do not include any extra commentary.
           `
         },
         {
@@ -138,14 +138,20 @@ Only return JSON. Do not include any extra commentary. Recommend contacting Surp
       temperature: 0.4
     });
 
-    const jsonOutput = response.choices[0].message.content.trim();
+    const raw = response.choices[0].message.content.trim();
+    let jsonOutput = raw;
 
     try {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        jsonOutput = match[0];
+      }
+
       const parsed = JSON.parse(jsonOutput);
       res.json({ response: parsed });
-    } catch (parseErr) {
-      console.error("❌ JSON parse error:", parseErr);
-      res.status(200).json({ rawResponse: jsonOutput, error: "Failed to parse JSON." });
+    } catch (err) {
+      console.error("❌ JSON parse error:", err);
+      res.status(200).json({ rawResponse: raw, error: "Failed to parse JSON." });
     }
   } catch (error) {
     console.error("Error in /api/upload-image:", error);
