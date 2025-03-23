@@ -17,23 +17,41 @@ app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
+// Health check endpoint for monitoring
+app.get("/api/health", (req, res) => {
+  res.json({ status: "Server is running", port: process.env.PORT });
+});
+
 // === IMAGE ANALYSIS WITH GROK API ===
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
 
+    // Check image size (limit to 5MB)
+    if (req.file.size > 5 * 1024 * 1024) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Image size exceeds 5MB limit." });
+    }
+
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
-    // Use Grok API for image analysis
+    // Use Grok API key or bearer token
+    const apiKey = process.env.GROK_BEARER_TOKEN || process.env.GROK_API_KEY;
+    if (!apiKey) {
+      console.error("Neither GROK_BEARER_TOKEN nor GROK_API_KEY is set in environment variables.");
+      return res.status(500).json({ error: "Server configuration error: Missing API credentials." });
+    }
+    console.log("Using API credentials (first 5 chars):", apiKey.substring(0, 5) + "...");
+
     const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-beta", // Use the appropriate Grok model (e.g., grok-beta, grok-2, etc.)
+        model: "grok-2", // Update to the correct model if needed (e.g., grok-3)
         messages: [
           {
             role: "system",
@@ -78,13 +96,38 @@ Respond ONLY in JSON like this:
       }),
     });
 
-    if (!grokResponse.ok) throw new Error(`Grok API failed: ${grokResponse.status}`);
+    if (!grokResponse.ok) {
+      const errorText = await grokResponse.text();
+      console.error(`Grok API failed: ${grokResponse.status} - ${errorText}`);
+      if (grokResponse.status === 401) {
+        return res.status(401).json({ error: "Invalid API key. Please contact the administrator to update the Grok API key." });
+      }
+      return res.status(500).json({ error: `Grok API failed: ${grokResponse.status} - ${errorText}` });
+    }
 
     const data = await grokResponse.json();
+    console.log("Grok API response:", JSON.stringify(data, null, 2));
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      console.error("Invalid Grok API response structure:", data);
+      return res.status(500).json({ error: "Invalid response structure from Grok API." });
+    }
+
     const raw = data.choices[0].message.content.trim();
     const match = raw.match(/\{[\s\S]*\}/);
-    const jsonOutput = match ? match[0] : raw;
-    const parsed = JSON.parse(jsonOutput);
+    if (!match) {
+      console.error("No JSON found in Grok response:", raw);
+      return res.status(500).json({ error: "Invalid response format from Grok API: No JSON found." });
+    }
+
+    const jsonOutput = match[0];
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonOutput);
+    } catch (parseError) {
+      console.error("Failed to parse JSON from Grok response:", raw, parseError);
+      return res.status(500).json({ error: "Failed to parse JSON from Grok API response." });
+    }
 
     // Match color using Fuse.js
     if (colorsData?.length && parsed.colorPattern) {
@@ -102,8 +145,8 @@ Respond ONLY in JSON like this:
 
     res.json({ response: parsed });
   } catch (error) {
-    console.error("❌ Error in /api/upload-image:", error);
-    res.status(500).json({ error: "Failed to analyze image." });
+    console.error("❌ Error in /api/upload-image:", error.message);
+    res.status(500).json({ error: "Failed to analyze image: " + error.message });
   }
 });
 
@@ -114,6 +157,10 @@ app.post("/api/speak", async (req, res) => {
     if (!text) return res.status(400).json({ error: "Text is required." });
 
     const apiKey = process.env.OPENAI_API_KEY_TTS || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      console.error("Neither OPENAI_API_KEY_TTS nor OPENAI_API_KEY is set in environment variables.");
+      return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key." });
+    }
 
     const ttsResponse = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
@@ -130,17 +177,22 @@ app.post("/api/speak", async (req, res) => {
       }),
     });
 
-    if (!ttsResponse.ok) throw new Error(`OpenAI TTS failed: ${ttsResponse.status}`);
+    if (!ttsResponse.ok) {
+      const errorText = await ttsResponse.text();
+      console.error(`OpenAI TTS failed: ${ttsResponse.status} - ${errorText}`);
+      return res.status(500).json({ error: `OpenAI TTS failed: ${ttsResponse.status} - ${errorText}` });
+    }
 
     res.setHeader("Content-Type", "audio/mpeg");
     const buffer = await ttsResponse.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (err) {
-    console.error("❌ TTS error:", err);
-    res.status(500).json({ error: "TTS request failed." });
+    console.error("❌ TTS error:", err.message);
+    res.status(500).json({ error: "TTS request failed: " + err.message });
   }
 });
 
+// Root endpoint
 app.get("/", (req, res) => {
   res.send("✅ CARI API is live");
 });
@@ -148,13 +200,27 @@ app.get("/", (req, res) => {
 // === LOAD COLORS DATA FROM SCRAPER ===
 function loadColorData() {
   try {
+    if (!fs.existsSync("./colors.json")) {
+      console.error("colors.json file not found. Initializing with empty array.");
+      colorsData = [];
+      return;
+    }
     colorsData = JSON.parse(fs.readFileSync("./colors.json", "utf8"));
     console.log(`✅ Loaded ${colorsData.length} countertop colors.`);
   } catch (err) {
     console.error("❌ Error loading colors:", err.message);
+    colorsData = []; // Fallback to empty array to prevent crash
   }
 }
 
+// Start the server with error handling
 const PORT = process.env.PORT || 5000;
-loadColorData();
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+try {
+  loadColorData();
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
+} catch (err) {
+  console.error("❌ Failed to start server:", err.message);
+  process.exit(1); // Exit with failure code
+}
