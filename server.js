@@ -3,15 +3,12 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
-const OpenAI = require("openai");
+const fetch = require("node-fetch");
 const fs = require("fs");
 const Fuse = require("fuse.js");
-const fetch = require("node-fetch");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 let colorsData = [];
 
@@ -20,7 +17,7 @@ app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
-// === IMAGE ANALYSIS + COLOR MATCHING ===
+// === IMAGE ANALYSIS WITH GROK API ===
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -28,14 +25,19 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
-      temperature: 0.802,
-      max_tokens: 800,
-      messages: [
-        {
-          role: "system",
-          content: `
+    // Use Grok API for image analysis
+    const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "grok-beta", // Use the appropriate Grok model (e.g., grok-beta, grok-2, etc.)
+        messages: [
+          {
+            role: "system",
+            content: `
 You are CARI, a countertop damage analyst at Surprise Granite.
 
 Analyze the uploaded image. Your job is to:
@@ -61,28 +63,34 @@ Respond ONLY in JSON like this:
   "recommendation": "",
   "description": ""
 }
-          `
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Analyze this countertop image." },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-          ]
-        }
-      ]
+            `,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Analyze this countertop image." },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+            ],
+          },
+        ],
+        max_tokens: 800,
+        temperature: 0.8,
+      }),
     });
 
-    const raw = response.choices[0].message.content.trim();
+    if (!grokResponse.ok) throw new Error(`Grok API failed: ${grokResponse.status}`);
+
+    const data = await grokResponse.json();
+    const raw = data.choices[0].message.content.trim();
     const match = raw.match(/\{[\s\S]*\}/);
     const jsonOutput = match ? match[0] : raw;
     const parsed = JSON.parse(jsonOutput);
 
-    // 🔍 Match color using Fuse.js
+    // Match color using Fuse.js
     if (colorsData?.length && parsed.colorPattern) {
       const fuse = new Fuse(colorsData, {
         keys: ["name", "description"],
-        threshold: 0.3
+        threshold: 0.3,
       });
       const topMatch = fuse.search(parsed.colorPattern)?.[0]?.item;
       if (topMatch) {
@@ -118,7 +126,7 @@ app.post("/api/speak", async (req, res) => {
         input: text,
         voice,
         speed: parseFloat(speed),
-        response_format: "mp3"
+        response_format: "mp3",
       }),
     });
 
@@ -130,40 +138,6 @@ app.post("/api/speak", async (req, res) => {
   } catch (err) {
     console.error("❌ TTS error:", err);
     res.status(500).json({ error: "TTS request failed." });
-  }
-});
-
-// === LEAD FORM (EMAILJS) ===
-app.post("/api/submit-lead", async (req, res) => {
-  const { name, email, phone, message, analysis } = req.body;
-  if (!name || !email) return res.status(400).json({ error: "Name and email required." });
-
-  const emailData = {
-    service_id: process.env.EMAILJS_SERVICE_ID,
-    template_id: process.env.EMAILJS_TEMPLATE_ID,
-    user_id: process.env.EMAILJS_USER_ID,
-    template_params: {
-      to_email: process.env.NOTIFY_EMAIL || "info@surprisegranite.com",
-      from_name: name,
-      from_email: email,
-      from_phone: phone || "Not provided",
-      customer_message: message || "Sent from CARI UI",
-      analysis_summary: JSON.stringify(analysis, null, 2)
-    }
-  };
-
-  try {
-    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(emailData)
-    });
-
-    if (!response.ok) throw new Error("EmailJS failed");
-    res.status(200).json({ message: "Estimate sent successfully!" });
-  } catch (error) {
-    console.error("❌ EmailJS send error:", error);
-    res.status(500).json({ error: "Could not send email." });
   }
 });
 
