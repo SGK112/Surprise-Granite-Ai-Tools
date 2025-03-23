@@ -22,7 +22,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "Server is running", port: process.env.PORT });
 });
 
-// === IMAGE ANALYSIS WITH GROK API ===
+// === IMAGE ANALYSIS WITH OPENAI API ===
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -36,22 +36,22 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     const imageBase64 = fs.readFileSync(req.file.path, "base64");
     fs.unlinkSync(req.file.path);
 
-    // Use Grok API key or bearer token
-    const apiKey = process.env.GROK_BEARER_TOKEN || process.env.GROK_API_KEY;
+    // Use OpenAI API key
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error("Neither GROK_BEARER_TOKEN nor GROK_API_KEY is set in environment variables.");
-      return res.status(500).json({ error: "Server configuration error: Missing API credentials." });
+      console.error("OPENAI_API_KEY is not set in environment variables.");
+      return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key." });
     }
-    console.log("Using API credentials (first 5 chars):", apiKey.substring(0, 5) + "...");
+    console.log("Using OpenAI API key (first 5 chars):", apiKey.substring(0, 5) + "...");
 
-    const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
+    const openAIResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-2", // Update to the correct model if needed (e.g., grok-3)
+        model: "gpt-4o", // Use a vision-capable model like gpt-4o
         messages: [
           {
             role: "system",
@@ -96,28 +96,28 @@ Respond ONLY in JSON like this:
       }),
     });
 
-    if (!grokResponse.ok) {
-      const errorText = await grokResponse.text();
-      console.error(`Grok API failed: ${grokResponse.status} - ${errorText}`);
-      if (grokResponse.status === 401) {
-        return res.status(401).json({ error: "Invalid API key. Please contact the administrator to update the Grok API key." });
+    if (!openAIResponse.ok) {
+      const errorText = await openAIResponse.text();
+      console.error(`OpenAI API failed: ${openAIResponse.status} - ${errorText}`);
+      if (openAIResponse.status === 401) {
+        return res.status(401).json({ error: "Invalid OpenAI API key. Please contact the administrator to update the OpenAI API key." });
       }
-      return res.status(500).json({ error: `Grok API failed: ${grokResponse.status} - ${errorText}` });
+      return res.status(500).json({ error: `OpenAI API failed: ${openAIResponse.status} - ${errorText}` });
     }
 
-    const data = await grokResponse.json();
-    console.log("Grok API response:", JSON.stringify(data, null, 2));
+    const data = await openAIResponse.json();
+    console.log("OpenAI API response:", JSON.stringify(data, null, 2));
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-      console.error("Invalid Grok API response structure:", data);
-      return res.status(500).json({ error: "Invalid response structure from Grok API." });
+      console.error("Invalid OpenAI API response structure:", data);
+      return res.status(500).json({ error: "Invalid response structure from OpenAI API." });
     }
 
     const raw = data.choices[0].message.content.trim();
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) {
-      console.error("No JSON found in Grok response:", raw);
-      return res.status(500).json({ error: "Invalid response format from Grok API: No JSON found." });
+      console.error("No JSON found in OpenAI response:", raw);
+      return res.status(500).json({ error: "Invalid response format from OpenAI API: No JSON found." });
     }
 
     const jsonOutput = match[0];
@@ -125,8 +125,8 @@ Respond ONLY in JSON like this:
     try {
       parsed = JSON.parse(jsonOutput);
     } catch (parseError) {
-      console.error("Failed to parse JSON from Grok response:", raw, parseError);
-      return res.status(500).json({ error: "Failed to parse JSON from Grok API response." });
+      console.error("Failed to parse JSON from OpenAI response:", raw, parseError);
+      return res.status(500).json({ error: "Failed to parse JSON from OpenAI API response." });
     }
 
     // Match color using Fuse.js
