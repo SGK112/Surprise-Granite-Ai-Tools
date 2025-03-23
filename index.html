@@ -3,177 +3,364 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Surprise Granite - Chatbot & Countertop Estimator</title>
-  <link href="https://fonts.googleapis.com/css?family=Raleway|Ubuntu&display=swap" rel="stylesheet">
+  <title>CARI - Countertop Analysis App</title>
   <style>
-    /* ----- General Styles ----- */
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Raleway', sans-serif;
-      background: #f0f2f5;
+    * {
       margin: 0;
       padding: 0;
-      color: #333;
-      text-align: center;
-    }
-    .container {
-      width: 90%;
-      max-width: 960px;
-      margin: 20px auto;
-      padding: 20px;
-      background: #fff;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      border-radius: 8px;
-    }
-    h1 {
-      background: linear-gradient(45deg, #007bff, #00bfff);
-      color: #fff;
-      padding: 20px;
-      border-radius: 6px;
-      margin-top: 0;
-    }
-    input, select, button {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-    }
-    button {
-      background: #007bff;
-      color: #fff;
-      cursor: pointer;
-    }
-    button:hover { background: #0056b3; }
-
-    /* ----- Logo Styles ----- */
-    .logo-container {
-      text-align: center;
-      margin-top: 20px;
-    }
-    .logo-container img {
-      width: 200px;
-      height: auto;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
     }
 
-    /* ----- Chatbot Styles ----- */
-    #chatBubble {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #007BFF;
-      color: #fff;
-      border: none;
-      border-radius: 50px;
-      padding: 16px 28px;
-      font-size: 18px;
-      cursor: pointer;
-      z-index: 1000;
+    body {
+      min-height: 100vh;
+      background-color: #f0f0f0;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      animation: breathe 2s ease-in-out infinite;
-    }
-    @keyframes breathe {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.15); }
-    }
-    #chatModal {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      width: 360px;
-      max-height: 500px;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-      z-index: 1000;
-      display: none;
       flex-direction: column;
-    }
-    #chatModal header {
-      background: #007BFF;
-      color: #fff;
-      padding: 12px;
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
-      display: flex;
-      justify-content: space-between;
       align-items: center;
+      padding: 20px;
     }
-    #chatModal header h3 { margin: 0; font-size: 20px; }
-    #chatModal header button {
-      background: transparent;
-      border: none;
-      color: #fff;
-      font-size: 24px;
+
+    h1 {
+      font-size: 2.5rem;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    .upload-area {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      border: 2px dashed #666;
+      border-radius: 8px;
+      text-align: center;
+      background-color: #fff;
       cursor: pointer;
+      transition: border-color 0.3s, background-color 0.3s;
     }
-    #chatContent {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      border-top: 1px solid #ddd;
-      border-bottom: 1px solid #ddd;
+
+    .upload-area.drag-active {
+      border-color: #007bff;
+      background-color: #e6f0ff;
     }
-    #chatInputArea {
+
+    .upload-area p {
+      color: #666;
+      font-size: 1rem;
+    }
+
+    .preview-image {
+      max-width: 100%;
+      max-height: 200px;
+      margin-top: 10px;
+      object-fit: contain;
+    }
+
+    .buttons {
+      margin-top: 15px;
       display: flex;
-      padding: 12px;
+      gap: 10px;
     }
-    #chatInputArea input {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 16px;
-    }
-    #chatInputArea button {
-      margin-left: 8px;
-      padding: 10px 16px;
+
+    button {
+      padding: 10px 20px;
       border: none;
-      background: #007BFF;
-      color: #fff;
-      border-radius: 4px;
+      border-radius: 5px;
+      font-size: 1rem;
+      font-weight: bold;
       cursor: pointer;
-      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+
+    #analyze-btn {
+      background-color: #007bff;
+      color: #fff;
+    }
+
+    #analyze-btn:disabled {
+      background-color: #999;
+      cursor: not-allowed;
+    }
+
+    #analyze-btn:not(:disabled):hover {
+      background-color: #0056b3;
+    }
+
+    #reset-btn {
+      background-color: #ccc;
+      color: #333;
+    }
+
+    #reset-btn:hover {
+      background-color: #b3b3b3;
+    }
+
+    .error {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #ffe6e6;
+      color: #cc0000;
+      border-radius: 5px;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .results {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .results h2 {
+      font-size: 1.5rem;
+      color: #333;
+      margin-bottom: 15px;
+    }
+
+    .results p {
+      margin-bottom: 8px;
+      font-size: 1rem;
+      color: #555;
+    }
+
+    .results p span {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .results audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    footer {
+      margin-top: 30px;
+      font-size: 0.9rem;
+      color: #666;
     }
   </style>
 </head>
 <body>
+  <h1>CARI - Countertop Analysis</h1>
 
-  <!-- Logo -->
-  <div class="logo-container">
-    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo">
+  <!-- Image Upload Section -->
+  <div id="upload-area" class="upload-area">
+    <input type="file" id="file-input" accept="image/*" style="display: none;" />
+    <p id="upload-text">Drag & drop a countertop image here, or click to select one</p>
+    <img id="preview-image" class="preview-image" style="display: none;" alt="Uploaded countertop" />
   </div>
 
-  <div class="container">
-    <h1>Surprise Granite Countertop Estimator</h1>
-    <p>Get a quick estimate for your countertop project and chat with our AI assistant for expert guidance.</p>
-
-    <input type="text" id="chatInput" placeholder="Type or speak your message..." />
-    <button id="recordButton">🎤 Speak</button>
-    <button id="sendButton">Send</button>
-    <div id="chatOutput"></div>
+  <!-- Action Buttons -->
+  <div class="buttons">
+    <button id="analyze-btn" disabled>Analyze Countertop</button>
+    <button id="reset-btn">Reset</button>
   </div>
 
-  <!-- Chatbot UI -->
-  <button id="chatBubble">Chat</button>
-  <div id="chatModal">
-    <header>
-      <h3>Assistant</h3>
-      <button id="closeModal">&times;</button>
-    </header>
-    <div id="chatContent">
-      <div class="chat-message assistant">Hello! How can I help you today?</div>
+  <!-- Error Message -->
+  <div id="error-message" class="error" style="display: none;"></div>
+
+  <!-- Analysis Results -->
+  <div id="results" class="results" style="display: none;">
+    <h2>Analysis Results</h2>
+    <p><span>Stone Type:</span> <span id="stone-type"></span></p>
+    <p><span>Color & Pattern:</span> <span id="color-pattern"></span></p>
+    <p><span>Natural Stone:</span> <span id="is-natural-stone"></span></p>
+    <p><span>Damage Type:</span> <span id="damage-type"></span></p>
+    <p><span>Severity:</span> <span id="severity"></span></p>
+    <p><span>Estimated Cost:</span> <span id="estimated-cost"></span></p>
+    <p><span>Recommendation:</span> <span id="recommendation"></span></p>
+    <p><span>Description:</span> <span id="description"></span></p>
+    <p id="matched-color" style="display: none;">
+      <span>Matched Color:</span> <span id="matched-color-value"></span>
+    </p>
+    <div id="audio-section" style="display: none;">
+      <h3>Audio Narration</h3>
+      <audio id="audio-player" controls aria-label="Audio narration of analysis results"></audio>
     </div>
-    <div id="chatInputArea">
-      <input type="text" id="chatInputField" placeholder="Type your message..." />
-      <button id="sendChatBtn">Send</button>
-    </div>
   </div>
 
-  <script src="chat.js"></script>
+  <!-- Footer -->
+  <footer>Powered by Surprise Granite © 2025</footer>
+
+  <script>
+    const BASE_URL = "https://surprise-granite-connections-dev.onrender.com";
+
+    // DOM Elements
+    const uploadArea = document.getElementById("upload-area");
+    const fileInput = document.getElementById("file-input");
+    const uploadText = document.getElementById("upload-text");
+    const previewImage = document.getElementById("preview-image");
+    const analyzeBtn = document.getElementById("analyze-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const errorMessage = document.getElementById("error-message");
+    const results = document.getElementById("results");
+    const audioSection = document.getElementById("audio-section");
+    const audioPlayer = document.getElementById("audio-player");
+
+    let imageFile = null;
+
+    // Drag-and-Drop Functionality
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadArea.classList.add("drag-active");
+    });
+
+    uploadArea.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("drag-active");
+    });
+
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("drag-active");
+      const file = e.dataTransfer.files[0];
+      handleFile(file);
+    });
+
+    uploadArea.addEventListener("click", () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      handleFile(file);
+    });
+
+    function handleFile(file) {
+      if (file && file.type.startsWith("image/")) {
+        if (file.size > 5 * 1024 * 1024) {
+          showError("Image size exceeds 5MB limit.");
+          return;
+        }
+        imageFile = file;
+        const url = URL.createObjectURL(file);
+        previewImage.src = url;
+        previewImage.style.display = "block";
+        uploadText.textContent = file.name;
+        analyzeBtn.disabled = false;
+        clearResults();
+        clearError();
+      } else {
+        showError("Please upload a valid image file.");
+      }
+    }
+
+    // Analyze Button
+    analyzeBtn.addEventListener("click", async () => {
+      if (!imageFile) {
+        showError("Please upload an image first.");
+        return;
+      }
+
+      analyzeBtn.disabled = true;
+      analyzeBtn.textContent = "Analyzing...";
+      clearError();
+      clearResults();
+
+      try {
+        // Upload image to /api/upload-image
+        const formData = new FormData();
+        formData.append("file", imageFile);
+
+        const analysisResponse = await fetch(`${BASE_URL}/api/upload-image`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!analysisResponse.ok) {
+          const errorData = await analysisResponse.json();
+          throw new Error(errorData.error || "Failed to analyze the image.");
+        }
+
+        const { response: result } = await analysisResponse.json();
+        displayResults(result);
+
+        // Generate audio narration
+        const narrationText = `
+          The countertop is made of ${result.stoneType} with a ${result.colorPattern} pattern.
+          It is ${result.isNaturalStone ? "a natural stone" : "not a natural stone"}.
+          The detected damage is ${result.damageType || "none"}, with a severity of ${result.severity || "none"}.
+          The estimated repair cost is ${result.estimatedCost}.
+          Recommendation: ${result.recommendation}.
+          ${result.description}
+        `;
+
+        const audioResponse = await fetch(`${BASE_URL}/api/speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: narrationText, voice: "shimmer", speed: 1.0 }),
+        });
+
+        if (!audioResponse.ok) {
+          const errorData = await audioResponse.json();
+          throw new Error(errorData.error || "Failed to generate audio narration.");
+        }
+
+        const audioBlob = await audioResponse.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        audioPlayer.src = audioUrl;
+        audioSection.style.display = "block";
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = "Analyze Countertop";
+      }
+    });
+
+    // Reset Button
+    resetBtn.addEventListener("click", () => {
+      imageFile = null;
+      fileInput.value = "";
+      uploadText.textContent = "Drag & drop a countertop image here, or click to select one";
+      previewImage.style.display = "none";
+      previewImage.src = "";
+      analyzeBtn.disabled = true;
+      clearResults();
+      clearError();
+    });
+
+    // Helper Functions
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = "block";
+    }
+
+    function clearError() {
+      errorMessage.textContent = "";
+      errorMessage.style.display = "none";
+    }
+
+    function displayResults(result) {
+      document.getElementById("stone-type").textContent = result.stoneType;
+      document.getElementById("color-pattern").textContent = result.colorPattern;
+      document.getElementById("is-natural-stone").textContent = result.isNaturalStone ? "Yes" : "No";
+      document.getElementById("damage-type").textContent = result.damageType || "None";
+      document.getElementById("severity").textContent = result.severity || "None";
+      document.getElementById("estimated-cost").textContent = result.estimatedCost;
+      document.getElementById("recommendation").textContent = result.recommendation;
+      document.getElementById("description").textContent = result.description;
+
+      const matchedColor = document.getElementById("matched-color");
+      if (result.matchedColor) {
+        document.getElementById("matched-color-value").textContent = `${result.matchedColor} (${result.matchedVendor})`;
+        matchedColor.style.display = "block";
+      } else {
+        matchedColor.style.display = "none";
+      }
+
+      results.style.display = "block";
+    }
+
+    function clearResults() {
+      results.style.display = "none";
+      audioSection.style.display = "none";
+      audioPlayer.src = "";
+    }
+  </script>
 </body>
 </html>
