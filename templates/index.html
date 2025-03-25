@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Countertop Images</title>
+    <style>
+        .countertop {
+            margin: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            display: inline-block;
+            text-align: center;
+        }
+        .countertop img {
+            max-width: 200px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Countertop Images</h1>
+    {% for countertop in countertops %}
+        <div class="countertop">
+            <h2>{{ countertop.product_name }}</h2>
+            <p>Material: {{ countertop.material }}</p>
+            <p>Brand: {{ countertop.brand }}</p>
+            <p>Veining: {{ countertop.veining }}</p>
+            <p>Primary Color: {{ countertop.primary_color }}</p>
+            <p>Secondary Color: {{ countertop.secondary_color }}</p>
+            {% if countertop.scene_image_path %}
+                <img src="/{{ countertop.scene_image_path }}" alt="{{ countertop.product_name }} Scene">
+            {% else %}
+                <p>Scene image not available</p>
+            {% endif %}
+            {% if countertop.closeup_image_path %}
+                <img src="/{{ countertop.closeup_image_path }}" alt="{{ countertop.product_name }} Closeup">
+            {% else %}
+                <p>Closeup image not available</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</body>
+</html>
