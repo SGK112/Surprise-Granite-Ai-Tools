@@ -6,11 +6,9 @@ CSV_FILE = "countertop_images.csv"
 OUTPUT_DIR = "countertop_images"
 
 def sanitize_filename(name):
-    # Replace invalid characters with underscores
     return re.sub(r'[^a-zA-Z0-9\-]', '_', name.lower())
 
 def get_file_extension(url):
-    # Extract the file extension from the URL
     return os.path.splitext(url)[1].lower()
 
 def check_missing_images():
@@ -18,28 +16,24 @@ def check_missing_images():
     print(f"CSV file: {CSV_FILE}")
     print(f"Output directory: {OUTPUT_DIR}")
 
-    # Get list of downloaded files (convert to lowercase for case-insensitive comparison)
     if not os.path.exists(OUTPUT_DIR):
         print(f"Error: Directory {OUTPUT_DIR} does not exist.")
         return
     downloaded_files = set(f.lower() for f in os.listdir(OUTPUT_DIR))
     print(f"Found {len(downloaded_files)} files in {OUTPUT_DIR}")
 
-    # Read the CSV and check for missing files
     if not os.path.exists(CSV_FILE):
         print(f"Error: CSV file {CSV_FILE} does not exist.")
         return
-    
-    # Read the CSV file as raw lines first to count total rows
+
     with open(CSV_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
-        total_lines = len(lines) - 1  # Subtract 1 for the header
+        total_lines = len(lines) - 1
         print(f"Total lines in CSV (excluding header): {total_lines}")
 
-    # Now process the CSV with csv.reader
     with open(CSV_FILE, "r", encoding="utf-8") as f:
-        reader = csv.reader(lines)  # Use the lines we already read
-        headers = next(reader)  # Skip the header row
+        reader = csv.reader(lines)
+        headers = next(reader)
         print(f"CSV headers: {headers}")
         row_count = 0
         missing_count = 0
@@ -51,10 +45,11 @@ def check_missing_images():
                 print(f"Skipping invalid row {row_count}: {row}")
                 continue
             product_name = sanitize_filename(row[2])
-            scene_ext = get_file_extension(row[0])  # Get extension from scene URL
-            closeup_ext = get_file_extension(row[1])  # Get extension from closeup URL
+            scene_ext = get_file_extension(row[0])
+            closeup_ext = get_file_extension(row[1])
             scene_filename = f"{product_name}_scene{scene_ext}"
             closeup_filename = f"{product_name}_closeup{closeup_ext}"
+            print(f"Expected: {scene_filename}, {closeup_filename}")
             expected_files.add(scene_filename.lower())
             expected_files.add(closeup_filename.lower())
             if scene_filename.lower() not in downloaded_files:
@@ -66,6 +61,11 @@ def check_missing_images():
         print(f"Processed {row_count} rows in CSV.")
         print(f"Found {missing_count} missing images.")
         print(f"Expected {len(expected_files)} files.")
+
+    # Print all downloaded files for comparison
+    print("\nDownloaded files:")
+    for f in sorted(downloaded_files):
+        print(f)
 
 if __name__ == "__main__":
     check_missing_images()
