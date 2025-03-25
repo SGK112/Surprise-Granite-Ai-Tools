@@ -38,6 +38,9 @@ app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
+// Serve static files from the countertop_images directory
+app.use('/countertop_images', express.static('countertop_images'));
+
 // Health check endpoint for monitoring
 app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: process.env.PORT });
