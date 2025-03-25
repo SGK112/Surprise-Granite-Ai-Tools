@@ -9,16 +9,20 @@ def sanitize_filename(name):
     # Replace invalid characters with underscores
     return re.sub(r'[^a-zA-Z0-9\-]', '_', name.lower())
 
+def get_file_extension(url):
+    # Extract the file extension from the URL
+    return os.path.splitext(url)[1].lower()
+
 def check_missing_images():
     print(f"Checking for missing images...")
     print(f"CSV file: {CSV_FILE}")
     print(f"Output directory: {OUTPUT_DIR}")
 
-    # Get list of downloaded files
+    # Get list of downloaded files (convert to lowercase for case-insensitive comparison)
     if not os.path.exists(OUTPUT_DIR):
         print(f"Error: Directory {OUTPUT_DIR} does not exist.")
         return
-    downloaded_files = set(os.listdir(OUTPUT_DIR))
+    downloaded_files = set(f.lower() for f in os.listdir(OUTPUT_DIR))
     print(f"Found {len(downloaded_files)} files in {OUTPUT_DIR}")
 
     # Read the CSV and check for missing files
@@ -33,16 +37,19 @@ def check_missing_images():
         missing_count = 0
         for row in reader:
             row_count += 1
+            print(f"Processing row {row_count}: {row}")
             if len(row) < 3:
                 print(f"Skipping invalid row {row_count}: {row}")
                 continue
             product_name = sanitize_filename(row[2])
-            scene_filename = f"{product_name}_scene.avif"
-            closeup_filename = f"{product_name}_closeup.avif"
-            if scene_filename not in downloaded_files:
+            scene_ext = get_file_extension(row[0])  # Get extension from scene URL
+            closeup_ext = get_file_extension(row[1])  # Get extension from closeup URL
+            scene_filename = f"{product_name}_scene{scene_ext}"
+            closeup_filename = f"{product_name}_closeup{closeup_ext}"
+            if scene_filename.lower() not in downloaded_files:
                 print(f"Missing: {scene_filename} (URL: {row[0]})")
                 missing_count += 1
-            if closeup_filename not in downloaded_files:
+            if closeup_filename.lower() not in downloaded_files:
                 print(f"Missing: {closeup_filename} (URL: {row[1]})")
                 missing_count += 1
         print(f"Processed {row_count} rows in CSV.")
