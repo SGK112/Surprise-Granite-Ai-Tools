@@ -23,4 +23,34 @@ class CARI:
         """Search countertops by brand (e.g., MSI Surfaces, Cambria)."""
         return list(self.collection.find({"brand": brand}))
 
-    def search_by_color
+    def search_by_color(self, primary_color=None, secondary_color=None):
+        """Search countertops by primary or secondary color."""
+        query = {}
+        if primary_color:
+            query["primary_color"] = primary_color
+        if secondary_color:
+            query["secondary_color"] = secondary_color
+        return list(self.collection.find(query))
+
+    def close_connection(self):
+        """Close the MongoDB connection."""
+        self.client.close()
+
+# Example usage
+if __name__ == "__main__":
+    cari = CARI()
+    # Example: Get all countertops
+    all_countertops = cari.get_all_countertops()
+    print(f"Total countertops: {len(all_countertops)}")
+    # Example: Search by material
+    granite_countertops = cari.search_by_material("Granite")
+    print(f"Granite countertops: {len(granite_countertops)}")
+    for countertop in granite_countertops[:3]:  # Show first 3
+        print(f"- {countertop['product_name']} (Brand: {countertop['brand']})")
+    # Example: Search by brand
+    msi_countertops = cari.search_by_brand("MSI Surfaces")
+    print(f"MSI Surfaces countertops: {len(msi_countertops)}")
+    # Example: Search by color
+    white_countertops = cari.search_by_color(primary_color="White")
+    print(f"White countertops: {len(white_countertops)}")
+    cari.close_connection()
