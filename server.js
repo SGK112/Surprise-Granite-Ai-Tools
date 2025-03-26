@@ -16,14 +16,14 @@ let colorsData = [];
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "project0"; // Correct database name
+const DB_NAME = "project0";
 const COLLECTION_NAME = "images";
 let client;
 let collection;
 
 async function connectToMongoDB() {
     try {
-        console.log("MONGO_URI:", MONGO_URI); // Log the URI being used
+        console.log("MONGO_URI:", MONGO_URI);
         client = new MongoClient(MONGO_URI, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
@@ -34,6 +34,9 @@ async function connectToMongoDB() {
         collection = db.collection(COLLECTION_NAME);
         console.log("✅ Connected to MongoDB");
         console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
+        // Test the collection by counting documents
+        const count = await collection.countDocuments();
+        console.log(`Number of documents in ${COLLECTION_NAME}: ${count}`);
     } catch (err) {
         console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
@@ -60,6 +63,24 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: process.env.PORT, dbStatus });
 });
 
+// Test endpoint to verify MongoDB data
+app.get("/api/test-mongo", async (req, res) => {
+    try {
+        if (!client || !client.topology || !client.topology.isConnected()) {
+            throw new Error("MongoDB client not connected.");
+        }
+        if (!collection) {
+            throw new Error("MongoDB collection not initialized.");
+        }
+        const count = await collection.countDocuments();
+        const sample = await collection.findOne();
+        res.json({ documentCount: count, sampleDocument: sample });
+    } catch (err) {
+        console.error("❌ Error in /api/test-mongo:", err.message, err.stack);
+        res.status(500).json({ error: "Failed to test MongoDB: " + err.message });
+    }
+});
+
 // Fetch countertops from MongoDB with retry logic
 app.get("/api/countertops", async (req, res) => {
     const maxRetries = 3;
@@ -79,7 +100,7 @@ app.get("/api/countertops", async (req, res) => {
             console.log("Countertops fetched:", countertops);
             if (countertops.length === 0) {
                 console.warn("No countertops found in the database. Please ensure the collection is populated.");
-                return res.status(200).json([]); // Return empty array with a warning
+                return res.status(200).json([]);
             }
             return res.json(countertops);
         } catch (err) {
