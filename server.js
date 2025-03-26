@@ -23,48 +23,63 @@ let collection;
 
 async function connectToMongoDB() {
     try {
-        client = new MongoClient(MONGO_URI);
+        client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
         await client.connect();
         const db = client.db(DB_NAME);
         collection = db.collection(COLLECTION_NAME);
         console.log("✅ Connected to MongoDB");
     } catch (err) {
-        console.error("❌ Failed to connect to MongoDB:", err.message);
+        console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
     }
 }
 
+// Middleware
 app.use(cors());
 app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // Serve static files from the countertop_images directory
-console.log('File exists:', fs.existsSync(path.join(__dirname, 'countertop_images/calacatta_gold_scene.avif')));
-app.use('/countertop_images', express.static('countertop_images'));
+app.use('/countertop_images', express.static(path.join(__dirname, 'countertop_images'), {
+    setHeaders: (res, path) => {
+        console.log(`Serving static file: ${path}`);
+        res.setHeader('Content-Type', 'image/avif');
+    }
+}));
 
 // Health check endpoint for monitoring
 app.get("/api/health", (req, res) => {
-    res.json({ status: "Server is running", port: process.env.PORT });
+    const dbStatus = client && client.isConnected() ? "Connected" : "Disconnected";
+    res.json({ status: "Server is running", port: process.env.PORT, dbStatus });
 });
 
 // Fetch countertops from MongoDB
 app.get("/api/countertops", async (req, res) => {
     try {
+        console.log("Fetching countertops from MongoDB...");
+        if (!client || !client.isConnected()) {
+            console.error("MongoDB client not connected.");
+            return res.status(500).json({ error: "Database connection not available." });
+        }
+        if (!collection) {
+            console.error("MongoDB collection not initialized.");
+            return res.status(500).json({ error: "Database collection not initialized." });
+        }
         const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
+        console.log("Countertops fetched:", countertops);
         res.json(countertops);
     } catch (err) {
-        console.error("❌ Error fetching countertops:", err.message);
-        res.status(500).json({ error: "Failed to fetch countertops from database." });
+        console.error("❌ Error fetching countertops:", err.message, err.stack);
+        res.status(500).json({ error: "Failed to fetch countertops from database: " + err.message });
     }
 });
 
-// === IMAGE ANALYSIS WITH OPENAI API ===
+// Image analysis with OpenAI API
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file uploaded." });
 
-        // Check image size (limit to 5MB)
         if (req.file.size > 5 * 1024 * 1024) {
             fs.unlinkSync(req.file.path);
             return res.status(400).json({ error: "Image size exceeds 5MB limit." });
@@ -73,7 +88,6 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
         const imageBase64 = fs.readFileSync(req.file.path, "base64");
         fs.unlinkSync(req.file.path);
 
-        // Use OpenAI API key
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
             console.error("OPENAI_API_KEY is not set in environment variables.");
@@ -166,7 +180,6 @@ Respond ONLY in JSON like this:
             return res.status(500).json({ error: "Failed to parse JSON from OpenAI API response." });
         }
 
-        // Match color using Fuse.js
         if (colorsData?.length && parsed.colorPattern) {
             const fuse = new Fuse(colorsData, {
                 keys: ["name", "description"],
@@ -182,12 +195,12 @@ Respond ONLY in JSON like this:
 
         res.json({ response: parsed });
     } catch (error) {
-        console.error("❌ Error in /api/upload-image:", error.message);
+        console.error("❌ Error in /api/upload-image:", error.message, error.stack);
         res.status(500).json({ error: "Failed to analyze image: " + error.message });
     }
 });
 
-// === TEXT TO SPEECH ===
+// Text to Speech
 app.post("/api/speak", async (req, res) => {
     try {
         const { text, voice = "shimmer", speed = 1.0 } = req.body;
@@ -224,7 +237,7 @@ app.post("/api/speak", async (req, res) => {
         const buffer = await ttsResponse.arrayBuffer();
         res.send(Buffer.from(buffer));
     } catch (err) {
-        console.error("❌ TTS error:", err.message);
+        console.error("❌ TTS error:", err.message, err.stack);
         res.status(500).json({ error: "TTS request failed: " + err.message });
     }
 });
@@ -234,7 +247,7 @@ app.get("/", (req, res) => {
     res.send("✅ CARI API is live");
 });
 
-// === LOAD COLORS DATA FROM SCRAPER ===
+// Load colors data from scraper
 function loadColorData() {
     try {
         if (!fs.existsSync("./colors.json")) {
@@ -245,12 +258,21 @@ function loadColorData() {
         colorsData = JSON.parse(fs.readFileSync("./colors.json", "utf8"));
         console.log(`✅ Loaded ${colorsData.length} countertop colors.`);
     } catch (err) {
-        console.error("❌ Error loading colors:", err.message);
-        colorsData = []; // Fallback to empty array to prevent crash
+        console.error("❌ Error loading colors:", err.message, err.stack);
+        colorsData = [];
     }
 }
 
-// Start the server with error handling
+// Handle SIGTERM for graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log("Received SIGTERM. Closing MongoDB connection...");
+    if (client) {
+        await client.close();
+    }
+    process.exit(0);
+});
+
+// Start the server
 const PORT = process.env.PORT || 5000;
 async function startServer() {
     try {
@@ -260,8 +282,8 @@ async function startServer() {
             console.log(`✅ Server running on port ${PORT}`);
         });
     } catch (err) {
-        console.error("❌ Failed to start server:", err.message);
-        process.exit(1); // Exit with failure code
+        console.error("❌ Failed to start server:", err.message, err.stack);
+        process.exit(1);
     }
 }
 
