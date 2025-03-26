@@ -14,7 +14,7 @@ const upload = multer({ dest: "uploads/" });
 let colorsData = [];
 
 // MongoDB connection
-const MONGO_URI = "mongodb://localhost:27017";
+const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";;
 const DB_NAME = "countertops";
 const COLLECTION_NAME = "images";
 let client;
