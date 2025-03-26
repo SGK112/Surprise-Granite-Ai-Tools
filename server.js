@@ -21,6 +21,37 @@ const COLLECTION_NAME = "images";
 let client;
 let collection;
 
+// Fallback data if MongoDB query fails
+const FALLBACK_COUNTERTOPS = [
+    {
+        product_name: "Calacatta Gold",
+        material: "Marble",
+        brand: "Surprise Granite",
+        veining: "Dramatic Veining",
+        primary_color: "255,255,255",
+        secondary_color: "200,200,200",
+        scene_image_path: "/countertop_images/calacatta_gold_scene.avif"
+    },
+    {
+        product_name: "Black Galaxy",
+        material: "Granite",
+        brand: "Surprise Granite",
+        veining: "No Veining",
+        primary_color: "0,0,0",
+        secondary_color: "50,50,50",
+        scene_image_path: "/countertop_images/black_galaxy_scene.avif"
+    },
+    {
+        product_name: "Carrara White",
+        material: "Marble",
+        brand: "Surprise Granite",
+        veining: "Moderate Veining",
+        primary_color: "240,240,240",
+        secondary_color: "180,180,180",
+        scene_image_path: "/countertop_images/cascade_white_scene.avif"
+    }
+];
+
 async function connectToMongoDB() {
     try {
         console.log("MONGO_URI:", MONGO_URI);
@@ -31,15 +62,16 @@ async function connectToMongoDB() {
         });
         await client.connect();
         const db = client.db(DB_NAME);
-        // List all collections in the database to debug
         const collections = await db.listCollections().toArray();
         console.log("Collections in database:", collections.map(c => c.name));
-        collection = db.collection(COLLECTION_NAME);
+        const countertopsDb = db.collection('countertops');
+        const countertopsCollections = await countertopsDb.db.listCollections().toArray();
+        console.log("Collections in countertops namespace:", countertopsCollections.map(c => c.name));
+        collection = countertopsDb.collection(COLLECTION_NAME);
         console.log("✅ Connected to MongoDB");
-        console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
-        // Test the collection by counting documents
+        console.log(`Database: ${DB_NAME}, Collection: countertops.${COLLECTION_NAME}`);
         const count = await collection.countDocuments();
-        console.log(`Number of documents in ${COLLECTION_NAME}: ${count}`);
+        console.log(`Number of documents in countertops.${COLLECTION_NAME}: ${count}`);
     } catch (err) {
         console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
@@ -52,7 +84,6 @@ app.use(helmet());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
-// Serve static files from the countertop_images directory
 app.use('/countertop_images', express.static(path.join(__dirname, 'countertop_images'), {
     setHeaders: (res, filePath) => {
         console.log(`Serving static file: ${filePath}`);
@@ -60,13 +91,11 @@ app.use('/countertop_images', express.static(path.join(__dirname, 'countertop_im
     }
 }));
 
-// Health check endpoint for monitoring
 app.get("/api/health", (req, res) => {
     const dbStatus = client && client.topology && client.topology.isConnected() ? "Connected" : "Disconnected";
     res.json({ status: "Server is running", port: process.env.PORT, dbStatus });
 });
 
-// Test endpoint to verify MongoDB data
 app.get("/api/test-mongo", async (req, res) => {
     try {
         if (!client || !client.topology || !client.topology.isConnected()) {
@@ -84,7 +113,6 @@ app.get("/api/test-mongo", async (req, res) => {
     }
 });
 
-// Fetch countertops from MongoDB with retry logic
 app.get("/api/countertops", async (req, res) => {
     const maxRetries = 3;
     const retryDelay = 1000;
@@ -102,21 +130,21 @@ app.get("/api/countertops", async (req, res) => {
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
             console.log("Countertops fetched:", countertops);
             if (countertops.length === 0) {
-                console.warn("No countertops found in the database.");
-                return res.status(404).json({ error: "No countertops found in the database." });
+                console.warn("No countertops found in the database. Using fallback data.");
+                return res.status(200).json(FALLBACK_COUNTERTOPS);
             }
             return res.json(countertops);
         } catch (err) {
             console.error(`Attempt ${attempt} failed: ❌ Error fetching countertops:`, err.message, err.stack);
             if (attempt === maxRetries) {
-                return res.status(500).json({ error: `Failed to fetch countertops after ${maxRetries} attempts: ${err.message}` });
+                console.warn("All attempts failed. Using fallback data.");
+                return res.status(200).json(FALLBACK_COUNTERTOPS);
             }
             await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
     }
 });
 
-// Image analysis with OpenAI API
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
     let fileStream;
     try {
@@ -251,7 +279,6 @@ Respond ONLY in JSON like this:
     }
 });
 
-// Text to Speech
 app.post("/api/speak", async (req, res) => {
     try {
         const { text, voice = "shimmer", speed = 1.0 } = req.body;
@@ -293,12 +320,10 @@ app.post("/api/speak", async (req, res) => {
     }
 });
 
-// Root endpoint
 app.get("/", (req, res) => {
     res.send("✅ CARI API is live");
 });
 
-// Load colors data from scraper
 function loadColorData() {
     try {
         if (!fs.existsSync("./colors.json")) {
@@ -315,7 +340,6 @@ function loadColorData() {
     }
 }
 
-// Handle SIGTERM for graceful shutdown
 process.on('SIGTERM', async () => {
     console.log("Received SIGTERM. Closing MongoDB connection...");
     if (client) {
@@ -325,13 +349,10 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
-// Handle uncaught exceptions to prevent crashes
 process.on('uncaughtException', (err) => {
     console.error("Uncaught Exception:", err.message, err.stack);
-    // Do not exit, let the server continue running
 });
 
-// Start the server
 const PORT = process.env.PORT || 5000;
 async function startServer() {
     try {
