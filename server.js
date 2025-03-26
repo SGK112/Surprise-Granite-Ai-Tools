@@ -17,40 +17,9 @@ let colorsData = [];
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = "project0";
-const COLLECTION_NAME = "Images"; // Updated to match the exact collection name in MongoDB Atlas
+const COLLECTION_NAME = "Images";
 let client;
 let collection;
-
-// Fallback data if MongoDB query fails
-const FALLBACK_COUNTERTOPS = [
-    {
-        product_name: "Calacatta Gold",
-        material: "Marble",
-        brand: "Surprise Granite",
-        veining: "Dramatic Veining",
-        primary_color: "255,255,255",
-        secondary_color: "200,200,200",
-        scene_image_path: "/countertop_images/calacatta_gold_scene.avif"
-    },
-    {
-        product_name: "Black Galaxy",
-        material: "Granite",
-        brand: "Surprise Granite",
-        veining: "No Veining",
-        primary_color: "0,0,0",
-        secondary_color: "50,50,50",
-        scene_image_path: "/countertop_images/black_galaxy_scene.avif"
-    },
-    {
-        product_name: "Carrara White",
-        material: "Marble",
-        brand: "Surprise Granite",
-        veining: "Moderate Veining",
-        primary_color: "240,240,240",
-        secondary_color: "180,180,180",
-        scene_image_path: "/countertop_images/cascade_white_scene.avif"
-    }
-];
 
 async function connectToMongoDB() {
     try {
@@ -133,15 +102,14 @@ app.get("/api/countertops", async (req, res) => {
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
             console.log("Countertops fetched:", countertops);
             if (countertops.length === 0) {
-                console.warn("No countertops found in the database. Using fallback data.");
-                return res.status(200).json(FALLBACK_COUNTERTOPS);
+                console.warn("No countertops found in the database.");
+                return res.status(404).json({ error: "No countertops found in the database." });
             }
             return res.json(countertops);
         } catch (err) {
             console.error(`Attempt ${attempt} failed: ❌ Error fetching countertops:`, err.message, err.stack);
             if (attempt === maxRetries) {
-                console.warn("All attempts failed. Using fallback data.");
-                return res.status(200).json(FALLBACK_COUNTERTOPS);
+                return res.status(500).json({ error: `Failed to fetch countertops after ${maxRetries} attempts: ${err.message}` });
             }
             await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
