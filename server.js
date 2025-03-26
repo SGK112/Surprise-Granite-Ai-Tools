@@ -17,7 +17,7 @@ let colorsData = [];
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = "project0";
-const COLLECTION_NAME = "images";
+const COLLECTION_NAME = "countertops.images"; // Correctly specify the nested collection
 let client;
 let collection;
 
@@ -62,16 +62,15 @@ async function connectToMongoDB() {
         });
         await client.connect();
         const db = client.db(DB_NAME);
+        // List all collections in the database to debug
         const collections = await db.listCollections().toArray();
         console.log("Collections in database:", collections.map(c => c.name));
-        const countertopsDb = db.collection('countertops');
-        const countertopsCollections = await countertopsDb.db.listCollections().toArray();
-        console.log("Collections in countertops namespace:", countertopsCollections.map(c => c.name));
-        collection = countertopsDb.collection(COLLECTION_NAME);
+        // Access the countertops.images collection directly
+        collection = db.collection(COLLECTION_NAME);
         console.log("✅ Connected to MongoDB");
-        console.log(`Database: ${DB_NAME}, Collection: countertops.${COLLECTION_NAME}`);
+        console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
         const count = await collection.countDocuments();
-        console.log(`Number of documents in countertops.${COLLECTION_NAME}: ${count}`);
+        console.log(`Number of documents in ${COLLECTION_NAME}: ${count}`);
     } catch (err) {
         console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
