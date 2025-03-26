@@ -16,7 +16,7 @@ let colorsData = [];
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "countertops";
+const DB_NAME = "project0"; // Updated to match the actual database name
 const COLLECTION_NAME = "images";
 let client;
 let collection;
@@ -24,7 +24,6 @@ let collection;
 async function connectToMongoDB() {
     try {
         client = new MongoClient(MONGO_URI, {
-            useUnifiedTopology: true,
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
