@@ -5,6 +5,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const fetch = require("node-fetch");
 const fs = require("fs");
+const path = require("path"); // Added path module
 const Fuse = require("fuse.js");
 const { MongoClient } = require("mongodb");
 
@@ -14,7 +15,7 @@ const upload = multer({ dest: "uploads/" });
 let colorsData = [];
 
 // MongoDB connection
-const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";;
+const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = "countertops";
 const COLLECTION_NAME = "images";
 let client;
@@ -39,8 +40,6 @@ app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // Serve static files from the countertop_images directory
-const fs = require('fs'); // Already required at the top
-const path = require('path'); // Add this line if not already present
 console.log('File exists:', fs.existsSync(path.join(__dirname, 'countertop_images/calacatta_gold_scene.avif')));
 app.use('/countertop_images', express.static('countertop_images'));
 
