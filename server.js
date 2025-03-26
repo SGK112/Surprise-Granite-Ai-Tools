@@ -25,14 +25,15 @@ async function connectToMongoDB() {
     try {
         client = new MongoClient(MONGO_URI, {
             useUnifiedTopology: true,
-            maxPoolSize: 10, // Connection pooling
-            serverSelectionTimeoutMS: 5000, // Timeout for server selection
-            connectTimeoutMS: 10000, // Timeout for initial connection
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            connectTimeoutMS: 10000,
         });
         await client.connect();
         const db = client.db(DB_NAME);
         collection = db.collection(COLLECTION_NAME);
         console.log("✅ Connected to MongoDB");
+        console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
     } catch (err) {
         console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
@@ -62,7 +63,7 @@ app.get("/api/health", (req, res) => {
 // Fetch countertops from MongoDB with retry logic
 app.get("/api/countertops", async (req, res) => {
     const maxRetries = 3;
-    const retryDelay = 1000; // 1 second delay between retries
+    const retryDelay = 1000;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             console.log(`Attempt ${attempt}: Fetching countertops from MongoDB...`);
@@ -76,6 +77,10 @@ app.get("/api/countertops", async (req, res) => {
             }
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
             console.log("Countertops fetched:", countertops);
+            if (countertops.length === 0) {
+                console.warn("No countertops found in the database. Please ensure the collection is populated.");
+                return res.status(200).json([]); // Return empty array with a warning
+            }
             return res.json(countertops);
         } catch (err) {
             console.error(`Attempt ${attempt} failed: ❌ Error fetching countertops:`, err.message, err.stack);
