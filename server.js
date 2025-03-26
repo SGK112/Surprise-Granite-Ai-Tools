@@ -17,7 +17,7 @@ let colorsData = [];
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = "project0";
-const COLLECTION_NAME = "countertops.images";
+const COLLECTION_NAME = "images"; // Corrected to match the actual collection name
 let client;
 let collection;
 
@@ -65,11 +65,10 @@ async function connectToMongoDB() {
         const db = client.db(DB_NAME);
         const collections = await db.listCollections().toArray();
         console.log("Collections in database:", collections.map(c => c.name));
-        // Check if countertops.images exists
-        const fullCollection = db.collection(COLLECTION_NAME);
+        // Access the images collection directly
+        collection = db.collection(COLLECTION_NAME);
         const collectionExists = await db.listCollections({ name: COLLECTION_NAME }).toArray();
         console.log(`Does ${COLLECTION_NAME} exist?`, collectionExists.length > 0 ? "Yes" : "No");
-        collection = fullCollection;
         console.log("✅ Connected to MongoDB");
         console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
         const count = await collection.countDocuments();
