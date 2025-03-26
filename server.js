@@ -23,7 +23,12 @@ let collection;
 
 async function connectToMongoDB() {
     try {
-        client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+        client = new MongoClient(MONGO_URI, {
+            useUnifiedTopology: true,
+            maxPoolSize: 10, // Connection pooling
+            serverSelectionTimeoutMS: 5000, // Timeout for server selection
+            connectTimeoutMS: 10000, // Timeout for initial connection
+        });
         await client.connect();
         const db = client.db(DB_NAME);
         collection = db.collection(COLLECTION_NAME);
@@ -42,50 +47,65 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // Serve static files from the countertop_images directory
 app.use('/countertop_images', express.static(path.join(__dirname, 'countertop_images'), {
-    setHeaders: (res, path) => {
-        console.log(`Serving static file: ${path}`);
+    setHeaders: (res, filePath) => {
+        console.log(`Serving static file: ${filePath}`);
         res.setHeader('Content-Type', 'image/avif');
     }
 }));
 
 // Health check endpoint for monitoring
 app.get("/api/health", (req, res) => {
-    const dbStatus = client && client.isConnected() ? "Connected" : "Disconnected";
+    const dbStatus = client && client.topology && client.topology.isConnected() ? "Connected" : "Disconnected";
     res.json({ status: "Server is running", port: process.env.PORT, dbStatus });
 });
 
-// Fetch countertops from MongoDB
+// Fetch countertops from MongoDB with retry logic
 app.get("/api/countertops", async (req, res) => {
-    try {
-        console.log("Fetching countertops from MongoDB...");
-        if (!client || !client.isConnected()) {
-            console.error("MongoDB client not connected.");
-            return res.status(500).json({ error: "Database connection not available." });
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second delay between retries
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`Attempt ${attempt}: Fetching countertops from MongoDB...`);
+            if (!client || !client.topology || !client.topology.isConnected()) {
+                console.error("MongoDB client not connected.");
+                throw new Error("Database connection not available.");
+            }
+            if (!collection) {
+                console.error("MongoDB collection not initialized.");
+                throw new Error("Database collection not initialized.");
+            }
+            const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
+            console.log("Countertops fetched:", countertops);
+            return res.json(countertops);
+        } catch (err) {
+            console.error(`Attempt ${attempt} failed: ❌ Error fetching countertops:`, err.message, err.stack);
+            if (attempt === maxRetries) {
+                return res.status(500).json({ error: `Failed to fetch countertops after ${maxRetries} attempts: ${err.message}` });
+            }
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
-        if (!collection) {
-            console.error("MongoDB collection not initialized.");
-            return res.status(500).json({ error: "Database collection not initialized." });
-        }
-        const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
-        console.log("Countertops fetched:", countertops);
-        res.json(countertops);
-    } catch (err) {
-        console.error("❌ Error fetching countertops:", err.message, err.stack);
-        res.status(500).json({ error: "Failed to fetch countertops from database: " + err.message });
     }
 });
 
 // Image analysis with OpenAI API
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
+    let fileStream;
     try {
-        if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded." });
+        }
 
         if (req.file.size > 5 * 1024 * 1024) {
             fs.unlinkSync(req.file.path);
             return res.status(400).json({ error: "Image size exceeds 5MB limit." });
         }
 
-        const imageBase64 = fs.readFileSync(req.file.path, "base64");
+        fileStream = fs.createReadStream(req.file.path);
+        const chunks = [];
+        for await (const chunk of fileStream) {
+            chunks.push(chunk);
+        }
+        const imageBase64 = Buffer.concat(chunks).toString("base64");
         fs.unlinkSync(req.file.path);
 
         const apiKey = process.env.OPENAI_API_KEY;
@@ -196,6 +216,8 @@ Respond ONLY in JSON like this:
         res.json({ response: parsed });
     } catch (error) {
         console.error("❌ Error in /api/upload-image:", error.message, error.stack);
+        if (fileStream) fileStream.destroy();
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         res.status(500).json({ error: "Failed to analyze image: " + error.message });
     }
 });
@@ -255,7 +277,8 @@ function loadColorData() {
             colorsData = [];
             return;
         }
-        colorsData = JSON.parse(fs.readFileSync("./colors.json", "utf8"));
+        const data = fs.readFileSync("./colors.json", "utf8");
+        colorsData = JSON.parse(data);
         console.log(`✅ Loaded ${colorsData.length} countertop colors.`);
     } catch (err) {
         console.error("❌ Error loading colors:", err.message, err.stack);
@@ -268,8 +291,15 @@ process.on('SIGTERM', async () => {
     console.log("Received SIGTERM. Closing MongoDB connection...");
     if (client) {
         await client.close();
+        console.log("MongoDB connection closed.");
     }
     process.exit(0);
+});
+
+// Handle uncaught exceptions to prevent crashes
+process.on('uncaughtException', (err) => {
+    console.error("Uncaught Exception:", err.message, err.stack);
+    // Do not exit, let the server continue running
 });
 
 // Start the server
