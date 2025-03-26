@@ -5,7 +5,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const fetch = require("node-fetch");
 const fs = require("fs");
-const path = require("path"); // Added path module
+const path = require("path");
 const Fuse = require("fuse.js");
 const { MongoClient } = require("mongodb");
 
