@@ -17,7 +17,7 @@ let colorsData = [];
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = "project0";
-const COLLECTION_NAME = "Images";
+const COLLECTION_NAME = "images";
 let client;
 let collection;
 
