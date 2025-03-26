@@ -16,13 +16,14 @@ let colorsData = [];
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "project0"; // Updated to match the actual database name
+const DB_NAME = "project0"; // Correct database name
 const COLLECTION_NAME = "images";
 let client;
 let collection;
 
 async function connectToMongoDB() {
     try {
+        console.log("MONGO_URI:", MONGO_URI); // Log the URI being used
         client = new MongoClient(MONGO_URI, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
