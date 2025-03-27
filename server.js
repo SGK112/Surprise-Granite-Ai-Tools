@@ -117,6 +117,7 @@ app.get("/api/test-mongo", async (req, res) => {
 app.get("/api/countertops", async (req, res) => {
     const maxRetries = 3;
     const retryDelay = 1000;
+    console.log("Received request to /api/countertops"); // Confirm endpoint is hit
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             console.log(`Attempt ${attempt}: Fetching countertops from MongoDB...`);
@@ -128,8 +129,10 @@ app.get("/api/countertops", async (req, res) => {
                 console.error("MongoDB collection not initialized.");
                 throw new Error("Database collection not initialized.");
             }
+            console.log(`Querying database: ${DB_NAME}, collection: ${COLLECTION_NAME}`); // Log DB and collection
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
-            console.log("Raw countertops from MongoDB:", countertops); // Added debug logging
+            console.log("Raw countertops from MongoDB:", countertops); // Debug log
+            console.log(`Found ${countertops.length} documents in ${COLLECTION_NAME}`); // Additional log
             if (countertops.length === 0) {
                 console.warn("No countertops found in the database. Using fallback data.");
                 return res.status(200).json(FALLBACK_COUNTERTOPS);
