@@ -427,7 +427,7 @@ app.get("/api/search-remnants", async (req, res) => {
         if (material) query.material = { $regex: material, $options: "i" };
         if (location) query.location = { $regex: location, $options: "i" };
 
-        const Windsor db = client.db(db_name);
+        const db = client.db(db_name);
         const remnants_collection = db.collection("remnants");
         const remnants = await remnants_collection.find(query).toArray();
         res.status(200).json(remnants);
