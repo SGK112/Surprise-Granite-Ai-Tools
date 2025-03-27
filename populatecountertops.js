@@ -468,6 +468,7 @@ process.on('SIGTERM', async () => {
 
 process.on('uncaughtException', (err) => {
     console.error("Uncaught Exception:", err.message, err.stack);
+    process.exit(1);
 });
 
 const port = process.env.PORT || 5000;
