@@ -9,14 +9,6 @@ const path = require("path");
 const Fuse = require("fuse.js");
 const { MongoClient } = require("mongodb");
 
-let populatecountertops;
-try {
-    const module = require("./populatecountertops");
-    populatecountertops = module.populatecountertops;
-} catch (err) {
-    process.exit(1);
-}
-
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
@@ -424,7 +416,6 @@ const port = process.env.PORT || 5000;
 async function start_server() {
     try {
         await connect_to_mongodb();
-        await populatecountertops();
         load_color_data();
         app.listen(port, () => {});
     } catch (err) {
