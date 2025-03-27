@@ -129,7 +129,7 @@ app.get("/api/countertops", async (req, res) => {
                 throw new Error("Database collection not initialized.");
             }
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
-            console.log("Countertops fetched:", countertops);
+            console.log("Raw countertops from MongoDB:", countertops); // Added debug logging
             if (countertops.length === 0) {
                 console.warn("No countertops found in the database. Using fallback data.");
                 return res.status(200).json(FALLBACK_COUNTERTOPS);
