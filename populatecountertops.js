@@ -463,7 +463,8 @@ process.on('SIGTERM', async () => {
         await client.close();
         console.log("MongoDB connection closed.");
     }
-    process.exit(0);
+    process.exit(0);    npm install --save-dev mocha chai
+    
 });
 
 process.on('uncaughtException', (err) => {
