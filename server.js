@@ -491,9 +491,25 @@ async function start_server() {
             console.error("❌ Failed to populate countertops:", err.message, err.stack);
         }
         load_color_data();
-        app.listen(port, () => {
-            console.log(`✅ Server running on port ${port}`);
-        });
+        // Retry binding to the port with a delay to avoid EADDRINUSE
+        let retries = 5;
+        const bindPort = async () => {
+            try {
+                app.listen(port, () => {
+                    console.log(`✅ Server running on port ${port}`);
+                });
+            } catch (err) {
+                if (err.code === 'EADDRINUSE' && retries > 0) {
+                    console.log(`Port ${port} in use, retrying in 2 seconds... (${retries} retries left)`);
+                    retries--;
+                    setTimeout(bindPort, 2000);
+                } else {
+                    console.error("❌ Failed to bind to port:", err.message, err.stack);
+                    process.exit(1);
+                }
+            }
+        };
+        bindPort();
     } catch (err) {
         console.error("❌ Failed to start server:", err.message, err.stack);
         process.exit(1);
