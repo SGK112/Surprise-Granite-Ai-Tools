@@ -16,8 +16,8 @@ let colorsData = [];
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "project0";
-const COLLECTION_NAME = "Countertops.images"; // Updated to match the exact case in MongoDB Atlas
+const DB_NAME = "countertops"; // Updated to match Atlas database name
+const COLLECTION_NAME = "countertops.images"; // Already correct
 let client;
 let collection;
 
