@@ -65,10 +65,21 @@ async function connectToMongoDB() {
         const db = client.db(DB_NAME);
         const collections = await db.listCollections().toArray();
         console.log("Collections in database:", collections.map(c => c.name));
-        // Access the Countertops.images collection directly
+
+        // Access the countertops.images collection directly
         collection = db.collection(COLLECTION_NAME);
-        const collectionExists = await db.listCollections({ name: COLLECTION_NAME }).toArray();
-        console.log(`Does ${COLLECTION_NAME} exist?`, collectionExists.length > 0 ? "Yes" : "No");
+        const collectionExists = collections.some(c => c.name === COLLECTION_NAME);
+        console.log(`Does ${COLLECTION_NAME} exist?`, collectionExists ? "Yes" : "No");
+
+        // If the collection doesn't exist, create it and insert fallback data
+        if (!collectionExists) {
+            console.log(`Creating collection ${COLLECTION_NAME}...`);
+            await db.createCollection(COLLECTION_NAME);
+            console.log(`Inserting initial data into ${COLLECTION_NAME}...`);
+            await collection.insertMany(FALLBACK_COUNTERTOPS);
+            console.log(`Inserted ${FALLBACK_COUNTERTOPS.length} documents into ${COLLECTION_NAME}`);
+        }
+
         console.log("✅ Connected to MongoDB");
         console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
         const count = await collection.countDocuments();
