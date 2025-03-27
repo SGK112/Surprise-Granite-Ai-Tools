@@ -6,84 +6,75 @@ const helmet = require("helmet");
 const fetch = require("node-fetch");
 const fs = require("fs");
 const path = require("path");
-const Fuse = require("fuse.js");
+const fuse = require("fuse.js");
 const { MongoClient } = require("mongodb");
+
+// Import the populatecountertops function
+const { populatecountertops } = require("./populatecountertops");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
-let colorsData = [];
+let colors_data = [];
 
 // MongoDB connection
-const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "countertops"; // Updated to match Atlas database name
-const COLLECTION_NAME = "countertops.images"; // Already correct
+const mongo_uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
+const db_name = "countertops";
+const collection_name = "countertops.images";
 let client;
 let collection;
 
 // Fallback data if MongoDB query fails
-const FALLBACK_COUNTERTOPS = [
+const fallback_countertops = [
     {
         product_name: "Calacatta Gold",
-        material: "Marble",
+        material: "marble",
         brand: "Surprise Granite",
-        veining: "Dramatic Veining",
+        veining: "dramatic veining",
         primary_color: "255,255,255",
         secondary_color: "200,200,200",
         scene_image_path: "/countertop_images/calacatta_gold_scene.avif"
     },
     {
         product_name: "Black Galaxy",
-        material: "Granite",
+        material: "granite",
         brand: "Surprise Granite",
-        veining: "No Veining",
+        veining: "no veining",
         primary_color: "0,0,0",
         secondary_color: "50,50,50",
         scene_image_path: "/countertop_images/black_galaxy_scene.avif"
     },
     {
         product_name: "Carrara White",
-        material: "Marble",
+        material: "marble",
         brand: "Surprise Granite",
-        veining: "Moderate Veining",
+        veining: "moderate veining",
         primary_color: "240,240,240",
         secondary_color: "180,180,180",
         scene_image_path: "/countertop_images/cascade_white_scene.avif"
     }
 ];
 
-async function connectToMongoDB() {
+async function connect_to_mongodb() {
     try {
-        console.log("MONGO_URI:", MONGO_URI);
-        client = new MongoClient(MONGO_URI, {
+        console.log("mongo_uri:", mongo_uri);
+        client = new MongoClient(mongo_uri, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
         });
         await client.connect();
         console.log("MongoDB server status:", client.topology.isConnected() ? "Connected" : "Disconnected");
-        const db = client.db(DB_NAME);
+        const db = client.db(db_name);
         const collections = await db.listCollections().toArray();
         console.log("Collections in database:", collections.map(c => c.name));
-
-        // Access the countertops.images collection directly
-        collection = db.collection(COLLECTION_NAME);
-        const collectionExists = collections.some(c => c.name === COLLECTION_NAME);
-        console.log(`Does ${COLLECTION_NAME} exist?`, collectionExists ? "Yes" : "No");
-
-        // If the collection doesn't exist, create it and insert fallback data
-        if (!collectionExists) {
-            console.log(`Creating collection ${COLLECTION_NAME}...`);
-            await db.createCollection(COLLECTION_NAME);
-            console.log(`Inserting initial data into ${COLLECTION_NAME}...`);
-            await collection.insertMany(FALLBACK_COUNTERTOPS);
-            console.log(`Inserted ${FALLBACK_COUNTERTOPS.length} documents into ${COLLECTION_NAME}`);
-        }
-
+        collection = db.collection(collection_name);
+        const collection_exists = await db.listCollections({ name: collection_name }).toArray();
+        console.log(`Does ${collection_name} exist?`, collection_exists.length > 0 ? "Yes" : "No");
         console.log("✅ Connected to MongoDB");
-        console.log(`Database: ${DB_NAME}, Collection: ${COLLECTION_NAME}`);
+        console.log(`Database: ${db_name}, Collection: ${collection_name}`);
         const count = await collection.countDocuments();
-        console.log(`Number of documents in ${COLLECTION_NAME}: ${count}`);
+        console.log(`Number of documents in ${collection_name}: ${count}`);
     } catch (err) {
         console.error("❌ Failed to connect to MongoDB:", err.message, err.stack);
         process.exit(1);
@@ -104,8 +95,8 @@ app.use('/countertop_images', express.static(path.join(__dirname, 'countertop_im
 }));
 
 app.get("/api/health", (req, res) => {
-    const dbStatus = client && client.topology && client.topology.isConnected() ? "Connected" : "Disconnected";
-    res.json({ status: "Server is running", port: process.env.PORT, dbStatus });
+    const db_status = client && client.topology && client.topology.isConnected() ? "Connected" : "Disconnected";
+    res.json({ status: "Server is running", port: process.env.PORT, db_status });
 });
 
 app.get("/api/test-mongo", async (req, res) => {
@@ -118,7 +109,7 @@ app.get("/api/test-mongo", async (req, res) => {
         }
         const count = await collection.countDocuments();
         const sample = await collection.findOne();
-        res.json({ documentCount: count, sampleDocument: sample });
+        res.json({ document_count: count, sample_document: sample });
     } catch (err) {
         console.error("❌ Error in /api/test-mongo:", err.message, err.stack);
         res.status(500).json({ error: "Failed to test MongoDB: " + err.message });
@@ -126,10 +117,10 @@ app.get("/api/test-mongo", async (req, res) => {
 });
 
 app.get("/api/countertops", async (req, res) => {
-    const maxRetries = 3;
-    const retryDelay = 1000;
-    console.log("Received request to /api/countertops"); // Confirm endpoint is hit
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const max_retries = 3;
+    const retry_delay = 1000;
+    console.log("Received request to /api/countertops");
+    for (let attempt = 1; attempt <= max_retries; attempt++) {
         try {
             console.log(`Attempt ${attempt}: Fetching countertops from MongoDB...`);
             if (!client || !client.topology || !client.topology.isConnected()) {
@@ -140,28 +131,28 @@ app.get("/api/countertops", async (req, res) => {
                 console.error("MongoDB collection not initialized.");
                 throw new Error("Database collection not initialized.");
             }
-            console.log(`Querying database: ${DB_NAME}, collection: ${COLLECTION_NAME}`); // Log DB and collection
+            console.log(`Querying database: ${db_name}, collection: ${collection_name}`);
             const countertops = await collection.find({}, { projection: { _id: 0 } }).toArray();
-            console.log("Raw countertops from MongoDB:", countertops); // Debug log
-            console.log(`Found ${countertops.length} documents in ${COLLECTION_NAME}`); // Additional log
+            console.log("Raw countertops from MongoDB:", countertops);
+            console.log(`Found ${countertops.length} documents in ${collection_name}`);
             if (countertops.length === 0) {
                 console.warn("No countertops found in the database. Using fallback data.");
-                return res.status(200).json(FALLBACK_COUNTERTOPS);
+                return res.status(200).json(fallback_countertops);
             }
             return res.json(countertops);
         } catch (err) {
             console.error(`Attempt ${attempt} failed: ❌ Error fetching countertops:`, err.message, err.stack);
-            if (attempt === maxRetries) {
+            if (attempt === max_retries) {
                 console.warn("All attempts failed. Using fallback data.");
-                return res.status(200).json(FALLBACK_COUNTERTOPS);
+                return res.status(200).json(fallback_countertops);
             }
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            await new Promise(resolve => setTimeout(resolve, retry_delay));
         }
     }
 });
 
 app.post("/api/upload-image", upload.single("file"), async (req, res) => {
-    let fileStream;
+    let file_stream;
     try {
         if (!req.file) {
             return res.status(400).json({ error: "No file uploaded." });
@@ -172,26 +163,26 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
             return res.status(400).json({ error: "Image size exceeds 5MB limit." });
         }
 
-        fileStream = fs.createReadStream(req.file.path);
+        file_stream = fs.createReadStream(req.file.path);
         const chunks = [];
-        for await (const chunk of fileStream) {
+        for await (const chunk of file_stream) {
             chunks.push(chunk);
         }
-        const imageBase64 = Buffer.concat(chunks).toString("base64");
+        const image_base64 = Buffer.concat(chunks).toString("base64");
         fs.unlinkSync(req.file.path);
 
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
+        const api_key = process.env.OPENAI_API_KEY;
+        if (!api_key) {
             console.error("OPENAI_API_KEY is not set in environment variables.");
             return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key." });
         }
-        console.log("Using OpenAI API key (first 5 chars):", apiKey.substring(0, 5) + "...");
+        console.log("Using OpenAI API key (first 5 chars):", api_key.substring(0, 5) + "...");
 
-        const openAIResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        const openai_response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
+                Authorization: `Bearer ${api_key}`,
             },
             body: JSON.stringify({
                 model: "gpt-4o",
@@ -199,187 +190,3 @@ app.post("/api/upload-image", upload.single("file"), async (req, res) => {
                     {
                         role: "system",
                         content: `
-You are CARI, a countertop damage analyst at Surprise Granite.
-
-Analyze the uploaded image. Your job is to:
-1. Identify the stone type (granite, quartz, marble, quartzite, etc.)
-2. Describe the color and pattern (e.g., white with grey veining)
-3. Detect damage (chips, cracks, scratches, breaks, discoloration)
-4. Classify severity (low, moderate, severe)
-5. Suggest estimated repair cost (e.g. $250–$450)
-6. Make a confident recommendation:
-   - Recommend full/partial replacement for cracks over 1 inch, multiple chips, or broken pieces.
-   - Recommend repair for minor cosmetic damage.
-   - If unclear, suggest in-person evaluation.
-7. Be clear, professional, and concise.
-
-Respond ONLY in JSON like this:
-{
-  "stoneType": "",
-  "colorPattern": "",
-  "isNaturalStone": true,
-  "damageType": "",
-  "severity": "",
-  "estimatedCost": "",
-  "recommendation": "",
-  "description": ""
-}
-                        `,
-                    },
-                    {
-                        role: "user",
-                        content: [
-                            { type: "text", text: "Analyze this countertop image." },
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
-                        ],
-                    },
-                ],
-                max_tokens: 800,
-                temperature: 0.8,
-            }),
-        });
-
-        if (!openAIResponse.ok) {
-            const errorText = await openAIResponse.text();
-            console.error(`OpenAI API failed: ${openAIResponse.status} - ${errorText}`);
-            if (openAIResponse.status === 401) {
-                return res.status(401).json({ error: "Invalid OpenAI API key. Please contact the administrator to update the OpenAI API key." });
-            }
-            return res.status(500).json({ error: `OpenAI API failed: ${openAIResponse.status} - ${errorText}` });
-        }
-
-        const data = await openAIResponse.json();
-        console.log("OpenAI API response:", JSON.stringify(data, null, 2));
-
-        if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-            console.error("Invalid OpenAI API response structure:", data);
-            return res.status(500).json({ error: "Invalid response structure from OpenAI API." });
-        }
-
-        const raw = data.choices[0].message.content.trim();
-        const match = raw.match(/\{[\s\S]*\}/);
-        if (!match) {
-            console.error("No JSON found in OpenAI response:", raw);
-            return res.status(500).json({ error: "Invalid response format from OpenAI API: No JSON found." });
-        }
-
-        const jsonOutput = match[0];
-        let parsed;
-        try {
-            parsed = JSON.parse(jsonOutput);
-        } catch (parseError) {
-            console.error("Failed to parse JSON from OpenAI response:", raw, parseError);
-            return res.status(500).json({ error: "Failed to parse JSON from OpenAI API response." });
-        }
-
-        if (colorsData?.length && parsed.colorPattern) {
-            const fuse = new Fuse(colorsData, {
-                keys: ["name", "description"],
-                threshold: 0.3,
-            });
-            const topMatch = fuse.search(parsed.colorPattern)?.[0]?.item;
-            if (topMatch) {
-                parsed.matchedColor = topMatch.name;
-                parsed.matchedVendor = topMatch.description;
-                parsed.matchedImage = topMatch.imageUrl;
-            }
-        }
-
-        res.json({ response: parsed });
-    } catch (error) {
-        console.error("❌ Error in /api/upload-image:", error.message, error.stack);
-        if (fileStream) fileStream.destroy();
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        res.status(500).json({ error: "Failed to analyze image: " + error.message });
-    }
-});
-
-app.post("/api/speak", async (req, res) => {
-    try {
-        const { text, voice = "shimmer", speed = 1.0 } = req.body;
-        if (!text) return res.status(400).json({ error: "Text is required." });
-
-        const apiKey = process.env.OPENAI_API_KEY_TTS || process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            console.error("Neither OPENAI_API_KEY_TTS nor OPENAI_API_KEY is set in environment variables.");
-            return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key." });
-        }
-
-        const ttsResponse = await fetch("https://api.openai.com/v1/audio/speech", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model: "tts-1-hd",
-                input: text,
-                voice,
-                speed: parseFloat(speed),
-                response_format: "mp3",
-            }),
-        });
-
-        if (!ttsResponse.ok) {
-            const errorText = await ttsResponse.text();
-            console.error(`OpenAI TTS failed: ${ttsResponse.status} - ${errorText}`);
-            return res.status(500).json({ error: `OpenAI TTS failed: ${ttsResponse.status} - ${errorText}` });
-        }
-
-        res.setHeader("Content-Type", "audio/mpeg");
-        const buffer = await ttsResponse.arrayBuffer();
-        res.send(Buffer.from(buffer));
-    } catch (err) {
-        console.error("❌ TTS error:", err.message, err.stack);
-        res.status(500).json({ error: "TTS request failed: " + err.message });
-    }
-});
-
-app.get("/", (req, res) => {
-    res.send("✅ CARI API is live");
-});
-
-function loadColorData() {
-    try {
-        if (!fs.existsSync("./colors.json")) {
-            console.error("colors.json file not found. Initializing with empty array.");
-            colorsData = [];
-            return;
-        }
-        const data = fs.readFileSync("./colors.json", "utf8");
-        colorsData = JSON.parse(data);
-        console.log(`✅ Loaded ${colorsData.length} countertop colors.`);
-    } catch (err) {
-        console.error("❌ Error loading colors:", err.message, err.stack);
-        colorsData = [];
-    }
-}
-
-process.on('SIGTERM', async () => {
-    console.log("Received SIGTERM. Closing MongoDB connection...");
-    if (client) {
-        await client.close();
-        console.log("MongoDB connection closed.");
-    }
-    process.exit(0);
-});
-
-process.on('uncaughtException', (err) => {
-    console.error("Uncaught Exception:", err.message, err.stack);
-});
-
-const PORT = process.env.PORT || 5000;
-async function startServer() {
-    try {
-        await connectToMongoDB();
-        loadColorData();
-        app.listen(PORT, () => {
-            console.log(`✅ Server running on port ${PORT}`);
-        });
-    } catch (err) {
-        console.error("❌ Failed to start server:", err.message, err.stack);
-        process.exit(1);
-    }
-}
-
-startServer();
