@@ -4,23 +4,23 @@ const path = require("path");
 const { MongoClient } = require("mongodb");
 
 // MongoDB connection
-const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = "countertops";
-const COLLECTION_NAME = "countertops.images";
+const mongo_uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
+const db_name = "countertops";
+const collection_name = "countertops.images";
 
-async function populateCountertops() {
+async function populatecountertops() {
     let client;
     try {
         // Connect to MongoDB
-        client = new MongoClient(MONGO_URI, {
+        client = new MongoClient(mongo_uri, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
         });
         await client.connect();
         console.log("Connected to MongoDB");
-        const db = client.db(DB_NAME);
-        const collection = db.collection(COLLECTION_NAME);
+        const db = client.db(db_name);
+        const collection = db.collection(collection_name);
 
         // Clear existing documents (optional, comment out if you want to keep existing data)
         await collection.deleteMany({});
@@ -39,19 +39,19 @@ async function populateCountertops() {
                 .join(" ");
 
             // Infer material based on name (simplified logic, can be improved)
-            let material = "Granite"; // Default
+            let material = "granite"; // Default
             if (baseName.toLowerCase().includes("calacatta") || baseName.toLowerCase().includes("carrara")) {
-                material = "Marble";
+                material = "marble";
             } else if (baseName.toLowerCase().includes("quartz")) {
-                material = "Quartz";
+                material = "quartz";
             }
 
             // Infer veining based on name (simplified logic)
-            let veining = "Moderate Veining/Speckles"; // Default
+            let veining = "moderate veining/speckles"; // Default
             if (baseName.toLowerCase().includes("no_veining")) {
-                veining = "No Veining";
+                veining = "no veining";
             } else if (baseName.toLowerCase().includes("dramatic")) {
-                veining = "Dramatic Veining";
+                veining = "dramatic veining";
             }
 
             // Infer colors based on name (simplified logic, can be improved with image analysis)
@@ -81,7 +81,7 @@ async function populateCountertops() {
 
         // Insert into MongoDB
         await collection.insertMany(countertops);
-        console.log(`Inserted ${countertops.length} countertops into ${COLLECTION_NAME}`);
+        console.log(`Inserted ${countertops.length} countertops into ${collection_name}`);
     } catch (err) {
         console.error("Error populating countertops:", err.message, err.stack);
     } finally {
@@ -90,4 +90,4 @@ async function populateCountertops() {
     }
 }
 
-populateCountertops();
+populatecountertops();
