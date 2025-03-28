@@ -20,7 +20,8 @@
     "node-fetch": "^2.6.12",
     "nodemon": "^3.1.9",
     "openai": "^4.87.4",
-    "shopify-api-node": "^3.6.0"
+    "shopify-api-node": "^3.6.0",
+    "@emailjs/nodejs": "^4.0.0"
   },
   "engines": {
     "node": ">=16.0.0"
