@@ -18,7 +18,7 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "countertop_images";
+const COLLECTION_NAME = "home_items"; // Restored original collection name
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || "service_jmjjix9";
@@ -67,222 +67,111 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Import Countertop Images into MongoDB
-async function importCountertopImages() {
-    try {
-        const imagesDir = path.join(__dirname, "countertop_images");
-        const files = await fs.readdir(imagesDir).catch(() => []);
-        if (files.length === 0) {
-            console.log("No images found in countertop_images folder");
-            return;
-        }
+// Analyze Image with OpenAI Vision (Repair Mode)
+async function analyzeImage(imageBase64) {
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
+    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
+    - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
+    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
+    - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
+    - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
+    - Severity: Assess with context:
+      - None: "No damage at all, it’s in great shape!" ($0).
+      - Low: "Just a tiny scratch, no biggie" ($50-$150).
+      - Moderate: "A decent crack, worth fixing" ($200-$500).
+      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
+    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
+    - Professional recommendation: If damage, "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!" If none, "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
+    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—our cleaning service can keep it sparkling!").
+    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—subscribe to our repair service!" or "No repairs needed, but our cleaning subscription keeps it great!").
+    Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
 
-        const imagesCollection = db.collection(COLLECTION_NAME);
-        for (const file of files) {
-            if (/\.(jpg|jpeg|png)$/i.test(file)) {
-                const filePath = path.join(imagesDir, file);
-                const imageBuffer = await fs.readFile(filePath);
-                const imageBase64 = imageBuffer.toString("base64");
-                const imageHash = createHash("sha256").update(imageBase64).digest("hex");
-
-                const exists = await imagesCollection.findOne({ imageHash });
-                if (!exists) {
-                    const analysis = await analyzeImage(imageBase64, "basic");
-                    await imagesCollection.insertOne({
-                        filename: file,
-                        imageBase64,
-                        imageHash,
-                        analysis,
-                        createdAt: new Date()
-                    });
-                    console.log(`Imported ${file} into MongoDB`);
-                }
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: prompt },
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and be honest if there’s none." },
+                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+                ]
             }
-        }
-        console.log(`Total images in DB: ${await imagesCollection.countDocuments()}`);
-    } catch (err) {
-        console.error("Failed to import countertop images:", err.message);
-    }
-}
+        ],
+        max_tokens: 1500,
+        temperature: 0.5
+    });
 
-// Analyze Image with OpenAI Vision
-async function analyzeImage(imageBase64, mode = "basic") {
-    let prompt;
-    if (mode === "damage") {
-        prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
-        - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
-        - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
-        - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
-        - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
-        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface").
-        - Severity: Assess with context (e.g., "Moderate: A decent crack, worth fixing" ($200-$500)).
-        - Estimated cost range: Tie to severity (e.g., "$200-$500").
-        - Professional recommendation: Suggest next steps (e.g., "Contact Surprise Granite for repair").
-        - Cleaning recommendation: Practical tip (e.g., "Use mild soap and water").
-        - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack").
-        Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
-    } else {
-        prompt = `Analyze this countertop image and provide:
-        - Stone type (e.g., granite, marble)
-        - Color and pattern (e.g., "brown with black speckles")
-        - Material composition (e.g., "mostly quartz")
-        Return in JSON format with keys: stone_type, color_and_pattern, material_composition.`;
-    }
-
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                { role: "system", content: prompt },
-                {
-                    role: "user",
-                    content: [
-                        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-                    ]
-                }
-            ],
-            max_tokens: mode === "damage" ? 1500 : 500,
-            temperature: 0.5
-        });
-
-        const content = response.choices[0].message.content;
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No valid JSON found in OpenAI response");
-        return JSON.parse(jsonMatch[0]);
-    } catch (err) {
-        console.error(`Image analysis error (${mode} mode):`, err.message);
-        throw err;
-    }
+    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
+    if (!content) throw new Error("Invalid JSON response from OpenAI");
+    return JSON.parse(content[0]);
 }
 
 // Analyze Damage Endpoint (Repair Mode)
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     console.log("Received request to /api/analyze-damage");
     try {
-        if (!req.file) {
-            console.log("No file uploaded");
-            return res.status(400).json({ error: "No file uploaded" });
-        }
-        if (!OPENAI_API_KEY) {
-            console.log("Missing OpenAI API key");
-            return res.status(500).json({ error: "Missing OpenAI API key" });
-        }
+        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
 
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
         const imageBase64 = imageBuffer.toString("base64");
+        const imageHash = createHash("sha256").update(imageBase64).digest("hex");
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
 
-        const result = await analyzeImage(imageBase64, "damage");
+        const itemsCollection = db.collection(COLLECTION_NAME);
+        const existing = await itemsCollection.findOne({ imageHash });
+        if (existing) {
+            console.log("Returning cached analysis for image:", imageHash);
+            return res.json({ response: existing.analysis });
+        }
+
+        const result = await analyzeImage(imageBase64);
+        await itemsCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
+        console.log("Saved new analysis to DB:", imageHash);
         res.json({ response: result });
     } catch (err) {
         console.error("Analysis error:", err.message);
-        res.status(500).json({ error: `Analysis failed: ${err.message}` });
+        res.status(500).json({ error: err.message });
     }
 });
 
-// Visual Search Endpoint (Replacement Mode)
-app.post("/api/visual-search", upload.single("file"), async (req, res) => {
-    console.log("Received request to /api/visual-search");
+// TTS Endpoint (Restored for CARI to speak)
+app.post("/api/tts", async (req, res) => {
     try {
-        if (!req.file) {
-            console.log("No file uploaded");
-            return res.status(400).json({ error: "No file uploaded" });
-        }
-        if (!OPENAI_API_KEY) {
-            console.log("Missing OpenAI API key");
-            return res.status(500).json({ error: "Missing OpenAI API key" });
-        }
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: "Text is required" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
 
-        const filePath = req.file.path;
-        const imageBuffer = await fs.readFile(filePath);
-        const uploadedImageBase64 = imageBuffer.toString("base64");
-        await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
+        const response = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "nova",
+            input: text,
+            response_format: "mp3",
+        });
 
-        const uploadedAnalysis = await analyzeImage(uploadedImageBase64, "basic");
-
-        const imagesCollection = db.collection(COLLECTION_NAME);
-        const allImages = await imagesCollection.find({}).toArray();
-
-        if (allImages.length === 0) {
-            console.log("No images in database for matching");
-            return res.json({ uploadedAnalysis, matches: [] });
-        }
-
-        const matches = await Promise.all(allImages.map(async (dbImage) => {
-            const similarityPrompt = `Compare these two countertop images and estimate their similarity (0-100%):
-            - Image 1: Uploaded image
-            - Image 2: Database image
-            Return a JSON object with a "similarity" key (percentage).`;
-
-            try {
-                const response = await openai.chat.completions.create({
-                    model: "gpt-4o",
-                    messages: [
-                        { role: "system", content: similarityPrompt },
-                        {
-                            role: "user",
-                            content: [
-                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${uploadedImageBase64}` } },
-                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${dbImage.imageBase64}` } }
-                            ]
-                        }
-                    ],
-                    max_tokens: 200,
-                    temperature: 0.5
-                });
-
-                const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
-                const similarity = content ? JSON.parse(content[0]).similarity : 0;
-                return { ...dbImage.analysis, filename: dbImage.filename, similarity };
-            } catch (err) {
-                console.error("Similarity comparison error:", err.message);
-                return { ...dbImage.analysis, filename: dbImage.filename, similarity: 0 };
-            }
-        }));
-
-        const topMatches = matches.sort((a, b) => b.similarity - a.similarity).slice(0, 3);
-        res.json({ uploadedAnalysis, matches: topMatches });
+        res.set({ "Content-Type": "audio/mp3", "Content-Disposition": "inline; filename=\"tts.mp3\"" });
+        response.body.pipe(res);
     } catch (err) {
-        console.error("Visual search error:", err.message);
-        res.status(500).json({ error: `Visual search failed: ${err.message}` });
-    }
-});
-
-// Serve Images Endpoint
-app.get("/api/image/:filename", async (req, res) => {
-    console.log(`Received request to /api/image/${req.params.filename}`);
-    try {
-        const { filename } = req.params;
-        const imagesCollection = db.collection(COLLECTION_NAME);
-        const imageDoc = await imagesCollection.findOne({ filename });
-        if (!imageDoc) {
-            console.log(`Image ${filename} not found`);
-            return res.status(404).json({ error: "Image not found" });
-        }
-        res.set("Content-Type", "image/jpeg");
-        res.send(Buffer.from(imageDoc.imageBase64, "base64"));
-    } catch (err) {
-        console.error("Image serve error:", err.message);
+        console.error("TTS error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
 // EmailJS Endpoint
 app.post("/api/send-email", async (req, res) => {
-    console.log("Received request to /api/send-email");
     try {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) {
-            console.log("Missing required fields");
             return res.status(400).json({ error: "Name, email, and message are required" });
         }
 
         const templateParams = {
             from_name: name,
             from_email: email,
-            from_phone: phone || "Not provided",
-            message,
+            from_phone: phone,
+            message: message,
             stone_type: stone_type || "N/A",
             analysis_summary: analysis_summary || "No analysis provided",
             to_email: "info@surprisegranite.com",
@@ -300,7 +189,6 @@ app.post("/api/send-email", async (req, res) => {
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
             await leadsCollection.insertOne({ ...req.body, status: "new", createdAt: new Date() });
-            console.log("Lead saved to MongoDB");
         }
 
         res.json({ success: true, message: "Email sent successfully" });
@@ -313,12 +201,6 @@ app.post("/api/send-email", async (req, res) => {
 // Root Endpoint
 app.get("/", (req, res) => {
     res.send("✅ CARI API is live");
-});
-
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err.stack);
-    res.status(500).json({ error: "Internal server error" });
 });
 
 // Cleanup on Shutdown
@@ -337,7 +219,6 @@ process.on("uncaughtException", (err) => {
 async function startServer() {
     try {
         await connectToMongoDB();
-        await importCountertopImages();
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/api/health`);
