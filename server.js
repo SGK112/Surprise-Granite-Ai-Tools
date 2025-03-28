@@ -8,22 +8,21 @@ const path = require("path");
 const { MongoClient } = require("mongodb");
 const OpenAI = require("openai");
 const axios = require("axios");
-const { createHash } = require("crypto"); // For image hashing
+const { createHash } = require("crypto");
 
 const app = express();
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 
 // Configuration
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "countertops.images";
+const COLLECTION_NAME = "home_items"; // Renamed for scalability
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
-const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
+const THRYV_API_KEY = "3525b8f45f2822007b06b67d39a8b48aae9e9b3b67c3071569048d6850ba341d";
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -35,7 +34,7 @@ let db;
 async function connectToMongoDB() {
     try {
         client = new MongoClient(MONGODB_URI, {
-            maxPoolSize: 10,
+            maxPoolSize: 20, // Increased for scalability
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
         });
@@ -44,6 +43,7 @@ async function connectToMongoDB() {
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
         console.error("Failed to connect to MongoDB:", err.message);
+        process.exit(1);
     }
 }
 
@@ -59,7 +59,7 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Import GitHub Images to MongoDB with Metadata
+// Import GitHub Images to MongoDB
 async function importGitHubImages() {
     if (!GITHUB_TOKEN || !db) {
         console.error("GitHub token or DB missing");
@@ -70,63 +70,98 @@ async function importGitHubImages() {
             headers: { Authorization: `token ${GITHUB_TOKEN}` },
         });
         const images = response.data.filter(file => /\.(jpg|jpeg|png)$/i.test(file.name));
-        const imagesCollection = db.collection(COLLECTION_NAME);
+        const itemsCollection = db.collection(COLLECTION_NAME);
+
+        console.log(`Found ${images.length} images in GitHub repo`);
+        let importedCount = 0;
 
         for (const image of images) {
             const imageResponse = await axios.get(image.download_url, { responseType: "arraybuffer" });
             const imageBase64 = Buffer.from(imageResponse.data).toString("base64");
             const imageHash = createHash("sha256").update(imageBase64).digest("hex");
-            const exists = await imagesCollection.findOne({ imageHash });
+            const exists = await itemsCollection.findOne({ imageHash });
+
             if (!exists) {
-                const analysis = await analyzeImageForMetadata(imageBase64);
-                await imagesCollection.insertOne({
+                const analysis = await analyzeImage(imageBase64, "countertop"); // Default to countertop for now
+                await itemsCollection.insertOne({
                     filename: image.name,
                     imageBase64,
                     imageHash,
                     analysis,
                     createdAt: new Date(),
                     metadata: {
+                        item_type: analysis.item_type || "countertop",
                         stone_type: analysis.stone_type,
                         color_and_pattern: analysis.color_and_pattern,
                         natural_stone: analysis.natural_stone,
-                        potential_use: "countertop"
+                        vendor: image.name.includes("vendor") ? "Unknown Vendor" : null // Extract vendor if in filename
                     }
                 });
-                console.log(`Imported and analyzed ${image.name}`);
+                importedCount++;
+                console.log(`Imported ${image.name} (${importedCount}/${images.length})`);
             }
         }
-        console.log(`Imported ${images.length} images from GitHub`);
+        console.log(`Imported ${importedCount} new images from GitHub`);
     } catch (err) {
         console.error("Failed to import GitHub images:", err.message);
     }
 }
 
-// Helper: Analyze Image for Metadata
-async function analyzeImageForMetadata(imageBase64) {
+// Analyze Image (Scalable for multiple item types)
+async function analyzeImage(imageBase64, itemType = "countertop") {
+    const prompt = itemType === "countertop" ?
+        `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
+        - Item type: Confirm it’s a countertop.
+        - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
+        - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
+        - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
+        - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
+        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
+        - Severity: Assess with context:
+          - None: "No damage at all, it’s in great shape!" ($0).
+          - Low: "Just a tiny scratch, no biggie" ($50-$150).
+          - Moderate: "A decent crack, worth fixing" ($200-$500).
+          - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
+        - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
+        - Professional recommendation: If damage, "Contact Surprise Granite for further details" plus advice (e.g., "Replace it"). If none, "No repairs needed—Armando at Surprise Granite can keep it shining with our cleaning services! Our team, led by Armando, does a great job making countertops great again!"
+        - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—Armando’s crew can make it sparkle!").
+        - Repair recommendation: DIY or pro advice (e.g., "A pro like Armando should handle this crack—too big for DIY" or "No repairs needed, just let Armando keep it great!").
+        Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.` :
+        `You are CARI, a home repair and remodeling expert at Surprise Granite. Analyze this ${itemType} image with precision and conversational tone:
+        - Item type: Confirm it’s a ${itemType} (e.g., tile, flooring).
+        - Material composition: Detail conversationally (e.g., "It’s ceramic with a glazed finish").
+        - Color and pattern: Describe naturally (e.g., "It’s a sleek gray with a subtle swirl").
+        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a small chip underneath" or "No damage here, looks solid!").
+        - Severity: Assess with context:
+          - None: "No damage at all, it’s in great shape!" ($0).
+          - Low: "Just a minor nick, no big deal" ($50-$150).
+          - Moderate: "A noticeable crack, worth fixing" ($200-$500).
+          - Severe: "Yikes, this is bad—needs replacing" ($1000+ or replacement).
+        - Estimated cost range: Tie to severity (e.g., "$200-$500" or "$0, it’s perfect!").
+        - Professional recommendation: If damage, "Contact Surprise Granite for further details" plus advice. If none, "No repairs needed—Armando at Surprise Granite can keep it looking great!"
+        - Cleaning recommendation: Practical tip (e.g., "Use a damp cloth—Armando’s team can polish it up!").
+        - Repair recommendation: DIY or pro advice (e.g., "A pro like Armando should replace this" or "No repairs needed, Armando’s got it covered!").
+        Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, material_composition, color_and_pattern, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
+
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-            {
-                role: "system",
-                content: `Analyze this image for countertop metadata:
-                - Stone type (granite, quartz, marble, etc.)
-                - Color and pattern
-                - Natural stone (true/false)
-                Respond in JSON format with keys: stone_type, color_and_pattern, natural_stone.`
-            },
+            { role: "system", content: prompt },
             {
                 role: "user",
                 content: [
-                    { type: "text", text: "Analyze this image" },
+                    { type: "text", text: `Analyze this ${itemType} image with maximum accuracy. Look for hidden damage and be honest if there’s none.` },
                     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                 ]
             }
         ],
-        max_tokens: 500,
-        temperature: 0.5
+        max_tokens: 1500,
+        temperature: 0.5 // Lowered for precision
     });
-    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/)[0];
-    return JSON.parse(content);
+
+    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
+    if (!content) throw new Error("Invalid JSON response from OpenAI");
+    return JSON.parse(content[0]);
 }
 
 // Analyze Damage Endpoint
@@ -134,7 +169,7 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     console.log("Received request to /api/analyze-damage");
     try {
         if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
 
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
@@ -142,57 +177,15 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
 
-        const imagesCollection = db.collection(COLLECTION_NAME);
-        const existing = await imagesCollection.findOne({ imageHash });
+        const itemsCollection = db.collection(COLLECTION_NAME);
+        const existing = await itemsCollection.findOne({ imageHash });
         if (existing) {
             console.log("Returning cached analysis for image:", imageHash);
             return res.json({ response: existing.analysis });
         }
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                {
-                    role: "system",
-                    content: `You are CARI, an expert countertop analyst at Surprise Granite. Analyze the image with precision and conversational tone:
-                    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
-                    - Material composition: Detail the material conversationally (e.g., "It’s mostly quartz with a bit of resin").
-                    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
-                    - Natural stone: True/false with a casual note (e.g., "Yep, it’s natural stone").
-                    - Damage type: Specify clearly (e.g., "There’s a noticeable crack here, over 5mm wide").
-                    - Severity: Assess with context:
-                      - Low: "Just a tiny scratch, no biggie" ($50-$150).
-                      - Moderate: "A decent crack, worth fixing" ($200-$500).
-                      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
-                    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one").
-                    - Professional recommendation: Always end with "Contact Surprise Granite for further details" (e.g., "I’d say replace it. Contact Surprise Granite for further details").
-                    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—keep it simple").
-                    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—too big for DIY").
-                    Use image data only, no defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`
-                },
-                {
-                    role: "user",
-                    content: [
-                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity, material details, and give conversational cleaning and repair tips." },
-                        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-                    ]
-                }
-            ],
-            max_tokens: 1500,
-            temperature: 0.7 // Slightly higher for conversational tone
-        });
-
-        const content = response.choices[0].message.content;
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Invalid JSON response from OpenAI");
-
-        const result = JSON.parse(jsonMatch[0]);
-        console.log("Analysis successful:", result);
-
-        if (db) {
-            await imagesCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
-        }
-
+        const result = await analyzeImage(imageBase64, "countertop"); // Default to countertop
+        await itemsCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
         res.json({ response: result });
     } catch (err) {
         console.error("Analysis error:", err.message);
@@ -202,11 +195,10 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
 
 // TTS Endpoint
 app.post("/api/tts", async (req, res) => {
-    console.log("Received request to /api/tts");
     try {
         const { text } = req.body;
         if (!text) return res.status(400).json({ error: "Text is required" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
 
         const response = await openai.audio.speech.create({
             model: "tts-1",
@@ -223,45 +215,21 @@ app.post("/api/tts", async (req, res) => {
     }
 });
 
-// Submit Lead Endpoint with EmailJS
+// Submit Lead Endpoint
 app.post("/api/submit-lead", async (req, res) => {
-    console.log("Received request to /api/submit-lead");
     try {
         const leadData = req.body;
         if (!leadData.name || !leadData.email) return res.status(400).json({ error: "Name and email are required" });
 
-        // Store in MongoDB
-        let leadId;
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
             const result = await leadsCollection.insertOne({ ...leadData, status: "new", createdAt: new Date() });
-            leadId = result.insertedId;
-            console.log("Lead saved to MongoDB:", leadId);
+            console.log("Lead saved:", result.insertedId);
+            res.json({ success: true, leadId: result.insertedId });
         } else {
-            leadId = "simulated-" + Date.now();
             console.log("No DB connection, simulating lead save:", leadData);
+            res.json({ success: true, leadId: "simulated-" + Date.now() });
         }
-
-        // Send via EmailJS (client-side will handle this, but adding server-side option)
-        // Note: EmailJS is typically client-side, so this is a fallback if needed
-        const emailData = {
-            service_id: EMAILJS_SERVICE_ID,
-            template_id: EMAILJS_TEMPLATE_ID,
-            user_id: process.env.EMAILJS_PUBLIC_KEY, // Public key from .env
-            template_params: {
-                from_name: leadData.name,
-                from_email: leadData.email,
-                message: leadData.message,
-                stone_type: leadData.analysisResult?.stone_type || "N/A",
-                damage_type: leadData.analysisResult?.damage_type || "N/A",
-                severity: leadData.analysisResult?.severity || "N/A"
-            }
-        };
-
-        // For server-side EmailJS, you'd need an API key and a different setup. Here, we’ll assume client-side handles it.
-        console.log("EmailJS data prepared (client-side will send):", emailData);
-
-        res.json({ success: true, leadId });
     } catch (err) {
         console.error("Lead submission error:", err.message);
         res.status(500).json({ error: "Failed to save lead" });
@@ -292,7 +260,7 @@ async function startServer() {
         await importGitHubImages();
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
-            console.log(`Health check: https://surprise-granite-connections-dev.onrender.com/api/health`);
+            console.log(`Health check: http://localhost:${PORT}/api/health`);
         });
     } catch (err) {
         console.error("Failed to start server:", err.message);
