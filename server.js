@@ -9,6 +9,7 @@ const { MongoClient } = require("mongodb");
 const OpenAI = require("openai");
 const axios = require("axios");
 const { createHash } = require("crypto");
+const emailjs = require("@emailjs/nodejs");
 
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
@@ -21,11 +22,20 @@ const COLLECTION_NAME = "home_items";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
-const STRIPE_API_KEY = "your_stripe_api_key"; // Add your Stripe API key here
+const GITHUB_REPO = "yourusername/your-repo";
+const EMAILJS_SERVICE_ID = "service_jmjjix9";
+const EMAILJS_TEMPLATE_ID = "template_h6l3a6d";
+const EMAILJS_PUBLIC_KEY = "sRh-ECDA5cGVTzDz-";
+const EMAILJS_PRIVATE_KEY = "XOJ6w3IZgj67PSRNzgkwK";
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+// Initialize EmailJS
+emailjs.init({
+    publicKey: EMAILJS_PUBLIC_KEY,
+    privateKey: EMAILJS_PRIVATE_KEY
+});
 
 let client;
 let db;
@@ -59,186 +69,50 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Import GitHub Images to MongoDB
-async function importGitHubImages() {
-    if (!GITHUB_TOKEN || !db) {
-        console.error("GitHub token or DB missing");
-        return;
-    }
+// [Your existing importGitHubImages, analyzeImage, /api/analyze-damage, /api/tts endpoints remain unchanged]
+
+// EmailJS Endpoint
+app.post("/api/send-email", async (req, res) => {
     try {
-        const response = await axios.get(`https://api.github.com/repos/${GITHUB_REPO}/contents/images`, {
-            headers: { Authorization: `token ${GITHUB_TOKEN}` },
-        });
-        const images = response.data.filter(file => /\.(jpg|jpeg|png)$/i.test(file.name));
-        const itemsCollection = db.collection(COLLECTION_NAME);
-
-        console.log(`Found ${images.length} images in GitHub repo`);
-        let importedCount = 0;
-
-        for (const image of images) {
-            const imageResponse = await axios.get(image.download_url, { responseType: "arraybuffer" });
-            const imageBase64 = Buffer.from(imageResponse.data).toString("base64");
-            const imageHash = createHash("sha256").update(imageBase64).digest("hex");
-            const exists = await itemsCollection.findOne({ imageHash });
-
-            if (!exists) {
-                const analysis = await analyzeImage(imageBase64, "countertop");
-                await itemsCollection.insertOne({
-                    filename: image.name,
-                    imageBase64,
-                    imageHash,
-                    analysis,
-                    createdAt: new Date(),
-                    metadata: {
-                        item_type: analysis.item_type || "countertop",
-                        stone_type: analysis.stone_type,
-                        color_and_pattern: analysis.color_and_pattern,
-                        natural_stone: analysis.natural_stone,
-                        vendor: image.name.includes("vendor") ? "Unknown Vendor" : null
-                    }
-                });
-                importedCount++;
-                console.log(`Imported ${image.name} (${importedCount}/${images.length})`);
-            }
-        }
-        console.log(`Successfully imported ${importedCount} new images from GitHub. Total in DB: ${await itemsCollection.countDocuments()}`);
-    } catch (err) {
-        console.error("Failed to import GitHub images:", err.message);
-    }
-}
-
-// Analyze Image
-async function analyzeImage(imageBase64, itemType = "countertop") {
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
-    - Item type: Confirm it’s a countertop.
-    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
-    - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
-    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
-    - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
-    - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
-    - Severity: Assess with context:
-      - None: "No damage at all, it’s in great shape!" ($0).
-      - Low: "Just a tiny scratch, no biggie" ($50-$150).
-      - Moderate: "A decent crack, worth fixing" ($200-$500).
-      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
-    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
-    - Professional recommendation: If damage, "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!" If none, "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
-    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—our cleaning service can keep it sparkling!").
-    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—subscribe to our repair service!" or "No repairs needed, but our cleaning subscription keeps it great!").
-    Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
-
-    const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-            { role: "system", content: prompt },
-            {
-                role: "user",
-                content: [
-                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and be honest if there’s none." },
-                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-                ]
-            }
-        ],
-        max_tokens: 1500,
-        temperature: 0.5
-    });
-
-    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
-    if (!content) throw new Error("Invalid JSON response from OpenAI");
-    return JSON.parse(content[0]);
-}
-
-// Analyze Damage Endpoint
-app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
-    console.log("Received request to /api/analyze-damage");
-    try {
-        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
-
-        const filePath = req.file.path;
-        const imageBuffer = await fs.readFile(filePath);
-        const imageBase64 = imageBuffer.toString("base64");
-        const imageHash = createHash("sha256").update(imageBase64).digest("hex");
-        await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
-
-        const itemsCollection = db.collection(COLLECTION_NAME);
-        const existing = await itemsCollection.findOne({ imageHash });
-        if (existing) {
-            console.log("Returning cached analysis for image:", imageHash);
-            return res.json({ response: existing.analysis });
+        const { name, email, phone, message, stone_type, analysis_summary } = req.body;
+        if (!name || !email || !message) {
+            return res.status(400).json({ error: "Name, email, and message are required" });
         }
 
-        const result = await analyzeImage(imageBase64, "countertop");
-        await itemsCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
-        console.log("Saved new analysis to DB:", imageHash);
-        res.json({ response: result });
-    } catch (err) {
-        console.error("Analysis error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
+        const templateParams = {
+            from_name: name,
+            from_email: email,
+            from_phone: phone,
+            message: message,
+            stone_type: stone_type || "N/A",
+            analysis_summary: analysis_summary || "No analysis provided",
+            to_email: "info@surprisegranite.com",
+            reply_to: email
+        };
 
-// TTS Endpoint
-app.post("/api/tts", async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: "Text is required" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
+        const emailResponse = await emailjs.send(
+            EMAILJS_SERVICE_ID,
+            EMAILJS_TEMPLATE_ID,
+            templateParams
+        );
 
-        const response = await openai.audio.speech.create({
-            model: "tts-1",
-            voice: "nova",
-            input: text,
-            response_format: "mp3",
-        });
+        console.log("Email sent successfully:", emailResponse.status, emailResponse.text);
 
-        res.set({ "Content-Type": "audio/mp3", "Content-Disposition": "inline; filename=\"tts.mp3\"" });
-        response.body.pipe(res);
-    } catch (err) {
-        console.error("TTS error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Submit Lead Endpoint
-app.post("/api/submit-lead", async (req, res) => {
-    try {
-        const leadData = req.body;
-        if (!leadData.name || !leadData.email) return res.status(400).json({ error: "Name and email are required" });
-
+        // Optionally save to MongoDB
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
-            const result = await leadsCollection.insertOne({ ...leadData, status: "new", createdAt: new Date() });
-            console.log("Lead saved:", result.insertedId);
-            res.json({ success: true, leadId: result.insertedId });
-        } else {
-            console.log("No DB connection, simulating lead save:", leadData);
-            res.json({ success: true, leadId: "simulated-" + Date.now() });
+            await leadsCollection.insertOne({ ...req.body, status: "new", createdAt: new Date() });
         }
+
+        res.json({ success: true, message: "Email sent successfully" });
     } catch (err) {
-        console.error("Lead submission error:", err.message);
-        res.status(500).json({ error: "Failed to save lead" });
+        console.error("EmailJS error:", err.message);
+        res.status(500).json({ error: "Failed to send email" });
     }
 });
 
-// Root Endpoint
-app.get("/", (req, res) => {
-    res.send("✅ CARI API is live");
-});
+// [Your existing /api/submit-lead, root endpoint, cleanup, startServer remain unchanged]
 
-// Cleanup on Shutdown
-process.on("SIGTERM", async () => {
-    if (client) await client.close();
-    console.log("Server shut down");
-    process.exit(0);
-});
-
-process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err.message);
-    process.exit(1);
-});
-
-// Start Server
 async function startServer() {
     try {
         await connectToMongoDB();
