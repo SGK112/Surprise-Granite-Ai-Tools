@@ -18,7 +18,7 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "countertop_images"; // Changed to match your request
+const COLLECTION_NAME = "countertop_images"; // For storing your countertop images
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || "service_jmjjix9";
@@ -67,13 +67,17 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Import Countertop Images into MongoDB (Manual Setup)
+// Import Countertop Images into MongoDB
 async function importCountertopImages() {
     try {
-        const imagesDir = path.join(__dirname, "countertop_images"); // Local folder with your images
-        const files = await fs.readdir(imagesDir);
-        const imagesCollection = db.collection(COLLECTION_NAME);
+        const imagesDir = path.join(__dirname, "countertop_images");
+        const files = await fs.readdir(imagesDir).catch(() => []);
+        if (files.length === 0) {
+            console.log("No images found in countertop_images folder");
+            return;
+        }
 
+        const imagesCollection = db.collection(COLLECTION_NAME);
         for (const file of files) {
             if (/\.(jpg|jpeg|png)$/i.test(file)) {
                 const filePath = path.join(imagesDir, file);
@@ -83,7 +87,7 @@ async function importCountertopImages() {
 
                 const exists = await imagesCollection.findOne({ imageHash });
                 if (!exists) {
-                    const analysis = await analyzeImage(imageBase64);
+                    const analysis = await analyzeImage(imageBase64, "basic");
                     await imagesCollection.insertOne({
                         filename: file,
                         imageBase64,
@@ -101,13 +105,29 @@ async function importCountertopImages() {
     }
 }
 
-// Analyze Image with OpenAI Vision
-async function analyzeImage(imageBase64) {
-    const prompt = `Analyze this countertop image and provide:
-    - Stone type (e.g., granite, marble)
-    - Color and pattern (e.g., "brown with black speckles")
-    - Material composition (e.g., "mostly quartz")
-    Return in JSON format with keys: stone_type, color_and_pattern, material_composition.`;
+// Analyze Image with OpenAI Vision (Reusable for both modes)
+async function analyzeImage(imageBase64, mode = "basic") {
+    let prompt;
+    if (mode === "damage") {
+        prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
+        - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
+        - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
+        - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
+        - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
+        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface").
+        - Severity: Assess with context (e.g., "Moderate: A decent crack, worth fixing" ($200-$500)).
+        - Estimated cost range: Tie to severity (e.g., "$200-$500").
+        - Professional recommendation: Suggest next steps (e.g., "Contact Surprise Granite for repair").
+        - Cleaning recommendation: Practical tip (e.g., "Use mild soap and water").
+        - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack").
+        Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
+    } else {
+        prompt = `Analyze this countertop image and provide:
+        - Stone type (e.g., granite, marble)
+        - Color and pattern (e.g., "brown with black speckles")
+        - Material composition (e.g., "mostly quartz")
+        Return in JSON format with keys: stone_type, color_and_pattern, material_composition.`;
+    }
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -120,7 +140,7 @@ async function analyzeImage(imageBase64) {
                 ]
             }
         ],
-        max_tokens: 500,
+        max_tokens: mode === "damage" ? 1500 : 500,
         temperature: 0.5
     });
 
@@ -129,7 +149,26 @@ async function analyzeImage(imageBase64) {
     return JSON.parse(content[0]);
 }
 
-// Visual Search Endpoint
+// Analyze Damage Endpoint (Repair Mode)
+app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
+
+        const filePath = req.file.path;
+        const imageBuffer = await fs.readFile(filePath);
+        const imageBase64 = imageBuffer.toString("base64");
+        await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
+
+        const result = await analyzeImage(imageBase64, "damage");
+        res.json({ response: result });
+    } catch (err) {
+        console.error("Analysis error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Visual Search Endpoint (Replacement Mode)
 app.post("/api/visual-search", upload.single("file"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -141,11 +180,15 @@ app.post("/api/visual-search", upload.single("file"), async (req, res) => {
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
 
         // Analyze uploaded image
-        const uploadedAnalysis = await analyzeImage(uploadedImageBase64);
+        const uploadedAnalysis = await analyzeImage(uploadedImageBase64, "basic");
 
         // Search database for matches
         const imagesCollection = db.collection(COLLECTION_NAME);
         const allImages = await imagesCollection.find({}).toArray();
+
+        if (allImages.length === 0) {
+            return res.json({ uploadedAnalysis, matches: [] });
+        }
 
         const matches = await Promise.all(allImages.map(async (dbImage) => {
             const similarityPrompt = `Compare these two countertop images and estimate their similarity (0-100%):
@@ -180,6 +223,21 @@ app.post("/api/visual-search", upload.single("file"), async (req, res) => {
         res.json({ uploadedAnalysis, matches: topMatches });
     } catch (err) {
         console.error("Visual search error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Serve Images Endpoint
+app.get("/api/image/:filename", async (req, res) => {
+    try {
+        const { filename } = req.params;
+        const imagesCollection = db.collection(COLLECTION_NAME);
+        const imageDoc = await imagesCollection.findOne({ filename });
+        if (!imageDoc) return res.status(404).json({ error: "Image not found" });
+        res.set("Content-Type", "image/jpeg");
+        res.send(Buffer.from(imageDoc.imageBase64, "base64"));
+    } catch (err) {
+        console.error("Image serve error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
