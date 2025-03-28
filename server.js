@@ -125,6 +125,16 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
 
         const result = JSON.parse(jsonMatch[0]);
         console.log("Analysis successful:", result);
+
+        if (db) {
+            const imagesCollection = db.collection(COLLECTION_NAME);
+            await imagesCollection.insertOne({
+                imageBase64,
+                analysis: result,
+                createdAt: new Date()
+            });
+        }
+
         res.json({ response: result });
     } catch (err) {
         console.error("Analysis error:", err.message);
@@ -132,11 +142,46 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     }
 });
 
+// TTS Endpoint
+app.post("/api/tts", async (req, res) => {
+    console.log("Received request to /api/tts");
+    try {
+        const { text } = req.body;
+        if (!text) {
+            console.log("No text provided");
+            return res.status(400).json({ error: "Text is required" });
+        }
+
+        if (!OPENAI_API_KEY) {
+            console.log("Missing OpenAI API key");
+            return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
+        }
+
+        const response = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "nova",
+            input: text,
+            response_format: "mp3",
+        });
+
+        res.set({
+            "Content-Type": "audio/mp3",
+            "Content-Disposition": "inline; filename=\"tts.mp3\"",
+        });
+        response.body.pipe(res);
+    } catch (err) {
+        console.error("TTS error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Submit Lead Endpoint
 app.post("/api/submit-lead", async (req, res) => {
+    console.log("Received request to /api/submit-lead");
     try {
         const leadData = req.body;
         if (!leadData.name || !leadData.email) {
+            console.log("Missing required fields");
             return res.status(400).json({ error: "Name and email are required" });
         }
 
