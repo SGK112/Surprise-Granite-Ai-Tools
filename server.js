@@ -27,7 +27,7 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || "sRh-ECDA5cGVTzDz-"
 const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || "XOJ6w3IZgj67PSRNzgkwK";
 
 // Initialize OpenAI
-const openai = new Open这两个AI({ apiKey: OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // Initialize EmailJS
 emailjs.init({
@@ -128,7 +128,6 @@ process.on("uncaughtException", (err) => {
 async function startServer() {
     try {
         await connectToMongoDB();
-        // Removed importGitHubImages call since it's not defined
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/api/health`);
