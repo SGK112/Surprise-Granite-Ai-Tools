@@ -97,7 +97,7 @@ async function analyzeImage(imageBase64) {
             }
         ],
         max_tokens: 1500,
-        temperature: 0.5
+        temperature: 0.7
     });
 
     const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
