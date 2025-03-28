@@ -4,7 +4,6 @@ const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
 const fs = require("fs").promises;
-const path = require("path");
 const { MongoClient, Binary } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
@@ -15,7 +14,7 @@ const app = express();
 // Configuration
 const config = {
     port: process.env.PORT || 5000,
-    mongodbUri: process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1",
+    mongodbUri: "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1",
     dbName: "countertops",
     collections: {
         images: "countertop_images",
@@ -59,7 +58,7 @@ async function connectToMongoDB() {
         });
         await client.connect();
         db = client.db(config.dbName);
-        console.log("Connected to MongoDB Atlas");
+        console.log("Connected to MongoDB Atlas at Cluster1");
     } catch (err) {
         console.error("MongoDB connection error:", err.message);
         process.exit(1);
@@ -95,12 +94,10 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imageBase64 = imageBuffer.toString("base64");
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
-        // Clean up temporary file
         await fs.unlink(filePath).catch(err => console.error("Cleanup error:", err));
 
         const imagesCollection = db.collection(config.collections.images);
         
-        // Check for existing image
         const existingImage = await imagesCollection.findOne({ imageHash });
         if (existingImage) {
             return res.status(200).json({ 
@@ -110,7 +107,6 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
             });
         }
 
-        // Store image in MongoDB
         const imageDoc = {
             imageHash,
             imageData: new Binary(imageBuffer),
@@ -119,13 +115,12 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
                 mimeType: req.file.mimetype,
                 size: req.file.size,
                 uploadDate: new Date(),
-                analysis: null // Will be updated after analysis
+                analysis: null
             }
         };
 
         const result = await imagesCollection.insertOne(imageDoc);
         
-        // Optional: Trigger analysis immediately
         if (config.openaiApiKey) {
             const analysis = await analyzeImage(imageBase64);
             await imagesCollection.updateOne(
@@ -147,40 +142,28 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     }
 });
 
-// Existing Analysis Function (unchanged)
+// Simplified analyzeImage function (add your materialsData and full logic)
 async function analyzeImage(imageBase64) {
-    // ... (keeping your existing analyzeImage function) ...
-    // Add your materialsData and analysis logic here
+    const prompt = `Analyze this countertop image...`; // Your full prompt here
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: prompt },
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: "Analyze this countertop image" },
+                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+                ]
+            }
+        ],
+        max_tokens: 1500,
+        temperature: 0.7
+    });
+
+    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
+    return JSON.parse(content[0]);
 }
-
-// Existing Endpoints
-app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
-    // ... (keeping your existing analyze-damage endpoint) ...
-});
-
-app.post("/api/tts", async (req, res) => {
-    // ... (keeping your existing tts endpoint) ...
-});
-
-app.post("/api/send-email", async (req, res) => {
-    // ... (keeping your existing send-email endpoint) ...
-});
-
-app.get("/", (req, res) => {
-    res.send("✅ CARI API is live");
-});
-
-// Process Handlers
-process.on("SIGTERM", async () => {
-    if (client) await client.close();
-    console.log("Server shut down");
-    process.exit(0);
-});
-
-process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err.message);
-    process.exit(1);
-});
 
 // Start Server
 async function startServer() {
@@ -197,3 +180,15 @@ async function startServer() {
 }
 
 startServer();
+
+// Process Handlers
+process.on("SIGTERM", async () => {
+    if (client) await client.close();
+    console.log("Server shut down");
+    process.exit(0);
+});
+
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err.message);
+    process.exit(1);
+});
