@@ -8,6 +8,7 @@ const path = require("path");
 const { MongoClient } = require("mongodb");
 const OpenAI = require("openai");
 const axios = require("axios");
+const { createHash } = require("crypto"); // For image hashing
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -21,6 +22,8 @@ const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -72,12 +75,14 @@ async function importGitHubImages() {
         for (const image of images) {
             const imageResponse = await axios.get(image.download_url, { responseType: "arraybuffer" });
             const imageBase64 = Buffer.from(imageResponse.data).toString("base64");
-            const exists = await imagesCollection.findOne({ filename: image.name });
+            const imageHash = createHash("sha256").update(imageBase64).digest("hex");
+            const exists = await imagesCollection.findOne({ imageHash });
             if (!exists) {
                 const analysis = await analyzeImageForMetadata(imageBase64);
                 await imagesCollection.insertOne({
                     filename: image.name,
                     imageBase64,
+                    imageHash,
                     analysis,
                     createdAt: new Date(),
                     metadata: {
@@ -134,39 +139,47 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
         const imageBase64 = imageBuffer.toString("base64");
+        const imageHash = createHash("sha256").update(imageBase64).digest("hex");
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
+
+        const imagesCollection = db.collection(COLLECTION_NAME);
+        const existing = await imagesCollection.findOne({ imageHash });
+        if (existing) {
+            console.log("Returning cached analysis for image:", imageHash);
+            return res.json({ response: existing.analysis });
+        }
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
                 {
                     role: "system",
-                    content: `You are CARI, an expert countertop analyst at Surprise Granite. Analyze the image with precision and NO FALLBACKS:
-                    - Stone type: Identify specifically (e.g., granite, quartz, marble) based on texture and pattern.
-                    - Material composition: Detail the material (e.g., "90% quartz, 10% resin" for man-made; "igneous rock with feldspar" for natural).
-                    - Color and pattern: Describe precisely (e.g., "brown with black and beige speckles").
-                    - Natural stone: True/false based on composition and appearance.
-                    - Damage type: Specify (e.g., "crack >5mm wide," "surface scratch"). Detect all damage accurately.
-                    - Severity: Assess rigorously:
-                      - Low: Minor cosmetic (e.g., scratches <1mm deep, $50-$150).
-                      - Moderate: Aesthetic/functional impact (e.g., cracks 1-5mm, $200-$500).
-                      - Severe: Structural damage (e.g., cracks >5mm, broken edges, $1000+ or replacement).
-                    - Estimated cost range: Realistic, tied to severity (e.g., severe = $1500-$3000 or "replacement cost").
-                    - Professional recommendation: Always include "Contact Surprise Granite for further details" plus specific advice (repair, replace, or inspect; severe = replacement).
-                    - Cleaning recommendation: Suggest a method based on stone type and damage (e.g., "Use mild soap and water for granite, avoid abrasives").
-                    - Repair recommendation: Suggest a DIY or professional fix based on damage (e.g., "Epoxy filler for small cracks, professional repair for severe damage").
-                    Use image data only—do not guess or use defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`
+                    content: `You are CARI, an expert countertop analyst at Surprise Granite. Analyze the image with precision and conversational tone:
+                    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
+                    - Material composition: Detail the material conversationally (e.g., "It’s mostly quartz with a bit of resin").
+                    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
+                    - Natural stone: True/false with a casual note (e.g., "Yep, it’s natural stone").
+                    - Damage type: Specify clearly (e.g., "There’s a noticeable crack here, over 5mm wide").
+                    - Severity: Assess with context:
+                      - Low: "Just a tiny scratch, no biggie" ($50-$150).
+                      - Moderate: "A decent crack, worth fixing" ($200-$500).
+                      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
+                    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one").
+                    - Professional recommendation: Always end with "Contact Surprise Granite for further details" (e.g., "I’d say replace it. Contact Surprise Granite for further details").
+                    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—keep it simple").
+                    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—too big for DIY").
+                    Use image data only, no defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`
                 },
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity, material details, and provide cleaning and repair recommendations." },
+                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity, material details, and give conversational cleaning and repair tips." },
                         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                     ]
                 }
             ],
-            max_tokens: 1500, // Increased for extra fields
-            temperature: 0.3
+            max_tokens: 1500,
+            temperature: 0.7 // Slightly higher for conversational tone
         });
 
         const content = response.choices[0].message.content;
@@ -177,8 +190,7 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
         console.log("Analysis successful:", result);
 
         if (db) {
-            const imagesCollection = db.collection(COLLECTION_NAME);
-            await imagesCollection.insertOne({ imageBase64, analysis: result, createdAt: new Date() });
+            await imagesCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
         }
 
         res.json({ response: result });
@@ -211,22 +223,45 @@ app.post("/api/tts", async (req, res) => {
     }
 });
 
-// Submit Lead Endpoint
+// Submit Lead Endpoint with EmailJS
 app.post("/api/submit-lead", async (req, res) => {
     console.log("Received request to /api/submit-lead");
     try {
         const leadData = req.body;
         if (!leadData.name || !leadData.email) return res.status(400).json({ error: "Name and email are required" });
 
+        // Store in MongoDB
+        let leadId;
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
             const result = await leadsCollection.insertOne({ ...leadData, status: "new", createdAt: new Date() });
-            console.log("Lead saved:", result.insertedId);
-            res.json({ success: true, leadId: result.insertedId });
+            leadId = result.insertedId;
+            console.log("Lead saved to MongoDB:", leadId);
         } else {
+            leadId = "simulated-" + Date.now();
             console.log("No DB connection, simulating lead save:", leadData);
-            res.json({ success: true, leadId: "simulated-" + Date.now() });
         }
+
+        // Send via EmailJS (client-side will handle this, but adding server-side option)
+        // Note: EmailJS is typically client-side, so this is a fallback if needed
+        const emailData = {
+            service_id: EMAILJS_SERVICE_ID,
+            template_id: EMAILJS_TEMPLATE_ID,
+            user_id: process.env.EMAILJS_PUBLIC_KEY, // Public key from .env
+            template_params: {
+                from_name: leadData.name,
+                from_email: leadData.email,
+                message: leadData.message,
+                stone_type: leadData.analysisResult?.stone_type || "N/A",
+                damage_type: leadData.analysisResult?.damage_type || "N/A",
+                severity: leadData.analysisResult?.severity || "N/A"
+            }
+        };
+
+        // For server-side EmailJS, you'd need an API key and a different setup. Here, we’ll assume client-side handles it.
+        console.log("EmailJS data prepared (client-side will send):", emailData);
+
+        res.json({ success: true, leadId });
     } catch (err) {
         console.error("Lead submission error:", err.message);
         res.status(500).json({ error: "Failed to save lead" });
