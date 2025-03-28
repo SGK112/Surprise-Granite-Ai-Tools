@@ -11,18 +11,18 @@ const axios = require("axios");
 const { createHash } = require("crypto");
 
 const app = express();
-const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Configuration
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "home_items"; // Renamed for scalability
+const COLLECTION_NAME = "home_items";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
-const THRYV_API_KEY = "3525b8f45f2822007b06b67d39a8b48aae9e9b3b67c3071569048d6850ba341d";
+const STRIPE_API_KEY = "your_stripe_api_key"; // Add your Stripe API key here
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -34,7 +34,7 @@ let db;
 async function connectToMongoDB() {
     try {
         client = new MongoClient(MONGODB_URI, {
-            maxPoolSize: 20, // Increased for scalability
+            maxPoolSize: 20,
             serverSelectionTimeoutMS: 5000,
             connectTimeoutMS: 10000,
         });
@@ -82,7 +82,7 @@ async function importGitHubImages() {
             const exists = await itemsCollection.findOne({ imageHash });
 
             if (!exists) {
-                const analysis = await analyzeImage(imageBase64, "countertop"); // Default to countertop for now
+                const analysis = await analyzeImage(imageBase64, "countertop");
                 await itemsCollection.insertOne({
                     filename: image.name,
                     imageBase64,
@@ -94,54 +94,38 @@ async function importGitHubImages() {
                         stone_type: analysis.stone_type,
                         color_and_pattern: analysis.color_and_pattern,
                         natural_stone: analysis.natural_stone,
-                        vendor: image.name.includes("vendor") ? "Unknown Vendor" : null // Extract vendor if in filename
+                        vendor: image.name.includes("vendor") ? "Unknown Vendor" : null
                     }
                 });
                 importedCount++;
                 console.log(`Imported ${image.name} (${importedCount}/${images.length})`);
             }
         }
-        console.log(`Imported ${importedCount} new images from GitHub`);
+        console.log(`Successfully imported ${importedCount} new images from GitHub. Total in DB: ${await itemsCollection.countDocuments()}`);
     } catch (err) {
         console.error("Failed to import GitHub images:", err.message);
     }
 }
 
-// Analyze Image (Scalable for multiple item types)
+// Analyze Image
 async function analyzeImage(imageBase64, itemType = "countertop") {
-    const prompt = itemType === "countertop" ?
-        `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
-        - Item type: Confirm it’s a countertop.
-        - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
-        - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
-        - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
-        - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
-        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
-        - Severity: Assess with context:
-          - None: "No damage at all, it’s in great shape!" ($0).
-          - Low: "Just a tiny scratch, no biggie" ($50-$150).
-          - Moderate: "A decent crack, worth fixing" ($200-$500).
-          - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
-        - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
-        - Professional recommendation: If damage, "Contact Surprise Granite for further details" plus advice (e.g., "Replace it"). If none, "No repairs needed—Armando at Surprise Granite can keep it shining with our cleaning services! Our team, led by Armando, does a great job making countertops great again!"
-        - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—Armando’s crew can make it sparkle!").
-        - Repair recommendation: DIY or pro advice (e.g., "A pro like Armando should handle this crack—too big for DIY" or "No repairs needed, just let Armando keep it great!").
-        Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.` :
-        `You are CARI, a home repair and remodeling expert at Surprise Granite. Analyze this ${itemType} image with precision and conversational tone:
-        - Item type: Confirm it’s a ${itemType} (e.g., tile, flooring).
-        - Material composition: Detail conversationally (e.g., "It’s ceramic with a glazed finish").
-        - Color and pattern: Describe naturally (e.g., "It’s a sleek gray with a subtle swirl").
-        - Damage type: Specify clearly, including hidden issues (e.g., "There’s a small chip underneath" or "No damage here, looks solid!").
-        - Severity: Assess with context:
-          - None: "No damage at all, it’s in great shape!" ($0).
-          - Low: "Just a minor nick, no big deal" ($50-$150).
-          - Moderate: "A noticeable crack, worth fixing" ($200-$500).
-          - Severe: "Yikes, this is bad—needs replacing" ($1000+ or replacement).
-        - Estimated cost range: Tie to severity (e.g., "$200-$500" or "$0, it’s perfect!").
-        - Professional recommendation: If damage, "Contact Surprise Granite for further details" plus advice. If none, "No repairs needed—Armando at Surprise Granite can keep it looking great!"
-        - Cleaning recommendation: Practical tip (e.g., "Use a damp cloth—Armando’s team can polish it up!").
-        - Repair recommendation: DIY or pro advice (e.g., "A pro like Armando should replace this" or "No repairs needed, Armando’s got it covered!").
-        Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, material_composition, color_and_pattern, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
+    - Item type: Confirm it’s a countertop.
+    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
+    - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
+    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
+    - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
+    - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
+    - Severity: Assess with context:
+      - None: "No damage at all, it’s in great shape!" ($0).
+      - Low: "Just a tiny scratch, no biggie" ($50-$150).
+      - Moderate: "A decent crack, worth fixing" ($200-$500).
+      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
+    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
+    - Professional recommendation: If damage, "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!" If none, "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
+    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—our cleaning service can keep it sparkling!").
+    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—subscribe to our repair service!" or "No repairs needed, but our cleaning subscription keeps it great!").
+    Use image data only, be honest if no damage is found. Respond in JSON format with keys: item_type, stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -150,13 +134,13 @@ async function analyzeImage(imageBase64, itemType = "countertop") {
             {
                 role: "user",
                 content: [
-                    { type: "text", text: `Analyze this ${itemType} image with maximum accuracy. Look for hidden damage and be honest if there’s none.` },
+                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and be honest if there’s none." },
                     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                 ]
             }
         ],
         max_tokens: 1500,
-        temperature: 0.5 // Lowered for precision
+        temperature: 0.5
     });
 
     const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
@@ -184,8 +168,9 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
             return res.json({ response: existing.analysis });
         }
 
-        const result = await analyzeImage(imageBase64, "countertop"); // Default to countertop
+        const result = await analyzeImage(imageBase64, "countertop");
         await itemsCollection.insertOne({ imageBase64, imageHash, analysis: result, createdAt: new Date() });
+        console.log("Saved new analysis to DB:", imageHash);
         res.json({ response: result });
     } catch (err) {
         console.error("Analysis error:", err.message);
