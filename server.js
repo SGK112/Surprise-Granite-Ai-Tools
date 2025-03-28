@@ -88,6 +88,23 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     }
 });
 
+// Get All Countertops Endpoint
+app.get("/api/get-countertops", async (req, res) => {
+    try {
+        const imagesCollection = db.collection("countertop_images");
+        const countertops = await imagesCollection.find({}).toArray();
+        const response = countertops.map(item => ({
+            id: item._id,
+            imageBase64: item.imageData.buffer.toString("base64"),
+            analysis: item.metadata.analysis || {}
+        }));
+        res.json(response);
+    } catch (err) {
+        console.error("Error fetching countertops:", err.message);
+        res.status(500).json({ error: "Failed to fetch countertops" });
+    }
+});
+
 // Analysis Function
 async function analyzeImage(imageBase64) {
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone:
