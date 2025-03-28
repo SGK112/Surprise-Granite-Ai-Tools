@@ -37,8 +37,8 @@ emailjs.init({
 // Load materials.json data (inline for now)
 const materialsData = [
   { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24, "Price Group": 2, "Tier": "Low Tier" },
-  // ... (all other entries from your provided JSON, truncated for brevity)
   { "Color Name": "VANILLA SKY", "Vendor Name": "MSI", "Thickness": "1.6cm", "Material": "Marble", "size": "126x63", "Total/SqFt": 4.8, "Cost/SqFt": 5.65, "Price Group": 1, "Tier": "Low Tier" }
+  // Add your full materials.json data here
 ];
 
 let client;
@@ -71,7 +71,7 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Enhanced Analysis with Possible Matches
+// Enhanced Analysis with Precise Color Match
 async function analyzeImage(imageBase64) {
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone:
     - Stone type: Identify the material (e.g., "Quartz", "Marble") based on texture and visual cues.
@@ -112,7 +112,7 @@ async function analyzeImage(imageBase64) {
             item.Material.toLowerCase() === identifiedMaterial &&
             identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
         )
-        .slice(0, 3) // Limit to top 3 matches
+        .slice(0, 3)
         .map(match => ({
             color_name: match["Color Name"],
             material: match.Material,
@@ -123,7 +123,7 @@ async function analyzeImage(imageBase64) {
             replacement_cost: (match["Cost/SqFt"] * match["Total/SqFt"]).toFixed(2)
         }));
 
-    // Use the best match (first match) for primary result
+    // Use the best match for primary result
     const bestMatch = possibleMatches[0] || materialsData.find(item => item.Material.toLowerCase() === identifiedMaterial) || {};
 
     // Refine result with best match
@@ -138,24 +138,25 @@ async function analyzeImage(imageBase64) {
         ? `${bestMatch.color_name} (${result.color_and_pattern})` 
         : result.color_and_pattern;
 
+    // Set color_match_suggestion to the best match's color_name
+    result.color_match_suggestion = bestMatch.color_name || "No specific match found";
+
     // Calculate costs based on severity and best match
     const severityMap = { None: 0, Low: 1, Moderate: 2, Severe: 3 };
     const severityLevel = severityMap[result.severity] || 0;
-    let estimatedCostRange, repairCost, replacementCost;
+    let estimatedCostRange;
 
     if (bestMatch.cost_per_sqft) {
         const costPerSqFt = bestMatch.cost_per_sqft;
         const totalSqFt = bestMatch.total_sqft;
-        replacementCost = costPerSqFt * totalSqFt;
+        const replacementCost = costPerSqFt * totalSqFt;
 
         if (severityLevel === 0) {
             estimatedCostRange = "$0 (No repair needed)";
         } else if (severityLevel === 1) {
-            repairCost = 50; // Base repair cost for Low severity
-            estimatedCostRange = `$${repairCost.toLocaleString()} - $${(repairCost + 100).toLocaleString()} (Repair)`;
+            estimatedCostRange = "$50 - $150 (Repair)";
         } else if (severityLevel === 2) {
-            repairCost = 200; // Base repair cost for Moderate severity
-            estimatedCostRange = `$${repairCost.toLocaleString()} - $${(repairCost + 300).toLocaleString()} (Repair)`;
+            estimatedCostRange = "$200 - $500 (Repair)";
         } else if (severityLevel === 3) {
             estimatedCostRange = `$${replacementCost.toLocaleString()} - $${(replacementCost + 500).toLocaleString()} (Replacement)`;
         }
@@ -173,22 +174,9 @@ async function analyzeImage(imageBase64) {
         : severityLevel < 3 
         ? "A pro should handle this repair—subscribe to our repair service!"
         : "Replacement recommended—contact us for a quote!";
-    result.color_match_suggestion = bestMatch.color_name 
-        ? `Pair this with a complementary shade like ${getColorMatch(bestMatch.color_name)} for a stunning look!`
-        : "No specific color match available—consider neutral tones like gray or beige.";
     result.possible_matches = possibleMatches.length > 0 ? possibleMatches : [];
 
     return result;
-}
-
-// Helper function for color matching suggestions
-function getColorMatch(colorName) {
-    const colorLower = colorName.toLowerCase();
-    if (colorLower.includes("white") || colorLower.includes("frost")) return "soft gray or warm beige";
-    if (colorLower.includes("beige") || colorLower.includes("tawny")) return "deep brown or cream";
-    if (colorLower.includes("grey") || colorLower.includes("gray")) return "charcoal or white";
-    if (colorLower.includes("black") || colorLower.includes("midnight")) return "gold or white";
-    return "neutral tones like gray or beige";
 }
 
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
