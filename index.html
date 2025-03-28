@@ -1,366 +1,317 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CARI - Countertop Analysis App</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: Arial, sans-serif;
-    }
-
-    body {
-      min-height: 100vh;
-      background-color: #f0f0f0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      color: #333;
-      margin-bottom: 20px;
-    }
-
-    .upload-area {
-      width: 100%;
-      max-width: 400px;
-      padding: 20px;
-      border: 2px dashed #666;
-      border-radius: 8px;
-      text-align: center;
-      background-color: #fff;
-      cursor: pointer;
-      transition: border-color 0.3s, background-color 0.3s;
-    }
-
-    .upload-area.drag-active {
-      border-color: #007bff;
-      background-color: #e6f0ff;
-    }
-
-    .upload-area p {
-      color: #666;
-      font-size: 1rem;
-    }
-
-    .preview-image {
-      max-width: 100%;
-      max-height: 200px;
-      margin-top: 10px;
-      object-fit: contain;
-    }
-
-    .buttons {
-      margin-top: 15px;
-      display: flex;
-      gap: 10px;
-    }
-
-    button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 5px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
-
-    #analyze-btn {
-      background-color: #007bff;
-      color: #fff;
-    }
-
-    #analyze-btn:disabled {
-      background-color: #999;
-      cursor: not-allowed;
-    }
-
-    #analyze-btn:not(:disabled):hover {
-      background-color: #0056b3;
-    }
-
-    #reset-btn {
-      background-color: #ccc;
-      color: #333;
-    }
-
-    #reset-btn:hover {
-      background-color: #b3b3b3;
-    }
-
-    .error {
-      margin-top: 15px;
-      padding: 10px;
-      background-color: #ffe6e6;
-      color: #cc0000;
-      border-radius: 5px;
-      max-width: 400px;
-      width: 100%;
-    }
-
-    .results {
-      margin-top: 20px;
-      padding: 20px;
-      background-color: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      max-width: 400px;
-      width: 100%;
-    }
-
-    .results h2 {
-      font-size: 1.5rem;
-      color: #333;
-      margin-bottom: 15px;
-    }
-
-    .results p {
-      margin-bottom: 8px;
-      font-size: 1rem;
-      color: #555;
-    }
-
-    .results p span {
-      font-weight: bold;
-      color: #333;
-    }
-
-    .results audio {
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    footer {
-      margin-top: 30px;
-      font-size: 0.9rem;
-      color: #666;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CARI - Countertop Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* [Your existing CSS remains unchanged, adding styles for matches] */
+        .matches {
+            margin-top: 25px;
+            padding: 25px;
+            background: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: 0 6px 15px var(--shadow);
+            width: 100%;
+            max-width: 800px;
+        }
+        .matches h2 {
+            color: var(--text-primary);
+            text-align: center;
+        }
+        .match-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 15px;
+            background: var(--button-bg);
+            border-radius: 10px;
+        }
+        .match-item img {
+            max-width: 100px;
+            border-radius: 5px;
+        }
+        .match-item p {
+            margin: 0;
+            color: var(--text-primary);
+        }
+    </style>
 </head>
 <body>
-  <h1>CARI - Countertop Analysis</h1>
-
-  <!-- Image Upload Section -->
-  <div id="upload-area" class="upload-area">
-    <input type="file" id="file-input" accept="image/*" style="display: none;" />
-    <p id="upload-text">Drag & drop a countertop image here, or click to select one</p>
-    <img id="preview-image" class="preview-image" style="display: none;" alt="Uploaded countertop" />
-  </div>
-
-  <!-- Action Buttons -->
-  <div class="buttons">
-    <button id="analyze-btn" disabled>Analyze Countertop</button>
-    <button id="reset-btn">Reset</button>
-  </div>
-
-  <!-- Error Message -->
-  <div id="error-message" class="error" style="display: none;"></div>
-
-  <!-- Analysis Results -->
-  <div id="results" class="results" style="display: none;">
-    <h2>Analysis Results</h2>
-    <p><span>Stone Type:</span> <span id="stone-type"></span></p>
-    <p><span>Color & Pattern:</span> <span id="color-pattern"></span></p>
-    <p><span>Natural Stone:</span> <span id="is-natural-stone"></span></p>
-    <p><span>Damage Type:</span> <span id="damage-type"></span></p>
-    <p><span>Severity:</span> <span id="severity"></span></p>
-    <p><span>Estimated Cost:</span> <span id="estimated-cost"></span></p>
-    <p><span>Recommendation:</span> <span id="recommendation"></span></p>
-    <p><span>Description:</span> <span id="description"></span></p>
-    <p id="matched-color" style="display: none;">
-      <span>Matched Color:</span> <span id="matched-color-value"></span>
-    </p>
-    <div id="audio-section" style="display: none;">
-      <h3>Audio Narration</h3>
-      <audio id="audio-player" controls aria-label="Audio narration of analysis results"></audio>
+    <div id="cari-app">
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
+        <div class="logo-container">
+            <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
+        </div>
+        <h1>CARI - Countertop Analysis</h1>
+        <div id="upload-area" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop a countertop image">
+            <input type="file" id="file-input" accept="image/*" style="display: none;" aria-label="Upload countertop image" />
+            <p id="upload-text">Drop a countertop image here or click to upload</p>
+            <img id="preview-image" class="preview-image" alt="Uploaded countertop" />
+        </div>
+        <div class="buttons">
+            <button id="search-btn" disabled aria-label="Search for matches">Search Matches</button>
+            <button id="reset-btn" aria-label="Reset upload">Reset</button>
+        </div>
+        <div id="loading-spinner" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+            <p id="loading-text">Searching...</p>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+        <div id="error-message" class="error" style="display: none;">
+            <p id="error-text"></p>
+            <button id="retry-btn" class="retry-btn">Retry</button>
+        </div>
+        <div id="matches" class="matches" style="display: none;">
+            <h2>Possible Matches</h2>
+            <div id="matches-list"></div>
+            <div class="results-buttons">
+                <button id="contact-btn" class="contact-btn">Contact Surprise Granite</button>
+            </div>
+            <div id="contact-form" class="contact-form" style="display: none;">
+                <h3>Contact Surprise Granite</h3>
+                <form id="lead-form">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" required placeholder="Your Name" />
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required placeholder="Your Email" />
+                    <label for="phone">Phone:</label>
+                    <input type="tel" id="phone" name="phone" placeholder="Your Phone (optional)" />
+                    <label for="message">Message:</label>
+                    <textarea id="message" name="message" placeholder="Your Message" required></textarea>
+                    <button type="submit" class="submit-btn">Send Request</button>
+                    <button type="button" id="close-form-btn" class="close-btn">Close</button>
+                </form>
+            </div>
+        </div>
+        <footer>Powered by Surprise Granite © 2025</footer>
     </div>
-  </div>
 
-  <!-- Footer -->
-  <footer>Powered by Surprise Granite © 2025</footer>
+    <script>
+        const BASE_URL = "https://surprise-granite-connections-dev.onrender.com";
 
-  <script>
-    const BASE_URL = "https://surprise-granite-connections-dev.onrender.com";
+        document.addEventListener("DOMContentLoaded", () => {
+            const uploadArea = document.getElementById("upload-area");
+            const fileInput = document.getElementById("file-input");
+            const uploadText = document.getElementById("upload-text");
+            const previewImage = document.getElementById("preview-image");
+            const searchBtn = document.getElementById("search-btn");
+            const resetBtn = document.getElementById("reset-btn");
+            const loadingSpinner = document.getElementById("loading-spinner");
+            const loadingText = document.getElementById("loading-text");
+            const progressFill = document.getElementById("progress-fill");
+            const errorMessage = document.getElementById("error-message");
+            const errorText = document.getElementById("error-text");
+            const retryBtn = document.getElementById("retry-btn");
+            const matches = document.getElementById("matches");
+            const matchesList = document.getElementById("matches-list");
+            const contactBtn = document.getElementById("contact-btn");
+            const contactForm = document.getElementById("contact-form");
+            const leadForm = document.getElementById("lead-form");
+            const closeFormBtn = document.getElementById("close-form-btn");
+            const themeToggle = document.getElementById("theme-toggle");
 
-    // DOM Elements
-    const uploadArea = document.getElementById("upload-area");
-    const fileInput = document.getElementById("file-input");
-    const uploadText = document.getElementById("upload-text");
-    const previewImage = document.getElementById("preview-image");
-    const analyzeBtn = document.getElementById("analyze-btn");
-    const resetBtn = document.getElementById("reset-btn");
-    const errorMessage = document.getElementById("error-message");
-    const results = document.getElementById("results");
-    const audioSection = document.getElementById("audio-section");
-    const audioPlayer = document.getElementById("audio-player");
+            let imageFile = null;
+            let currentMatches = null;
 
-    let imageFile = null;
+            // Theme Toggle
+            const toggleTheme = () => {
+                const currentTheme = document.documentElement.getAttribute("data-theme");
+                const newTheme = currentTheme === "dark" ? "light" : "dark";
+                document.documentElement.setAttribute("data-theme", newTheme);
+                themeToggle.textContent = newTheme === "dark" ? "☀️" : "🌙";
+                localStorage.setItem("theme", newTheme);
+            };
+            const savedTheme = localStorage.getItem("theme") || "light";
+            document.documentElement.setAttribute("data-theme", savedTheme);
+            themeToggle.textContent = savedTheme === "dark" ? "☀️" : "🌙";
+            themeToggle.addEventListener("click", toggleTheme);
 
-    // Drag-and-Drop Functionality
-    uploadArea.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      uploadArea.classList.add("drag-active");
-    });
+            // Drag-and-Drop
+            uploadArea.addEventListener("dragover", (e) => { e.preventDefault(); uploadArea.classList.add("drag-active"); });
+            uploadArea.addEventListener("dragleave", (e) => { e.preventDefault(); uploadArea.classList.remove("drag-active"); });
+            uploadArea.addEventListener("drop", (e) => { e.preventDefault(); uploadArea.classList.remove("drag-active"); handleFile(e.dataTransfer.files[0]); });
+            uploadArea.addEventListener("click", () => fileInput.click());
+            fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
 
-    uploadArea.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      uploadArea.classList.remove("drag-active");
-    });
+            async function handleFile(file) {
+                if (file && file.type.startsWith("image/")) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        showError("Image size exceeds 5MB limit.");
+                        return;
+                    }
+                    imageFile = file;
+                    const url = URL.createObjectURL(file);
+                    previewImage.src = url;
+                    previewImage.classList.add("visible");
+                    uploadText.textContent = file.name;
+                    searchBtn.disabled = false;
+                    clearMatches();
+                    clearError();
+                } else {
+                    showError("Please upload a valid image file.");
+                }
+            }
 
-    uploadArea.addEventListener("drop", (e) => {
-      e.preventDefault();
-      uploadArea.classList.remove("drag-active");
-      const file = e.dataTransfer.files[0];
-      handleFile(file);
-    });
+            searchBtn.addEventListener("click", async () => {
+                if (!imageFile) {
+                    showError("Please upload an image first.");
+                    return;
+                }
 
-    uploadArea.addEventListener("click", () => {
-      fileInput.click();
-    });
+                searchBtn.disabled = true;
+                loadingSpinner.style.display = "flex";
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    progressFill.style.width = `${Math.min(progress, 90)}%`;
+                }, 200);
 
-    fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      handleFile(file);
-    });
+                try {
+                    const formData = new FormData();
+                    formData.append("file", imageFile);
 
-    function handleFile(file) {
-      if (file && file.type.startsWith("image/")) {
-        if (file.size > 5 * 1024 * 1024) {
-          showError("Image size exceeds 5MB limit.");
-          return;
-        }
-        imageFile = file;
-        const url = URL.createObjectURL(file);
-        previewImage.src = url;
-        previewImage.style.display = "block";
-        uploadText.textContent = file.name;
-        analyzeBtn.disabled = false;
-        clearResults();
-        clearError();
-      } else {
-        showError("Please upload a valid image file.");
-      }
-    }
+                    loadingText.textContent = "Analyzing and searching...";
+                    const response = await fetch(`${BASE_URL}/api/visual-search`, {
+                        method: "POST",
+                        body: formData
+                    });
 
-    // Analyze Button
-    analyzeBtn.addEventListener("click", async () => {
-      if (!imageFile) {
-        showError("Please upload an image first.");
-        return;
-      }
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || "Search failed");
+                    }
 
-      analyzeBtn.disabled = true;
-      analyzeBtn.textContent = "Analyzing...";
-      clearError();
-      clearResults();
+                    const { uploadedAnalysis, matches: searchMatches } = await response.json();
+                    currentMatches = { uploadedAnalysis, matches: searchMatches };
+                    displayMatches(uploadedAnalysis, searchMatches);
+                } catch (err) {
+                    showError(`Search failed: ${err.message}`);
+                    console.error("Error:", err);
+                } finally {
+                    clearInterval(progressInterval);
+                    progressFill.style.width = "100%";
+                    setTimeout(() => {
+                        loadingSpinner.style.display = "none";
+                        searchBtn.disabled = false;
+                    }, 300);
+                }
+            });
 
-      try {
-        // Upload image to /api/upload-image
-        const formData = new FormData();
-        formData.append("file", imageFile);
+            function displayMatches(uploadedAnalysis, matches) {
+                matchesList.innerHTML = "";
+                matches.forEach(match => {
+                    const matchDiv = document.createElement("div");
+                    matchDiv.className = "match-item";
+                    matchDiv.innerHTML = `
+                        <img src="${BASE_URL}/api/image/${match.filename}" alt="${match.filename}" />
+                        <div>
+                            <p><strong>Stone Type:</strong> ${match.stone_type}</p>
+                            <p><strong>Color & Pattern:</strong> ${match.color_and_pattern}</p>
+                            <p><strong>Similarity:</strong> ${match.similarity}%</p>
+                        </div>
+                    `;
+                    matchesList.appendChild(matchDiv);
+                });
+                matches.style.display = "block";
+            }
 
-        const analysisResponse = await fetch(`${BASE_URL}/api/upload-image`, {
-          method: "POST",
-          body: formData,
+            // Serve images (optional endpoint for frontend display)
+            app.get("/api/image/:filename", async (req, res) => {
+                const { filename } = req.params;
+                const imagesCollection = db.collection(COLLECTION_NAME);
+                const imageDoc = await imagesCollection.findOne({ filename });
+                if (!imageDoc) return res.status(404).json({ error: "Image not found" });
+                res.set("Content-Type", "image/jpeg");
+                res.send(Buffer.from(imageDoc.imageBase64, "base64"));
+            });
+
+            resetBtn.addEventListener("click", () => {
+                imageFile = null;
+                fileInput.value = "";
+                uploadText.textContent = "Drop a countertop image here or click to upload";
+                previewImage.classList.remove("visible");
+                previewImage.src = "";
+                searchBtn.disabled = true;
+                clearMatches();
+                clearError();
+            });
+
+            contactBtn.addEventListener("click", () => {
+                if (currentMatches) {
+                    document.getElementById("message").value = `I searched for a countertop match:\nStone Type: ${currentMatches.uploadedAnalysis.stone_type}\nTop Match: ${currentMatches.matches[0]?.stone_type || "N/A"} (${currentMatches.matches[0]?.similarity || 0}%)`;
+                }
+                contactForm.style.display = "block";
+            });
+
+            closeFormBtn.addEventListener("click", () => {
+                contactForm.style.display = "none";
+                leadForm.reset();
+            });
+
+            leadForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const name = document.getElementById("name").value;
+                const email = document.getElementById("email").value;
+                const phone = document.getElementById("phone").value;
+                const message = document.getElementById("message").value;
+
+                try {
+                    const analysisSummary = currentMatches ? `
+                        Uploaded Stone Type: ${currentMatches.uploadedAnalysis.stone_type}
+                        Top Match: ${currentMatches.matches[0]?.stone_type || "N/A"} (${currentMatches.matches[0]?.similarity || 0}%)
+                    ` : "No search performed";
+
+                    const leadData = {
+                        name,
+                        email,
+                        phone: phone || "Not provided",
+                        message,
+                        stone_type: currentMatches?.uploadedAnalysis.stone_type || "N/A",
+                        analysis_summary: analysisSummary
+                    };
+
+                    const response = await fetch(`${BASE_URL}/api/send-email`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(leadData)
+                    });
+
+                    if (!response.ok) throw new Error("Failed to send email");
+
+                    alert("Thank you! Your request has been sent to Surprise Granite.");
+                    contactForm.style.display = "none";
+                    leadForm.reset();
+                } catch (err) {
+                    alert("Error sending request. Please email info@surprisegranite.com directly.");
+                    console.error("Email submission error:", err);
+                }
+            });
+
+            retryBtn.addEventListener("click", () => {
+                clearError();
+                searchBtn.click();
+            });
+
+            function showError(message) {
+                errorText.textContent = message;
+                errorMessage.style.display = "block";
+            }
+
+            function clearError() {
+                errorMessage.style.display = "none";
+            }
+
+            function clearMatches() {
+                currentMatches = null;
+                matches.style.display = "none";
+                matchesList.innerHTML = "";
+            }
         });
-
-        if (!analysisResponse.ok) {
-          const errorData = await analysisResponse.json();
-          throw new Error(errorData.error || "Failed to analyze the image.");
-        }
-
-        const { response: result } = await analysisResponse.json();
-        displayResults(result);
-
-        // Generate audio narration
-        const narrationText = `
-          The countertop is made of ${result.stoneType} with a ${result.colorPattern} pattern.
-          It is ${result.isNaturalStone ? "a natural stone" : "not a natural stone"}.
-          The detected damage is ${result.damageType || "none"}, with a severity of ${result.severity || "none"}.
-          The estimated repair cost is ${result.estimatedCost}.
-          Recommendation: ${result.recommendation}.
-          ${result.description}
-        `;
-
-        const audioResponse = await fetch(`${BASE_URL}/api/speak`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: narrationText, voice: "shimmer", speed: 1.0 }),
-        });
-
-        if (!audioResponse.ok) {
-          const errorData = await audioResponse.json();
-          throw new Error(errorData.error || "Failed to generate audio narration.");
-        }
-
-        const audioBlob = await audioResponse.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        audioPlayer.src = audioUrl;
-        audioSection.style.display = "block";
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        analyzeBtn.disabled = false;
-        analyzeBtn.textContent = "Analyze Countertop";
-      }
-    });
-
-    // Reset Button
-    resetBtn.addEventListener("click", () => {
-      imageFile = null;
-      fileInput.value = "";
-      uploadText.textContent = "Drag & drop a countertop image here, or click to select one";
-      previewImage.style.display = "none";
-      previewImage.src = "";
-      analyzeBtn.disabled = true;
-      clearResults();
-      clearError();
-    });
-
-    // Helper Functions
-    function showError(message) {
-      errorMessage.textContent = message;
-      errorMessage.style.display = "block";
-    }
-
-    function clearError() {
-      errorMessage.textContent = "";
-      errorMessage.style.display = "none";
-    }
-
-    function displayResults(result) {
-      document.getElementById("stone-type").textContent = result.stoneType;
-      document.getElementById("color-pattern").textContent = result.colorPattern;
-      document.getElementById("is-natural-stone").textContent = result.isNaturalStone ? "Yes" : "No";
-      document.getElementById("damage-type").textContent = result.damageType || "None";
-      document.getElementById("severity").textContent = result.severity || "None";
-      document.getElementById("estimated-cost").textContent = result.estimatedCost;
-      document.getElementById("recommendation").textContent = result.recommendation;
-      document.getElementById("description").textContent = result.description;
-
-      const matchedColor = document.getElementById("matched-color");
-      if (result.matchedColor) {
-        document.getElementById("matched-color-value").textContent = `${result.matchedColor} (${result.matchedVendor})`;
-        matchedColor.style.display = "block";
-      } else {
-        matchedColor.style.display = "none";
-      }
-
-      results.style.display = "block";
-    }
-
-    function clearResults() {
-      results.style.display = "none";
-      audioSection.style.display = "none";
-      audioPlayer.src = "";
-    }
-  </script>
+    </script>
 </body>
 </html>
