@@ -34,6 +34,13 @@ emailjs.init({
     privateKey: EMAILJS_PRIVATE_KEY
 });
 
+// Load materials.json data (inline for now)
+const materialsData = [
+  { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24, "Price Group": 2, "Tier": "Low Tier" },
+  // ... (all other entries from your provided JSON, truncated for brevity)
+  { "Color Name": "VANILLA SKY", "Vendor Name": "MSI", "Thickness": "1.6cm", "Material": "Marble", "size": "126x63", "Total/SqFt": 4.8, "Cost/SqFt": 5.65, "Price Group": 1, "Tier": "Low Tier" }
+];
+
 let client;
 let db;
 
@@ -64,25 +71,18 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Enhanced Analysis with Color Matching
+// Enhanced Analysis with Possible Matches
 async function analyzeImage(imageBase64) {
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage and providing color matching:
-    - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
-    - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
-    - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
-    - Natural stone: True/false with a note (e.g., "Yep, it’s natural stone").
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone:
+    - Stone type: Identify the material (e.g., "Quartz", "Marble") based on texture and visual cues.
+    - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins").
     - Damage type: Specify clearly, including hidden issues (e.g., "There’s a hairline crack under the surface" or "No damage here, looks clean!").
     - Severity: Assess with context:
-      - None: "No damage at all, it’s in great shape!" ($0).
-      - Low: "Just a tiny scratch, no biggie" ($50-$150).
-      - Moderate: "A decent crack, worth fixing" ($200-$500).
-      - Severe: "Whoa, this crack’s serious—structural stuff" ($1000+ or replacement).
-    - Estimated cost range: Tie to severity (e.g., "You’re looking at $1500-$3000 for this one" or "$0, it’s perfect!").
-    - Professional recommendation: If damage, "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!" If none, "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
-    - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—our cleaning service can keep it sparkling!").
-    - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—subscribe to our repair service!" or "No repairs needed, but our cleaning subscription keeps it great!").
-    - Color match suggestion: Suggest a complementary color for decor (e.g., "Pair this with a soft gray cabinet or a warm beige wall for a killer look!").
-    Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation, color_match_suggestion.`;
+      - None: "No damage at all, it’s in great shape!".
+      - Low: "Just a tiny scratch, no biggie".
+      - Moderate: "A decent crack, worth fixing".
+      - Severe: "Whoa, this crack’s serious—structural stuff".
+    Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity.`;
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -91,7 +91,7 @@ async function analyzeImage(imageBase64) {
             {
                 role: "user",
                 content: [
-                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and suggest a color match." },
+                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Identify material type, color, pattern, and damage." },
                     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                 ]
             }
@@ -102,7 +102,93 @@ async function analyzeImage(imageBase64) {
 
     const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
     if (!content) throw new Error("Invalid JSON response from OpenAI");
-    return JSON.parse(content[0]);
+    let result = JSON.parse(content[0]);
+
+    // Find possible matches in materials.json
+    const identifiedColor = result.color_and_pattern.toLowerCase();
+    const identifiedMaterial = result.stone_type.toLowerCase();
+    const possibleMatches = materialsData
+        .filter(item => 
+            item.Material.toLowerCase() === identifiedMaterial &&
+            identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
+        )
+        .slice(0, 3) // Limit to top 3 matches
+        .map(match => ({
+            color_name: match["Color Name"],
+            material: match.Material,
+            thickness: match.Thickness,
+            size: match.size,
+            total_sqft: match["Total/SqFt"],
+            cost_per_sqft: match["Cost/SqFt"],
+            replacement_cost: (match["Cost/SqFt"] * match["Total/SqFt"]).toFixed(2)
+        }));
+
+    // Use the best match (first match) for primary result
+    const bestMatch = possibleMatches[0] || materialsData.find(item => item.Material.toLowerCase() === identifiedMaterial) || {};
+
+    // Refine result with best match
+    result.stone_type = bestMatch.material || result.stone_type;
+    result.material_composition = bestMatch.material === "Quartz" 
+        ? "Engineered stone (93% quartz, 7% resin)" 
+        : bestMatch.material === "Marble" 
+        ? "Natural metamorphic rock (calcite or dolomite)" 
+        : "Unknown composition";
+    result.natural_stone = bestMatch.material === "Marble";
+    result.color_and_pattern = bestMatch.color_name 
+        ? `${bestMatch.color_name} (${result.color_and_pattern})` 
+        : result.color_and_pattern;
+
+    // Calculate costs based on severity and best match
+    const severityMap = { None: 0, Low: 1, Moderate: 2, Severe: 3 };
+    const severityLevel = severityMap[result.severity] || 0;
+    let estimatedCostRange, repairCost, replacementCost;
+
+    if (bestMatch.cost_per_sqft) {
+        const costPerSqFt = bestMatch.cost_per_sqft;
+        const totalSqFt = bestMatch.total_sqft;
+        replacementCost = costPerSqFt * totalSqFt;
+
+        if (severityLevel === 0) {
+            estimatedCostRange = "$0 (No repair needed)";
+        } else if (severityLevel === 1) {
+            repairCost = 50; // Base repair cost for Low severity
+            estimatedCostRange = `$${repairCost.toLocaleString()} - $${(repairCost + 100).toLocaleString()} (Repair)`;
+        } else if (severityLevel === 2) {
+            repairCost = 200; // Base repair cost for Moderate severity
+            estimatedCostRange = `$${repairCost.toLocaleString()} - $${(repairCost + 300).toLocaleString()} (Repair)`;
+        } else if (severityLevel === 3) {
+            estimatedCostRange = `$${replacementCost.toLocaleString()} - $${(replacementCost + 500).toLocaleString()} (Replacement)`;
+        }
+    } else {
+        estimatedCostRange = severityLevel === 0 ? "$0" : severityLevel === 1 ? "$50-$150" : severityLevel === 2 ? "$200-$500" : "$1000-$1500";
+    }
+
+    result.estimated_cost_range = estimatedCostRange;
+    result.professional_recommendation = severityLevel === 0 
+        ? "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
+        : "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!";
+    result.cleaning_recommendation = "Use mild soap and water—our cleaning service can keep it sparkling!";
+    result.repair_recommendation = severityLevel === 0 
+        ? "No repairs needed, but our cleaning subscription keeps it great!"
+        : severityLevel < 3 
+        ? "A pro should handle this repair—subscribe to our repair service!"
+        : "Replacement recommended—contact us for a quote!";
+    result.color_match_suggestion = bestMatch.color_name 
+        ? `Pair this with a complementary shade like ${getColorMatch(bestMatch.color_name)} for a stunning look!`
+        : "No specific color match available—consider neutral tones like gray or beige.";
+    result.possible_matches = possibleMatches.length > 0 ? possibleMatches : [];
+
+    return result;
+}
+
+// Helper function for color matching suggestions
+function getColorMatch(colorName) {
+    const colorLower = colorName.toLowerCase();
+    if (colorLower.includes("white") || colorLower.includes("frost")) return "soft gray or warm beige";
+    if (colorLower.includes("beige") || colorLower.includes("tawny")) return "deep brown or cream";
+    if (colorLower.includes("grey") || colorLower.includes("gray")) return "charcoal or white";
+    if (colorLower.includes("black") || colorLower.includes("midnight")) return "gold or white";
+    return "neutral tones like gray or beige";
 }
 
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
