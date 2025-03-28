@@ -7,7 +7,6 @@ const fs = require("fs").promises;
 const path = require("path");
 const { MongoClient } = require("mongodb");
 const OpenAI = require("openai");
-const axios = require("axios");
 const { createHash } = require("crypto");
 const emailjs = require("@emailjs/nodejs");
 
@@ -18,7 +17,7 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "home_items"; // Restored original collection name
+const COLLECTION_NAME = "home_items";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || "service_jmjjix9";
@@ -38,7 +37,6 @@ emailjs.init({
 let client;
 let db;
 
-// MongoDB Connection
 async function connectToMongoDB() {
     try {
         client = new MongoClient(MONGODB_URI, {
@@ -61,15 +59,14 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
-// Health Check Endpoint
 app.get("/api/health", (req, res) => {
     const dbStatus = client && client.topology?.isConnected() ? "Connected" : "Disconnected";
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Analyze Image with OpenAI Vision (Repair Mode)
+// Enhanced Analysis with Color Matching
 async function analyzeImage(imageBase64) {
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage not always visible to the naked eye:
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone, detecting damage and providing color matching:
     - Stone type: Identify specifically (e.g., "This looks like granite") based on texture and pattern.
     - Material composition: Detail conversationally (e.g., "It’s mostly quartz with a bit of resin").
     - Color and pattern: Describe naturally (e.g., "It’s got a cool brown vibe with black and beige speckles").
@@ -84,7 +81,8 @@ async function analyzeImage(imageBase64) {
     - Professional recommendation: If damage, "Contact Surprise Granite for repair or replacement—our subscription plans start at $29/month!" If none, "No repairs needed—keep it pristine with Surprise Granite’s cleaning subscription starting at $29/month!"
     - Cleaning recommendation: Practical tip (e.g., "Stick to mild soap and water—our cleaning service can keep it sparkling!").
     - Repair recommendation: DIY or pro advice (e.g., "A pro should handle this crack—subscribe to our repair service!" or "No repairs needed, but our cleaning subscription keeps it great!").
-    Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`;
+    - Color match suggestion: Suggest a complementary color for decor (e.g., "Pair this with a soft gray cabinet or a warm beige wall for a killer look!").
+    Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation, color_match_suggestion.`;
 
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -93,7 +91,7 @@ async function analyzeImage(imageBase64) {
             {
                 role: "user",
                 content: [
-                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and be honest if there’s none." },
+                    { type: "text", text: "Analyze this countertop image with maximum accuracy. Look for hidden damage and suggest a color match." },
                     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                 ]
             }
@@ -107,7 +105,6 @@ async function analyzeImage(imageBase64) {
     return JSON.parse(content[0]);
 }
 
-// Analyze Damage Endpoint (Repair Mode)
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     console.log("Received request to /api/analyze-damage");
     try {
@@ -137,7 +134,6 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     }
 });
 
-// TTS Endpoint (Restored for CARI to speak)
 app.post("/api/tts", async (req, res) => {
     try {
         const { text } = req.body;
@@ -159,7 +155,6 @@ app.post("/api/tts", async (req, res) => {
     }
 });
 
-// EmailJS Endpoint
 app.post("/api/send-email", async (req, res) => {
     try {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
@@ -198,12 +193,10 @@ app.post("/api/send-email", async (req, res) => {
     }
 });
 
-// Root Endpoint
 app.get("/", (req, res) => {
     res.send("✅ CARI API is live");
 });
 
-// Cleanup on Shutdown
 process.on("SIGTERM", async () => {
     if (client) await client.close();
     console.log("Server shut down");
@@ -215,7 +208,6 @@ process.on("uncaughtException", (err) => {
     process.exit(1);
 });
 
-// Start Server
 async function startServer() {
     try {
         await connectToMongoDB();
