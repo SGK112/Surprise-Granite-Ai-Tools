@@ -18,7 +18,7 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
-const COLLECTION_NAME = "countertop_images"; // For storing your countertop images
+const COLLECTION_NAME = "countertop_images";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || "service_jmjjix9";
@@ -105,7 +105,7 @@ async function importCountertopImages() {
     }
 }
 
-// Analyze Image with OpenAI Vision (Reusable for both modes)
+// Analyze Image with OpenAI Vision
 async function analyzeImage(imageBase64, mode = "basic") {
     let prompt;
     if (mode === "damage") {
@@ -129,31 +129,44 @@ async function analyzeImage(imageBase64, mode = "basic") {
         Return in JSON format with keys: stone_type, color_and_pattern, material_composition.`;
     }
 
-    const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-            { role: "system", content: prompt },
-            {
-                role: "user",
-                content: [
-                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-                ]
-            }
-        ],
-        max_tokens: mode === "damage" ? 1500 : 500,
-        temperature: 0.5
-    });
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: prompt },
+                {
+                    role: "user",
+                    content: [
+                        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+                    ]
+                }
+            ],
+            max_tokens: mode === "damage" ? 1500 : 500,
+            temperature: 0.5
+        });
 
-    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
-    if (!content) throw new Error("Invalid JSON response from OpenAI");
-    return JSON.parse(content[0]);
+        const content = response.choices[0].message.content;
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No valid JSON found in OpenAI response");
+        return JSON.parse(jsonMatch[0]);
+    } catch (err) {
+        console.error(`Image analysis error (${mode} mode):`, err.message);
+        throw err;
+    }
 }
 
 // Analyze Damage Endpoint (Repair Mode)
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
+    console.log("Received request to /api/analyze-damage");
     try {
-        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
+        if (!req.file) {
+            console.log("No file uploaded");
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        if (!OPENAI_API_KEY) {
+            console.log("Missing OpenAI API key");
+            return res.status(500).json({ error: "Missing OpenAI API key" });
+        }
 
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
@@ -164,29 +177,35 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
         res.json({ response: result });
     } catch (err) {
         console.error("Analysis error:", err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: `Analysis failed: ${err.message}` });
     }
 });
 
 // Visual Search Endpoint (Replacement Mode)
 app.post("/api/visual-search", upload.single("file"), async (req, res) => {
+    console.log("Received request to /api/visual-search");
     try {
-        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
+        if (!req.file) {
+            console.log("No file uploaded");
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        if (!OPENAI_API_KEY) {
+            console.log("Missing OpenAI API key");
+            return res.status(500).json({ error: "Missing OpenAI API key" });
+        }
 
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
         const uploadedImageBase64 = imageBuffer.toString("base64");
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
 
-        // Analyze uploaded image
         const uploadedAnalysis = await analyzeImage(uploadedImageBase64, "basic");
 
-        // Search database for matches
         const imagesCollection = db.collection(COLLECTION_NAME);
         const allImages = await imagesCollection.find({}).toArray();
 
         if (allImages.length === 0) {
+            console.log("No images in database for matching");
             return res.json({ uploadedAnalysis, matches: [] });
         }
 
@@ -196,44 +215,51 @@ app.post("/api/visual-search", upload.single("file"), async (req, res) => {
             - Image 2: Database image
             Return a JSON object with a "similarity" key (percentage).`;
 
-            const response = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: similarityPrompt },
-                    {
-                        role: "user",
-                        content: [
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${uploadedImageBase64}` } },
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${dbImage.imageBase64}` } }
-                        ]
-                    }
-                ],
-                max_tokens: 200,
-                temperature: 0.5
-            });
+            try {
+                const response = await openai.chat.completions.create({
+                    model: "gpt-4o",
+                    messages: [
+                        { role: "system", content: similarityPrompt },
+                        {
+                            role: "user",
+                            content: [
+                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${uploadedImageBase64}` } },
+                                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${dbImage.imageBase64}` } }
+                            ]
+                        }
+                    ],
+                    max_tokens: 200,
+                    temperature: 0.5
+                });
 
-            const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
-            const similarity = content ? JSON.parse(content[0]).similarity : 0;
-
-            return { ...dbImage.analysis, filename: dbImage.filename, similarity };
+                const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
+                const similarity = content ? JSON.parse(content[0]).similarity : 0;
+                return { ...dbImage.analysis, filename: dbImage.filename, similarity };
+            } catch (err) {
+                console.error("Similarity comparison error:", err.message);
+                return { ...dbImage.analysis, filename: dbImage.filename, similarity: 0 };
+            }
         }));
 
-        // Sort by similarity and return top matches
         const topMatches = matches.sort((a, b) => b.similarity - a.similarity).slice(0, 3);
         res.json({ uploadedAnalysis, matches: topMatches });
     } catch (err) {
         console.error("Visual search error:", err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: `Visual search failed: ${err.message}` });
     }
 });
 
 // Serve Images Endpoint
 app.get("/api/image/:filename", async (req, res) => {
+    console.log(`Received request to /api/image/${req.params.filename}`);
     try {
         const { filename } = req.params;
         const imagesCollection = db.collection(COLLECTION_NAME);
         const imageDoc = await imagesCollection.findOne({ filename });
-        if (!imageDoc) return res.status(404).json({ error: "Image not found" });
+        if (!imageDoc) {
+            console.log(`Image ${filename} not found`);
+            return res.status(404).json({ error: "Image not found" });
+        }
         res.set("Content-Type", "image/jpeg");
         res.send(Buffer.from(imageDoc.imageBase64, "base64"));
     } catch (err) {
@@ -244,17 +270,19 @@ app.get("/api/image/:filename", async (req, res) => {
 
 // EmailJS Endpoint
 app.post("/api/send-email", async (req, res) => {
+    console.log("Received request to /api/send-email");
     try {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) {
+            console.log("Missing required fields");
             return res.status(400).json({ error: "Name, email, and message are required" });
         }
 
         const templateParams = {
             from_name: name,
             from_email: email,
-            from_phone: phone,
-            message: message,
+            from_phone: phone || "Not provided",
+            message,
             stone_type: stone_type || "N/A",
             analysis_summary: analysis_summary || "No analysis provided",
             to_email: "info@surprisegranite.com",
@@ -272,6 +300,7 @@ app.post("/api/send-email", async (req, res) => {
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
             await leadsCollection.insertOne({ ...req.body, status: "new", createdAt: new Date() });
+            console.log("Lead saved to MongoDB");
         }
 
         res.json({ success: true, message: "Email sent successfully" });
@@ -284,6 +313,12 @@ app.post("/api/send-email", async (req, res) => {
 // Root Endpoint
 app.get("/", (req, res) => {
     res.send("✅ CARI API is live");
+});
+
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error("Unhandled error:", err.stack);
+    res.status(500).json({ error: "Internal server error" });
 });
 
 // Cleanup on Shutdown
@@ -302,7 +337,7 @@ process.on("uncaughtException", (err) => {
 async function startServer() {
     try {
         await connectToMongoDB();
-        await importCountertopImages(); // Import images on startup
+        await importCountertopImages();
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/api/health`);
