@@ -3,21 +3,26 @@ const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
-const fetch = require("node-fetch");
 const fs = require("fs").promises;
 const path = require("path");
 const { MongoClient } = require("mongodb");
+const OpenAI = require("openai");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
 // Configuration
-const PORT = process.env.PORT || 5000; // Render will set PORT automatically
+const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1";
 const DB_NAME = "countertops";
 const COLLECTION_NAME = "countertops.images";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Initialize OpenAI
+const openai = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+});
 
 let client;
 let db;
@@ -35,17 +40,16 @@ async function connectToMongoDB() {
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
         console.error("Failed to connect to MongoDB:", err.message);
-        // Continue without MongoDB if not critical
     }
 }
 
 // Middleware
 app.use(cors({
-    origin: process.env.FRONTEND_URL || "*", // Allow all origins for now; tighten in production
+    origin: process.env.FRONTEND_URL || "*",
     credentials: true
 }));
 app.use(helmet({
-    contentSecurityPolicy: false // Disable CSP for simplicity; configure properly in production
+    contentSecurityPolicy: false
 }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
@@ -53,11 +57,11 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 // Health Check Endpoint
 app.get("/api/health", (req, res) => {
     const dbStatus = client && client.topology?.isConnected() ? "Connected" : "Disconnected";
-    res.json({ 
-        status: "Server is running", 
-        port: PORT, 
+    res.json({
+        status: "Server is running",
+        port: PORT,
         dbStatus,
-        openAIConfigured: !!OPENAI_API_KEY 
+        openAIConfigured: !!OPENAI_API_KEY
     });
 });
 
@@ -80,48 +84,38 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
         const imageBase64 = imageBuffer.toString("base64");
         await fs.unlink(filePath).catch(err => console.error("Failed to delete temp file:", err));
 
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are CARI, a countertop damage analyst at Surprise Granite. Analyze the image and provide:
-                        - Stone type (granite, quartz, marble, etc.)
-                        - Color and pattern
-                        - Whether it's natural stone (true/false)
-                        - Damage type (chips, cracks, etc.)
-                        - Severity (low, moderate, severe)
-                        - Estimated cost range
-                        - Professional recommendation
-                        Respond in JSON format only.`
-                    },
-                    {
-                        role: "user",
-                        content: [
-                            { type: "text", text: "Analyze this countertop image" },
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-                        ]
-                    }
-                ],
-                max_tokens: 800,
-                temperature: 0.7
-            })
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                {
+                    role: "system",
+                    content: `You are CARI, a countertop damage analyst at Surprise Granite. Analyze the image and provide:
+                    - Stone type (granite, quartz, marble, etc.)
+                    - Material analysis (type: natural or man-made; manufacturer or quarry if identifiable)
+                    - Color and pattern
+                    - Whether it's natural stone (true/false)
+                    - Damage type (chips, cracks, scratches, discoloration, etc.)
+                    - Severity (low, moderate, severe) based on:
+                      - Low: Minor cosmetic issues (e.g., small scratches, light discoloration)
+                      - Moderate: Noticeable damage affecting aesthetics or minor functionality (e.g., small cracks, chips)
+                      - Severe: Significant damage affecting structural integrity or requiring replacement (e.g., large cracks, deep chips, broken pieces)
+                    - Estimated cost range for repair or replacement
+                    - Professional recommendation (repair, replace, or further inspection)
+                    Respond in JSON format only.`
+                },
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: "Analyze this countertop image" },
+                        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+                    ]
+                }
+            ],
+            max_tokens: 800,
+            temperature: 0.7
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("OpenAI API error:", errorText);
-            throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
-        const content = data.choices[0].message.content;
+        const content = response.choices[0].message.content;
         const jsonMatch = content.match(/\{[\s\S]*\}/);
 
         if (!jsonMatch) {
@@ -171,13 +165,13 @@ app.get("/", (req, res) => {
 });
 
 // Cleanup on Shutdown
-process.on('SIGTERM', async () => {
+process.on("SIGTERM", async () => {
     if (client) await client.close();
     console.log("Server shut down");
     process.exit(0);
 });
 
-process.on('uncaughtException', (err) => {
+process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err.message);
     process.exit(1);
 });
