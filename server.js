@@ -23,9 +23,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
 
 // Initialize OpenAI
-const openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 let client;
 let db;
@@ -58,10 +56,10 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
 
-// Import GitHub Images to MongoDB
+// Import GitHub Images to MongoDB with Metadata
 async function importGitHubImages() {
-    if (!GITHUB_TOKEN) {
-        console.error("GitHub token missing in .env");
+    if (!GITHUB_TOKEN || !db) {
+        console.error("GitHub token or DB missing");
         return;
     }
     try {
@@ -76,12 +74,20 @@ async function importGitHubImages() {
             const imageBase64 = Buffer.from(imageResponse.data).toString("base64");
             const exists = await imagesCollection.findOne({ filename: image.name });
             if (!exists) {
+                const analysis = await analyzeImageForMetadata(imageBase64);
                 await imagesCollection.insertOne({
                     filename: image.name,
                     imageBase64,
+                    analysis,
                     createdAt: new Date(),
+                    metadata: {
+                        stone_type: analysis.stone_type,
+                        color_and_pattern: analysis.color_and_pattern,
+                        natural_stone: analysis.natural_stone,
+                        potential_use: "countertop"
+                    }
                 });
-                console.log(`Imported ${image.name} to MongoDB`);
+                console.log(`Imported and analyzed ${image.name}`);
             }
         }
         console.log(`Imported ${images.length} images from GitHub`);
@@ -90,18 +96,40 @@ async function importGitHubImages() {
     }
 }
 
+// Helper: Analyze Image for Metadata
+async function analyzeImageForMetadata(imageBase64) {
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            {
+                role: "system",
+                content: `Analyze this image for countertop metadata:
+                - Stone type (granite, quartz, marble, etc.)
+                - Color and pattern
+                - Natural stone (true/false)
+                Respond in JSON format with keys: stone_type, color_and_pattern, natural_stone.`
+            },
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: "Analyze this image" },
+                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+                ]
+            }
+        ],
+        max_tokens: 500,
+        temperature: 0.5
+    });
+    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/)[0];
+    return JSON.parse(content);
+}
+
 // Analyze Damage Endpoint
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
     console.log("Received request to /api/analyze-damage");
     try {
-        if (!req.file) {
-            console.log("No file uploaded");
-            return res.status(400).json({ error: "No file uploaded" });
-        }
-        if (!OPENAI_API_KEY) {
-            console.log("Missing OpenAI API key");
-            return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
-        }
+        if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
 
         const filePath = req.file.path;
         const imageBuffer = await fs.readFile(filePath);
@@ -113,9 +141,9 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: `You are CARI, an expert countertop damage analyst at Surprise Granite. Analyze the image with precision and NO FALLBACKS:
-                    - Stone type: Identify specifically (e.g., granite, quartz, marble) based on visible texture and pattern.
-                    - Material composition: Detail the material (e.g., "90% quartz, 10% resin" for man-made; "igneous rock with feldspar" for natural). Use visual cues, no "unknown."
+                    content: `You are CARI, an expert countertop analyst at Surprise Granite. Analyze the image with precision and NO FALLBACKS:
+                    - Stone type: Identify specifically (e.g., granite, quartz, marble) based on texture and pattern.
+                    - Material composition: Detail the material (e.g., "90% quartz, 10% resin" for man-made; "igneous rock with feldspar" for natural).
                     - Color and pattern: Describe precisely (e.g., "brown with black and beige speckles").
                     - Natural stone: True/false based on composition and appearance.
                     - Damage type: Specify (e.g., "crack >5mm wide," "surface scratch"). Detect all damage accurately.
@@ -124,27 +152,26 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
                       - Moderate: Aesthetic/functional impact (e.g., cracks 1-5mm, $200-$500).
                       - Severe: Structural damage (e.g., cracks >5mm, broken edges, $1000+ or replacement).
                     - Estimated cost range: Realistic, tied to severity (e.g., severe = $1500-$3000 or "replacement cost").
-                    - Recommendation: Repair, replace, or inspect; severe damage = replacement.
-                    Use image data only—do not guess or use defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation.`
+                    - Professional recommendation: Always include "Contact Surprise Granite for further details" plus specific advice (repair, replace, or inspect; severe = replacement).
+                    - Cleaning recommendation: Suggest a method based on stone type and damage (e.g., "Use mild soap and water for granite, avoid abrasives").
+                    - Repair recommendation: Suggest a DIY or professional fix based on damage (e.g., "Epoxy filler for small cracks, professional repair for severe damage").
+                    Use image data only—do not guess or use defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation, cleaning_recommendation, repair_recommendation.`
                 },
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity and material details." },
+                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity, material details, and provide cleaning and repair recommendations." },
                         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                     ]
                 }
             ],
-            max_tokens: 1200,
-            temperature: 0.3 // Lower for precision
+            max_tokens: 1500, // Increased for extra fields
+            temperature: 0.3
         });
 
         const content = response.choices[0].message.content;
         const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            console.error("Invalid JSON response from OpenAI:", content);
-            throw new Error("Invalid JSON response from OpenAI");
-        }
+        if (!jsonMatch) throw new Error("Invalid JSON response from OpenAI");
 
         const result = JSON.parse(jsonMatch[0]);
         console.log("Analysis successful:", result);
@@ -166,14 +193,8 @@ app.post("/api/tts", async (req, res) => {
     console.log("Received request to /api/tts");
     try {
         const { text } = req.body;
-        if (!text) {
-            console.log("No text provided");
-            return res.status(400).json({ error: "Text is required" });
-        }
-        if (!OPENAI_API_KEY) {
-            console.log("Missing OpenAI API key");
-            return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
-        }
+        if (!text) return res.status(400).json({ error: "Text is required" });
+        if (!OPENAI_API_KEY) return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
 
         const response = await openai.audio.speech.create({
             model: "tts-1",
@@ -195,10 +216,7 @@ app.post("/api/submit-lead", async (req, res) => {
     console.log("Received request to /api/submit-lead");
     try {
         const leadData = req.body;
-        if (!leadData.name || !leadData.email) {
-            console.log("Missing required fields");
-            return res.status(400).json({ error: "Name and email are required" });
-        }
+        if (!leadData.name || !leadData.email) return res.status(400).json({ error: "Name and email are required" });
 
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
