@@ -7,6 +7,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const { MongoClient } = require("mongodb");
 const OpenAI = require("openai");
+const axios = require("axios");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -18,6 +19,8 @@ const DB_NAME = "countertops";
 const COLLECTION_NAME = "countertops.images";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const GITHUB_REPO = "yourusername/your-repo"; // Replace with your GitHub repo
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -44,26 +47,48 @@ async function connectToMongoDB() {
 }
 
 // Middleware
-app.use(cors({
-    origin: process.env.FRONTEND_URL || "*",
-    credentials: true
-}));
-app.use(helmet({
-    contentSecurityPolicy: false
-}));
+app.use(cors({ origin: process.env.FRONTEND_URL || "*", credentials: true }));
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
 // Health Check Endpoint
 app.get("/api/health", (req, res) => {
     const dbStatus = client && client.topology?.isConnected() ? "Connected" : "Disconnected";
-    res.json({
-        status: "Server is running",
-        port: PORT,
-        dbStatus,
-        openAIConfigured: !!OPENAI_API_KEY
-    });
+    res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
+
+// Import GitHub Images to MongoDB
+async function importGitHubImages() {
+    if (!GITHUB_TOKEN) {
+        console.error("GitHub token missing in .env");
+        return;
+    }
+    try {
+        const response = await axios.get(`https://api.github.com/repos/${GITHUB_REPO}/contents/images`, {
+            headers: { Authorization: `token ${GITHUB_TOKEN}` },
+        });
+        const images = response.data.filter(file => /\.(jpg|jpeg|png)$/i.test(file.name));
+        const imagesCollection = db.collection(COLLECTION_NAME);
+
+        for (const image of images) {
+            const imageResponse = await axios.get(image.download_url, { responseType: "arraybuffer" });
+            const imageBase64 = Buffer.from(imageResponse.data).toString("base64");
+            const exists = await imagesCollection.findOne({ filename: image.name });
+            if (!exists) {
+                await imagesCollection.insertOne({
+                    filename: image.name,
+                    imageBase64,
+                    createdAt: new Date(),
+                });
+                console.log(`Imported ${image.name} to MongoDB`);
+            }
+        }
+        console.log(`Imported ${images.length} images from GitHub`);
+    } catch (err) {
+        console.error("Failed to import GitHub images:", err.message);
+    }
+}
 
 // Analyze Damage Endpoint
 app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
@@ -73,7 +98,6 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
             console.log("No file uploaded");
             return res.status(400).json({ error: "No file uploaded" });
         }
-
         if (!OPENAI_API_KEY) {
             console.log("Missing OpenAI API key");
             return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
@@ -89,35 +113,34 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: `You are CARI, a countertop damage analyst at Surprise Granite. Analyze the image and provide:
-                    - Stone type (granite, quartz, marble, etc.)
-                    - Material analysis (type: natural or man-made; manufacturer or quarry if identifiable)
-                    - Color and pattern
-                    - Whether it's natural stone (true/false)
-                    - Damage type (chips, cracks, scratches, discoloration, etc.)
-                    - Severity (low, moderate, severe) based on:
-                      - Low: Minor cosmetic issues (e.g., small scratches, light discoloration)
-                      - Moderate: Noticeable damage affecting aesthetics or minor functionality (e.g., small cracks, chips)
-                      - Severe: Significant damage affecting structural integrity or requiring replacement (e.g., large cracks, deep chips, broken pieces)
-                    - Estimated cost range for repair or replacement
-                    - Professional recommendation (repair, replace, or further inspection)
-                    Respond in JSON format only.`
+                    content: `You are CARI, an expert countertop damage analyst at Surprise Granite. Analyze the image with precision and NO FALLBACKS:
+                    - Stone type: Identify specifically (e.g., granite, quartz, marble) based on visible texture and pattern.
+                    - Material composition: Detail the material (e.g., "90% quartz, 10% resin" for man-made; "igneous rock with feldspar" for natural). Use visual cues, no "unknown."
+                    - Color and pattern: Describe precisely (e.g., "brown with black and beige speckles").
+                    - Natural stone: True/false based on composition and appearance.
+                    - Damage type: Specify (e.g., "crack >5mm wide," "surface scratch"). Detect all damage accurately.
+                    - Severity: Assess rigorously:
+                      - Low: Minor cosmetic (e.g., scratches <1mm deep, $50-$150).
+                      - Moderate: Aesthetic/functional impact (e.g., cracks 1-5mm, $200-$500).
+                      - Severe: Structural damage (e.g., cracks >5mm, broken edges, $1000+ or replacement).
+                    - Estimated cost range: Realistic, tied to severity (e.g., severe = $1500-$3000 or "replacement cost").
+                    - Recommendation: Repair, replace, or inspect; severe damage = replacement.
+                    Use image data only—do not guess or use defaults. Respond in JSON format with keys: stone_type, material_composition, color_and_pattern, natural_stone, damage_type, severity, estimated_cost_range, professional_recommendation.`
                 },
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Analyze this countertop image" },
+                        { type: "text", text: "Analyze this countertop image with maximum accuracy. Focus on damage severity and material details." },
                         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
                     ]
                 }
             ],
-            max_tokens: 800,
-            temperature: 0.7
+            max_tokens: 1200,
+            temperature: 0.3 // Lower for precision
         });
 
         const content = response.choices[0].message.content;
         const jsonMatch = content.match(/\{[\s\S]*\}/);
-
         if (!jsonMatch) {
             console.error("Invalid JSON response from OpenAI:", content);
             throw new Error("Invalid JSON response from OpenAI");
@@ -128,11 +151,7 @@ app.post("/api/analyze-damage", upload.single("file"), async (req, res) => {
 
         if (db) {
             const imagesCollection = db.collection(COLLECTION_NAME);
-            await imagesCollection.insertOne({
-                imageBase64,
-                analysis: result,
-                createdAt: new Date()
-            });
+            await imagesCollection.insertOne({ imageBase64, analysis: result, createdAt: new Date() });
         }
 
         res.json({ response: result });
@@ -151,7 +170,6 @@ app.post("/api/tts", async (req, res) => {
             console.log("No text provided");
             return res.status(400).json({ error: "Text is required" });
         }
-
         if (!OPENAI_API_KEY) {
             console.log("Missing OpenAI API key");
             return res.status(500).json({ error: "Server configuration error: Missing OpenAI API key" });
@@ -164,10 +182,7 @@ app.post("/api/tts", async (req, res) => {
             response_format: "mp3",
         });
 
-        res.set({
-            "Content-Type": "audio/mp3",
-            "Content-Disposition": "inline; filename=\"tts.mp3\"",
-        });
+        res.set({ "Content-Type": "audio/mp3", "Content-Disposition": "inline; filename=\"tts.mp3\"" });
         response.body.pipe(res);
     } catch (err) {
         console.error("TTS error:", err.message);
@@ -187,11 +202,7 @@ app.post("/api/submit-lead", async (req, res) => {
 
         if (db) {
             const leadsCollection = db.collection(LEADS_COLLECTION_NAME);
-            const result = await leadsCollection.insertOne({
-                ...leadData,
-                status: "new",
-                createdAt: new Date()
-            });
+            const result = await leadsCollection.insertOne({ ...leadData, status: "new", createdAt: new Date() });
             console.log("Lead saved:", result.insertedId);
             res.json({ success: true, leadId: result.insertedId });
         } else {
@@ -225,9 +236,10 @@ process.on("uncaughtException", (err) => {
 async function startServer() {
     try {
         await connectToMongoDB();
+        await importGitHubImages();
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
-            console.log(`Health check available at: https://surprise-granite-connections-dev.onrender.com/api/health`);
+            console.log(`Health check: https://surprise-granite-connections-dev.onrender.com/api/health`);
         });
     } catch (err) {
         console.error("Failed to start server:", err.message);
