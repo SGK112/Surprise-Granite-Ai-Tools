@@ -21,15 +21,13 @@ const DB_NAME = "countertops";
 const COLLECTION_NAME = "home_items";
 const LEADS_COLLECTION_NAME = "leads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_REPO = "yourusername/your-repo";
-const EMAILJS_SERVICE_ID = "service_jmjjix9";
-const EMAILJS_TEMPLATE_ID = "template_h6l3a6d";
-const EMAILJS_PUBLIC_KEY = "sRh-ECDA5cGVTzDz-";
-const EMAILJS_PRIVATE_KEY = "XOJ6w3IZgj67PSRNzgkwK";
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || "service_jmjjix9";
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || "template_h6l3a6d";
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || "sRh-ECDA5cGVTzDz-";
+const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || "XOJ6w3IZgj67PSRNzgkwK";
 
 // Initialize OpenAI
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const openai = new Open这两个AI({ apiKey: OPENAI_API_KEY });
 
 // Initialize EmailJS
 emailjs.init({
@@ -68,8 +66,6 @@ app.get("/api/health", (req, res) => {
     const dbStatus = client && client.topology?.isConnected() ? "Connected" : "Disconnected";
     res.json({ status: "Server is running", port: PORT, dbStatus, openAIConfigured: !!OPENAI_API_KEY });
 });
-
-// [Your existing importGitHubImages, analyzeImage, /api/analyze-damage, /api/tts endpoints remain unchanged]
 
 // EmailJS Endpoint
 app.post("/api/send-email", async (req, res) => {
@@ -111,12 +107,28 @@ app.post("/api/send-email", async (req, res) => {
     }
 });
 
-// [Your existing /api/submit-lead, root endpoint, cleanup, startServer remain unchanged]
+// Root Endpoint
+app.get("/", (req, res) => {
+    res.send("✅ CARI API is live");
+});
 
+// Cleanup on Shutdown
+process.on("SIGTERM", async () => {
+    if (client) await client.close();
+    console.log("Server shut down");
+    process.exit(0);
+});
+
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err.message);
+    process.exit(1);
+});
+
+// Start Server
 async function startServer() {
     try {
         await connectToMongoDB();
-        await importGitHubImages();
+        // Removed importGitHubImages call since it's not defined
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/api/health`);
