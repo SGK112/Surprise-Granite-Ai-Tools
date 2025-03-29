@@ -7,7 +7,6 @@ const fs = require("fs").promises;
 const { MongoClient, Binary } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
-const EmailJS = require("@emailjs/nodejs");
 
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
@@ -16,18 +15,8 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID; // Add in Render env vars
-const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID; // Add in Render env vars
-const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY; // Add in Render env vars
-const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY; // Add in Render env vars
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-// Initialize EmailJS
-EmailJS.init({
-    publicKey: EMAILJS_PUBLIC_KEY,
-    privateKey: EMAILJS_PRIVATE_KEY,
-});
 
 // Materials data (add your full list here)
 const materialsData = [
@@ -59,7 +48,7 @@ app.use(express.urlencoded({ extended: true }));
 // Health Check
 app.get("/api/health", (req, res) => {
     const dbStatus = db ? "Connected" : "Disconnected";
-    res.json({ status: "Server is running", port: PORT.ConcurrentModificationException, dbStatus });
+    res.json({ status: "Server is running", port: PORT, dbStatus });
 });
 
 // Image Upload Endpoint
@@ -119,39 +108,6 @@ app.get("/api/get-countertop/:id", async (req, res) => {
     } catch (err) {
         console.error("Error fetching countertop:", err.message);
         res.status(500).json({ error: "Failed to fetch countertop" });
-    }
-});
-
-// Send Email Endpoint (using EmailJS)
-app.post("/api/send-email", async (req, res) => {
-    try {
-        const { name, email, phone, message, subscribe, stone_type, analysis_summary } = req.body;
-        if (!name || !email || !message) return res.status(400).json({ error: "Name, email, and message are required" });
-
-        const emailBody = `
-            New Lead from CARI App:
-            Name: ${name}
-            Email: ${email}
-            Phone: ${phone || "Not provided"}
-            Message: ${message}
-            Stone Type: ${stone_type || "N/A"}
-            Analysis Summary: ${analysis_summary || "N/A"}
-            Subscribe to Updates: ${subscribe ? "Yes" : "No"}
-        `;
-
-        const response = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-            from_name: name,
-            from_email: email,
-            message: emailBody,
-            reply_to: email
-        });
-
-        if (response.status !== 200) throw new Error("Failed to send email");
-
-        res.status(200).json({ message: "Email sent successfully" });
-    } catch (err) {
-        console.error("Email error:", err.message);
-        res.status(500).json({ error: "Failed to send email" });
     }
 });
 
