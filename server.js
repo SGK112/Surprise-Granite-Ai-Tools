@@ -21,8 +21,8 @@ const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
 
-// Validate environment variables at startup
-console.log("Environment variables:", {
+// Log environment variables at startup (without values for security)
+console.log("Environment variables loaded:", {
     EMAILJS_SERVICE_ID: !!EMAILJS_SERVICE_ID,
     EMAILJS_TEMPLATE_ID: !!EMAILJS_TEMPLATE_ID,
     EMAILJS_PUBLIC_KEY: !!EMAILJS_PUBLIC_KEY,
@@ -39,7 +39,7 @@ async function loadLaborData() {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
         const data = await fs.readFile(laborJsonPath, "utf8");
         laborData = JSON.parse(data);
-        console.log("Loaded labor.json:", laborData);
+        console.log("Loaded labor.json with", laborData.length, "entries");
     } catch (err) {
         console.error("Failed to load labor.json:", err.message);
         laborData = [];
@@ -210,14 +210,21 @@ app.post("/api/send-email", async (req, res) => {
             analysis_summary: analysis_summary || "No analysis provided"
         };
 
-        console.log("Sending email with EmailJS:", templateParams);
+        console.log("Sending email with EmailJS - Template Params:", templateParams);
+        console.log("EmailJS Config:", {
+            serviceId: EMAILJS_SERVICE_ID,
+            templateId: EMAILJS_TEMPLATE_ID,
+            publicKey: EMAILJS_PUBLIC_KEY,
+            privateKey: EMAILJS_PRIVATE_KEY ? "Set" : "Not set"
+        });
+
         const emailResponse = await EmailJS.send(
             EMAILJS_SERVICE_ID,
             EMAILJS_TEMPLATE_ID,
             templateParams,
             {
                 publicKey: EMAILJS_PUBLIC_KEY,
-                privateKey: EMAILJS_PRIVATE_KEY // Explicitly include private key
+                privateKey: EMAILJS_PRIVATE_KEY
             }
         );
         console.log("Email sent successfully:", emailResponse);
@@ -359,33 +366,36 @@ function calculateRepairCost(damageType, severity) {
         console.log("No damage detected, cost set to $0.00");
         return "$0.00";
     }
-    if (simplifiedDamageType.includes("crack")) simplifiedDamageType = "crack";
-    else if (simplifiedDamageType.includes("chip")) simplifiedDamageType = "chip";
-    else if (simplifiedDamageType.includes("stain")) simplifiedDamageType = "stain";
-    else if (simplifiedDamageType.includes("scratch")) simplifiedDamageType = "scratch";
-    else {
-        console.warn("No matching damage type found in laborData:", simplifiedDamageType);
+
+    // Map OpenAI damage types to labor.json services
+    let serviceMatch;
+    if (simplifiedDamageType.includes("crack") || simplifiedDamageType.includes("chip")) {
+        serviceMatch = laborData.find(entry => entry.Code === "CT-012"); // "Countertop Crack/Chip Repair"
+    } else if (simplifiedDamageType.includes("stain") || simplifiedDamageType.includes("scratch")) {
+        serviceMatch = laborData.find(entry => entry.Code === "CT-033"); // "Countertop Surface Refinishing"
+    }
+
+    if (!serviceMatch) {
+        console.warn("No matching service found in laborData for damage type:", simplifiedDamageType);
         return "Contact for estimate";
     }
 
-    const laborEntry = laborData.find(entry => 
-        entry.repair_type.toLowerCase() === simplifiedDamageType
-    );
-    if (!laborEntry) {
-        console.warn("No labor entry found for damage type:", simplifiedDamageType);
+    let baseCost = parseFloat(serviceMatch.Price);
+    if (isNaN(baseCost)) {
+        console.warn("Invalid price in laborData for service:", serviceMatch.Service);
         return "Contact for estimate";
     }
 
     const severityMultiplier = {
         "Low": 1,
-        "Moderate": 2,
-        "Severe": 3,
-        "N/A": 0,
+        "Moderate": 1.5,
+        "Severe": 2,
+        "N/A": 1,
         "None": 0
     }[severity] || 1;
 
-    const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
-    console.log("Calculated repair cost:", { damageType: simplifiedDamageType, severity, cost });
+    const cost = baseCost * severityMultiplier;
+    console.log("Calculated repair cost:", { damageType: simplifiedDamageType, severity, service: serviceMatch.Service, cost });
     return `$${cost.toFixed(2)}`;
 }
 
