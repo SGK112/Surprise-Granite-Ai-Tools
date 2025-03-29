@@ -7,6 +7,7 @@ const fs = require("fs").promises;
 const { MongoClient, Binary } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
+const EmailJS = require("@emailjs/nodejs");
 
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
@@ -14,16 +15,19 @@ const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } 
 // Configuration (using Render environment variables)
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID; // Add in Render env vars
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID; // Add in Render env vars
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY; // Add in Render env vars
+const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY; // Add in Render env vars
 
-// Validate environment variables
-if (!MONGODB_URI) {
-    console.error("Error: MONGODB_URI environment variable is not set.");
-    process.exit(1);
-}
-if (!process.env.OPENAI_API_KEY) {
-    console.warn("Warning: OPENAI_API_KEY environment variable is not set. Image analysis will be disabled.");
-}
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+// Initialize EmailJS
+EmailJS.init({
+    publicKey: EMAILJS_PUBLIC_KEY,
+    privateKey: EMAILJS_PRIVATE_KEY,
+});
 
 // Materials data (add your full list here)
 const materialsData = [
@@ -55,15 +59,12 @@ app.use(express.urlencoded({ extended: true }));
 // Health Check
 app.get("/api/health", (req, res) => {
     const dbStatus = db ? "Connected" : "Disconnected";
-    res.json({ status: "Server is running", port: PORT, dbStatus });
+    res.json({ status: "Server is running", port: PORT.ConcurrentModificationException, dbStatus });
 });
 
 // Image Upload Endpoint
 app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     try {
-        if (!db) {
-            return res.status(503).json({ error: "Database not connected", details: "MongoDB connection is not established yet" });
-        }
         if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
         const filePath = req.file.path;
@@ -74,13 +75,11 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imagesCollection = db.collection("countertop_images");
         const existingImage = await imagesCollection.findOne({ imageHash });
         if (existingImage) {
-            try {
-                await fs.unlink(filePath);
-            } catch (unlinkErr) {
-                console.error("Error deleting temporary file:", unlinkErr.message);
-            }
+            await fs.unlink(filePath);
             return res.json({ imageId: existingImage._id, message: "Image already exists" });
         }
+
+        const analysis = OPENAI_API_KEY ? await analyzeImage(imageBase64) : null;
 
         const imageDoc = {
             imageHash,
@@ -90,69 +89,69 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
                 mimeType: req.file.mimetype,
                 size: req.file.size,
                 uploadDate: new Date(),
-                analysis: process.env.OPENAI_API_KEY ? await analyzeImage(imageBase64) : null
+                analysis
             }
         };
 
         const result = await imagesCollection.insertOne(imageDoc);
-        try {
-            await fs.unlink(filePath);
-        } catch (unlinkErr) {
-            console.error("Error deleting temporary file:", unlinkErr.message);
-        }
+        await fs.unlink(filePath);
 
         res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully" });
     } catch (err) {
-        console.error("Upload error:", err.message, err.stack);
-        res.status(500).json({ error: "Failed to upload image", details: err.message });
+        console.error("Upload error:", err.message);
+        res.status(500).json({ error: "Failed to upload image" });
     }
 });
 
-// Get All Countertops Endpoint with Pagination
-app.get("/api/get-countertops", async (req, res) => {
+// Get Specific Countertop by ID Endpoint
+app.get("/api/get-countertop/:id", async (req, res) => {
     try {
-        if (!db) {
-            return res.status(503).json({ error: "Database not connected", details: "MongoDB connection is not established yet" });
-        }
-
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-
         const imagesCollection = db.collection("countertop_images");
-        const total = await imagesCollection.countDocuments();
-        const countertops = await imagesCollection.find({}).skip(skip).limit(limit).toArray();
+        const countertop = await imagesCollection.findOne({ _id: new MongoClient.ObjectId(req.params.id) });
+        if (!countertop) return res.status(404).json({ error: "Countertop not found" });
 
-        const response = countertops.map(item => {
-            try {
-                // Log the item structure for debugging
-                if (!item.metadata) {
-                    console.warn(`Item ${item._id} has no metadata:`, JSON.stringify(item));
-                }
-                return {
-                    id: item._id,
-                    // Temporarily omit imageBase64 to reduce response size
-                    // imageBase64: item.imageData.buffer.toString("base64"),
-                    originalName: item.metadata?.originalName || "Unknown",
-                    analysis: item.metadata?.analysis || {}
-                };
-            } catch (err) {
-                console.error(`Error processing item ${item._id}:`, err.message);
-                return null;
-            }
-        }).filter(item => item !== null);
-
-        console.log(`Fetched ${response.length} countertops successfully (page ${page}, limit ${limit})`);
-        res.json({
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-            countertops: response
-        });
+        const response = {
+            id: countertop._id,
+            imageBase64: countertop.imageData.buffer.toString("base64"),
+            metadata: countertop.metadata || {}
+        };
+        res.json(response);
     } catch (err) {
-        console.error("Error in /api/get-countertops:", err.message, err.stack);
-        res.status(500).json({ error: "Failed to fetch countertops", details: err.message });
+        console.error("Error fetching countertop:", err.message);
+        res.status(500).json({ error: "Failed to fetch countertop" });
+    }
+});
+
+// Send Email Endpoint (using EmailJS)
+app.post("/api/send-email", async (req, res) => {
+    try {
+        const { name, email, phone, message, subscribe, stone_type, analysis_summary } = req.body;
+        if (!name || !email || !message) return res.status(400).json({ error: "Name, email, and message are required" });
+
+        const emailBody = `
+            New Lead from CARI App:
+            Name: ${name}
+            Email: ${email}
+            Phone: ${phone || "Not provided"}
+            Message: ${message}
+            Stone Type: ${stone_type || "N/A"}
+            Analysis Summary: ${analysis_summary || "N/A"}
+            Subscribe to Updates: ${subscribe ? "Yes" : "No"}
+        `;
+
+        const response = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+            from_name: name,
+            from_email: email,
+            message: emailBody,
+            reply_to: email
+        });
+
+        if (response.status !== 200) throw new Error("Failed to send email");
+
+        res.status(200).json({ message: "Email sent successfully" });
+    } catch (err) {
+        console.error("Email error:", err.message);
+        res.status(500).json({ error: "Failed to send email" });
     }
 });
 
@@ -169,37 +168,45 @@ async function analyzeImage(imageBase64) {
       - Severe: "Whoa, this crack’s serious—structural stuff".
     Use image data only, be honest if no damage is found. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity.`;
 
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                { role: "system", content: prompt },
-                { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
-            ],
-            max_tokens: 1500
-        });
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
+        ],
+        max_tokens: 1500
+    });
 
-        const rawContent = response.choices[0].message.content;
-        console.log("OpenAI raw response:", rawContent); // Log for debugging
-        const content = rawContent.match(/\{[\s\S]*\}/);
-        let result = content ? JSON.parse(content[0]) : { error: "Analysis failed", details: "No JSON found in response" };
+    const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
+    let result = content ? JSON.parse(content[0]) : { error: "Analysis failed" };
 
-        // Match with materialsData
-        const identifiedColor = result.color_and_pattern?.toLowerCase() || "";
-        const identifiedMaterial = result.stone_type?.toLowerCase() || "";
-        const bestMatch = materialsData.find(item =>
-            item.Material.toLowerCase() === identifiedMaterial &&
-            identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
-        ) || {};
+    if (result.error) return result;
 
-        result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
-        result.estimated_cost = bestMatch["Cost/SqFt"] ? (bestMatch["Cost/SqFt"] * bestMatch["Total/SqFt"]).toFixed(2) : "N/A";
+    // Match with materialsData
+    const identifiedColor = result.color_and_pattern.toLowerCase();
+    const identifiedMaterial = result.stone_type.toLowerCase();
+    const bestMatch = materialsData.find(item =>
+        item.Material.toLowerCase() === identifiedMaterial &&
+        identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
+    ) || {};
 
-        return result;
-    } catch (err) {
-        console.error("OpenAI analysis error:", err.message, err.stack);
-        return { error: "Analysis failed", details: err.message };
-    }
+    result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
+    result.estimated_cost = bestMatch["Cost/SqFt"] ? (bestMatch["Cost/SqFt"] * bestMatch["Total/SqFt"]).toFixed(2) : "N/A";
+
+    // Add additional fields for CARI app
+    result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
+    result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
+    result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : result.severity === "Moderate" ? "Consider professional repair." : "No action required.";
+    result.cleaning_recommendation = result.stone_type === "Marble" ? "Use a pH-neutral cleaner and avoid acidic substances." : "Clean with mild soap and water.";
+    result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : "No repairs needed.";
+    result.possible_matches = materialsData.map(item => ({
+        color_name: item["Color Name"],
+        material: item.Material,
+        thickness: item.Thickness,
+        replacement_cost: (item["Cost/SqFt"] * item["Total/SqFt"]).toFixed(2)
+    }));
+
+    return result;
 }
 
 // Start Server
