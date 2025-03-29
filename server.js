@@ -23,13 +23,16 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 let laborData;
-try {
-    const laborJsonPath = path.join(__dirname, "data", "labor.json");
-    laborData = JSON.parse(fs.readFileSync(laborJsonPath, "utf8"));
-    console.log("Loaded labor.json:", laborData);
-} catch (err) {
-    console.error("Failed to load labor.json:", err.message);
-    laborData = [];
+async function loadLaborData() {
+    try {
+        const laborJsonPath = path.join(__dirname, "data", "labor.json");
+        const data = await fs.readFile(laborJsonPath, "utf8");
+        laborData = JSON.parse(data);
+        console.log("Loaded labor.json:", laborData);
+    } catch (err) {
+        console.error("Failed to load labor.json:", err.message);
+        laborData = [];
+    }
 }
 
 const materialsData = [
@@ -397,7 +400,9 @@ function calculateRepairCost(damageType, severity) {
 }
 
 console.log(`Starting server on port ${PORT}...`);
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    connectToMongoDB();
+loadLaborData().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        connectToMongoDB();
+    });
 });
