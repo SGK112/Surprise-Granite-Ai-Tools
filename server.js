@@ -214,12 +214,12 @@ app.post("/api/like-countertop/:id", async (req, res) => {
 });
 
 app.post("/api/send-email", async (req, res) => {
-    console.log("POST /api/send-email");
+    console.log("POST /api/send-email - Request body:", req.body);
     try {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) {
-            console.error("Missing required fields");
-            return res.status(400).json({ error: "Missing required fields" });
+            console.error("Missing required fields:", { name, email, message });
+            return res.status(400).json({ error: "Missing required fields: name, email, and message are required" });
         }
 
         const templateParams = {
@@ -231,17 +231,21 @@ app.post("/api/send-email", async (req, res) => {
             analysis_summary: analysis_summary || "No analysis provided"
         };
 
-        await EmailJS.send(
+        console.log("Sending email with EmailJS:", templateParams);
+        const emailResponse = await EmailJS.send(
             EMAILJS_SERVICE_ID,
             EMAILJS_TEMPLATE_ID,
             templateParams,
-            { publicKey: EMAILJS_PUBLIC_KEY } // Fixed typo: publickKey -> publicKey
+            { publicKey: EMAILJS_PUBLIC_KEY }
         );
-        console.log("Email sent successfully");
+        console.log("Email sent successfully:", emailResponse);
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        console.error("Email error:", err.message);
-        res.status(500).json({ error: "Failed to send email: " + err.message });
+        console.error("Email sending error:", err.message, err.stack);
+        res.status(500).json({ 
+            error: "Failed to send email", 
+            details: err.message || "Unknown error occurred" 
+        });
     }
 });
 
@@ -260,8 +264,8 @@ app.post("/api/tts", async (req, res) => {
             input: text
         });
 
-        const arrayBuffer = await response.arrayBuffer(); // Fixed syntax error
-        const audioBuffer = Buffer.from(arrayBuffer);     // Properly create buffer
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = Buffer.from(arrayBuffer);
         res.set({
             "Content-Type": "audio/mpeg",
             "Content-Length": audioBuffer.length
@@ -287,7 +291,9 @@ async function analyzeImage(imageBase64) {
       - Severe: "Whoa, this crack’s serious—structural damage likely."
     Use image data only, be honest if unsure, and explain your reasoning in detail to justify your conclusions. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning.`;
 
+    let result;
     try {
+        console.log("Sending request to OpenAI API...");
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
@@ -298,62 +304,78 @@ async function analyzeImage(imageBase64) {
             temperature: 0.8
         });
 
-        const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
-        let result = content ? JSON.parse(content[0]) : { error: "Analysis failed" };
+        console.log("OpenAI response received:", response);
+        const content = response.choices[0].message.content;
+        console.log("Raw content from OpenAI:", content);
 
-        if (result.error) {
-            console.error("OpenAI Analysis failed:", result.error);
-            return result;
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("No valid JSON found in OpenAI response");
         }
 
-        const identifiedColor = result.color_and_pattern.toLowerCase();
-        const identifiedMaterial = result.stone_type.toLowerCase();
-        const bestMatch = materialsData.find(item =>
-            item.Material.toLowerCase() === identifiedMaterial &&
-            identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
-        ) || {};
+        result = JSON.parse(jsonMatch[0]);
+        console.log("Parsed analysis result:", result);
 
-        result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
-        result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
-        result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
-        result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
-        result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
-                                            result.severity === "Moderate" ? "Consider professional repair." : 
-                                            "No action required.";
-        result.cleaning_recommendation = result.stone_type === "Marble" ? "Use a pH-neutral cleaner and avoid acidic substances." : 
-                                        "Clean with mild soap and water.";
-        result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : 
-                                      "No repairs needed.";
-        result.possible_matches = materialsData.map(item => ({
-            color_name: item["Color Name"],
-            material: item.Material,
-            thickness: item.Thickness
-        }));
-
-        return result;
+        if (result.error) {
+            console.error("OpenAI returned an error:", result.error);
+            throw new Error(result.error);
+        }
     } catch (err) {
-        console.error("OpenAI analysis error:", err.message);
-        return { 
-            stone_type: "Unknown",
-            color_and_pattern: "Not identified",
-            damage_type: "None detected",
-            severity: "N/A",
-            reasoning: "Analysis failed due to an error: " + err.message,
-            color_match_suggestion: "No match found",
-            estimated_cost: "Contact for estimate",
-            material_composition: "Not identified",
-            natural_stone: false,
-            professional_recommendation: "No action required due to analysis failure.",
-            cleaning_recommendation: "Clean with mild soap and water.",
-            repair_recommendation: "No repairs needed.",
-            possible_matches: materialsData.map(item => ({
-                color_name: item["Color Name"],
-                material: item.Material,
-                thickness: item.Thickness
-            })),
-            mongo_matches: []
-        };
+        console.error("OpenAI analysis failed:", err.message, err.stack);
+        if (db) {
+            const imagesCollection = db.collection("countertop_images");
+            const similarImages = await imagesCollection.find({}).sort({ "metadata.uploadDate": -1 }).limit(1).toArray();
+            if (similarImages.length > 0) {
+                const fallback = similarImages[0].metadata.analysis;
+                result = {
+                    stone_type: fallback.stone_type || "Unknown",
+                    color_and_pattern: fallback.color_and_pattern || "Not identified",
+                    damage_type: fallback.damage_type || "None detected",
+                    severity: fallback.severity || "N/A",
+                    reasoning: "Fallback to recent database entry due to analysis failure: " + err.message
+                };
+                console.log("Using fallback from MongoDB:", result);
+            } else {
+                result = null;
+            }
+        }
+        if (!result) {
+            result = {
+                stone_type: "Unknown",
+                color_and_pattern: "Not identified",
+                damage_type: "None detected",
+                severity: "N/A",
+                reasoning: "Analysis failed due to an error: " + err.message
+            };
+        }
     }
+
+    const identifiedColor = result.color_and_pattern.toLowerCase();
+    const identifiedMaterial = result.stone_type.toLowerCase();
+    const bestMatch = materialsData.find(item =>
+        item.Material.toLowerCase() === identifiedMaterial &&
+        identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
+    ) || {};
+
+    result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
+    result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
+    result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
+    result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
+    result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
+                                        result.severity === "Moderate" ? "Consider professional repair." : 
+                                        "No action required.";
+    result.cleaning_recommendation = result.stone_type === "Marble" ? "Use a pH-neutral cleaner and avoid acidic substances." : 
+                                    "Clean with mild soap and water.";
+    result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : 
+                                  "No repairs needed.";
+    result.possible_matches = materialsData.map(item => ({
+        color_name: item["Color Name"],
+        material: item.Material,
+        thickness: item.Thickness
+    }));
+
+    console.log("Final analysis result:", result);
+    return result;
 }
 
 function calculateRepairCost(damageType, severity) {
