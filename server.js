@@ -4,6 +4,7 @@ const multer = require("multer");
 const cors = require("cors");
 const helmet = require("helmet");
 const fs = require("fs").promises;
+const path = require("path"); // Added for file path handling
 const { MongoClient, Binary } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
@@ -44,7 +45,12 @@ app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public"))); // Serve static files from 'public'
+
+// Explicitly serve index.html at root
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 app.get("/api/health", (req, res) => {
     const dbStatus = db ? "Connected" : "Disconnected";
