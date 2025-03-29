@@ -90,7 +90,6 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imageBase64 = imageBuffer.toString("base64");
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
-        // Always perform a fresh OpenAI analysis, even for repeat images
         const analysis = await analyzeImage(imageBase64);
         console.log("OpenAI Analysis complete:", analysis);
 
@@ -100,25 +99,6 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
 
         const imagesCollection = db ? db.collection("countertop_images") : null;
         if (imagesCollection) {
-            // Optional: Fetch similar images for recommendations (not blocking analysis)
-            const similarImages = await imagesCollection.find({ 
-                "metadata.analysis.stone_type": analysis.stone_type,
-                "metadata.analysis.color_and_pattern": { $regex: analysis.color_and_pattern.split(" ")[0], $options: "i" }
-            }).limit(3).toArray();
-
-            if (similarImages.length > 0) {
-                analysis.previous_matches = similarImages.map(img => ({
-                    id: img._id.toString(),
-                    stone_type: img.metadata.analysis.stone_type,
-                    color_and_pattern: img.metadata.analysis.color_and_pattern,
-                    damage_type: img.metadata.analysis.damage_type,
-                    severity: img.metadata.analysis.severity
-                }));
-                analysis.professional_recommendation += ` Previous similar countertops suggest: ${
-                    similarImages.map(img => img.metadata.analysis.repair_recommendation).join(" or ")
-                }`;
-            }
-
             // Dynamic Granite matches only if stone_type is Granite
             if (analysis.stone_type.toLowerCase() === "granite") {
                 const colorKeywords = analysis.color_and_pattern.toLowerCase().split(" ");
@@ -307,8 +287,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 3000, // Increased for deeper analysis
-            temperature: 0.7 // Slightly lower for more precise, less creative output
+            max_tokens: 3000,
+            temperature: 0.7
         });
 
         console.log("OpenAI response received:", response);
@@ -366,8 +346,8 @@ async function analyzeImage(imageBase64) {
 
     result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
     result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
-    result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
-    result.natural_stone = result.stone_type && ["Marble", "Granite", "Quartzite"].includes(result.stone_type);
+    result.material_composition = result.stone_type ? `${result.stone_type} ${result.natural_stone ? "(Natural)" : "(Engineered)"}` : "Not identified";
+    result.natural_stone = result.stone_type && ["marble", "granite", "quartzite"].includes(result.stone_type.toLowerCase());
     result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
                                         result.severity === "Moderate" ? "Consider professional repair." : 
                                         "No action required.";
@@ -386,19 +366,29 @@ async function analyzeImage(imageBase64) {
 }
 
 function calculateRepairCost(damageType, severity) {
-    if (!laborData || laborData.length === 0) return "Contact for estimate";
+    if (!laborData || laborData.length === 0) {
+        console.warn("laborData not loaded or empty");
+        return "Contact for estimate";
+    }
+    
     let simplifiedDamageType = damageType.toLowerCase();
     if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) return "$0.00";
     if (simplifiedDamageType.includes("crack")) simplifiedDamageType = "crack";
     else if (simplifiedDamageType.includes("chip")) simplifiedDamageType = "chip";
     else if (simplifiedDamageType.includes("stain")) simplifiedDamageType = "stain";
     else if (simplifiedDamageType.includes("scratch")) simplifiedDamageType = "scratch";
-    else return "Contact for estimate";
+    else {
+        console.warn("No matching damage type found in laborData:", simplifiedDamageType);
+        return "Contact for estimate";
+    }
 
     const laborEntry = laborData.find(entry => 
         entry.repair_type.toLowerCase() === simplifiedDamageType
     );
-    if (!laborEntry) return "Contact for estimate";
+    if (!laborEntry) {
+        console.warn("No labor entry found for damage type:", simplifiedDamageType);
+        return "Contact for estimate";
+    }
 
     const severityMultiplier = {
         "Low": 1,
@@ -409,6 +399,7 @@ function calculateRepairCost(damageType, severity) {
     }[severity] || 1;
 
     const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
+    console.log("Calculated repair cost:", { damageType: simplifiedDamageType, severity, cost });
     return `$${cost.toFixed(2)}`;
 }
 
