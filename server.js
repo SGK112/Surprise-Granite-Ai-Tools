@@ -37,7 +37,7 @@ async function connectToMongoDB() {
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
         console.error("MongoDB connection failed:", err.message);
-        db = null; // Allow app to run, endpoints will handle DB absence
+        db = null;
     }
 }
 
@@ -105,6 +105,16 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
             }`;
         }
 
+        const mongoMatches = await imagesCollection.find({ 
+            "metadata.analysis.stone_type": "Granite" // Filter for granite
+        }).limit(5).toArray();
+
+        analysis.mongo_matches = mongoMatches.map(match => ({
+            stone_type: match.metadata.analysis.stone_type,
+            color_and_pattern: match.metadata.analysis.color_and_pattern,
+            imageBase64: match.imageData.buffer.toString("base64")
+        }));
+
         const imageDoc = {
             imageHash,
             imageData: new Binary(imageBuffer),
@@ -113,7 +123,8 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
                 mimeType: req.file.mimetype,
                 size: req.file.size,
                 uploadDate: new Date(),
-                analysis
+                analysis,
+                likes: 0
             }
         };
 
@@ -148,6 +159,30 @@ app.get("/api/get-countertop/:id", async (req, res) => {
     } catch (err) {
         console.error("Fetch countertop error:", err.message);
         res.status(500).json({ error: "Failed to fetch countertop: " + err.message });
+    }
+});
+
+app.post("/api/like-countertop/:id", async (req, res) => {
+    console.log("POST /api/like-countertop/", req.params.id);
+    try {
+        if (!db) return res.status(503).json({ error: "Database unavailable" });
+        const imagesCollection = db.collection("countertop_images");
+        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        if (!countertop) {
+            console.error("Countertop not found");
+            return res.status(404).json({ error: "Countertop not found" });
+        }
+
+        const newLikes = (countertop.metadata.likes || 0) + 1;
+        await imagesCollection.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { "metadata.likes": newLikes } }
+        );
+        console.log("Like added, new count:", newLikes);
+        res.status(200).json({ message: "Like added", likes: newLikes });
+    } catch (err) {
+        console.error("Like error:", err.message);
+        res.status(500).json({ error: "Failed to like countertop: " + err.message });
     }
 });
 
@@ -203,7 +238,7 @@ app.post("/api/tts", async (req, res) => {
             "Content-Type": "audio/mpeg",
             "Content-Length": audioBuffer.length
         });
-        console.log("TTS audio generated");
+        console.log("TTS audio generated, length:", audioBuffer.length);
         res.send(audioBuffer);
     } catch (err) {
         console.error("TTS error:", err.message);
@@ -214,15 +249,15 @@ app.post("/api/tts", async (req, res) => {
 async function analyzeImage(imageBase64) {
     console.log("Analyzing image...");
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning. Analyze this countertop image with precision and a conversational tone:
-    - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite") based on texture, sheen, and visual cues. If uncertain, provide a best guess with reasoning.
-    - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins" or "Glossy white with subtle gray swirls").
-    - Damage type: Specify clearly, including subtle or hidden issues (e.g., "There’s a hairline crack near the edge" or "No damage here, looks pristine!"). Look for cracks, chips, stains, or wear.
+    - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite") based on texture, sheen, and visual cues. If uncertain, provide a best guess with detailed reasoning.
+    - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins" or "Glossy white with subtle gray swirls"). Be vivid and precise.
+    - Damage type: Specify clearly, including subtle or hidden issues (e.g., "There’s a hairline crack near the edge" or "No damage here, looks pristine!"). Look for cracks, chips, stains, or wear, and describe their location and extent.
     - Severity: Assess with context and actionable insight:
       - None: "No damage at all, it’s in great shape!"
       - Low: "Just a tiny scratch, no biggie—easy fix."
       - Moderate: "A decent crack, worth fixing to prevent worsening."
       - Severe: "Whoa, this crack’s serious—structural damage likely."
-    Use image data only, be honest if unsure, and explain your reasoning briefly. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning.`;
+    Use image data only, be honest if unsure, and explain your reasoning in detail to justify your conclusions. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning.`;
 
     try {
         const response = await openai.chat.completions.create({
@@ -231,7 +266,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 1500
+            max_tokens: 2000, // Increased to 2000
+            temperature: 0.8 // Raised for creativity
         });
 
         const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
