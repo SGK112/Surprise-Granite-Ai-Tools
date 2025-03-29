@@ -284,9 +284,9 @@ app.post("/api/tts", async (req, res) => {
 async function analyzeImage(imageBase64) {
     console.log("Analyzing image with OpenAI...");
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning. Analyze this countertop image with precision and a conversational tone:
-    - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite") based on texture, sheen, and visual cues. If uncertain, provide a best guess with detailed reasoning.
+    - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain") based on texture, sheen, and visual cues for natural stone and man made quartz countertops. Analyze image patterning and colors to establish material type. Use logic to establish whether the stone is a man made quartz or natural stone quartzite. Look for coutnertops that are mostly white for man made quartz countertops. If uncertain, search "www.surprisegranite.com/materials/all-countertops" and provide a best guess with detailed reasoning.
     - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins" or "Glossy white with subtle gray swirls"). Be vivid and precise.
-    - Damage type: Specify clearly, including subtle or hidden issues (e.g., "There’s a hairline crack near the edge" or "No damage here, looks pristine!"). Look for cracks, chips, stains, or wear, and describe their location and extent.
+    - Damage type: Specify clearly, including subtle or hidden issues (e.g., "Woah! Damage looks severe! Contact Surprise Granite for a detailed analysis" "There’s a hairline crack near the edge" or "No damage here, looks pristine!"). Look for cracks, chips, stains, or wear, and describe their location and extent.
     - Severity: Assess with context and actionable insight:
       - None: "No damage at all, it’s in great shape!"
       - Low: "Just a tiny scratch, no biggie—easy fix."
@@ -303,8 +303,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 2000,
-            temperature: 0.8
+            max_tokens: 2500,
+            temperature: 0.825
         });
 
         console.log("OpenAI response received:", response);
