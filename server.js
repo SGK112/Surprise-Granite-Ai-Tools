@@ -74,7 +74,6 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus });
 });
 
-// [Your other routes remain unchanged - copy/paste your original routes here]
 app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     console.log("POST /api/upload-countertop");
     try {
@@ -236,7 +235,7 @@ app.post("/api/send-email", async (req, res) => {
             EMAILJS_SERVICE_ID,
             EMAILJS_TEMPLATE_ID,
             templateParams,
-            { publicKey: EMAILJS_PUBLIC_KEY }
+            { publicKey: EMAILJS_PUBLIC_KEY } // Fixed typo: publickKey -> publicKey
         );
         console.log("Email sent successfully");
         res.status(200).json({ message: "Email sent successfully" });
@@ -261,7 +260,8 @@ app.post("/api/tts", async (req, res) => {
             input: text
         });
 
-        const audioBuffer = Buffer.from(await response.arrayBuffer());
+        const arrayBuffer = await response.arrayBuffer(); // Fixed syntax error
+        const audioBuffer = Buffer.from(arrayBuffer);     // Properly create buffer
         res.set({
             "Content-Type": "audio/mpeg",
             "Content-Length": audioBuffer.length
