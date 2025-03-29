@@ -7,18 +7,20 @@ const fs = require("fs").promises;
 const { MongoClient, Binary } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
+const EmailJS = require("@emailjs/nodejs");
 
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Configuration (using Render environment variables)
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// Materials data (add your full list here)
 const materialsData = [
     { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24, "Price Group": 2, "Tier": "Low Tier" },
     { "Color Name": "VANILLA SKY", "Vendor Name": "MSI", "Thickness": "1.6cm", "Material": "Marble", "size": "126x63", "Total/SqFt": 4.8, "Cost/SqFt": 5.65, "Price Group": 1, "Tier": "Low Tier" }
@@ -26,7 +28,6 @@ const materialsData = [
 
 let db;
 
-// MongoDB Connection
 async function connectToMongoDB() {
     try {
         const client = new MongoClient(MONGODB_URI);
@@ -39,19 +40,17 @@ async function connectToMongoDB() {
     }
 }
 
-// Middleware
 app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public")); // Serve frontend
 
-// Health Check
 app.get("/api/health", (req, res) => {
     const dbStatus = db ? "Connected" : "Disconnected";
     res.json({ status: "Server is running", port: PORT, dbStatus });
 });
 
-// Image Upload Endpoint
 app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No image uploaded" });
@@ -65,7 +64,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const existingImage = await imagesCollection.findOne({ imageHash });
         if (existingImage) {
             await fs.unlink(filePath);
-            return res.json({ imageId: existingImage._id, message: "Image already exists" });
+            return res.json({ imageId: existingImage._id, message: "Image already exists", metadata: existingImage.metadata });
         }
 
         const analysis = OPENAI_API_KEY ? await analyzeImage(imageBase64) : null;
@@ -85,14 +84,13 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const result = await imagesCollection.insertOne(imageDoc);
         await fs.unlink(filePath);
 
-        res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully" });
+        res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully", metadata: imageDoc.metadata });
     } catch (err) {
         console.error("Upload error:", err.message);
         res.status(500).json({ error: "Failed to upload image" });
     }
 });
 
-// Get Specific Countertop by ID Endpoint
 app.get("/api/get-countertop/:id", async (req, res) => {
     try {
         const imagesCollection = db.collection("countertop_images");
@@ -111,7 +109,40 @@ app.get("/api/get-countertop/:id", async (req, res) => {
     }
 });
 
-// Analysis Function
+app.post("/api/send-email", async (req, res) => {
+    try {
+        const { name, email, phone, message, stone_type, analysis_summary } = req.body;
+        if (!name || !email || !message) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const templateParams = {
+            from_name: name,
+            from_email: email,
+            phone: phone || "Not provided",
+            message,
+            stone_type: stone_type || "N/A",
+            analysis_summary: analysis_summary || "No analysis provided"
+        };
+
+        await EmailJS.send(
+            EMAILJS_SERVICE_ID,
+            EMAILJS_TEMPLATE_ID,
+            templateParams,
+            { publicKey: EMAILJS_PUBLIC_KEY }
+        );
+
+        res.status(200).json({ message: "Email sent successfully" });
+    } catch (err) {
+        console.error("Email error:", err.message);
+        res.status(500).json({ error: "Failed to send email" });
+    }
+});
+
+app.post("/api/tts", (req, res) => {
+    res.status(501).json({ error: "Text-to-speech not implemented yet" });
+});
+
 async function analyzeImage(imageBase64) {
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision. Analyze this countertop image with precision and conversational tone:
     - Stone type: Identify the material (e.g., "Quartz", "Marble") based on texture and visual cues.
@@ -138,7 +169,6 @@ async function analyzeImage(imageBase64) {
 
     if (result.error) return result;
 
-    // Match with materialsData
     const identifiedColor = result.color_and_pattern.toLowerCase();
     const identifiedMaterial = result.stone_type.toLowerCase();
     const bestMatch = materialsData.find(item =>
@@ -148,8 +178,6 @@ async function analyzeImage(imageBase64) {
 
     result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
     result.estimated_cost = bestMatch["Cost/SqFt"] ? (bestMatch["Cost/SqFt"] * bestMatch["Total/SqFt"]).toFixed(2) : "N/A";
-
-    // Add additional fields for CARI app
     result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
     result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
     result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : result.severity === "Moderate" ? "Consider professional repair." : "No action required.";
@@ -165,7 +193,6 @@ async function analyzeImage(imageBase64) {
     return result;
 }
 
-// Start Server
 connectToMongoDB().then(() => {
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 });
