@@ -106,7 +106,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         }
 
         const mongoMatches = await imagesCollection.find({ 
-            "metadata.analysis.stone_type": "Granite" // Filter for granite
+            "metadata.analysis.stone_type": "Granite"
         }).limit(5).toArray();
 
         analysis.mongo_matches = mongoMatches.map(match => ({
@@ -266,8 +266,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 2000, // Increased to 2000
-            temperature: 0.8 // Raised for creativity
+            max_tokens: 2000,
+            temperature: 0.8
         });
 
         const content = response.choices[0].message.content.match(/\{[\s\S]*\}/);
@@ -286,7 +286,7 @@ async function analyzeImage(imageBase64) {
         ) || {};
 
         result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
-        result.estimated_cost = bestMatch["Cost/SqFt"] ? (bestMatch["Cost/SqFt"] * bestMatch["Total/SqFt"]).toFixed(2) : "N/A";
+        result.estimated_cost = "Contact for estimate"; // No pricing
         result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
         result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
         result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
@@ -299,8 +299,7 @@ async function analyzeImage(imageBase64) {
         result.possible_matches = materialsData.map(item => ({
             color_name: item["Color Name"],
             material: item.Material,
-            thickness: item.Thickness,
-            replacement_cost: (item["Cost/SqFt"] * item["Total/SqFt"]).toFixed(2)
+            thickness: item.Thickness
         }));
 
         return result;
