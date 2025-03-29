@@ -13,13 +13,23 @@ const EmailJS = require("@emailjs/nodejs");
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
 
-const PORT = process.env.PORT || 10000; // Matches your log "Server running on port 10000"
+const PORT = process.env.PORT || 10000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
+
+// Validate environment variables at startup
+console.log("Environment variables:", {
+    EMAILJS_SERVICE_ID: !!EMAILJS_SERVICE_ID,
+    EMAILJS_TEMPLATE_ID: !!EMAILJS_TEMPLATE_ID,
+    EMAILJS_PUBLIC_KEY: !!EMAILJS_PUBLIC_KEY,
+    EMAILJS_PRIVATE_KEY: !!EMAILJS_PRIVATE_KEY,
+    MONGODB_URI: !!MONGODB_URI,
+    OPENAI_API_KEY: !!OPENAI_API_KEY
+});
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
@@ -207,17 +217,23 @@ app.post("/api/send-email", async (req, res) => {
             templateParams,
             {
                 publicKey: EMAILJS_PUBLIC_KEY,
-                privateKey: EMAILJS_PRIVATE_KEY // Explicitly pass private key
+                privateKey: EMAILJS_PRIVATE_KEY // Explicitly include private key
             }
         );
         console.log("Email sent successfully:", emailResponse);
         res.status(200).json({ message: "Email sent successfully", response: emailResponse });
     } catch (err) {
-        console.error("Email sending error:", err.message || "Unknown error", err.stack || "No stack trace");
+        console.error("Email sending error:", {
+            message: err.message || "Unknown error",
+            code: err.code || "N/A",
+            status: err.status || "N/A",
+            stack: err.stack || "No stack trace"
+        });
         res.status(500).json({ 
             error: "Failed to send email", 
             details: err.message || "Unknown error occurred",
-            stack: err.stack || "No stack trace available"
+            code: err.code || "N/A",
+            status: err.status || "N/A"
         });
     }
 });
