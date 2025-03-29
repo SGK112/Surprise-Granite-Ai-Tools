@@ -88,19 +88,41 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     }
 });
 
-// Get All Countertops Endpoint
+// Get All Countertops Endpoint with Pagination
 app.get("/api/get-countertops", async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const imagesCollection = db.collection("countertop_images");
-        const countertops = await imagesCollection.find({}).toArray();
-        const response = countertops.map(item => ({
-            id: item._id,
-            imageBase64: item.imageData.buffer.toString("base64"),
-            analysis: item.metadata.analysis || {}
-        }));
-        res.json(response);
+        const total = await imagesCollection.countDocuments();
+        const countertops = await imagesCollection.find({}).skip(skip).limit(limit).toArray();
+
+        const response = countertops.map(item => {
+            try {
+                return {
+                    id: item._id,
+                    // Temporarily omit imageBase64 to reduce response size
+                    // imageBase64: item.imageData.buffer.toString("base64"),
+                    originalName: item.metadata.originalName,
+                    analysis: item.metadata.analysis || {}
+                };
+            } catch (err) {
+                console.error(`Error processing item ${item._id}:`, err.message);
+                return null;
+            }
+        }).filter(item => item !== null);
+
+        res.json({
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            countertops: response
+        });
     } catch (err) {
-        console.error("Error fetching countertops:", err.message);
+        console.error("Error in /api/get-countertops:", err.message, err.stack);
         res.status(500).json({ error: "Failed to fetch countertops" });
     }
 });
