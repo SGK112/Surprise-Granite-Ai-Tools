@@ -44,7 +44,7 @@ app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public")); // Serve frontend
+app.use(express.static("public"));
 
 app.get("/api/health", (req, res) => {
     const dbStatus = db ? "Connected" : "Disconnected";
