@@ -12,7 +12,7 @@
     "express": "^4.18.0",
     "helmet": "^7.0.0",
     "mongodb": "^6.0.0",
-    "multer": "^1.4.5",
+    "multer": "^1.4.5-lts.1",  // Fixed version
     "openai": "^4.0.0"
   }
 }
