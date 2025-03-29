@@ -22,15 +22,14 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// Load labor.json at startup
 let laborData;
 try {
-    const laborJsonPath = path.join(__dirname, "data", "labor.json"); // Adjust path if needed
+    const laborJsonPath = path.join(__dirname, "data", "labor.json");
     laborData = JSON.parse(fs.readFileSync(laborJsonPath, "utf8"));
     console.log("Loaded labor.json:", laborData);
 } catch (err) {
     console.error("Failed to load labor.json:", err.message);
-    laborData = []; // Fallback to empty array
+    laborData = [];
 }
 
 const materialsData = [
@@ -59,8 +58,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
-    console.log("GET / - Serving index.html");
-    res.sendFile(path.join(__dirname, "public", "index.html"));
+    const filePath = path.join(__dirname, "public", "index.html");
+    console.log("GET / - Attempting to serve:", filePath);
+    res.sendFile(filePath, (err) => {
+        if (err) {
+            console.error("Error serving index.html:", err.message);
+            res.status(500).json({ error: "Failed to load index.html", details: err.message });
+        }
+    });
 });
 
 app.get("/api/health", (req, res) => {
@@ -69,6 +74,7 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus });
 });
 
+// [Your other routes remain unchanged - copy/paste your original routes here]
 app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     console.log("POST /api/upload-countertop");
     try {
@@ -308,7 +314,6 @@ async function analyzeImage(imageBase64) {
         ) || {};
 
         result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
-        // Calculate repair cost from labor.json
         result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
         result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
         result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
