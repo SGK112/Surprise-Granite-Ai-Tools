@@ -90,6 +90,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imageBase64 = imageBuffer.toString("base64");
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
+        // Always perform a fresh OpenAI analysis, even for repeat images
         const analysis = await analyzeImage(imageBase64);
         console.log("OpenAI Analysis complete:", analysis);
 
@@ -98,17 +99,8 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         }
 
         const imagesCollection = db ? db.collection("countertop_images") : null;
-        let existingImage = null;
         if (imagesCollection) {
-            existingImage = await imagesCollection.findOne({ imageHash });
-            if (existingImage) {
-                console.log("Image already exists, ID:", existingImage._id);
-                await fs.unlink(filePath);
-                return res.json({ imageId: existingImage._id, message: "Image already exists", metadata: existingImage.metadata });
-            }
-        }
-
-        if (imagesCollection) {
+            // Optional: Fetch similar images for recommendations (not blocking analysis)
             const similarImages = await imagesCollection.find({ 
                 "metadata.analysis.stone_type": analysis.stone_type,
                 "metadata.analysis.color_and_pattern": { $regex: analysis.color_and_pattern.split(" ")[0], $options: "i" }
@@ -127,15 +119,24 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
                 }`;
             }
 
-            const mongoMatches = await imagesCollection.find({ 
-                "metadata.analysis.stone_type": "Granite"
-            }).limit(5).toArray();
+            // Dynamic Granite matches only if stone_type is Granite
+            if (analysis.stone_type.toLowerCase() === "granite") {
+                const colorKeywords = analysis.color_and_pattern.toLowerCase().split(" ");
+                const mongoMatches = await imagesCollection.find({ 
+                    "metadata.analysis.stone_type": "Granite",
+                    $or: colorKeywords.map(keyword => ({
+                        "metadata.analysis.color_and_pattern": { $regex: keyword, $options: "i" }
+                    }))
+                }).limit(5).toArray();
 
-            analysis.mongo_matches = mongoMatches.map(match => ({
-                stone_type: match.metadata.analysis.stone_type,
-                color_and_pattern: match.metadata.analysis.color_and_pattern,
-                imageBase64: match.imageData.buffer.toString("base64")
-            }));
+                analysis.mongo_matches = mongoMatches.map(match => ({
+                    stone_type: match.metadata.analysis.stone_type,
+                    color_and_pattern: match.metadata.analysis.color_and_pattern,
+                    imageBase64: match.imageData.buffer.toString("base64")
+                }));
+            } else {
+                analysis.mongo_matches = [];
+            }
         } else {
             analysis.mongo_matches = [];
         }
@@ -283,16 +284,19 @@ app.post("/api/tts", async (req, res) => {
 
 async function analyzeImage(imageBase64) {
     console.log("Analyzing image with OpenAI...");
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning. Analyze this countertop image with precision and a conversational tone:
-    - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain") based on texture, sheen, and visual cues for natural stone and man made quartz countertops. Analyze image patterning and colors to establish material type. Use logic to establish whether the stone is a man made quartz or natural stone quartzite. Look for coutnertops that are mostly white for man made quartz countertops. If uncertain, search "www.surprisegranite.com/materials/all-countertops" and provide a best guess with detailed reasoning.
-    - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins" or "Glossy white with subtle gray swirls"). Be vivid and precise.
-    - Damage type: Specify clearly, including subtle or hidden issues (e.g., "Woah! Damage looks severe! Contact Surprise Granite for a detailed analysis" "There’s a hairline crack near the edge" or "No damage here, looks pristine!"). Look for cracks, chips, stains, or wear, and describe their location and extent.
-    - Severity: Assess with context and actionable insight:
-      - None: "No damage at all, it’s in great shape!"
-      - Low: "Just a tiny scratch, no biggie—easy fix."
-      - Moderate: "A decent crack, worth fixing to prevent worsening."
-      - Severe: "Whoa, this crack’s serious—structural damage likely."
-    Use image data only, be honest if unsure, and explain your reasoning in detail to justify your conclusions. Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning.`;
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning capabilities. Perform a deep, detailed analysis of this countertop image, leveraging your full potential for precision and insight. Avoid generic responses and provide a comprehensive breakdown:
+
+    - Stone type: Identify the material with high accuracy (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain") by examining texture, sheen, grain, edge profiles, and visual cues. Differentiate between natural stones (e.g., Granite, Marble, Quartzite) and engineered materials (e.g., Quartz, Dekton, Porcelain). For Quartz vs. Quartzite, analyze uniformity of pattern (Quartz often has consistent, manufactured patterns; Quartzite has natural, irregular veining). Include a confidence level (e.g., "95% Quartz") and detailed reasoning. If uncertain, reference characteristics from "www.surprisegranite.com/materials/all-countertops" and make an educated guess.
+    - Color and pattern: Provide a vivid, specific description of colors (e.g., "matte ivory," "glossy charcoal gray") and patterns (e.g., "swirling white veins," "fine black speckles with golden flecks"). Note variations, transitions, or unique features across the surface.
+    - Damage type: Detect and describe all visible damage with precision (e.g., "crack," "chip," "stain," "scratch"), including exact location (e.g., "1-inch crack along the left edge") and extent (e.g., "spanning 3 inches diagonally"). Look for subtle or hidden issues like micro-fractures, discoloration, or wear. Use simple terms ("crack," "chip") for cost estimation compatibility. If no damage is present, explicitly state "No visible damage."
+    - Severity: Evaluate damage severity with actionable context:
+      - None: "No damage detected, the surface is pristine!"
+      - Low: "Minor imperfection, easily repairable with minimal effort."
+      - Moderate: "Noticeable damage, repair advised to prevent progression."
+      - Severe: "Significant structural damage, immediate professional attention recommended."
+    - Reasoning: Deliver a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen and engineered veining suggest Quartz over Quartzite"). Avoid assumptions; base conclusions solely on the image.
+
+    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning. Ensure every analysis is fresh and unique, even for identical images, to support testing.`;
 
     let result;
     try {
@@ -303,8 +307,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 2500,
-            temperature: 0.825
+            max_tokens: 3000, // Increased for deeper analysis
+            temperature: 0.7 // Slightly lower for more precise, less creative output
         });
 
         console.log("OpenAI response received:", response);
@@ -333,8 +337,8 @@ async function analyzeImage(imageBase64) {
                 result = {
                     stone_type: fallback.stone_type || "Unknown",
                     color_and_pattern: fallback.color_and_pattern || "Not identified",
-                    damage_type: fallback.damage_type || "None detected",
-                    severity: fallback.severity || "N/A",
+                    damage_type: fallback.damage_type || "No visible damage",
+                    severity: fallback.severity || "None",
                     reasoning: "Fallback to recent database entry due to analysis failure: " + err.message
                 };
                 console.log("Using fallback from MongoDB:", result);
@@ -346,8 +350,8 @@ async function analyzeImage(imageBase64) {
             result = {
                 stone_type: "Unknown",
                 color_and_pattern: "Not identified",
-                damage_type: "None detected",
-                severity: "N/A",
+                damage_type: "No visible damage",
+                severity: "None",
                 reasoning: "Analysis failed due to an error: " + err.message
             };
         }
@@ -363,7 +367,7 @@ async function analyzeImage(imageBase64) {
     result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
     result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
     result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
-    result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
+    result.natural_stone = result.stone_type && ["Marble", "Granite", "Quartzite"].includes(result.stone_type);
     result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
                                         result.severity === "Moderate" ? "Consider professional repair." : 
                                         "No action required.";
@@ -383,8 +387,16 @@ async function analyzeImage(imageBase64) {
 
 function calculateRepairCost(damageType, severity) {
     if (!laborData || laborData.length === 0) return "Contact for estimate";
+    let simplifiedDamageType = damageType.toLowerCase();
+    if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) return "$0.00";
+    if (simplifiedDamageType.includes("crack")) simplifiedDamageType = "crack";
+    else if (simplifiedDamageType.includes("chip")) simplifiedDamageType = "chip";
+    else if (simplifiedDamageType.includes("stain")) simplifiedDamageType = "stain";
+    else if (simplifiedDamageType.includes("scratch")) simplifiedDamageType = "scratch";
+    else return "Contact for estimate";
+
     const laborEntry = laborData.find(entry => 
-        entry.repair_type.toLowerCase() === (damageType || "").toLowerCase()
+        entry.repair_type.toLowerCase() === simplifiedDamageType
     );
     if (!laborEntry) return "Contact for estimate";
 
@@ -392,7 +404,8 @@ function calculateRepairCost(damageType, severity) {
         "Low": 1,
         "Moderate": 2,
         "Severe": 3,
-        "N/A": 0
+        "N/A": 0,
+        "None": 0
     }[severity] || 1;
 
     const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
