@@ -22,6 +22,17 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
+// Load labor.json at startup
+let laborData;
+try {
+    const laborJsonPath = path.join(__dirname, "data", "labor.json"); // Adjust path if needed
+    laborData = JSON.parse(fs.readFileSync(laborJsonPath, "utf8"));
+    console.log("Loaded labor.json:", laborData);
+} catch (err) {
+    console.error("Failed to load labor.json:", err.message);
+    laborData = []; // Fallback to empty array
+}
+
 const materialsData = [
     { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24, "Price Group": 2, "Tier": "Low Tier" },
     { "Color Name": "VANILLA SKY", "Vendor Name": "MSI", "Thickness": "1.6cm", "Material": "Marble", "size": "126x63", "Total/SqFt": 4.8, "Cost/SqFt": 5.65, "Price Group": 1, "Tier": "Low Tier" }
@@ -71,49 +82,55 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imageBase64 = imageBuffer.toString("base64");
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
-        if (!db) {
-            console.error("Database not connected");
-            return res.status(503).json({ error: "Database unavailable" });
-        }
-
-        const imagesCollection = db.collection("countertop_images");
-        const existingImage = await imagesCollection.findOne({ imageHash });
-        if (existingImage) {
-            console.log("Image already exists, ID:", existingImage._id);
-            await fs.unlink(filePath);
-            return res.json({ imageId: existingImage._id, message: "Image already exists", metadata: existingImage.metadata });
-        }
-
         const analysis = await analyzeImage(imageBase64);
-        console.log("Analysis complete:", analysis);
+        console.log("OpenAI Analysis complete:", analysis);
 
-        const similarImages = await imagesCollection.find({ 
-            "metadata.analysis.stone_type": analysis.stone_type,
-            "metadata.analysis.color_and_pattern": { $regex: analysis.color_and_pattern.split(" ")[0], $options: "i" }
-        }).limit(3).toArray();
-
-        if (similarImages.length > 0) {
-            analysis.previous_matches = similarImages.map(img => ({
-                id: img._id.toString(),
-                stone_type: img.metadata.analysis.stone_type,
-                color_and_pattern: img.metadata.analysis.color_and_pattern,
-                damage_type: img.metadata.analysis.damage_type,
-                severity: img.metadata.analysis.severity
-            }));
-            analysis.professional_recommendation += ` Previous similar countertops suggest: ${
-                similarImages.map(img => img.metadata.analysis.repair_recommendation).join(" or ")
-            }`;
+        if (!db) {
+            console.warn("Database not connected, proceeding with OpenAI analysis only");
         }
 
-        const mongoMatches = await imagesCollection.find({ 
-            "metadata.analysis.stone_type": "Granite"
-        }).limit(5).toArray();
+        const imagesCollection = db ? db.collection("countertop_images") : null;
+        let existingImage = null;
+        if (imagesCollection) {
+            existingImage = await imagesCollection.findOne({ imageHash });
+            if (existingImage) {
+                console.log("Image already exists, ID:", existingImage._id);
+                await fs.unlink(filePath);
+                return res.json({ imageId: existingImage._id, message: "Image already exists", metadata: existingImage.metadata });
+            }
+        }
 
-        analysis.mongo_matches = mongoMatches.map(match => ({
-            stone_type: match.metadata.analysis.stone_type,
-            color_and_pattern: match.metadata.analysis.color_and_pattern,
-            imageBase64: match.imageData.buffer.toString("base64")
-        }));
+        if (imagesCollection) {
+            const similarImages = await imagesCollection.find({ 
+                "metadata.analysis.stone_type": analysis.stone_type,
+                "metadata.analysis.color_and_pattern": { $regex: analysis.color_and_pattern.split(" ")[0], $options: "i" }
+            }).limit(3).toArray();
+
+            if (similarImages.length > 0) {
+                analysis.previous_matches = similarImages.map(img => ({
+                    id: img._id.toString(),
+                    stone_type: img.metadata.analysis.stone_type,
+                    color_and_pattern: img.metadata.analysis.color_and_pattern,
+                    damage_type: img.metadata.analysis.damage_type,
+                    severity: img.metadata.analysis.severity
+                }));
+                analysis.professional_recommendation += ` Previous similar countertops suggest: ${
+                    similarImages.map(img => img.metadata.analysis.repair_recommendation).join(" or ")
+                }`;
+            }
+
+            const mongoMatches = await imagesCollection.find({ 
+                "metadata.analysis.stone_type": "Granite"
+            }).limit(5).toArray();
+
+            analysis.mongo_matches = mongoMatches.map(match => ({
+                stone_type: match.metadata.analysis.stone_type,
+                color_and_pattern: match.metadata.analysis.color_and_pattern,
+                imageBase64: match.imageData.buffer.toString("base64")
+            }));
+        } else {
+            analysis.mongo_matches = [];
+        }
 
         const imageDoc = {
             imageHash,
@@ -128,8 +145,13 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
             }
         };
 
-        const result = await imagesCollection.insertOne(imageDoc);
-        console.log("Image inserted, ID:", result.insertedId);
+        let result = { insertedId: new ObjectId().toString() };
+        if (imagesCollection) {
+            result = await imagesCollection.insertOne(imageDoc);
+            console.log("Image inserted, ID:", result.insertedId);
+        } else {
+            console.warn("No DB connection, skipping insert");
+        }
         await fs.unlink(filePath);
 
         res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully", metadata: imageDoc.metadata });
@@ -247,7 +269,7 @@ app.post("/api/tts", async (req, res) => {
 });
 
 async function analyzeImage(imageBase64) {
-    console.log("Analyzing image...");
+    console.log("Analyzing image with OpenAI...");
     const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning. Analyze this countertop image with precision and a conversational tone:
     - Stone type: Identify the material (e.g., "Quartz", "Marble", "Granite") based on texture, sheen, and visual cues. If uncertain, provide a best guess with detailed reasoning.
     - Color and pattern: Describe naturally with specific colors and patterns (e.g., "Rich brown with black speckles and beige veins" or "Glossy white with subtle gray swirls"). Be vivid and precise.
@@ -274,7 +296,7 @@ async function analyzeImage(imageBase64) {
         let result = content ? JSON.parse(content[0]) : { error: "Analysis failed" };
 
         if (result.error) {
-            console.error("Analysis failed:", result.error);
+            console.error("OpenAI Analysis failed:", result.error);
             return result;
         }
 
@@ -286,7 +308,8 @@ async function analyzeImage(imageBase64) {
         ) || {};
 
         result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
-        result.estimated_cost = "Contact for estimate"; // No pricing
+        // Calculate repair cost from labor.json
+        result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
         result.material_composition = result.stone_type ? `${result.stone_type} (Natural)` : "Not identified";
         result.natural_stone = result.stone_type && ["Marble", "Granite"].includes(result.stone_type);
         result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
@@ -305,8 +328,45 @@ async function analyzeImage(imageBase64) {
         return result;
     } catch (err) {
         console.error("OpenAI analysis error:", err.message);
-        return { error: "Analysis failed: " + err.message };
+        return { 
+            stone_type: "Unknown",
+            color_and_pattern: "Not identified",
+            damage_type: "None detected",
+            severity: "N/A",
+            reasoning: "Analysis failed due to an error: " + err.message,
+            color_match_suggestion: "No match found",
+            estimated_cost: "Contact for estimate",
+            material_composition: "Not identified",
+            natural_stone: false,
+            professional_recommendation: "No action required due to analysis failure.",
+            cleaning_recommendation: "Clean with mild soap and water.",
+            repair_recommendation: "No repairs needed.",
+            possible_matches: materialsData.map(item => ({
+                color_name: item["Color Name"],
+                material: item.Material,
+                thickness: item.Thickness
+            })),
+            mongo_matches: []
+        };
     }
+}
+
+function calculateRepairCost(damageType, severity) {
+    if (!laborData || laborData.length === 0) return "Contact for estimate";
+    const laborEntry = laborData.find(entry => 
+        entry.repair_type.toLowerCase() === (damageType || "").toLowerCase()
+    );
+    if (!laborEntry) return "Contact for estimate";
+
+    const severityMultiplier = {
+        "Low": 1,
+        "Moderate": 2,
+        "Severe": 3,
+        "N/A": 0
+    }[severity] || 1;
+
+    const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
+    return `$${cost.toFixed(2)}`;
 }
 
 console.log(`Starting server on port ${PORT}...`);
