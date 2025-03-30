@@ -23,7 +23,7 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || throwError("EMAILJS
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 10 * 1024 * 1024 } });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // Cache for 1 hour
+const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
 
 // Global Variables
 let laborData = [];
@@ -38,7 +38,7 @@ function logError(message, err) {
   console.error(`${message}: ${err.message}`, err.stack);
 }
 
-// Load Labor Data (Optimized: Load once at startup)
+// Load Labor Data
 async function loadLaborData() {
   try {
     const laborJsonPath = path.join(__dirname, "data", "labor.json");
@@ -59,7 +59,7 @@ async function loadLaborData() {
   }
 }
 
-// MongoDB Connection (Optimized: Connection pooling)
+// MongoDB Connection
 async function connectToMongoDB() {
   try {
     const client = new MongoClient(MONGODB_URI, {
@@ -76,7 +76,7 @@ async function connectToMongoDB() {
   }
 }
 
-// Middleware (Optimized: Compression and rate limiting)
+// Middleware
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 app.use(compression());
@@ -87,7 +87,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
   rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
   })
 );
@@ -191,7 +191,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
   console.log("POST /api/contractor-estimate");
   let filePath;
   try {
-    if (!req.file) throw new Error("No file uploaded");
+    if (!req.file) throw new Error("No image uploaded");
 
     filePath = req.file.path;
     const imageBuffer = await fs.readFile(filePath);
@@ -257,7 +257,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
   } catch (err) {
     logError("Contractor estimate error", err);
     if (req.file && filePath) await cleanupFile(filePath);
-    res.status(err.message === "No file uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
+    res.status(err.message === "No image uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
   }
 });
 
