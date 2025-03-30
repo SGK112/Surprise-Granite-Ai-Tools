@@ -223,7 +223,7 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
             { _id: new ObjectId(req.params.id) },
             { $set: { "metadata.likes": newLikes } }
         );
-        updatePricingConfidence(countertop.metadata.estimate, 0.05); // Increase confidence on like
+        updatePricingConfidence(countertop.metadata.estimate, 0.05);
         console.log("Like added, new likes:", newLikes);
         res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
     } catch (err) {
@@ -244,7 +244,7 @@ app.post("/api/dislike-countertop/:id", async (req, res, next) => {
             { _id: new ObjectId(req.params.id) },
             { $set: { "metadata.dislikes": newDislikes } }
         );
-        updatePricingConfidence(countertop.metadata.estimate, -0.05); // Decrease confidence on dislike
+        updatePricingConfidence(countertop.metadata.estimate, -0.05);
         console.log("Dislike added, new dislikes:", newDislikes);
         res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
@@ -283,15 +283,13 @@ app.post("/api/send-email", async (req, res, next) => {
 
 // Learning and Analysis Functions
 function updatePricingConfidence(estimate, adjustment) {
-    // Adjust material confidence
-    const material = materialsData.find(m => m.type.toLowerCase() === estimate.material_type?.toLowerCase());
+    const material = materialsData.find(m => m.type.toLowerCase() === (estimate.material_type || "").toLowerCase());
     if (material) {
         material.confidence = Math.min(1, Math.max(0, (material.confidence || 1) + adjustment));
         console.log(`Updated confidence for ${material.type}: ${material.confidence}`);
     }
 
-    // Adjust labor confidence for condition and features
-    if (estimate.project_scope?.toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
+    if ((estimate.project_scope || "").toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
         const labor = laborData.find(l => l.type === estimate.condition.damage_type.toLowerCase());
         if (labor) {
             labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
@@ -313,9 +311,12 @@ async function estimateProject(fileContent, customerNeeds) {
         if (!db) throwError("Database not connected", 503);
         console.log("Fetching past estimates from MongoDB");
         const imagesCollection = db.collection("countertop_images");
-        const pastEstimates = await imagesCollection.find({
-            "metadata.estimate.material_type": { $exists: true }
-        }).sort({ "metadata.uploadDate": -1 }).limit(10).toArray();
+        const pastEstimates = await imagesCollection
+            .find({ "metadata.estimate.material_type": { $exists: true } })
+            .sort({ "metadata.uploadDate": -1 })
+            .limit(10)
+            .allowDiskUse(true) // Enable disk use to handle large sorts
+            .toArray();
         console.log("Fetched past estimates:", pastEstimates.length);
 
         const pastData = pastEstimates.map(img => ({
@@ -330,13 +331,13 @@ async function estimateProject(fileContent, customerNeeds) {
         }));
         console.log("Past data prepared:", pastData);
 
-        const prompt = `You are CARI, an AI estimator at Surprise Granite, optimized to provide the most accurate countertop estimates using our pricing data as of March 2025. Analyze this countertop image and customer needs ("${customerNeeds}") with the following:
+        const prompt = `You are CARI, an AI estimator at Surprise Granite, optimized for accurate countertop estimates using our pricing data as of March 2025. Analyze this countertop image and customer needs ("${customerNeeds}") with:
 
         **Pricing Data**:
-        - Labor: ${JSON.stringify(laborData)} (use rate_per_sqft, rate_per_unit, or rate_per_linear_ft as applicable; confidence indicates reliability).
+        - Labor: ${JSON.stringify(laborData)} (use rate_per_sqft, rate_per_unit, or rate_per_linear_ft; confidence indicates reliability).
         - Materials: ${JSON.stringify(materialsData)} (use cost_per_sqft; confidence indicates reliability).
 
-        **Historical Estimates**: ${JSON.stringify(pastData)} (use to refine material identification, solutions, and costs; prioritize entries with high likes and low dislikes).
+        **Historical Estimates**: ${JSON.stringify(pastData)} (use to refine material identification, solutions, and costs; prioritize high-liked, low-disliked entries).
 
         Estimate:
         - Project scope: New installation, replacement, or repair (infer from customer needs or image; default "replacement").
@@ -371,7 +372,7 @@ async function estimateProject(fileContent, customerNeeds) {
         console.log("Estimate result:", result);
         return result;
     } catch (err) {
-        logError("OpenAI estimate failed", err);
+        logError("Estimate generation failed", err);
         const fallback = {
             project_scope: "Replacement",
             material_type: "Unknown",
@@ -380,7 +381,7 @@ async function estimateProject(fileContent, customerNeeds) {
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
             solutions: "Contact for professional evaluation.",
-            reasoning: "Estimate failed: " + err.message + ". Assumed 25 sq ft kitchen countertop.",
+            reasoning: `Estimate failed: ${err.message}. Assumed 25 sq ft kitchen countertop.`,
         };
         console.log("Returning fallback estimate:", fallback);
         return fallback;
@@ -429,13 +430,14 @@ function enhanceCostEstimate(estimate) {
 
     const materialType = estimate.material_type || "Unknown";
     const material = materialsData.find(m => m.type.toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, confidence: 1 };
-    const materialCostAdjustment = material.confidence || 1; // Adjust cost based on confidence
+    const materialCostAdjustment = material.confidence || 1;
     const baseMaterialCost = material.cost_per_sqft * sqFt * materialCostAdjustment;
     const materialCostWithMargin = baseMaterialCost * 1.3; // 30% margin
     console.log("Material cost with margin:", materialCostWithMargin);
 
     let laborCost = 0;
-    if (estimate.project_scope?.toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
+    const projectScope = (estimate.project_scope || "replacement").toLowerCase();
+    if (projectScope === "repair" && estimate.condition.damage_type !== "No visible damage") {
         const damageType = estimate.condition.damage_type.toLowerCase();
         const laborEntry = laborData.find(entry => entry.type === damageType) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity] || 1;
