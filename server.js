@@ -41,10 +41,6 @@ app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, keyGenerator: (req) => req.ip }));
-app.use((req, res, next) => {
-    req.requestId = require("uuid").v4();
-    next();
-});
 
 // Utility Functions
 function throwConfigError(key) {
@@ -57,8 +53,8 @@ function throwError(message, status = 500) {
     throw err;
 }
 
-function logError(message, err, req = {}) {
-    console.error(`[${req.requestId || 'NO_ID'}] ${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
+function logError(message, err) {
+    console.error(`${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
 }
 
 async function loadLaborData() {
@@ -195,7 +191,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
                 totalCost: "Contact for estimate"
             };
         } catch (err) {
-            logError("Cost estimate calculation failed", err, req);
+            logError("Cost estimate calculation failed", err);
             costEstimate = {
                 materialCost: "Contact for estimate",
                 laborCost: { total: "Contact for estimate" },
@@ -209,7 +205,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
         try {
             audioBuffer = await generateTTS(estimate, customerNeeds);
         } catch (err) {
-            logError("TTS generation failed", err, req);
+            logError("TTS generation failed", err);
             audioBuffer = Buffer.from(`Error generating audio: ${err.message}. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
         }
 
@@ -345,7 +341,7 @@ app.post("/api/send-email", async (req, res, next) => {
         console.log("Email sent successfully:", emailResponse);
         res.status(200).json({ message: "Email sent successfully", emailResponse });
     } catch (err) {
-        logError("Error sending email", err, req);
+        logError("Error sending email", err);
         res.status(err.status || 500).json({
             error: "Failed to send email",
             details: err.message || "Unknown error",
@@ -575,7 +571,7 @@ function enhanceCostEstimate(estimate) {
 
 // Error Middleware
 app.use((err, req, res, next) => {
-    logError(`Unhandled error in ${req.method} ${req.path}`, err, req);
+    logError(`Unhandled error in ${req.method} ${req.path}`, err);
     res.status(err.status || 500).json({ error: "Internal server error", details: err.message || "Unknown server error" });
 });
 
