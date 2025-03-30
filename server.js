@@ -158,17 +158,25 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully", metadata: imageDoc.metadata });
   } catch (err) {
     logError("Upload error", err);
-    if (req.file && fs.existsSync(req.file.path)) await fs.unlink(req.file.path).catch(() => {});
+    if (req.file) {
+      try {
+        await fs.access(filePath);
+        await fs.unlink(filePath);
+      } catch (unlinkErr) {
+        console.error("Failed to delete file:", unlinkErr.message);
+      }
+    }
     res.status(err.message === "No image uploaded" ? 400 : 500).json({ error: "Upload processing failed", details: err.message });
   }
 });
 
 app.post("/api/contractor-estimate", upload.single("image"), async (req, res) => {
   console.log("POST /api/contractor-estimate");
+  let filePath;
   try {
     if (!req.file) throw new Error("No file uploaded");
 
-    const filePath = req.file.path;
+    filePath = req.file.path;
     let fileContent;
     if (req.file.mimetype.startsWith("image/")) {
       fileContent = (await fs.readFile(filePath)).toString("base64");
@@ -204,10 +212,38 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
 
     await fs.unlink(filePath);
     const costEstimate = enhanceCostEstimate(estimate, laborData);
-    res.status(201).json({ imageId, message: "Estimate generated successfully", ...estimate, cost_estimate: costEstimate });
+
+    // Cleaned response for customer
+    const cleanedResponse = {
+      imageId,
+      message: "Estimate generated successfully",
+      projectScope: estimate.project_scope,
+      materialType: estimate.material_type,
+      colorAndPattern: estimate.color_and_pattern,
+      dimensions: estimate.dimensions,
+      additionalFeatures: Array.isArray(estimate.additional_features)
+        ? estimate.additional_features.join(", ")
+        : estimate.additional_features || "None",
+      condition: estimate.condition,
+      costEstimate: {
+        materialCost: costEstimate.material_cost,
+        laborCost: costEstimate.labor_cost.total,
+        totalCost: costEstimate.total_cost,
+      },
+      reasoning: estimate.reasoning,
+    };
+
+    res.status(201).json(cleanedResponse);
   } catch (err) {
     logError("Contractor estimate error", err);
-    if (req.file && fs.existsSync(req.file.path)) await fs.unlink(req.file.path).catch(() => {});
+    if (req.file && filePath) {
+      try {
+        await fs.access(filePath);
+        await fs.unlink(filePath);
+      } catch (unlinkErr) {
+        console.error("Failed to delete file:", unlinkErr.message);
+      }
+    }
     res.status(err.message === "No file uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
   }
 });
@@ -333,14 +369,14 @@ async function analyzeImage(imageBase64) {
       ],
       max_tokens: 4000,
       temperature: 0.5,
-      response_format: { type: "json_object" }, // Enforce JSON response
+      response_format: { type: "json_object" },
     });
 
     console.log("OpenAI response received:", JSON.stringify(response, null, 2));
     const content = response.choices[0].message.content;
     console.log("Raw content from OpenAI:", content);
 
-    result = JSON.parse(content); // Parse directly since response_format ensures JSON
+    result = JSON.parse(content);
     if (result.error) throw new Error(result.error);
   } catch (err) {
     logError("OpenAI repair analysis failed", err);
@@ -409,7 +445,7 @@ async function estimateProject(fileContent, mimeType) {
   - Material type: Identify the material (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain", "Limestone", "Soapstone") with a confidence level (e.g., "95% Quartz"). Use texture, sheen, grain, edge profiles, and polish level for images; use text for documents. Differentiate natural vs. engineered materials and hypothesize if uncertain, referencing "www.surprisegranite.com/materials/all-countertops".
   - Color and pattern: Describe colors (e.g., "matte ivory") and patterns (e.g., "swirling white veins") vividly. For documents, use provided descriptions or suggest based on context.
   - Dimensions: Estimate square footage (e.g., "20 sq ft") from image scale or document specs. If not provided, assume a standard 25 sq ft kitchen countertop and note the assumption.
-  - Additional features: Identify or suggest extras like sink cutouts, cooktop cutouts, edge profiles (e.g., "bullnose"), or backsplashes. Quantify (e.g., "2 sink cutouts").
+  - Additional features: Identify or suggest extras like sink cutouts, cooktop cutouts, edge profiles (e.g., "bullnose"), or backsplashes as an array (e.g., ["sink cutout", "bullnose edge"]). Quantify where possible (e.g., "2 sink cutouts").
   - Condition (for repairs): If repair is part of the scope, detect damage (e.g., "crack," "chip") with location and extent. Assess severity (None, Low, Moderate, Severe).
   - Cost estimate: Provide a detailed breakdown:
     - Material cost: Suggest a material cost per sq ft (e.g., $50/sq ft for Quartz) based on typical Surprise Granite pricing.
@@ -417,7 +453,7 @@ async function estimateProject(fileContent, mimeType) {
     - Total cost: Sum all components with a range (e.g., "$1500 - $2000").
   - Reasoning: Explain all findings and cost assumptions thoroughly, referencing visual or textual evidence.
 
-  Respond in JSON format with keys: input_type, project_scope, material_type, color_and_pattern, dimensions, additional_features, condition, cost_estimate, reasoning. Ensure a comprehensive, contractor-like estimate.`;
+  Respond in JSON format with keys: input_type, project_scope, material_type, color_and_pattern, dimensions, additional_features (as an array), condition, cost_estimate, reasoning. Ensure a comprehensive, contractor-like estimate.`;
 
   let result;
   try {
@@ -442,6 +478,11 @@ async function estimateProject(fileContent, mimeType) {
     console.log("OpenAI response received:", JSON.stringify(response, null, 2));
     result = JSON.parse(response.choices[0].message.content);
     if (result.error) throw new Error(result.error);
+
+    // Ensure additional_features is an array
+    if (!Array.isArray(result.additional_features)) {
+      result.additional_features = result.additional_features ? [result.additional_features] : [];
+    }
   } catch (err) {
     logError("OpenAI contractor estimate failed", err);
     result = {
@@ -508,23 +549,27 @@ function calculateRepairCost(damageType, severity) {
 }
 
 function enhanceCostEstimate(estimate, laborData) {
-  const materialCost = parseFloat(estimate.cost_estimate?.material_cost?.replace("$", "") || "50") * (parseFloat(estimate.dimensions) || 25);
+  const materialCost = parseFloat(estimate.cost_estimate?.material_cost?.replace(/[^\d.]/g, "") || "50") * (parseFloat(estimate.dimensions) || 25);
   const laborCost = { installation: 0, cutouts: 0, edge_profile: 0, total: 0 };
 
   const area = parseFloat(estimate.dimensions) || 25;
   const installLabor = laborData.find((d) => d.type === "installation");
   laborCost.installation = installLabor ? installLabor.rate_per_sqft * area : 375;
 
-  const cutouts = estimate.additional_features?.filter((f) => f.toLowerCase().includes("cutout")).length || 0;
+  const features = Array.isArray(estimate.additional_features)
+    ? estimate.additional_features
+    : estimate.additional_features
+    ? [estimate.additional_features]
+    : [];
+  const cutouts = features.filter((f) => f.toLowerCase().includes("cutout")).length;
   const cutoutLabor = laborData.find((d) => d.type === "cutout");
   laborCost.cutouts = cutoutLabor ? cutoutLabor.rate_per_unit * cutouts : 0;
 
   const edgeProfileLabor = laborData.find((d) => d.type === "edge_profile");
   const perimeter = estimate.dimensions ? (2 * (Math.sqrt(area * 144) + Math.sqrt(area * 144))) / 12 : 20;
-  laborCost.edge_profile =
-    edgeProfileLabor && estimate.additional_features?.some((f) => f.toLowerCase().includes("edge profile"))
-      ? edgeProfileLabor.rate_per_linear_ft * perimeter
-      : 0;
+  laborCost.edge_profile = edgeProfileLabor && features.some((f) => f.toLowerCase().includes("edge profile"))
+    ? edgeProfileLabor.rate_per_linear_ft * perimeter
+    : 0;
 
   laborCost.total = laborCost.installation + laborCost.cutouts + laborCost.edge_profile;
   const totalCost = materialCost + laborCost.total;
