@@ -6,7 +6,7 @@ const helmet = require("helmet");
 const path = require("path");
 const fs = require("fs").promises;
 const { createHash } = require("crypto");
-const { MongoClient, Binary } = require("mongodb");
+const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
 const EmailJS = require("@emailjs/nodejs");
 const NodeCache = require("node-cache");
@@ -17,7 +17,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || throwError("OPENAI_API_KEY 
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || throwError("EMAILJS_SERVICE_ID is required");
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || throwError("EMAILJS_TEMPLATE_ID is required");
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || throwError("EMAILJS_PUBLIC_KEY is required");
-const SURPRISE_GRANITE_PHONE = "(602) 833-3189");
+const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -139,6 +139,8 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
                 size: req.file.size,
                 uploadDate: new Date(),
                 estimate,
+                likes: 0,
+                dislikes: 0,
             },
         };
         const insertResult = await imagesCollection.insertOne(imageDoc);
@@ -161,7 +163,71 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
             audioBase64: audioBuffer.toString("base64"),
+            shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageId}`,
+            likes: 0,
+            dislikes: 0,
         });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.get("/api/get-countertop/:id", async (req, res) => {
+    console.log("GET /api/get-countertop/", req.params.id);
+    try {
+        const imagesCollection = db.collection("countertop_images");
+        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        res.json({
+            id: countertop._id,
+            imageBase64: countertop.imageData.buffer.toString("base64"),
+            metadata: {
+                ...countertop.metadata.estimate,
+                likes: countertop.metadata.likes || 0,
+                dislikes: countertop.metadata.dislikes || 0,
+                shareDescription: `Countertop Estimate: ${countertop.metadata.estimate.material_type || "Unknown"}, ${countertop.metadata.estimate.project_scope || "Project"}. Total: ${enhanceCostEstimate(countertop.metadata.estimate).totalCost}`,
+                shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${countertop._id}`,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post("/api/like-countertop/:id", async (req, res, next) => {
+    console.log("POST /api/like-countertop/", req.params.id);
+    try {
+        const imagesCollection = db.collection("countertop_images");
+        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newLikes = (countertop.metadata.likes || 0) + 1;
+        await imagesCollection.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { "metadata.likes": newLikes } }
+        );
+        console.log("Like added, new likes:", newLikes);
+        res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post("/api/dislike-countertop/:id", async (req, res, next) => {
+    console.log("POST /api/dislike-countertop/", req.params.id);
+    try {
+        const imagesCollection = db.collection("countertop_images");
+        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newDislikes = (countertop.metadata.dislikes || 0) + 1;
+        await imagesCollection.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { "metadata.dislikes": newDislikes } }
+        );
+        console.log("Dislike added, new dislikes:", newDislikes);
+        res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
         next(err);
     }
@@ -190,7 +256,7 @@ app.post("/api/send-email", async (req, res, next) => {
 
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        logError("Error in sending email", err); // Improved logging
+        logError("Error in sending email", err);
         res.status(err.status || 500).json({ error: "Failed to send email", details: err.message || "Unknown error" });
     }
 });
@@ -199,14 +265,15 @@ app.post("/api/send-email", async (req, res, next) => {
 async function estimateProject(fileContent, customerNeeds) {
     const imagesCollection = db.collection("countertop_images");
     const pastImages = await imagesCollection.find({
-        "metadata.estimate.material_type": { $exists: true },
-        "metadata.estimate.condition.damage_type": { $ne: "No visible damage" }
+        "metadata.estimate.material_type": { $exists: true }
     }).limit(5).toArray();
 
     const pastData = pastImages.map(img => ({
         material_type: img.metadata.estimate.material_type,
         condition: img.metadata.estimate.condition,
         solutions: img.metadata.estimate.solutions || "Professional evaluation required",
+        likes: img.metadata.likes || 0,
+        dislikes: img.metadata.dislikes || 0,
     }));
 
     const prompt = `You are CARI, a professional countertop and remodeling expert estimator at Surprise Granite with the latest industry knowledge as of March 2025. Analyze this countertop image and customer needs ("${customerNeeds}") for a precise estimate:
@@ -216,8 +283,8 @@ async function estimateProject(fileContent, customerNeeds) {
     - Dimensions: Use customer needs (e.g., "25 sq ft") or assume 25 sq ft for kitchen, 5 sq ft for vanity.
     - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or image; default to [].
     - Condition: For repairs, detect damage (e.g., "crack") and severity (None, Low, Moderate, Severe); default { damage_type: "No visible damage", severity: "None" }.
-    - Solutions: Propose repair or replacement solutions based on condition and past data (${JSON.stringify(pastData)}). Suggest modern techniques or materials if applicable.
-    - Reasoning: Explain concisely, note assumptions, and reference past data if used.
+    - Solutions: Propose repair or replacement solutions based on condition and past data (${JSON.stringify(pastData)}). Consider user feedback (likes/dislikes) to refine suggestions; prioritize highly liked solutions. Suggest modern techniques or materials if applicable.
+    - Reasoning: Explain concisely, note assumptions, and reference past data/feedback if used.
     Respond in JSON with: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition (object), solutions (string), reasoning.`;
 
     try {
