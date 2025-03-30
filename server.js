@@ -1,4 +1,3 @@
-// server.js for Node.js v20.19.0, deployed on Render
 require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
@@ -15,14 +14,12 @@ const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const pdfParse = require("pdf-parse");
 
-// Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 10000;
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 app.set("trust proxy", 1);
 
-// Multer setup
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -32,20 +29,18 @@ const upload = multer({
     }
 });
 
-// External service initializations
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 });
-if (process.env.EMAILJS_PUBLIC_KEY) {
-    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
-}
 
-// Global variables
 let laborData = [];
 let materialsData = [];
 let db = null;
 let mongoClient;
 
-// Middleware
+if (process.env.EMAILJS_PUBLIC_KEY) {
+    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
+}
+
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(helmet());
@@ -57,7 +52,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Utility Functions
 function throwError(message, status = 500) {
     const err = new Error(message);
     err.status = status;
@@ -79,7 +73,8 @@ async function loadLaborData() {
             { type: "countertop_installation", rate_per_sqft: 15, hours: 1, confidence: 1 },
             { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
             { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
-            { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 }
+            { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
+            { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 } // Added for additional features
         ];
     }
 }
@@ -271,16 +266,18 @@ function enhanceCostEstimate(estimate) {
         const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
         const laborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
-        laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * laborEntry.hours * severityMultiplier * (laborEntry.confidence || 1);
+        laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * severityMultiplier * (laborEntry.confidence || 1);
     } else {
-        const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, rate_per_unit: 0, hours: 1, confidence: 1 };
-        laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * laborEntry.hours * (laborEntry.confidence || 1);
+        const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+        laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
     }
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
-        const featureStr = typeof feature === "string" ? feature : "";
-        const laborEntry = laborData.find(entry => featureStr.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, confidence: 1 };
-        return sum + (laborEntry.rate_per_sqft * sqFt * (laborEntry.confidence || 1) || 0);
+        const featureStr = typeof feature === "string" ? feature.toLowerCase() : "";
+        const laborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
+        const featureCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+        console.log(`Feature "${featureStr}" cost: $${featureCost}`);
+        return sum + featureCost;
     }, 0);
 
     const totalCost = materialCost + laborCost + featuresCost;
@@ -319,13 +316,17 @@ async function generateTTS(estimate, customerNeeds) {
 
     try {
         const audioBuffers = await Promise.all(chunks.map(chunk =>
-            withRetry(() => openai.audio.speech.create({
-                model: "tts-1",
-                voice: "alloy",
-                input: chunk,
-            }))
+            withRetry(async () => {
+                const response = await openai.audio.speech.create({
+                    model: "tts-1",
+                    voice: "alloy",
+                    input: chunk,
+                });
+                const arrayBuffer = await response.arrayBuffer();
+                return Buffer.from(arrayBuffer); // Convert ArrayBuffer to Buffer
+            })
         ));
-        return Buffer.concat(await Promise.all(audioBuffers.map(res => res.arrayBuffer())));
+        return Buffer.concat(audioBuffers);
     } catch (err) {
         logError("TTS generation failed", err);
         return Buffer.from(`Error generating audio: ${err.message}. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
@@ -340,7 +341,6 @@ function chunkText(text, maxLength) {
     return chunks;
 }
 
-// Routes
 app.get("/", (req, res) => {
     res.status(200).send("CARI Server is running");
 });
@@ -448,7 +448,6 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
     }
 });
 
-// Error Middleware
 app.use((err, req, res, next) => {
     const status = err.status || 500;
     const message = err.message || "Unknown server error";
@@ -457,7 +456,6 @@ app.use((err, req, res, next) => {
     res.status(status).json({ error: message, details });
 });
 
-// Startup and Shutdown
 async function startServer() {
     try {
         console.log("Starting server initialization");
