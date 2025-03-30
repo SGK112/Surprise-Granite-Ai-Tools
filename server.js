@@ -1,4 +1,155 @@
-// ... (imports, setup, and unchanged functions like loadLaborData, connectToMongoDB remain the same)
+require("dotenv").config();
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
+const helmet = require("helmet");
+const path = require("path");
+const fs = require("fs").promises;
+const { createHash } = require("crypto");
+const { MongoClient, Binary, ObjectId } = require("mongodb");
+const OpenAI = require("openai");
+const EmailJS = require("@emailjs/nodejs");
+const NodeCache = require("node-cache");
+const compression = require("compression");
+const rateLimit = require("express-rate-limit");
+const pdfParse = require("pdf-parse");
+
+// Initialize Express app
+const app = express();
+const PORT = process.env.PORT || 10000;
+const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
+
+app.set("trust proxy", 1);
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
+        cb(null, allowedTypes.includes(file.mimetype));
+    }
+});
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 });
+
+let laborData = [];
+let materialsData = [];
+let db = null;
+let mongoClient;
+
+if (process.env.EMAILJS_PUBLIC_KEY) {
+    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
+}
+
+// Middleware
+app.use(compression());
+app.use(cors({ origin: true, credentials: true }));
+app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, keyGenerator: (req) => req.ip }));
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
+    next();
+});
+
+// Utility Functions
+function throwConfigError(key) {
+    throw new Error(`${key} is required in environment variables`);
+}
+
+function throwError(message, status = 500) {
+    const err = new Error(message);
+    err.status = status;
+    throw err;
+}
+
+function logError(message, err) {
+    console.error(`${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
+}
+
+async function loadLaborData() {
+    try {
+        const laborJsonPath = path.join(__dirname, "data", "labor.json");
+        laborData = JSON.parse(await fs.readFile(laborJsonPath, "utf8"));
+        console.log("Loaded labor.json:", laborData.length, "entries");
+    } catch (err) {
+        logError("Failed to load labor.json, using defaults", err);
+        laborData = [
+            { type: "countertop_installation", rate_per_sqft: 15, hours: 1, confidence: 1 },
+            { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
+            { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
+            { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 }
+        ];
+    }
+}
+
+async function loadMaterialsData() {
+    try {
+        const materialsJsonPath = path.join(__dirname, "data", "materials.json");
+        materialsData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8"));
+        console.log("Loaded materials.json:", materialsData.length, "entries");
+    } catch (err) {
+        logError("Failed to load materials.json, using defaults", err);
+        materialsData = [
+            { type: "Granite", cost_per_sqft: 50, confidence: 1 },
+            { type: "Quartz", cost_per_sqft: 60, confidence: 1 },
+            { type: "Porcelain Tile", cost_per_sqft: 15, confidence: 1 },
+            { type: "Wood (Cabinet)", cost_per_unit: 100, confidence: 1 },
+            { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 }
+        ];
+    }
+}
+
+async function connectToMongoDB() {
+    if (!process.env.MONGODB_URI) {
+        console.warn("MONGODB_URI not set; skipping MongoDB connection.");
+        return;
+    }
+    try {
+        mongoClient = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 50,
+            minPoolSize: 5,
+            connectTimeoutMS: 10000,
+            socketTimeoutMS: 30000
+        });
+        await mongoClient.connect();
+        db = mongoClient.db("countertops");
+        console.log("Connected to MongoDB Atlas");
+    } catch (err) {
+        logError("MongoDB connection failed", err);
+        db = null;
+    }
+}
+
+async function ensureMongoDBConnection() {
+    if (!db && process.env.MONGODB_URI) await connectToMongoDB();
+}
+
+async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            if (attempt === maxAttempts || !err.status || err.status < 500) throw err;
+            console.log(`Retry ${attempt}/${maxAttempts} after error: ${err.message}`);
+            await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        }
+    }
+}
+
+async function extractFileContent(file) {
+    if (file.mimetype.startsWith("image/")) {
+        return { type: "image", content: file.buffer.toString("base64") };
+    } else if (file.mimetype === "application/pdf") {
+        const data = await pdfParse(file.buffer);
+        return { type: "text", content: data.text };
+    } else if (file.mimetype === "text/plain") {
+        return { type: "text", content: file.buffer.toString("utf8") };
+    }
+    throwError("Unsupported file type", 400);
+}
 
 async function estimateProject(fileData, customerNeeds) {
     try {
@@ -144,6 +295,39 @@ function enhanceCostEstimate(estimate) {
     return costEstimate;
 }
 
+// Routes
+app.get("/", (req, res) => {
+    res.status(200).send("CARI Server is running");
+});
+
+app.get("/api/health", async (req, res) => {
+    const health = {
+        status: "Server is running",
+        port: PORT,
+        dbStatus: db ? "Connected" : "Disconnected",
+        openaiStatus: "Unknown",
+        emailjsStatus: "Unknown",
+        pdfParseStatus: "Available"
+    };
+    try {
+        await openai.models.list();
+        health.openaiStatus = "Connected";
+    } catch (err) {
+        health.openaiStatus = "Disconnected";
+    }
+    try {
+        if (process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID) {
+            await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, { test: "health" });
+            health.emailjsStatus = "Connected";
+        } else {
+            health.emailjsStatus = "Not configured";
+        }
+    } catch (err) {
+        health.emailjsStatus = "Disconnected";
+    }
+    res.json(health);
+});
+
 app.post("/api/contractor-estimate", upload.single("file"), async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
@@ -201,22 +385,4 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
             additionalFeatures: estimate.additional_features.join(", ") || "None",
             condition: estimate.condition,
             costEstimate,
-            reasoning: estimate.reasoning,
-            solutions: estimate.solutions,
-            contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
-            audioBase64: audioBuffer.toString("base64"),
-            shareUrl: estimate.imageId ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageId}` : null,
-            likes: 0,
-            dislikes: 0,
-        };
-        res.status(201).json(responseData);
-    } catch (err) {
-        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-            return res.status(400).json({ error: "File size exceeds 10MB limit" });
-        }
-        logError("Error in /api/contractor-estimate", err);
-        next(err);
-    }
-});
-
-// ... (rest of the file: generateTTS, chunkText, error middleware, startup/shutdown remain unchanged)
+            reasoning: estimate.reasoning
