@@ -18,6 +18,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || throwError("OPENAI_API_KEY 
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || throwError("EMAILJS_SERVICE_ID is required");
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || throwError("EMAILJS_TEMPLATE_ID is required");
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || throwError("EMAILJS_PUBLIC_KEY is required");
+const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 // App Setup
 const app = express();
@@ -191,7 +192,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
   console.log("POST /api/contractor-estimate");
   let filePath;
   try {
-    if (!req.file) throw new Error("No image uploaded");
+    if (!req.file) throw new Error("No file uploaded");
 
     filePath = req.file.path;
     const imageBuffer = await fs.readFile(filePath);
@@ -251,13 +252,14 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
         totalCost: costEstimate.total_cost,
       },
       reasoning: estimate.reasoning,
+      contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
     };
 
     res.status(201).json(cleanedResponse);
   } catch (err) {
     logError("Contractor estimate error", err);
     if (req.file && filePath) await cleanupFile(filePath);
-    res.status(err.message === "No image uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
+    res.status(err.message === "No file uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
   }
 });
 
@@ -349,6 +351,7 @@ app.post("/api/send-email", async (req, res) => {
       stone_type: stone_type || "N/A",
       analysis_summary: analysis_summary || "No estimate provided",
       image_url: image_id ? `${req.protocol}://${req.get("host")}/api/get-countertop/${image_id}` : "No image provided",
+      contact_phone: SURPRISE_GRANITE_PHONE,
     };
 
     const emailResponse = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, { publicKey: EMAILJS_PUBLIC_KEY });
@@ -465,14 +468,14 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
   if (result) return result;
 
   const prompt = `You are CARI Contractor, an expert countertop contractor at Surprise Granite. Analyze the input (${mimeType.startsWith("image/") ? "image" : "document"}) and customer needs ("${customerNeeds}") to estimate a countertop project:
-  - Project scope: New installation, replacement, or repair (use customer needs or infer from input; default to "replacement" if unclear).
-  - Material type: Identify material (e.g., "Quartz", "Granite") with confidence level from the input.
+  - Project scope: New installation, replacement, or repair (use customer needs or infer; default to "replacement" if unclear).
+  - Material type: Identify material (e.g., "Quartz", "Granite") with confidence from the input.
   - Color and pattern: Describe briefly based on input.
-  - Dimensions: Use customer needs if specified (e.g., "25 sq ft"); otherwise, assume 25 sq ft and note the assumption.
-  - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input; if unclear, assume none and note it.
-  - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe); default to "None" if not specified.
-  - Cost estimate: Provide material cost (per sq ft), labor cost (installation, features), additional features cost, and total cost range based on input and customer needs. If details are missing, use conservative averages (e.g., $50/sq ft material, $30/sq ft labor) and note uncertainty.
-  - Reasoning: Explain findings concisely, flagging any assumptions due to vague customer needs.
+  - Dimensions: Use customer needs if specified (e.g., "25 sq ft"); otherwise, assume 5-10 sq ft for a vanity countertop or 25 sq ft for a kitchen countertop based on context, noting the assumption.
+  - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input; assume none if unclear and note it.
+  - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe); default to "None" if unspecified.
+  - Cost estimate: Provide material cost (per sq ft), labor cost (per sq ft), additional features cost, and total cost range based on input and customer needs. Use conservative averages (e.g., $50/sq ft material, $30/sq ft labor) if details are missing, and calculate total accurately (material + labor + features). Note uncertainty if assumed.
+  - Reasoning: Explain findings concisely, flagging assumptions due to vague customer needs.
   Respond in JSON with keys: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition, cost_estimate, reasoning.`;
 
   try {
@@ -505,11 +508,16 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
       project_scope: "Unknown",
       material_type: "Unknown",
       color_and_pattern: "Not identified",
-      dimensions: "25 sq ft (assumed)",
+      dimensions: "5-10 sq ft (assumed for vanity)",
       additional_features: [],
       condition: { damage_type: "No visible damage", severity: "None" },
-      cost_estimate: { material_cost: "$1250.00", labor_cost: "$375.00", total_cost: "$1625.00 - $1750.00" },
-      reasoning: "Estimate failed due to error: " + err.message,
+      cost_estimate: { 
+        material_cost: "$250-$500", 
+        labor_cost: "$150-$300", 
+        additional_features_cost: "$0", 
+        total_cost: "$400-$800" 
+      },
+      reasoning: "Estimate failed due to error: " + err.message + ". Assumed 5-10 sq ft for a vanity countertop.",
     };
   }
 
