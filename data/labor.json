@@ -1,5 +1,4 @@
 [
-  // Countertops (CT) - Adjusted and Expanded
   {
     "Code": "CT-001",
     "Service": "Quartz Countertop Fabrication",
@@ -231,7 +230,6 @@
     "Price": 25,
     "Description": "Repairs scratches and dull finishes; labor ~$20/sqft, materials ~$5/sqft."
   },
-  // New Countertop Additions
   {
     "Code": "CT-034",
     "Service": "Butcher Block Countertop Fabrication",
@@ -493,7 +491,6 @@
     "Price": 1600,
     "Description": "Display cabinets; materials ~$900, labor ~$700."
   },
-  // New Cabinet Additions
   {
     "Code": "CB-036",
     "Service": "Cabinet Hardware Upgrade",
@@ -508,7 +505,6 @@
     "Price": 1200,
     "Description": "Full cabinet painting; materials ~$300, labor ~$900."
   },
-  // Tile (TL) - Adjusted and Expanded
   {
     "Code": "TL-001",
     "Service": "Subway Tile Installation",
@@ -734,7 +730,6 @@
     "Price": 20,
     "Description": "Replaces damaged tiles; material ~$10/sqft, labor ~$10/sqft."
   },
-  // Demolition (DD) - Adjusted and Expanded
   {
     "Code": "DD-001",
     "Service": "Full Kitchen Demo",
@@ -960,7 +955,6 @@
     "Price": 5,
     "Description": "Removes textured ceilings; labor ~$4/sqft, disposal ~$1/sqft."
   },
-  // Flooring (FL) - Adjusted and Expanded
   {
     "Code": "FL-001",
     "Service": "Laminate Flooring Installation",
@@ -1398,7 +1392,6 @@
     "Price": 350,
     "Description": "Drain upgrade; parts ~$150, labor ~$200."
   },
-  // New Shower Additions
   {
     "Code": "SH-031",
     "Service": "Shower Glass Coating",
@@ -1413,8 +1406,6 @@
     "Price": 150,
     "Description": "Safety bars; parts ~$75, labor ~$75."
   },
-
-  // Outdoor (OC) - Adjusted and Expanded
   {
     "Code": "OC-001",
     "Service": "Patio Construction",
@@ -1640,7 +1631,6 @@
     "Price": 25,
     "Description": "Wood/vinyl fencing; material ~$15/lf, labor ~$10/lf."
     }, 
-  // Plumbing (PL) - Adjusted and Expanded
   {
     "Code": "PL-001",
     "Service": "Angle Stops",
@@ -1837,7 +1827,6 @@
     "Price": 1100,
     "Description": "Sump pump; parts ~$500, labor ~$600."
   },
-     // Plumbing (PL) - Continued and Adjusted
   {
     "Code": "PL-029",
     "Service": "Gas Line Installation",
@@ -1915,7 +1904,6 @@
     "Price": 650,
     "Description": "Shower panel; parts ~$300, labor ~$350."
   },
-  // New Plumbing Additions
   {
     "Code": "PL-040",
     "Service": "Water Softener Installation",
@@ -1930,7 +1918,6 @@
     "Price": 25,
     "Description": "Replaces old pipes; material ~$10/lf, labor ~$15/lf."
   },
-  // Electrical (EL) - Adjusted and Expanded
   {
     "Code": "EL-001",
     "Service": "GFCI Outlet Installation",
@@ -2169,7 +2156,6 @@
     "Price": 375,
     "Description": "Exhaust fan; parts ~$150, labor ~$225."
   },
-  // New Electrical Additions
   {
     "Code": "EL-035",
     "Service": "Electrical Panel Repair",
@@ -2184,8 +2170,6 @@
     "Price": 10000,
     "Description": "Full rewiring; parts ~$4000, labor ~$6000."
    },
-  {
-  // Painting (PT) - New Category
   {
     "Code": "PT-001",
     "Service": "Interior Wall Painting",
@@ -2242,8 +2226,6 @@
     "Price": 5,
     "Description": "Paint stripping; labor ~$4/sqft, materials ~$1/sqft."
   },
-
-  // Drywall (DW) - New Category
   {
     "Code": "DW-001",
     "Service": "Drywall Installation",
@@ -2279,8 +2261,6 @@
     "Price": 3,
     "Description": "Drywall demo; labor ~$2/sqft, disposal ~$1/sqft."
   },
-
-  // Windows/Doors (WD) - New Category
   {
     "Code": "WD-001",
     "Service": "Window Installation (Standard)",
@@ -2323,8 +2303,6 @@
     "Price": 300,
     "Description": "Frame repair; materials ~$100, labor ~$200."
   },
-
-  // General Repairs (GR) - New Category
   {
     "Code": "GR-001",
     "Service": "Minor Carpentry Repair",
