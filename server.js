@@ -307,15 +307,19 @@ app.post("/api/send-email", async (req, res, next) => {
 
 // Learning and Analysis Functions
 function updatePricingConfidence(estimate, adjustment) {
+    if (!estimate || typeof estimate !== "object") {
+        console.warn("Invalid estimate object in updatePricingConfidence:", estimate);
+        return;
+    }
     const material = materialsData.find(m => m.type.toLowerCase() === (estimate.material_type || "").toLowerCase());
     if (material) material.confidence = Math.min(1, Math.max(0, (material.confidence || 1) + adjustment));
 
-    if ((estimate.project_scope || "").toLowerCase() === "repair" && estimate.condition?.damage_type !== "No visible damage") {
-        const labor = laborData.find(l => l.type === estimate.condition.damage_type.toLowerCase());
+    if ((estimate.project_scope || "").toLowerCase() === "repair" && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const labor = laborData.find(l => l.type.toLowerCase() === estimate.condition.damage_type.toLowerCase());
         if (labor) labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
     }
     (estimate.additional_features || []).forEach(feature => {
-        const labor = laborData.find(l => feature.toLowerCase().includes(l.type));
+        const labor = laborData.find(l => (feature || "").toLowerCase().includes(l.type.toLowerCase()));
         if (labor) labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
     });
 }
@@ -433,6 +437,10 @@ async function estimateProject(fileData, customerNeeds) {
 }
 
 async function generateTTS(estimate, customerNeeds) {
+    if (!estimate || typeof estimate !== "object") {
+        logError("Invalid estimate object in generateTTS", estimate);
+        return Buffer.from(`Estimate unavailable. Call ${SURPRISE_GRANITE_PHONE} for details and your FREE quote!`);
+    }
     const costEstimate = enhanceCostEstimate(estimate) || {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
@@ -443,10 +451,10 @@ async function generateTTS(estimate, customerNeeds) {
         Project: ${estimate.project_scope || "Replacement"}. 
         Material: ${estimate.material_type || "Unknown"}. 
         Dimensions: ${estimate.dimensions || "Not specified"}. 
-        Features: ${estimate.additional_features.length ? estimate.additional_features.join(", ") : "None"}. 
+        Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
         Condition: ${estimate.condition?.damage_type || "No visible damage"}, ${estimate.condition?.severity || "None"}. 
         Total cost: ${costEstimate.totalCost || "Contact for estimate"}. 
-        Solutions: ${estimate.solutions}. 
+        Solutions: ${estimate.solutions || "Contact for evaluation"}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
         Call ${SURPRISE_GRANITE_PHONE} NOW for your FREE quote!`;
     const chunks = chunkText(narrationText, 4096);
@@ -475,7 +483,10 @@ function chunkText(text, maxLength) {
 }
 
 function enhanceCostEstimate(estimate) {
-    if (!laborData.length || !materialsData.length || !estimate) return null;
+    if (!laborData.length || !materialsData.length || !estimate || typeof estimate !== "object") {
+        logError("Invalid inputs in enhanceCostEstimate", { laborData, materialsData, estimate });
+        return null;
+    }
 
     const dimensions = estimate.dimensions || "25 sq ft";
     const sqFtMatch = dimensions.match(/(\d+)-?(\d+)?\s*sq\s*ft/i);
@@ -488,9 +499,9 @@ function enhanceCostEstimate(estimate) {
 
     let laborCost = 0;
     const projectScope = (estimate.project_scope || "replacement").toLowerCase();
-    if (projectScope.includes("repair") && estimate.condition?.damage_type !== "No visible damage") {
-        const laborEntry = laborData.find(entry => entry.type.toLowerCase() === estimate.condition.damage_type.toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
-        const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity] || 1;
+    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const laborEntry = laborData.find(entry => entry.type.toLowerCase() === (estimate.condition.damage_type || "").toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+        const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
         laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * laborEntry.hours * severityMultiplier * (laborEntry.confidence || 1);
     } else {
         const laborEntry = laborData.find(entry => projectScope.includes(entry.type.toLowerCase())) || { rate_per_sqft: 15, rate_per_unit: 0, hours: 1, confidence: 1 };
@@ -498,7 +509,7 @@ function enhanceCostEstimate(estimate) {
     }
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
-        const laborEntry = laborData.find(entry => feature.toLowerCase().includes(entry.type.toLowerCase())) || { rate_per_sqft: 0, confidence: 1 };
+        const laborEntry = laborData.find(entry => (feature || "").toLowerCase().includes(entry.type.toLowerCase())) || { rate_per_sqft: 0, confidence: 1 };
         return sum + (laborEntry.rate_per_sqft * sqFt * (laborEntry.confidence || 1) || 0);
     }, 0);
 
