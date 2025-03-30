@@ -22,6 +22,7 @@ const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 // App Setup
 const app = express();
+app.set("trust proxy", 1); // Fix for express-rate-limit X-Forwarded-For error
 const upload = multer({ dest: "uploads/", limits: { fileSize: 10 * 1024 * 1024 } });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
@@ -36,7 +37,7 @@ function throwError(message) {
 }
 
 function logError(message, err) {
-  console.error(`${message}: ${err.message}`, err.stack);
+  console.error(`${message}: ${err ? err.message : "Unknown error"}`, err ? err.stack : "");
 }
 
 // Load Labor Data
@@ -192,7 +193,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
   console.log("POST /api/contractor-estimate");
   let filePath;
   try {
-    if (!req.file) throw new Error("No file uploaded");
+    if (!req.file) throw new Error("No image uploaded");
 
     filePath = req.file.path;
     const imageBuffer = await fs.readFile(filePath);
@@ -244,13 +245,8 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
       additionalFeatures: Array.isArray(estimate.additional_features)
         ? estimate.additional_features.join(", ")
         : estimate.additional_features || "None",
-      condition: estimate.condition,
-      costEstimate: {
-        materialCost: costEstimate.material_cost,
-        laborCost: costEstimate.labor_cost,
-        additionalFeaturesCost: costEstimate.additional_features_cost || "$0",
-        totalCost: costEstimate.total_cost,
-      },
+      condition: estimate.condition || { damage_type: "No visible damage", severity: "None" },
+      costEstimate,
       reasoning: estimate.reasoning,
       contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
     };
@@ -259,7 +255,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
   } catch (err) {
     logError("Contractor estimate error", err);
     if (req.file && filePath) await cleanupFile(filePath);
-    res.status(err.message === "No file uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
+    res.status(err.message === "No image uploaded" ? 400 : 500).json({ error: "Estimate processing failed", details: err.message });
   }
 });
 
@@ -304,6 +300,7 @@ app.post("/api/like-countertop/:id", async (req, res) => {
       { _id: new ObjectId(req.params.id) },
       { $set: { "metadata.likes": newLikes } }
     );
+    console.log("Like added successfully, new likes:", newLikes);
     res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
   } catch (err) {
     logError("Like error", err);
@@ -327,6 +324,7 @@ app.post("/api/dislike-countertop/:id", async (req, res) => {
       { _id: new ObjectId(req.params.id) },
       { $set: { "metadata.dislikes": newDislikes } }
     );
+    console.log("Dislike added successfully, new dislikes:", newDislikes);
     res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
   } catch (err) {
     logError("Dislike error", err);
@@ -354,8 +352,9 @@ app.post("/api/send-email", async (req, res) => {
       contact_phone: SURPRISE_GRANITE_PHONE,
     };
 
+    console.log("Sending email with templateParams:", templateParams);
     const emailResponse = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, { publicKey: EMAILJS_PUBLIC_KEY });
-    console.log("Email sent:", emailResponse);
+    console.log("Email sent successfully:", emailResponse);
 
     if (db) {
       const leadsCollection = db.collection("leads");
@@ -379,7 +378,7 @@ app.post("/api/send-email", async (req, res) => {
     logError("Email sending error", err);
     res.status(err.message === "Missing required fields: name, email, and message" ? 400 : 500).json({
       error: "Failed to send email",
-      details: err.message,
+      details: err.message || "Unknown error occurred",
     });
   }
 });
@@ -473,10 +472,10 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
   - Color and pattern: Describe briefly based on input.
   - Dimensions: Use customer needs if specified (e.g., "25 sq ft"); otherwise, assume 5-10 sq ft for a vanity countertop or 25 sq ft for a kitchen countertop based on context, noting the assumption.
   - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input; assume none if unclear and note it.
-  - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe); default to "None" if unspecified.
-  - Cost estimate: Provide material cost (per sq ft), labor cost (per sq ft), additional features cost, and total cost range based on input and customer needs. Use conservative averages (e.g., $50/sq ft material, $30/sq ft labor) if details are missing, and calculate total accurately (material + labor + features). Note uncertainty if assumed.
+  - Condition: For repairs, detect damage (e.g., "crack", "chip") and severity (None, Low, Moderate, Severe); default to "None" with "No visible damage" if unspecified. Always return as an object with damage_type and severity.
+  - Cost estimate: Provide material_cost (per sq ft), labor_cost (per sq ft), additional_features_cost, and total_cost range based on input and customer needs. For repairs, estimate based on damage severity (e.g., $10-$20/sq ft for Low, $20-$40/sq ft for Moderate). Use conservative averages (e.g., $50/sq ft material, $30/sq ft labor for non-repairs) if details are missing, and calculate total accurately. Note uncertainty if assumed.
   - Reasoning: Explain findings concisely, flagging assumptions due to vague customer needs.
-  Respond in JSON with keys: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition, cost_estimate, reasoning.`;
+  Respond in JSON with keys: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition (object with damage_type and severity), cost_estimate (object with material_cost, labor_cost, additional_features_cost, total_cost), reasoning.`;
 
   try {
     const messages = [
@@ -500,6 +499,9 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
     result = JSON.parse(response.choices[0].message.content);
     if (!Array.isArray(result.additional_features)) {
       result.additional_features = result.additional_features ? [result.additional_features] : [];
+    }
+    if (!result.condition || typeof result.condition !== "object") {
+      result.condition = { damage_type: "No visible damage", severity: "None" };
     }
     cache.set(cacheKey, result);
   } catch (err) {
@@ -545,12 +547,10 @@ function calculateRepairCost(damageType, severity) {
 
 function enhanceCostEstimate(estimate) {
   return {
-    material_cost: estimate.cost_estimate.material_cost || "Contact for estimate",
-    labor_cost: {
-      total: estimate.cost_estimate.labor_cost || "Contact for estimate"
-    },
-    additional_features_cost: estimate.cost_estimate.additional_features_cost || "$0",
-    total_cost: estimate.cost_estimate.total_cost || "Contact for estimate",
+    materialCost: estimate.cost_estimate.material_cost || "Contact for estimate",
+    laborCost: { total: estimate.cost_estimate.labor_cost || "Contact for estimate" },
+    additionalFeaturesCost: estimate.cost_estimate.additional_features_cost || "$0",
+    totalCost: estimate.cost_estimate.total_cost || "Contact for estimate",
   };
 }
 
