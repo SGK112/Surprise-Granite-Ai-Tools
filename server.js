@@ -1,14 +1,9 @@
-// ... (previous imports, setup, and unchanged functions like loadLaborData, connectToMongoDB remain the same)
-
-// Utility Functions
-function logError(message, err) {
-    console.error(`${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
-}
+// ... (imports, setup, and unchanged functions like loadLaborData, connectToMongoDB remain the same)
 
 async function estimateProject(fileData, customerNeeds) {
     try {
         await ensureMongoDBConnection();
-        const imagesCollection = db?.collection("countertop_images") || { find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) }) }; // Fallback if db is null
+        const imagesCollection = db?.collection("countertop_images") || { find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) }) };
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
@@ -63,25 +58,32 @@ async function estimateProject(fileData, customerNeeds) {
             response_format: { type: "json_object" },
         }));
 
-        const result = JSON.parse(response.choices[0].message.content || '{}');
+        let result;
+        try {
+            result = JSON.parse(response.choices[0].message.content || '{}');
+        } catch (parseErr) {
+            logError("Failed to parse OpenAI response", parseErr);
+            result = {};
+        }
+
         const estimate = {
-            project_scope: result.project_scope || "Replacement",
-            material_type: result.material_type || "Unknown", // Ensure material_type is always a string
-            color_and_pattern: result.color_and_pattern || "Not identified",
-            dimensions: result.dimensions || (customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)"),
+            project_scope: typeof result.project_scope === "string" ? result.project_scope : "Replacement",
+            material_type: typeof result.material_type === "string" ? result.material_type : "Unknown",
+            color_and_pattern: typeof result.color_and_pattern === "string" ? result.color_and_pattern : "Not identified",
+            dimensions: typeof result.dimensions === "string" ? result.dimensions : (customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)"),
             additional_features: Array.isArray(result.additional_features) ? result.additional_features : [],
-            condition: result.condition || { damage_type: "No visible damage", severity: "None" },
-            solutions: result.solutions || "Contact for professional evaluation.",
-            reasoning: result.reasoning || "Based on default assumptions."
+            condition: result.condition && typeof result.condition === "object" ? result.condition : { damage_type: "No visible damage", severity: "None" },
+            solutions: typeof result.solutions === "string" ? result.solutions : "Contact for professional evaluation.",
+            reasoning: typeof result.reasoning === "string" ? result.reasoning : "Based on default assumptions."
         };
-        console.log("Generated estimate:", estimate);
+        console.log("Generated estimate:", JSON.stringify(estimate, null, 2));
         return estimate;
     } catch (err) {
         logError("Estimate generation failed", err);
         const assumedDimensions = customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)";
-        return {
+        const fallbackEstimate = {
             project_scope: "Replacement",
-            material_type: "Unknown", // Ensure material_type is always defined
+            material_type: "Unknown",
             color_and_pattern: "Not identified",
             dimensions: assumedDimensions,
             additional_features: [],
@@ -89,55 +91,59 @@ async function estimateProject(fileData, customerNeeds) {
             solutions: "Contact for professional evaluation.",
             reasoning: `Estimate failed: ${err.message}. Assumed default dimensions based on context.`
         };
+        console.log("Fallback estimate:", JSON.stringify(fallbackEstimate, null, 2));
+        return fallbackEstimate;
     }
 }
 
 function enhanceCostEstimate(estimate) {
-    // Robust validation
     if (!estimate || typeof estimate !== "object" || !laborData.length || !materialsData.length) {
         logError("Invalid inputs in enhanceCostEstimate", { laborData, materialsData, estimate });
         return null;
     }
 
     const materialType = typeof estimate.material_type === "string" ? estimate.material_type : "Unknown";
-    console.log("Enhancing cost estimate for:", materialType);
+    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope : "replacement";
+    console.log("Enhancing cost estimate for:", { materialType, projectScope });
 
-    const dimensions = estimate.dimensions || "25 sq ft";
+    const dimensions = typeof estimate.dimensions === "string" ? estimate.dimensions : "25 sq ft";
     const sqFtMatch = dimensions.match(/(\d+)-?(\d+)?\s*sq\s*ft/i);
     const unitMatch = dimensions.match(/(\d+)\s*units?/i);
     const sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseInt(sqFtMatch[1], 10) + parseInt(sqFtMatch[2], 10)) / 2 : parseInt(sqFtMatch[1], 10)) : 25;
     const units = unitMatch ? parseInt(unitMatch[1], 10) : 0;
     console.log(`Calculated sq ft: ${sqFt}, units: ${units}`);
 
-    const material = materialsData.find(m => m.type.toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
+    const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
     const materialCost = ((material.cost_per_sqft || 0) * sqFt + (material.cost_per_unit || 0) * units) * 1.3;
 
     let laborCost = 0;
-    const projectScope = (estimate.project_scope || "replacement").toLowerCase();
-    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
-        const laborEntry = laborData.find(entry => entry.type.toLowerCase() === (estimate.condition.damage_type || "").toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+    if (projectScope.toLowerCase().includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
+        const laborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
         laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * laborEntry.hours * severityMultiplier * (laborEntry.confidence || 1);
     } else {
-        const laborEntry = laborData.find(entry => projectScope.includes(entry.type.toLowerCase())) || { rate_per_sqft: 15, rate_per_unit: 0, hours: 1, confidence: 1 };
+        const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, rate_per_unit: 0, hours: 1, confidence: 1 };
         laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * laborEntry.hours * (laborEntry.confidence || 1);
     }
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
-        const laborEntry = laborData.find(entry => (feature || "").toLowerCase().includes(entry.type.toLowerCase())) || { rate_per_sqft: 0, confidence: 1 };
+        const featureStr = typeof feature === "string" ? feature : "";
+        const laborEntry = laborData.find(entry => featureStr.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, confidence: 1 };
         return sum + (laborEntry.rate_per_sqft * sqFt * (laborEntry.confidence || 1) || 0);
     }, 0);
 
     const totalCost = materialCost + laborCost + featuresCost;
-    return {
+    const costEstimate = {
         materialCost: `$${materialCost.toFixed(2)}`,
         laborCost: { total: `$${laborCost.toFixed(2)}` },
         additionalFeaturesCost: `$${featuresCost.toFixed(2)}`,
         totalCost: `$${totalCost.toFixed(2)}`
     };
+    console.log("Cost estimate generated:", JSON.stringify(costEstimate, null, 2));
+    return costEstimate;
 }
 
-// Route: /api/contractor-estimate
 app.post("/api/contractor-estimate", upload.single("file"), async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
@@ -208,23 +214,9 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
         if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
             return res.status(400).json({ error: "File size exceeds 10MB limit" });
         }
+        logError("Error in /api/contractor-estimate", err);
         next(err);
     }
 });
 
-// ... (rest of the file remains unchanged: generateTTS, chunkText, error middleware, startup/shutdown)
-
-// Startup and Shutdown
-async function startServer() {
-    try {
-        console.log("Starting server initialization");
-        await Promise.all([loadLaborData(), loadMaterialsData()]);
-        await connectToMongoDB();
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    } catch (err) {
-        logError("Server startup failed", err);
-        app.listen(PORT, () => console.log(`Server running on port ${PORT} with limited functionality`));
-    }
-}
-
-startServer();
+// ... (rest of the file: generateTTS, chunkText, error middleware, startup/shutdown remain unchanged)
