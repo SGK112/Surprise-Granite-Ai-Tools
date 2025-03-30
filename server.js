@@ -367,6 +367,8 @@ app.post("/api/send-email", async (req, res) => {
         createdAt: new Date(),
       });
       console.log("Lead saved to MongoDB");
+    } else {
+      console.log("MongoDB unavailable, skipping lead save");
     }
 
     res.status(200).json({ message: "Email sent successfully" });
@@ -463,14 +465,14 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
   if (result) return result;
 
   const prompt = `You are CARI Contractor, an expert countertop contractor at Surprise Granite. Analyze the input (${mimeType.startsWith("image/") ? "image" : "document"}) and customer needs ("${customerNeeds}") to estimate a countertop project:
-  - Project scope: New installation, replacement, or repair (use customer needs or infer).
-  - Material type: Identify material (e.g., "Quartz", "Granite") with confidence.
-  - Color and pattern: Describe briefly.
-  - Dimensions: Use customer needs or estimate (default 25 sq ft).
-  - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input.
-  - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe).
-  - Cost estimate: Provide material cost (per sq ft), labor cost (installation, features), additional features cost, and total cost range.
-  - Reasoning: Explain concisely.
+  - Project scope: New installation, replacement, or repair (use customer needs or infer from input; default to "replacement" if unclear).
+  - Material type: Identify material (e.g., "Quartz", "Granite") with confidence level from the input.
+  - Color and pattern: Describe briefly based on input.
+  - Dimensions: Use customer needs if specified (e.g., "25 sq ft"); otherwise, assume 25 sq ft and note the assumption.
+  - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input; if unclear, assume none and note it.
+  - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe); default to "None" if not specified.
+  - Cost estimate: Provide material cost (per sq ft), labor cost (installation, features), additional features cost, and total cost range based on input and customer needs. If details are missing, use conservative averages (e.g., $50/sq ft material, $30/sq ft labor) and note uncertainty.
+  - Reasoning: Explain findings concisely, flagging any assumptions due to vague customer needs.
   Respond in JSON with keys: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition, cost_estimate, reasoning.`;
 
   try {
@@ -507,7 +509,7 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
       additional_features: [],
       condition: { damage_type: "No visible damage", severity: "None" },
       cost_estimate: { material_cost: "$1250.00", labor_cost: "$375.00", total_cost: "$1625.00 - $1750.00" },
-      reasoning: "Estimate failed: " + err.message,
+      reasoning: "Estimate failed due to error: " + err.message,
     };
   }
 
