@@ -2323,11 +2323,11 @@
     "Price": 10,
     "Description": "Siding fix; material ~$5/sqft, labor ~$5/sqft."
   },
-  {
-    "Code": "GR-005",
-    "Service": "Fence Repair",
-    "U/M": "LF",
-    "Price": 15,
-    "Description": "Fence fix; material ~$7/lf, labor ~$8/lf."
-  }
+{
+  "Code": "GR-005",
+  "Service": "Fence Repair",
+  "U/M": "LF",
+  "Price": 15,
+  "Description": "Fence fix; material ~$7/lf, labor ~$8/lf."
+}
 ]
