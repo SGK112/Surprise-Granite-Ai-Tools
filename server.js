@@ -168,7 +168,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully", metadata: imageDoc.metadata });
     } catch (err) {
         console.error("Upload error:", err.message);
-        res.status(500).json({ error: "Failed to upload image", details: err.message });
+        res.status(500).json({ error: "Upload processing failed", details: err.message });
     }
 });
 
@@ -340,12 +340,12 @@ async function analyzeImage(imageBase64) {
         };
     }
 
-    // Fetch dynamic materials from MongoDB
+    // Fetch dynamic materials from MongoDB with validation
     let materialsFromDB = [];
     if (db) {
         try {
             const imagesCollection = db.collection("countertop_images");
-            materialsFromDB = await imagesCollection.find({}).toArray();
+            materialsFromDB = await imagesCollection.find({ "metadata.analysis": { $exists: true } }).toArray();
             console.log("Loaded materials from MongoDB:", materialsFromDB.length, "entries");
         } catch (err) {
             console.error("Failed to load materials from MongoDB:", err.message);
@@ -357,13 +357,17 @@ async function analyzeImage(imageBase64) {
     const identifiedColor = result.color_and_pattern.toLowerCase();
     const identifiedMaterial = result.stone_type.toLowerCase();
 
-    // Find best match from uploaded materials
+    // Find best match from uploaded materials with safety checks
     const bestMatch = materialsFromDB.find(item => 
+        item.metadata && 
+        item.metadata.analysis && 
+        item.metadata.analysis.stone_type && 
+        item.metadata.analysis.color_and_pattern &&
         item.metadata.analysis.stone_type.toLowerCase() === identifiedMaterial &&
         identifiedColor.includes(item.metadata.analysis.color_and_pattern.toLowerCase().split(" ")[0])
     );
 
-    result.color_match_suggestion = bestMatch ? bestMatch.metadata.analysis.color_and_pattern : "No match found";
+    result.color_match_suggestion = bestMatch && bestMatch.metadata.analysis.color_and_pattern ? bestMatch.metadata.analysis.color_and_pattern : "No match found";
     result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
     result.material_composition = result.stone_type ? `${result.stone_type} (${result.natural_stone ? "Natural" : "Engineered"})` : "Not identified";
     result.natural_stone = result.stone_type && ["marble", "granite", "quartzite", "limestone", "soapstone"].includes(result.stone_type.toLowerCase());
@@ -374,10 +378,13 @@ async function analyzeImage(imageBase64) {
                                     "Clean with mild soap and water.";
     result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : 
                                   "No repairs needed.";
-    result.possible_matches = materialsFromDB.map(item => ({
-        color_name: item.metadata.analysis.color_and_pattern,
-        material: item.metadata.analysis.stone_type
-    })).slice(0, 5);
+    result.possible_matches = materialsFromDB
+        .filter(item => item.metadata && item.metadata.analysis && item.metadata.analysis.stone_type && item.metadata.analysis.color_and_pattern)
+        .map(item => ({
+            color_name: item.metadata.analysis.color_and_pattern,
+            material: item.metadata.analysis.stone_type
+        }))
+        .slice(0, 5);
 
     console.log("Final analysis result:", result);
     return result;
