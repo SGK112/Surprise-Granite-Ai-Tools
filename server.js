@@ -64,7 +64,7 @@ async function connectToMongoDB() {
   try {
     const client = new MongoClient(MONGODB_URI, {
       useUnifiedTopology: true,
-      maxPoolSize: 10, // Connection pooling for better performance
+      maxPoolSize: 10,
       minPoolSize: 2,
     });
     await client.connect();
@@ -79,7 +79,7 @@ async function connectToMongoDB() {
 // Middleware (Optimized: Compression and rate limiting)
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
-app.use(compression()); // Compress responses for faster delivery
+app.use(compression());
 app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
@@ -88,7 +88,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per window
+    max: 100,
   })
 );
 
@@ -97,7 +97,7 @@ app.get("/", async (req, res) => {
   const filePath = path.join(__dirname, "public", "index.html");
   console.log("GET / - Serving:", filePath);
   try {
-    res.sendFile(filePath, { maxAge: "1d" }); // Cache for 1 day
+    res.sendFile(filePath, { maxAge: "1d" });
   } catch (err) {
     logError("Failed to serve index.html", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -231,7 +231,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
     }
 
     await fs.unlink(filePath);
-    const costEstimate = enhanceCostEstimate(estimate); // Updated to use OpenAI pricing
+    const costEstimate = enhanceCostEstimate(estimate);
 
     const cleanedResponse = {
       imageId,
@@ -534,7 +534,6 @@ function calculateRepairCost(damageType, severity) {
 }
 
 function enhanceCostEstimate(estimate) {
-  // Use OpenAI's cost_estimate directly instead of recalculating
   return {
     material_cost: estimate.cost_estimate.material_cost || "Contact for estimate",
     labor_cost: {
