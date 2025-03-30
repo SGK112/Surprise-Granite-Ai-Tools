@@ -64,20 +64,11 @@ async function loadLaborData() {
         laborData = JSON.parse(await fs.readFile(laborJsonPath, "utf8"));
         console.log("Loaded labor.json:", laborData.length, "entries");
     } catch (err) {
-        logError("Failed to load labor.json, using expanded defaults", err);
+        logError("Failed to load labor.json, using minimal defaults", err);
         laborData = [
-            { type: "crack_repair", rate_per_sqft: 10, hours: 2, confidence: 1 },
-            { type: "chip_repair", rate_per_sqft: 8, hours: 1, confidence: 1 },
-            { type: "stain_removal", rate_per_sqft: 6, hours: 1.5, confidence: 1 },
-            { type: "scratch_repair", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
             { type: "countertop_installation", rate_per_sqft: 15, hours: 1, confidence: 1 },
-            { type: "sink_cutout", rate_per_unit: 50, hours: 0.5, confidence: 1 },
-            { type: "edge_profile", rate_per_linear_ft: 20, hours: 0.25, confidence: 1 },
-            { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
-            { type: "cabinet_repair", rate_per_unit: 40, hours: 1, confidence: 1 },
             { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
-            { type: "shower_pan_installation", rate_per_unit: 150, hours: 3, confidence: 1 },
-            { type: "plumbing_installation", rate_per_unit: 100, hours: 2, confidence: 1 },
+            { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
             { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 }
         ];
         console.log("Using default labor data:", laborData.length, "entries");
@@ -91,19 +82,12 @@ async function loadMaterialsData() {
         materialsData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8"));
         console.log("Loaded materials.json:", materialsData.length, "entries");
     } catch (err) {
-        logError("Failed to load materials.json, using expanded defaults", err);
+        logError("Failed to load materials.json, using minimal defaults", err);
         materialsData = [
             { type: "Granite", cost_per_sqft: 50, confidence: 1 },
             { type: "Quartz", cost_per_sqft: 60, confidence: 1 },
-            { type: "Marble", cost_per_sqft: 70, confidence: 1 },
-            { type: "Soapstone", cost_per_sqft: 80, confidence: 1 },
-            { type: "Concrete", cost_per_sqft: 65, confidence: 1 },
-            { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 },
-            { type: "Ceramic Tile", cost_per_sqft: 10, confidence: 1 },
             { type: "Porcelain Tile", cost_per_sqft: 15, confidence: 1 },
-            { type: "Wood (Cabinet)", cost_per_unit: 100, confidence: 1 },
-            { type: "Stainless Steel (Sink)", cost_per_unit: 200, confidence: 1 },
-            { type: "PVC Pipe", cost_per_linear_ft: 2, confidence: 1 }
+            { type: "Wood (Cabinet)", cost_per_unit: 100, confidence: 1 }
         ];
         console.log("Using default materials data:", materialsData.length, "entries");
     }
@@ -182,32 +166,15 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
         console.log("Estimate stored, imageId:", estimate.imageId);
 
         console.log("Calculating cost estimate");
-        let costEstimate;
-        try {
-            costEstimate = enhanceCostEstimate(estimate) || {
-                materialCost: "Contact for estimate",
-                laborCost: { total: "Contact for estimate" },
-                additionalFeaturesCost: "$0",
-                totalCost: "Contact for estimate"
-            };
-        } catch (err) {
-            logError("Cost estimate calculation failed", err);
-            costEstimate = {
-                materialCost: "Contact for estimate",
-                laborCost: { total: "Contact for estimate" },
-                additionalFeaturesCost: "$0",
-                totalCost: "Contact for estimate"
-            };
-        }
+        const costEstimate = enhanceCostEstimate(estimate) || {
+            materialCost: "Contact for estimate",
+            laborCost: { total: "Contact for estimate" },
+            additionalFeaturesCost: "$0",
+            totalCost: "Contact for estimate"
+        };
 
         console.log("Generating TTS");
-        let audioBuffer;
-        try {
-            audioBuffer = await generateTTS(estimate, customerNeeds);
-        } catch (err) {
-            logError("TTS generation failed", err);
-            audioBuffer = Buffer.from(`Error generating audio: ${err.message}. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
-        }
+        const audioBuffer = await generateTTS(estimate, customerNeeds);
 
         const responseData = {
             imageId: estimate.imageId.toString(),
@@ -258,7 +225,7 @@ app.get("/api/get-countertop/:id", async (req, res, next) => {
                 ...countertop.metadata.estimate,
                 likes: countertop.metadata.likes || 0,
                 dislikes: countertop.metadata.dislikes || 0,
-                shareDescription: `Countertop Estimate: ${countertop.metadata.estimate.material_type || "Unknown"}, ${countertop.metadata.estimate.project_scope || "Project"}. Total: ${enhanceCostEstimate(countertop.metadata.estimate)?.totalCost || "Contact for estimate"}`,
+                shareDescription: `Estimate: ${countertop.metadata.estimate.material_type || "Unknown"}, ${countertop.metadata.estimate.project_scope || "Project"}. Total: ${enhanceCostEstimate(countertop.metadata.estimate)?.totalCost || "Contact for estimate"}`,
                 shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${countertop._id}`,
             },
         });
@@ -404,52 +371,35 @@ async function estimateProject(fileContent, customerNeeds) {
             logError("Failed to fetch past estimates, proceeding without historical data", err);
         }
 
-        const pastData = pastEstimates.map(img => {
-            try {
-                const cost = enhanceCostEstimate(img.metadata.estimate)?.totalCost || "Contact for estimate";
-                return {
-                    material_type: img.metadata.estimate.material_type || "Unknown",
-                    project_scope: img.metadata.estimate.project_scope || "Replacement",
-                    condition: img.metadata.estimate.condition || { damage_type: "No visible damage", severity: "None" },
-                    additional_features: Array.isArray(img.metadata.estimate.additional_features) ? img.metadata.estimate.additional_features : [],
-                    solutions: img.metadata.estimate.solutions || "Professional evaluation required",
-                    cost,
-                    likes: img.metadata.likes || 0,
-                    dislikes: img.metadata.dislikes || 0,
-                };
-            } catch (err) {
-                logError("Error processing historical estimate", err);
-                return {
-                    material_type: "Unknown",
-                    project_scope: "Replacement",
-                    condition: { damage_type: "No visible damage", severity: "None" },
-                    additional_features: [],
-                    solutions: "Professional evaluation required",
-                    cost: "Contact for estimate",
-                    likes: 0,
-                    dislikes: 0,
-                };
-            }
-        });
+        const pastData = pastEstimates.map(img => ({
+            material_type: img.metadata.estimate.material_type || "Unknown",
+            project_scope: img.metadata.estimate.project_scope || "Replacement",
+            condition: img.metadata.estimate.condition || { damage_type: "No visible damage", severity: "None" },
+            additional_features: Array.isArray(img.metadata.estimate.additional_features) ? img.metadata.estimate.additional_features : [],
+            solutions: img.metadata.estimate.solutions || "Professional evaluation required",
+            cost: enhanceCostEstimate(img.metadata.estimate)?.totalCost || "Contact for estimate",
+            likes: img.metadata.likes || 0,
+            dislikes: img.metadata.dislikes || 0,
+        })).slice(0, 3); // Limit to 3 to reduce token usage
         console.log("Past data prepared:", pastData);
 
-        const prompt = `You are CARI, an advanced AI estimator at Surprise Granite, optimized for accurate estimates across various remodeling projects (countertops, cabinets, showers, repairs, etc.) using our pricing data as of March 2025. Analyze this image and customer needs ("${customerNeeds}") with:
+        const prompt = `You are CARI, an expert AI general contractor at Surprise Granite, specializing in comprehensive remodeling estimates (countertops, cabinets, showers, flooring, repairs, etc.) as of March 2025. Analyze this image and customer needs ("${customerNeeds}") with:
 
         **Pricing Data**:
-        - Labor: ${JSON.stringify(laborData)} (use rate_per_sqft, rate_per_unit, or rate_per_linear_ft; confidence indicates reliability).
-        - Materials: ${JSON.stringify(materialsData)} (use cost_per_sqft, cost_per_unit, or cost_per_linear_ft; confidence indicates reliability).
+        - Labor: Comprehensive data available with rates (e.g., rate_per_sqft, rate_per_unit, rate_per_linear_ft) and confidence levels. Use context to select appropriate rates.
+        - Materials: Extensive data available with costs (e.g., cost_per_sqft, cost_per_unit, cost_per_linear_ft) and confidence levels. Match materials to needs/image.
 
-        **Historical Estimates**: ${JSON.stringify(pastData)} (use to refine estimates if available, prioritize high-liked, low-disliked entries).
+        **Historical Estimates**: ${JSON.stringify(pastData)} (use to refine estimates, prioritize high-liked entries).
 
         Estimate:
-        - Project scope: Identify the job type (e.g., "countertop installation", "cabinet replacement", "shower remodel", "repair") from customer needs or image; default "replacement".
-        - Material type: Identify primary material (e.g., "Quartz", "Tile", "Wood") from image or needs; default "Unknown" if uncertain.
-        - Color and pattern: Describe from image or infer from needs; default "Not identified".
-        - Dimensions: Extract from customer needs (e.g., "25 sq ft", "5 units") or estimate based on context (25 sq ft for countertops, 10 sq ft for showers, 5 units for cabinets).
-        - Additional features: List as array (e.g., "sink cutout", "plumbing", "demolition") from needs or image; default [].
+        - Project scope: Determine job type (e.g., "countertop installation", "shower remodel", "cabinet replacement", "flooring installation", "repair") from needs/image; default "replacement".
+        - Material type: Identify primary material (e.g., "Quartz", "Tile", "Wood") from needs/image; default "Unknown" if uncertain.
+        - Color and pattern: Describe from image/needs; default "Not identified".
+        - Dimensions: Extract from needs (e.g., "25 sq ft", "5 units") or estimate (25 sq ft for countertops, 10 sq ft for showers, 5 units for cabinets, 100 sq ft for flooring).
+        - Additional features: List as array (e.g., "sink cutout", "plumbing", "demolition") from needs/image; default [].
         - Condition: For repairs, detect damage (e.g., "crack_repair") and severity (None, Low, Moderate, Severe); default { damage_type: "No visible damage", severity: "None" }.
-        - Solutions: Propose based on scope, condition, and past data; suggest modern techniques where applicable.
-        - Reasoning: Explain estimate, referencing pricing data, past estimates (if any), and feedback.
+        - Solutions: Provide detailed solutions based on scope, condition, and past data; include modern techniques.
+        - Reasoning: Explain estimate, referencing pricing trends and feedback.
 
         Respond in JSON with: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition (object), solutions (string), reasoning.`;
 
@@ -480,7 +430,7 @@ async function estimateProject(fileContent, customerNeeds) {
             project_scope: "Replacement",
             material_type: "Unknown",
             color_and_pattern: "Not identified",
-            dimensions: customerNeeds.includes("cabinet") ? "5 units (assumed)" : customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)",
+            dimensions: customerNeeds.includes("cabinet") ? "5 units (assumed)" : customerNeeds.includes("shower") ? "10 sq ft (assumed)" : customerNeeds.includes("flooring") ? "100 sq ft (assumed)" : "25 sq ft (assumed)",
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
             solutions: "Contact for professional evaluation.",
@@ -540,7 +490,7 @@ function enhanceCostEstimate(estimate) {
     const unitMatch = dimensions.match(/(\d+)\s*units?/i);
     let sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseInt(sqFtMatch[1], 10) + parseInt(sqFtMatch[2], 10)) / 2 : parseInt(sqFtMatch[1], 10)) : 0;
     let units = unitMatch ? parseInt(unitMatch[1], 10) : 0;
-    if (isNaN(sqFt)) sqFt = estimate.project_scope?.includes("shower") ? 10 : 25;
+    if (isNaN(sqFt)) sqFt = estimate.project_scope?.includes("shower") ? 10 : estimate.project_scope?.includes("flooring") ? 100 : 25;
     if (isNaN(units)) units = estimate.project_scope?.includes("cabinet") ? 5 : 0;
     console.log("Calculated sq ft:", sqFt, "units:", units);
 
