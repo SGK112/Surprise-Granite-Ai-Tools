@@ -244,8 +244,6 @@
     "Price": 35,
     "Description": "Decorative epoxy over existing counters; material ~$15/sqft, labor ~$20/sqft."
   },
-
-  // Cabinets (CB) - Adjusted and Expanded
   {
     "Code": "CB-001",
     "Service": "Kitchen Cabinet Installation",
@@ -940,7 +938,6 @@
     "Price": 1300,
     "Description": "Treehouse removal; labor ~$900, disposal ~$400."
   },
-  // New Demolition Additions
   {
     "Code": "DD-031",
     "Service": "Tile Floor Demo",
@@ -1165,7 +1162,6 @@
     "Price": 35,
     "Description": "Decorative terrazzo; material ~$20/sqft, labor ~$15/sqft."
   },
-  // New Flooring Additions
   {
     "Code": "FL-031",
     "Service": "Linoleum Flooring Installation",
@@ -1180,8 +1176,6 @@
     "Price": 200,
     "Description": "Fixes minor damage; materials ~$50, labor ~$150."
   },
-
-  // Showers (SH) - Adjusted and Expanded
   {
     "Code": "SH-001",
     "Service": "Shower Tile Wall Installation",
@@ -1616,7 +1610,6 @@
     "Price": 15,
     "Description": "Concrete overlay; material ~$8/sqft, labor ~$7/sqft."
   },
-  // New Outdoor Additions
   {
     "Code": "OC-031",
     "Service": "Outdoor Sink Installation",
