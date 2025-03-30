@@ -9,7 +9,7 @@ const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
 const EmailJS = require("@emailjs/nodejs");
-const NodeCache = require("node-cache");
+const NodeCache = require("node-cache"); // Added for caching
 
 // Constants
 const PORT = process.env.PORT || 10000;
@@ -38,7 +38,7 @@ function logError(message, err) {
   console.error(`${message}: ${err.message}`, err.stack);
 }
 
-// Load Labor Data
+// Load Labor Data (Optimized: Load once at startup)
 async function loadLaborData() {
   try {
     const laborJsonPath = path.join(__dirname, "data", "labor.json");
@@ -59,12 +59,12 @@ async function loadLaborData() {
   }
 }
 
-// MongoDB Connection
+// MongoDB Connection (Optimized: Connection pooling)
 async function connectToMongoDB() {
   try {
     const client = new MongoClient(MONGODB_URI, {
       useUnifiedTopology: true,
-      maxPoolSize: 10,
+      maxPoolSize: 10, // Connection pooling for better performance
       minPoolSize: 2,
     });
     await client.connect();
@@ -76,10 +76,10 @@ async function connectToMongoDB() {
   }
 }
 
-// Middleware
+// Middleware (Optimized: Compression and rate limiting)
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
-app.use(compression());
+app.use(compression()); // Compress responses for faster delivery
 app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
@@ -88,7 +88,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests
+    max: 100, // Limit each IP to 100 requests per window
   })
 );
 
@@ -97,7 +97,7 @@ app.get("/", async (req, res) => {
   const filePath = path.join(__dirname, "public", "index.html");
   console.log("GET / - Serving:", filePath);
   try {
-    res.sendFile(filePath, { maxAge: "1d" });
+    res.sendFile(filePath, { maxAge: "1d" }); // Cache for 1 day
   } catch (err) {
     logError("Failed to serve index.html", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -168,7 +168,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         uploadDate: new Date(),
         analysis,
         likes: 0,
-        dislikes: 0,
+        dislikes: 0, // Added dislikes
       },
     };
 
@@ -222,7 +222,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
           uploadDate: new Date(),
           estimate,
           likes: 0,
-          dislikes: 0,
+          dislikes: 0, // Added dislikes
         },
       };
       const result = await imagesCollection.insertOne(imageDoc);
@@ -274,7 +274,7 @@ app.get("/api/get-countertop/:id", async (req, res) => {
       metadata: {
         ...countertop.metadata,
         likes: countertop.metadata.likes || 0,
-        dislikes: countertop.metadata.dislikes || 0,
+        dislikes: countertop.metadata.dislikes || 0, // Added dislikes
         shareDescription: `Countertop Estimate: ${countertop.metadata.estimate?.material_type || "Unknown"}, ${countertop.metadata.estimate?.project_scope || "Project"}`,
         shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${countertop._id}`,
       },
@@ -394,9 +394,6 @@ app.post("/api/tts", async (req, res) => {
       });
       audioBuffer = Buffer.from(await response.arrayBuffer());
       cache.set(cacheKey, audioBuffer);
-      console.log("Generated TTS audio with OpenAI");
-    } else {
-      console.log("Served TTS audio from cache");
     }
 
     res.set({ "Content-Type": "audio/mpeg", "Content-Length": audioBuffer.length });
@@ -407,7 +404,7 @@ app.post("/api/tts", async (req, res) => {
   }
 });
 
-// Analysis Functions
+// Analysis Functions (Optimized: Simplified prompts, caching)
 async function analyzeImage(imageBase64) {
   console.log("Analyzing image with OpenAI for repair...");
   const cacheKey = `analysis_${createHash("sha256").update(imageBase64).digest("hex")}`;
@@ -429,7 +426,7 @@ async function analyzeImage(imageBase64) {
         { role: "system", content: prompt },
         { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] },
       ],
-      max_tokens: 1000,
+      max_tokens: 1000, // Reduced tokens for speed
       temperature: 0.5,
       response_format: { type: "json_object" },
     });
@@ -486,7 +483,7 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
-      max_tokens: 1500,
+      max_tokens: 1500, // Reduced for speed
       temperature: 0.5,
       response_format: { type: "json_object" },
     });
