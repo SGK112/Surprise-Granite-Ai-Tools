@@ -32,10 +32,13 @@ async function loadLaborData() {
     } catch (err) {
         console.error("Failed to load labor.json:", err.message);
         laborData = [
-            {"repair_type": "crack", "rate_per_sqft": 10, "hours": 2},
-            {"repair_type": "chip", "rate_per_sqft": 8, "hours": 1},
-            {"repair_type": "stain", "rate_per_sqft": 6, "hours": 1.5},
-            {"repair_type": "scratch", "rate_per_sqft": 5, "hours": 0.5}
+            {"type": "crack", "rate_per_sqft": 10, "hours": 2},
+            {"type": "chip", "rate_per_sqft": 8, "hours": 1},
+            {"type": "stain", "rate_per_sqft": 6, "hours": 1.5},
+            {"type": "scratch", "rate_per_sqft": 5, "hours": 0.5},
+            {"type": "installation", "rate_per_sqft": 15, "hours": 1}, // Added for contractor tasks
+            {"type": "cutout", "rate_per_unit": 50, "hours": 0.5},   // Per sink/cooktop cutout
+            {"type": "edge_profile", "rate_per_linear_ft": 20, "hours": 0.25} // Per linear foot
         ];
         console.log("Using default labor data:", laborData);
     }
@@ -83,6 +86,7 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "Server is running", port: PORT, dbStatus });
 });
 
+// Existing CARI (Repair Analysis)
 app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     console.log("POST /api/upload-countertop");
     try {
@@ -104,7 +108,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
         const analysis = await analyzeImage(imageBase64);
-        console.log("OpenAI Analysis complete:", analysis);
+        console.log("OpenAI Repair Analysis complete:", analysis);
 
         if (!db) {
             console.warn("Database not connected, proceeding with OpenAI analysis only");
@@ -169,6 +173,76 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
     } catch (err) {
         console.error("Upload error:", err.message);
         res.status(500).json({ error: "Upload processing failed", details: err.message });
+    }
+});
+
+// New CARI Contractor (Project Estimation)
+app.post("/api/contractor-estimate", upload.single("file"), async (req, res) => {
+    console.log("POST /api/contractor-estimate");
+    try {
+        if (!req.file) {
+            console.error("No file uploaded");
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const filePath = req.file.path;
+        let fileContent;
+        try {
+            if (req.file.mimetype.startsWith("image/")) {
+                fileContent = (await fs.readFile(filePath)).toString("base64");
+            } else if (req.file.mimetype === "application/pdf" || req.file.mimetype === "text/plain") {
+                fileContent = await fs.readFile(filePath, "utf8");
+            } else {
+                throw new Error("Unsupported file type: " + req.file.mimetype);
+            }
+        } catch (err) {
+            console.error("Failed to read file:", err.message);
+            throw new Error("Failed to process file");
+        }
+
+        const estimate = await estimateProject(fileContent, req.file.mimetype);
+        console.log("OpenAI Contractor Estimate complete:", estimate);
+
+        if (!db) {
+            console.warn("Database not connected, proceeding with OpenAI estimate only");
+        }
+
+        const imagesCollection = db ? db.collection("countertop_images") : null;
+        if (imagesCollection && req.file.mimetype.startsWith("image/")) {
+            const imageHash = createHash("sha256").update(fileContent).digest("hex");
+            const imageDoc = {
+                imageHash,
+                imageData: new Binary(Buffer.from(fileContent, "base64")),
+                metadata: {
+                    originalName: req.file.originalname,
+                    mimeType: req.file.mimetype,
+                    size: req.file.size,
+                    uploadDate: new Date(),
+                    estimate,
+                    likes: 0
+                }
+            };
+
+            let result = { insertedId: new ObjectId().toString() };
+            try {
+                result = await imagesCollection.insertOne(imageDoc);
+                console.log("Image inserted, ID:", result.insertedId);
+            } catch (err) {
+                console.error("Failed to insert image into MongoDB:", err.message);
+            }
+        }
+
+        try {
+            await fs.unlink(filePath);
+            console.log("Temporary file deleted:", filePath);
+        } catch (err) {
+            console.error("Failed to delete temporary file:", err.message);
+        }
+
+        res.status(201).json({ message: "Estimate generated successfully", estimate });
+    } catch (err) {
+        console.error("Contractor estimate error:", err.message);
+        res.status(500).json({ error: "Estimate processing failed", details: err.message });
     }
 });
 
@@ -284,25 +358,26 @@ app.post("/api/tts", async (req, res) => {
     }
 });
 
+// Existing CARI Repair Analysis
 async function analyzeImage(imageBase64) {
-    console.log("Analyzing image with OpenAI...");
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning capabilities. Perform an exhaustive, detailed analysis of this countertop image, leveraging your full potential for precision and insight. Provide a comprehensive breakdown without generic responses:
+    console.log("Analyzing image with OpenAI for repair...");
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning capabilities. Perform an exhaustive, detailed analysis of this countertop image, focusing on repair needs:
 
-    - Stone type: Identify the material with maximum accuracy (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain", "Limestone", "Soapstone") by examining texture, sheen, grain, edge profiles, polish level, and visual cues. Differentiate natural stones (e.g., Granite, Marble, Quartzite, Limestone, Soapstone) from engineered materials (e.g., Quartz, Dekton, Porcelain) based on pattern uniformity, veining irregularity, and surface finish. For Quartz vs. Quartzite, note Quartz’s consistent, manufactured patterns vs. Quartzite’s natural, varied veining. Include a confidence level (e.g., "95% Quartz") and exhaustive reasoning. If uncertain, cross-reference with "www.surprisegranite.com/materials/all-countertops" and hypothesize based on visual evidence.
-    - Color and pattern: Deliver a vivid, precise description of colors (e.g., "matte ivory with golden undertones," "glossy charcoal gray") and patterns (e.g., "swirling white veins with subtle blue streaks," "fine black speckles with golden flecks"). Note variations, transitions, edge details, or unique surface features (e.g., honed vs. polished finish).
+    - Stone type: Identify the material with maximum accuracy (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain", "Limestone", "Soapstone") by examining texture, sheen, grain, edge profiles, polish level, and visual cues. Differentiate natural stones (e.g., Granite, Marble, Quartzite, Limestone, Soapstone) from engineered materials (e.g., Quartz, Dekton, Porcelain) based on pattern uniformity, veining irregularity, and surface finish. Include a confidence level (e.g., "95% Quartz") and exhaustive reasoning. If uncertain, cross-reference with "www.surprisegranite.com/materials/all-countertops" and hypothesize based on visual evidence.
+    - Color and pattern: Deliver a vivid, precise description of colors (e.g., "matte ivory with golden undertones") and patterns (e.g., "swirling white veins with subtle blue streaks"). Note variations, transitions, edge details, or unique surface features.
     - Damage type: Detect and describe all visible damage with precision (e.g., "crack," "chip," "stain," "scratch," "discoloration," "wear"), specifying exact location (e.g., "1-inch crack along the left edge near the sink") and extent (e.g., "spanning 3 inches diagonally"). Identify subtle issues like micro-fractures, pitting, or fading. Use simple terms ("crack," "chip") for cost estimation compatibility. If no damage, state "No visible damage."
     - Severity: Evaluate damage severity with detailed, actionable context:
       - None: "No damage detected, the surface is pristine and flawless!"
       - Low: "Minor imperfection, easily repairable with minimal effort (e.g., light sanding)."
       - Moderate: "Noticeable damage, repair advised to prevent progression (e.g., sealing or patching)."
       - Severe: "Significant structural damage, immediate professional attention recommended."
-    - Reasoning: Provide a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen, consistent veining, and polished edge suggest engineered Quartz"). Explore all visible details, avoid assumptions, and ensure a unique analysis each time.
+    - Reasoning: Provide a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen and consistent veining suggest engineered Quartz").
 
-    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning. Maximize detail for testing purposes, even for repeat images.`;
+    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning.`;
 
     let result;
     try {
-        console.log("Sending request to OpenAI API...");
+        console.log("Sending request to OpenAI API for repair analysis...");
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
@@ -330,17 +405,17 @@ async function analyzeImage(imageBase64) {
             throw new Error(result.error);
         }
     } catch (err) {
-        console.error("OpenAI analysis failed:", err.message, err.stack);
+        console.error("OpenAI repair analysis failed:", err.message, err.stack);
         result = {
             stone_type: "Unknown",
             color_and_pattern: "Not identified",
             damage_type: "No visible damage",
             severity: "None",
-            reasoning: "Analysis failed due to an error: " + err.message
+            reasoning: "Repair analysis failed due to an error: " + err.message
         };
     }
 
-    // Fetch dynamic materials from MongoDB with validation
+    // Fetch dynamic materials from MongoDB
     let materialsFromDB = [];
     if (db) {
         try {
@@ -357,7 +432,6 @@ async function analyzeImage(imageBase64) {
     const identifiedColor = result.color_and_pattern.toLowerCase();
     const identifiedMaterial = result.stone_type.toLowerCase();
 
-    // Find best match from uploaded materials with safety checks
     const bestMatch = materialsFromDB.find(item => 
         item.metadata && 
         item.metadata.analysis && 
@@ -386,7 +460,122 @@ async function analyzeImage(imageBase64) {
         }))
         .slice(0, 5);
 
-    console.log("Final analysis result:", result);
+    console.log("Final repair analysis result:", result);
+    return result;
+}
+
+// New CARI Contractor Project Estimation
+async function estimateProject(fileContent, mimeType) {
+    console.log("Estimating project with OpenAI...");
+    const prompt = `You are CARI Contractor, an expert countertop contractor at Surprise Granite with advanced vision and reasoning capabilities. Analyze the provided input (image or document) to estimate a full countertop project as a contractor would. Provide a detailed breakdown:
+
+    - Input type: Identify whether the input is an image (visual analysis) or document (text analysis).
+    - Project scope: For images, determine if this is a new installation, replacement, or repair based on visual cues (e.g., existing countertop condition, surroundings). For documents, extract details like dimensions, material preferences, or special requests (e.g., sink cutouts, edge profiles). If unclear, make reasonable assumptions and explain them.
+    - Material type: Identify the material (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain", "Limestone", "Soapstone") with a confidence level (e.g., "95% Quartz"). Use texture, sheen, grain, edge profiles, and polish level for images; use text for documents. Differentiate natural vs. engineered materials and hypothesize if uncertain, referencing "www.surprisegranite.com/materials/all-countertops".
+    - Color and pattern: Describe colors (e.g., "matte ivory") and patterns (e.g., "swirling white veins") vividly. For documents, use provided descriptions or suggest based on context.
+    - Dimensions: Estimate square footage (e.g., "20 sq ft") from image scale or document specs. If not provided, assume a standard 25 sq ft kitchen countertop and note the assumption.
+    - Additional features: Identify or suggest extras like sink cutouts, cooktop cutouts, edge profiles (e.g., "bullnose"), or backsplashes. Quantify (e.g., "2 sink cutouts").
+    - Condition (for repairs): If repair is part of the scope, detect damage (e.g., "crack," "chip") with location and extent. Assess severity (None, Low, Moderate, Severe).
+    - Cost estimate: Provide a detailed breakdown:
+      - Material cost: Suggest a material cost per sq ft (e.g., $50/sq ft for Quartz) based on typical Surprise Granite pricing.
+      - Labor cost: Estimate installation labor (per sq ft), repair labor (if applicable), and additional feature costs (per unit or linear ft).
+      - Total cost: Sum all components with a range (e.g., "$1500 - $2000").
+    - Reasoning: Explain all findings and cost assumptions thoroughly, referencing visual or textual evidence.
+
+    Respond in JSON format with keys: input_type, project_scope, material_type, color_and_pattern, dimensions, additional_features, condition, cost_estimate, reasoning. Ensure a comprehensive, contractor-like estimate.`;
+
+    let result;
+    try {
+        console.log("Sending request to OpenAI API for contractor estimate...");
+        const messages = [
+            { role: "system", content: prompt }
+        ];
+        if (mimeType.startsWith("image/")) {
+            messages.push({
+                role: "user",
+                content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${fileContent}` } }]
+            });
+        } else {
+            messages.push({
+                role: "user",
+                content: [{ type: "text", text: fileContent }]
+            });
+        }
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages,
+            max_tokens: 4000,
+            temperature: 0.5
+        });
+
+        console.log("OpenAI response received:", response);
+        const content = response.choices[0].message.content;
+        console.log("Raw content from OpenAI:", content);
+
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("No valid JSON found in OpenAI response");
+        }
+
+        result = JSON.parse(jsonMatch[0]);
+        console.log("Parsed estimate result:", result);
+
+        if (result.error) {
+            console.error("OpenAI returned an error:", result.error);
+            throw new Error(result.error);
+        }
+    } catch (err) {
+        console.error("OpenAI contractor estimate failed:", err.message, err.stack);
+        result = {
+            input_type: mimeType.startsWith("image/") ? "image" : "document",
+            project_scope: "Unknown",
+            material_type: "Unknown",
+            color_and_pattern: "Not identified",
+            dimensions: "Not specified",
+            additional_features: [],
+            condition: { damage_type: "No visible damage", severity: "None" },
+            cost_estimate: { material_cost: "Unknown", labor_cost: "Unknown", total_cost: "Contact for estimate" },
+            reasoning: "Estimate failed due to an error: " + err.message
+        };
+    }
+
+    // Fetch dynamic materials from MongoDB
+    let materialsFromDB = [];
+    if (db) {
+        try {
+            const imagesCollection = db.collection("countertop_images");
+            materialsFromDB = await imagesCollection.find({ "metadata.analysis": { $exists: true } }).toArray();
+            console.log("Loaded materials from MongoDB:", materialsFromDB.length, "entries");
+        } catch (err) {
+            console.error("Failed to load materials from MongoDB:", err.message);
+        }
+    } else {
+        console.warn("No DB connection, skipping materials fetch");
+    }
+
+    const identifiedColor = result.color_and_pattern.toLowerCase();
+    const identifiedMaterial = result.material_type.toLowerCase();
+
+    const bestMatch = materialsFromDB.find(item => 
+        item.metadata && 
+        item.metadata.analysis && 
+        item.metadata.analysis.stone_type && 
+        item.metadata.analysis.color_and_pattern &&
+        item.metadata.analysis.stone_type.toLowerCase() === identifiedMaterial &&
+        identifiedColor.includes(item.metadata.analysis.color_and_pattern.toLowerCase().split(" ")[0])
+    );
+
+    result.material_match_suggestion = bestMatch && bestMatch.metadata.analysis.color_and_pattern ? bestMatch.metadata.analysis.color_and_pattern : "No match found";
+    result.possible_matches = materialsFromDB
+        .filter(item => item.metadata && item.metadata.analysis && item.metadata.analysis.stone_type && item.metadata.analysis.color_and_pattern)
+        .map(item => ({
+            color_name: item.metadata.analysis.color_and_pattern,
+            material: item.metadata.analysis.stone_type
+        }))
+        .slice(0, 5);
+
+    console.log("Final contractor estimate result:", result);
     return result;
 }
 
@@ -411,7 +600,7 @@ function calculateRepairCost(damageType, severity) {
     }
 
     const laborEntry = laborData.find(entry => 
-        entry.repair_type.toLowerCase() === simplifiedDamageType
+        entry.type.toLowerCase() === simplifiedDamageType
     );
     if (!laborEntry) {
         console.log("Labor entry not found for simplified damage type:", simplifiedDamageType);
@@ -427,7 +616,7 @@ function calculateRepairCost(damageType, severity) {
     }[severity] || 1;
 
     const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
-    console.log(`Calculated cost: $${cost.toFixed(2)} for ${simplifiedDamageType}, severity: ${severity}`);
+    console.log(`Calculated repair cost: $${cost.toFixed(2)} for ${simplifiedDamageType}, severity: ${severity}`);
     return `$${cost.toFixed(2)}`;
 }
 
