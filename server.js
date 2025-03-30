@@ -22,7 +22,7 @@ const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-let laborData;
+let laborData = [];
 async function loadLaborData() {
     try {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
@@ -31,14 +31,15 @@ async function loadLaborData() {
         console.log("Loaded labor.json:", laborData);
     } catch (err) {
         console.error("Failed to load labor.json:", err.message);
-        laborData = [];
+        laborData = [
+            {"repair_type": "crack", "rate_per_sqft": 10, "hours": 2},
+            {"repair_type": "chip", "rate_per_sqft": 8, "hours": 1},
+            {"repair_type": "stain", "rate_per_sqft": 6, "hours": 1.5},
+            {"repair_type": "scratch", "rate_per_sqft": 5, "hours": 0.5}
+        ];
+        console.log("Using default labor data:", laborData);
     }
 }
-
-const materialsData = [
-    { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24, "Price Group": 2, "Tier": "Low Tier" },
-    { "Color Name": "VANILLA SKY", "Vendor Name": "MSI", "Thickness": "1.6cm", "Material": "Marble", "size": "126x63", "Total/SqFt": 4.8, "Cost/SqFt": 5.65, "Price Group": 1, "Tier": "Low Tier" }
-];
 
 let db;
 
@@ -61,14 +62,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
-    const filePath = path.join(__dirname, "public", "index.html");
-    console.log("GET / - Attempting to serve:", filePath);
-    res.sendFile(filePath, (err) => {
-        if (err) {
-            console.error("Error serving index.html:", err.message);
-            res.status(500).json({ error: "Failed to load index.html", details: err.message });
-        }
-    });
+    try {
+        const filePath = path.join(__dirname, "public", "index.html");
+        console.log("GET / - Attempting to serve:", filePath);
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error("Error serving index.html:", err.message);
+                res.status(500).json({ error: "Failed to load index.html", details: err.message });
+            }
+        });
+    } catch (err) {
+        console.error("GET / error:", err.message);
+        res.status(500).json({ error: "Server error", details: err.message });
+    }
 });
 
 app.get("/api/health", (req, res) => {
@@ -86,7 +92,14 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         }
 
         const filePath = req.file.path;
-        const imageBuffer = await fs.readFile(filePath);
+        let imageBuffer;
+        try {
+            imageBuffer = await fs.readFile(filePath);
+        } catch (err) {
+            console.error("Failed to read image file:", err.message);
+            throw new Error("Failed to process image file");
+        }
+        
         const imageBase64 = imageBuffer.toString("base64");
         const imageHash = createHash("sha256").update(imageBase64).digest("hex");
 
@@ -99,7 +112,6 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
 
         const imagesCollection = db ? db.collection("countertop_images") : null;
         if (imagesCollection) {
-            // Dynamic Granite matches only if stone_type is Granite
             if (analysis.stone_type.toLowerCase() === "granite") {
                 const colorKeywords = analysis.color_and_pattern.toLowerCase().split(" ");
                 const mongoMatches = await imagesCollection.find({ 
@@ -136,17 +148,27 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
 
         let result = { insertedId: new ObjectId().toString() };
         if (imagesCollection) {
-            result = await imagesCollection.insertOne(imageDoc);
-            console.log("Image inserted, ID:", result.insertedId);
+            try {
+                result = await imagesCollection.insertOne(imageDoc);
+                console.log("Image inserted, ID:", result.insertedId);
+            } catch (err) {
+                console.error("Failed to insert image into MongoDB:", err.message);
+            }
         } else {
             console.warn("No DB connection, skipping insert");
         }
-        await fs.unlink(filePath);
+
+        try {
+            await fs.unlink(filePath);
+            console.log("Temporary file deleted:", filePath);
+        } catch (err) {
+            console.error("Failed to delete temporary file:", err.message);
+        }
 
         res.status(201).json({ imageId: result.insertedId, message: "Image uploaded successfully", metadata: imageDoc.metadata });
     } catch (err) {
         console.error("Upload error:", err.message);
-        res.status(500).json({ error: "Failed to upload image: " + err.message });
+        res.status(500).json({ error: "Failed to upload image", details: err.message });
     }
 });
 
@@ -169,7 +191,7 @@ app.get("/api/get-countertop/:id", async (req, res) => {
         res.json(response);
     } catch (err) {
         console.error("Fetch countertop error:", err.message);
-        res.status(500).json({ error: "Failed to fetch countertop: " + err.message });
+        res.status(500).json({ error: "Failed to fetch countertop", details: err.message });
     }
 });
 
@@ -193,7 +215,7 @@ app.post("/api/like-countertop/:id", async (req, res) => {
         res.status(200).json({ message: "Like added", likes: newLikes });
     } catch (err) {
         console.error("Like error:", err.message);
-        res.status(500).json({ error: "Failed to like countertop: " + err.message });
+        res.status(500).json({ error: "Failed to like countertop", details: err.message });
     }
 });
 
@@ -258,25 +280,25 @@ app.post("/api/tts", async (req, res) => {
         res.send(audioBuffer);
     } catch (err) {
         console.error("TTS error:", err.message);
-        res.status(500).json({ error: "Failed to generate audio: " + err.message });
+        res.status(500).json({ error: "Failed to generate audio", details: err.message });
     }
 });
 
 async function analyzeImage(imageBase64) {
     console.log("Analyzing image with OpenAI...");
-    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning capabilities. Perform a deep, detailed analysis of this countertop image, leveraging your full potential for precision and insight. Avoid generic responses and provide a comprehensive breakdown:
+    const prompt = `You are CARI, an expert countertop analyst at Surprise Granite with advanced vision and reasoning capabilities. Perform an exhaustive, detailed analysis of this countertop image, leveraging your full potential for precision and insight. Provide a comprehensive breakdown without generic responses:
 
-    - Stone type: Identify the material with high accuracy (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain") by examining texture, sheen, grain, edge profiles, and visual cues. Differentiate between natural stones (e.g., Granite, Marble, Quartzite) and engineered materials (e.g., Quartz, Dekton, Porcelain). For Quartz vs. Quartzite, analyze uniformity of pattern (Quartz often has consistent, manufactured patterns; Quartzite has natural, irregular veining). Include a confidence level (e.g., "95% Quartz") and detailed reasoning. If uncertain, reference characteristics from "www.surprisegranite.com/materials/all-countertops" and make an educated guess.
-    - Color and pattern: Provide a vivid, specific description of colors (e.g., "matte ivory," "glossy charcoal gray") and patterns (e.g., "swirling white veins," "fine black speckles with golden flecks"). Note variations, transitions, or unique features across the surface.
-    - Damage type: Detect and describe all visible damage with precision (e.g., "crack," "chip," "stain," "scratch"), including exact location (e.g., "1-inch crack along the left edge") and extent (e.g., "spanning 3 inches diagonally"). Look for subtle or hidden issues like micro-fractures, discoloration, or wear. Use simple terms ("crack," "chip") for cost estimation compatibility. If no damage is present, explicitly state "No visible damage."
-    - Severity: Evaluate damage severity with actionable context:
-      - None: "No damage detected, the surface is pristine!"
-      - Low: "Minor imperfection, easily repairable with minimal effort."
-      - Moderate: "Noticeable damage, repair advised to prevent progression."
+    - Stone type: Identify the material with maximum accuracy (e.g., "Quartz", "Marble", "Granite", "Quartzite", "Dekton", "Porcelain", "Limestone", "Soapstone") by examining texture, sheen, grain, edge profiles, polish level, and visual cues. Differentiate natural stones (e.g., Granite, Marble, Quartzite, Limestone, Soapstone) from engineered materials (e.g., Quartz, Dekton, Porcelain) based on pattern uniformity, veining irregularity, and surface finish. For Quartz vs. Quartzite, note Quartz’s consistent, manufactured patterns vs. Quartzite’s natural, varied veining. Include a confidence level (e.g., "95% Quartz") and exhaustive reasoning. If uncertain, cross-reference with "www.surprisegranite.com/materials/all-countertops" and hypothesize based on visual evidence.
+    - Color and pattern: Deliver a vivid, precise description of colors (e.g., "matte ivory with golden undertones," "glossy charcoal gray") and patterns (e.g., "swirling white veins with subtle blue streaks," "fine black speckles with golden flecks"). Note variations, transitions, edge details, or unique surface features (e.g., honed vs. polished finish).
+    - Damage type: Detect and describe all visible damage with precision (e.g., "crack," "chip," "stain," "scratch," "discoloration," "wear"), specifying exact location (e.g., "1-inch crack along the left edge near the sink") and extent (e.g., "spanning 3 inches diagonally"). Identify subtle issues like micro-fractures, pitting, or fading. Use simple terms ("crack," "chip") for cost estimation compatibility. If no damage, state "No visible damage."
+    - Severity: Evaluate damage severity with detailed, actionable context:
+      - None: "No damage detected, the surface is pristine and flawless!"
+      - Low: "Minor imperfection, easily repairable with minimal effort (e.g., light sanding)."
+      - Moderate: "Noticeable damage, repair advised to prevent progression (e.g., sealing or patching)."
       - Severe: "Significant structural damage, immediate professional attention recommended."
-    - Reasoning: Deliver a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen and engineered veining suggest Quartz over Quartzite"). Avoid assumptions; base conclusions solely on the image.
+    - Reasoning: Provide a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen, consistent veining, and polished edge suggest engineered Quartz"). Explore all visible details, avoid assumptions, and ensure a unique analysis each time.
 
-    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning. Ensure every analysis is fresh and unique, even for identical images, to support testing.`;
+    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning. Maximize detail for testing purposes, even for repeat images.`;
 
     let result;
     try {
@@ -287,8 +309,8 @@ async function analyzeImage(imageBase64) {
                 { role: "system", content: prompt },
                 { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] }
             ],
-            max_tokens: 3000,
-            temperature: 0.7
+            max_tokens: 4000,
+            temperature: 0.5
         });
 
         console.log("OpenAI response received:", response);
@@ -309,45 +331,42 @@ async function analyzeImage(imageBase64) {
         }
     } catch (err) {
         console.error("OpenAI analysis failed:", err.message, err.stack);
-        if (db) {
+        result = {
+            stone_type: "Unknown",
+            color_and_pattern: "Not identified",
+            damage_type: "No visible damage",
+            severity: "None",
+            reasoning: "Analysis failed due to an error: " + err.message
+        };
+    }
+
+    // Fetch dynamic materials from MongoDB
+    let materialsFromDB = [];
+    if (db) {
+        try {
             const imagesCollection = db.collection("countertop_images");
-            const similarImages = await imagesCollection.find({}).sort({ "metadata.uploadDate": -1 }).limit(1).toArray();
-            if (similarImages.length > 0) {
-                const fallback = similarImages[0].metadata.analysis;
-                result = {
-                    stone_type: fallback.stone_type || "Unknown",
-                    color_and_pattern: fallback.color_and_pattern || "Not identified",
-                    damage_type: fallback.damage_type || "No visible damage",
-                    severity: fallback.severity || "None",
-                    reasoning: "Fallback to recent database entry due to analysis failure: " + err.message
-                };
-                console.log("Using fallback from MongoDB:", result);
-            } else {
-                result = null;
-            }
+            materialsFromDB = await imagesCollection.find({}).toArray();
+            console.log("Loaded materials from MongoDB:", materialsFromDB.length, "entries");
+        } catch (err) {
+            console.error("Failed to load materials from MongoDB:", err.message);
         }
-        if (!result) {
-            result = {
-                stone_type: "Unknown",
-                color_and_pattern: "Not identified",
-                damage_type: "No visible damage",
-                severity: "None",
-                reasoning: "Analysis failed due to an error: " + err.message
-            };
-        }
+    } else {
+        console.warn("No DB connection, skipping materials fetch");
     }
 
     const identifiedColor = result.color_and_pattern.toLowerCase();
     const identifiedMaterial = result.stone_type.toLowerCase();
-    const bestMatch = materialsData.find(item =>
-        item.Material.toLowerCase() === identifiedMaterial &&
-        identifiedColor.includes(item["Color Name"].toLowerCase().split("-")[0])
-    ) || {};
 
-    result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
+    // Find best match from uploaded materials
+    const bestMatch = materialsFromDB.find(item => 
+        item.metadata.analysis.stone_type.toLowerCase() === identifiedMaterial &&
+        identifiedColor.includes(item.metadata.analysis.color_and_pattern.toLowerCase().split(" ")[0])
+    );
+
+    result.color_match_suggestion = bestMatch ? bestMatch.metadata.analysis.color_and_pattern : "No match found";
     result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
     result.material_composition = result.stone_type ? `${result.stone_type} (${result.natural_stone ? "Natural" : "Engineered"})` : "Not identified";
-    result.natural_stone = result.stone_type && ["marble", "granite", "quartzite"].includes(result.stone_type.toLowerCase());
+    result.natural_stone = result.stone_type && ["marble", "granite", "quartzite", "limestone", "soapstone"].includes(result.stone_type.toLowerCase());
     result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
                                         result.severity === "Moderate" ? "Consider professional repair." : 
                                         "No action required.";
@@ -355,11 +374,10 @@ async function analyzeImage(imageBase64) {
                                     "Clean with mild soap and water.";
     result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : 
                                   "No repairs needed.";
-    result.possible_matches = materialsData.map(item => ({
-        color_name: item["Color Name"],
-        material: item.Material,
-        thickness: item.Thickness
-    }));
+    result.possible_matches = materialsFromDB.map(item => ({
+        color_name: item.metadata.analysis.color_and_pattern,
+        material: item.metadata.analysis.stone_type
+    })).slice(0, 5);
 
     console.log("Final analysis result:", result);
     return result;
@@ -372,14 +390,17 @@ function calculateRepairCost(damageType, severity) {
     }
 
     let simplifiedDamageType = damageType.toLowerCase();
-    if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) return "$0.00";
+    if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) {
+        console.log("No damage detected, cost set to $0.00");
+        return "$0.00";
+    }
     if (simplifiedDamageType.includes("crack")) simplifiedDamageType = "crack";
     else if (simplifiedDamageType.includes("chip")) simplifiedDamageType = "chip";
-    else if (simplifiedDamageType.includes("stain")) simplifiedDamageType = "stain";
+    else if (simplifiedDamageType.includes("stain") || simplifiedDamageType.includes("discoloration")) simplifiedDamageType = "stain";
     else if (simplifiedDamageType.includes("scratch")) simplifiedDamageType = "scratch";
     else {
         console.log("No matching damage type found in labor.json for:", damageType);
-        return "Contact for estimate";
+        return "Contact for estimate (unrecognized damage type)";
     }
 
     const laborEntry = laborData.find(entry => 
@@ -387,7 +408,7 @@ function calculateRepairCost(damageType, severity) {
     );
     if (!laborEntry) {
         console.log("Labor entry not found for simplified damage type:", simplifiedDamageType);
-        return "Contact for estimate";
+        return "Contact for estimate (labor data missing)";
     }
 
     const severityMultiplier = {
@@ -409,4 +430,7 @@ loadLaborData().then(() => {
         console.log(`Server running on port ${PORT}`);
         connectToMongoDB();
     });
+}).catch(err => {
+    console.error("Server startup failed:", err.message);
+    process.exit(1);
 });
