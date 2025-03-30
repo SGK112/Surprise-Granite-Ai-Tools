@@ -17,7 +17,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || throwError("OPENAI_API_KEY 
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || throwError("EMAILJS_SERVICE_ID is required");
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || throwError("EMAILJS_TEMPLATE_ID is required");
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || throwError("EMAILJS_PUBLIC_KEY is required");
-const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
+const SURPRISE_GRANITE_PHONE = "(602) 833-3189");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -47,7 +47,7 @@ function throwError(message, status = 500) {
 }
 
 function logError(message, err) {
-    console.error(`${message}: ${err ? err.message : "Unknown error"}`, err?.stack || "");
+    console.error(`${message}: ${err ? err.message : "Unknown error"}`, err?.stack || err);
 }
 
 async function loadLaborData() {
@@ -82,7 +82,8 @@ async function loadMaterialsData() {
             { type: "Quartz", cost_per_sqft: 60 },
             { type: "Marble", cost_per_sqft: 70 },
             { type: "Soapstone", cost_per_sqft: 80 },
-            { type: "Concrete", cost_per_sqft: 65 }
+            { type: "Concrete", cost_per_sqft: 65 },
+            { type: "Acrylic or Fiberglass", cost_per_sqft: 20 }
         ];
         console.log("Using default materials data:", materialsData.length, "entries");
     }
@@ -90,7 +91,7 @@ async function loadMaterialsData() {
 
 async function connectToMongoDB() {
     try {
-        const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true, maxPoolSize: 10, minPoolSize: 2 });
+        const client = new MongoClient(MONGODB_URI, { maxPoolSize: 10, minPoolSize: 2 });
         await client.connect();
         db = client.db("countertops");
         console.log("Connected to MongoDB Atlas");
@@ -189,7 +190,8 @@ app.post("/api/send-email", async (req, res, next) => {
 
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        next(err);
+        logError("Error in sending email", err); // Improved logging
+        res.status(err.status || 500).json({ error: "Failed to send email", details: err.message || "Unknown error" });
     }
 });
 
