@@ -74,7 +74,7 @@ async function loadLaborData() {
             { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
             { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
             { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
-            { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 } // Added for additional features
+            { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 }
         ];
     }
 }
@@ -134,15 +134,20 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
 }
 
 async function extractFileContent(file) {
-    if (file.mimetype.startsWith("image/")) {
-        return { type: "image", content: file.buffer.toString("base64") };
-    } else if (file.mimetype === "application/pdf") {
-        const data = await pdfParse(file.buffer);
-        return { type: "text", content: data.text };
-    } else if (file.mimetype === "text/plain") {
-        return { type: "text", content: file.buffer.toString("utf8") };
+    try {
+        if (file.mimetype.startsWith("image/")) {
+            return { type: "image", content: file.buffer.toString("base64") };
+        } else if (file.mimetype === "application/pdf") {
+            const data = await pdfParse(file.buffer);
+            return { type: "text", content: data.text };
+        } else if (file.mimetype === "text/plain") {
+            return { type: "text", content: file.buffer.toString("utf8") };
+        }
+        throwError("Unsupported file type", 400);
+    } catch (err) {
+        logError("Error extracting file content", err);
+        throw err;
     }
-    throwError("Unsupported file type", 400);
 }
 
 async function estimateProject(fileData, customerNeeds) {
@@ -323,7 +328,7 @@ async function generateTTS(estimate, customerNeeds) {
                     input: chunk,
                 });
                 const arrayBuffer = await response.arrayBuffer();
-                return Buffer.from(arrayBuffer); // Convert ArrayBuffer to Buffer
+                return Buffer.from(arrayBuffer);
             })
         ));
         return Buffer.concat(audioBuffers);
@@ -358,6 +363,7 @@ app.get("/api/health", async (req, res) => {
         await openai.models.list();
         health.openaiStatus = "Connected";
     } catch (err) {
+        logError("OpenAI health check failed", err);
         health.openaiStatus = "Disconnected";
     }
     try {
@@ -368,6 +374,7 @@ app.get("/api/health", async (req, res) => {
             health.emailjsStatus = "Not configured";
         }
     } catch (err) {
+        logError("EmailJS health check failed", err);
         health.emailjsStatus = "Disconnected";
     }
     res.json(health);
@@ -482,10 +489,12 @@ process.on("SIGINT", async () => {
 
 process.on("uncaughtException", (err) => {
     logError("Uncaught Exception", err);
+    // Prevent crash but allow debugging
 });
 
 process.on("unhandledRejection", (reason, promise) => {
     logError("Unhandled Rejection at", reason);
+    // Prevent crash but allow debugging
 });
 
 startServer();
