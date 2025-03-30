@@ -13,23 +13,12 @@ const EmailJS = require("@emailjs/nodejs");
 const app = express();
 const upload = multer({ dest: "uploads/", limits: { fileSize: 5 * 1024 * 1024 } });
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
-const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
-
-// Log environment variables at startup (without values for security)
-console.log("Environment variables loaded:", {
-    EMAILJS_SERVICE_ID: !!EMAILJS_SERVICE_ID,
-    EMAILJS_TEMPLATE_ID: !!EMAILJS_TEMPLATE_ID,
-    EMAILJS_PUBLIC_KEY: !!EMAILJS_PUBLIC_KEY,
-    EMAILJS_PRIVATE_KEY: !!EMAILJS_PRIVATE_KEY,
-    MONGODB_URI: !!MONGODB_URI,
-    OPENAI_API_KEY: !!OPENAI_API_KEY
-});
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
@@ -39,7 +28,7 @@ async function loadLaborData() {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
         const data = await fs.readFile(laborJsonPath, "utf8");
         laborData = JSON.parse(data);
-        console.log("Loaded labor.json with", laborData.length, "entries");
+        console.log("Loaded labor.json:", laborData);
     } catch (err) {
         console.error("Failed to load labor.json:", err.message);
         laborData = [];
@@ -104,7 +93,34 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         const analysis = await analyzeImage(imageBase64);
         console.log("OpenAI Analysis complete:", analysis);
 
+        if (!db) {
+            console.warn("Database not connected, proceeding with OpenAI analysis only");
+        }
+
         const imagesCollection = db ? db.collection("countertop_images") : null;
+        if (imagesCollection) {
+            // Dynamic Granite matches only if stone_type is Granite
+            if (analysis.stone_type.toLowerCase() === "granite") {
+                const colorKeywords = analysis.color_and_pattern.toLowerCase().split(" ");
+                const mongoMatches = await imagesCollection.find({ 
+                    "metadata.analysis.stone_type": "Granite",
+                    $or: colorKeywords.map(keyword => ({
+                        "metadata.analysis.color_and_pattern": { $regex: keyword, $options: "i" }
+                    }))
+                }).limit(5).toArray();
+
+                analysis.mongo_matches = mongoMatches.map(match => ({
+                    stone_type: match.metadata.analysis.stone_type,
+                    color_and_pattern: match.metadata.analysis.color_and_pattern,
+                    imageBase64: match.imageData.buffer.toString("base64")
+                }));
+            } else {
+                analysis.mongo_matches = [];
+            }
+        } else {
+            analysis.mongo_matches = [];
+        }
+
         const imageDoc = {
             imageHash,
             imageData: new Binary(imageBuffer),
@@ -190,17 +206,6 @@ app.post("/api/send-email", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields: name, email, and message are required" });
         }
 
-        // Verify environment variables
-        if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) {
-            console.error("EmailJS environment variables missing:", {
-                serviceId: !!EMAILJS_SERVICE_ID,
-                templateId: !!EMAILJS_TEMPLATE_ID,
-                publicKey: !!EMAILJS_PUBLIC_KEY,
-                privateKey: !!EMAILJS_PRIVATE_KEY
-            });
-            return res.status(500).json({ error: "Server configuration error: EmailJS credentials missing" });
-        }
-
         const templateParams = {
             from_name: name,
             from_email: email,
@@ -210,37 +215,20 @@ app.post("/api/send-email", async (req, res) => {
             analysis_summary: analysis_summary || "No analysis provided"
         };
 
-        console.log("Sending email with EmailJS - Template Params:", templateParams);
-        console.log("EmailJS Config:", {
-            serviceId: EMAILJS_SERVICE_ID,
-            templateId: EMAILJS_TEMPLATE_ID,
-            publicKey: EMAILJS_PUBLIC_KEY,
-            privateKey: EMAILJS_PRIVATE_KEY ? "Set" : "Not set"
-        });
-
+        console.log("Sending email with EmailJS:", templateParams);
         const emailResponse = await EmailJS.send(
             EMAILJS_SERVICE_ID,
             EMAILJS_TEMPLATE_ID,
             templateParams,
-            {
-                publicKey: EMAILJS_PUBLIC_KEY,
-                privateKey: EMAILJS_PRIVATE_KEY
-            }
+            { publicKey: EMAILJS_PUBLIC_KEY }
         );
         console.log("Email sent successfully:", emailResponse);
-        res.status(200).json({ message: "Email sent successfully", response: emailResponse });
+        res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        console.error("Email sending error:", {
-            message: err.message || "Unknown error",
-            code: err.code || "N/A",
-            status: err.status || "N/A",
-            stack: err.stack || "No stack trace"
-        });
+        console.error("Email sending error:", err.message, err.stack);
         res.status(500).json({ 
             error: "Failed to send email", 
-            details: err.message || "Unknown error occurred",
-            code: err.code || "N/A",
-            status: err.status || "N/A"
+            details: err.message || "Unknown error occurred" 
         });
     }
 });
@@ -286,10 +274,9 @@ async function analyzeImage(imageBase64) {
       - Low: "Minor imperfection, easily repairable with minimal effort."
       - Moderate: "Noticeable damage, repair advised to prevent progression."
       - Severe: "Significant structural damage, immediate professional attention recommended."
-    - Possible matches: Suggest up to 5 possible countertop material matches from common industry options (e.g., "Carrara Marble", "Calacatta Quartz", "Black Galaxy Granite"). Base these on the stone type, color, and pattern observed in the image. For each match, provide a name, material type, and brief reasoning (e.g., "Carrara Marble - Marble - Matches the white base with gray veining"). If no close matches, state "No close matches identified."
     - Reasoning: Deliver a thorough, evidence-based explanation of your findings, referencing specific visual clues (e.g., "The uniform sheen and engineered veining suggest Quartz over Quartzite"). Avoid assumptions; base conclusions solely on the image.
 
-    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, possible_matches (array of objects with name, material, reasoning), reasoning. Ensure every analysis is fresh and unique, even for identical images, to support testing.`;
+    Respond in JSON format with keys: stone_type, color_and_pattern, damage_type, severity, reasoning. Ensure every analysis is fresh and unique, even for identical images, to support testing.`;
 
     let result;
     try {
@@ -322,14 +309,32 @@ async function analyzeImage(imageBase64) {
         }
     } catch (err) {
         console.error("OpenAI analysis failed:", err.message, err.stack);
-        result = {
-            stone_type: "Unknown",
-            color_and_pattern: "Not identified",
-            damage_type: "No visible damage",
-            severity: "None",
-            possible_matches: [],
-            reasoning: "Analysis failed due to an error: " + err.message
-        };
+        if (db) {
+            const imagesCollection = db.collection("countertop_images");
+            const similarImages = await imagesCollection.find({}).sort({ "metadata.uploadDate": -1 }).limit(1).toArray();
+            if (similarImages.length > 0) {
+                const fallback = similarImages[0].metadata.analysis;
+                result = {
+                    stone_type: fallback.stone_type || "Unknown",
+                    color_and_pattern: fallback.color_and_pattern || "Not identified",
+                    damage_type: fallback.damage_type || "No visible damage",
+                    severity: fallback.severity || "None",
+                    reasoning: "Fallback to recent database entry due to analysis failure: " + err.message
+                };
+                console.log("Using fallback from MongoDB:", result);
+            } else {
+                result = null;
+            }
+        }
+        if (!result) {
+            result = {
+                stone_type: "Unknown",
+                color_and_pattern: "Not identified",
+                damage_type: "No visible damage",
+                severity: "None",
+                reasoning: "Analysis failed due to an error: " + err.message
+            };
+        }
     }
 
     const identifiedColor = result.color_and_pattern.toLowerCase();
@@ -341,7 +346,7 @@ async function analyzeImage(imageBase64) {
 
     result.color_match_suggestion = bestMatch["Color Name"] || "No match found";
     result.estimated_cost = calculateRepairCost(result.damage_type, result.severity);
-    result.material_composition = result.stone_type ? `${result.stone_type} ${result.natural_stone ? "(Natural)" : "(Engineered)"}` : "Not identified";
+    result.material_composition = result.stone_type ? `${result.stone_type} (${result.natural_stone ? "Natural" : "Engineered"})` : "Not identified";
     result.natural_stone = result.stone_type && ["marble", "granite", "quartzite"].includes(result.stone_type.toLowerCase());
     result.professional_recommendation = result.severity === "Severe" ? "Contact a professional for repair or replacement." : 
                                         result.severity === "Moderate" ? "Consider professional repair." : 
@@ -350,6 +355,11 @@ async function analyzeImage(imageBase64) {
                                     "Clean with mild soap and water.";
     result.repair_recommendation = result.severity === "Severe" || result.severity === "Moderate" ? "Professional repair recommended." : 
                                   "No repairs needed.";
+    result.possible_matches = materialsData.map(item => ({
+        color_name: item["Color Name"],
+        material: item.Material,
+        thickness: item.Thickness
+    }));
 
     console.log("Final analysis result:", result);
     return result;
@@ -357,45 +367,39 @@ async function analyzeImage(imageBase64) {
 
 function calculateRepairCost(damageType, severity) {
     if (!laborData || laborData.length === 0) {
-        console.warn("laborData not loaded or empty");
+        console.warn("Labor data not loaded or empty");
         return "Contact for estimate";
     }
-    
+
     let simplifiedDamageType = damageType.toLowerCase();
-    if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) {
-        console.log("No damage detected, cost set to $0.00");
-        return "$0.00";
-    }
-
-    // Map OpenAI damage types to labor.json services
-    let serviceMatch;
-    if (simplifiedDamageType.includes("crack") || simplifiedDamageType.includes("chip")) {
-        serviceMatch = laborData.find(entry => entry.Code === "CT-012"); // "Countertop Crack/Chip Repair"
-    } else if (simplifiedDamageType.includes("stain") || simplifiedDamageType.includes("scratch")) {
-        serviceMatch = laborData.find(entry => entry.Code === "CT-033"); // "Countertop Surface Refinishing"
-    }
-
-    if (!serviceMatch) {
-        console.warn("No matching service found in laborData for damage type:", simplifiedDamageType);
+    if (simplifiedDamageType.includes("none") || simplifiedDamageType.includes("pristine")) return "$0.00";
+    if (simplifiedDamageType.includes("crack")) simplifiedDamageType = "crack";
+    else if (simplifiedDamageType.includes("chip")) simplifiedDamageType = "chip";
+    else if (simplifiedDamageType.includes("stain")) simplifiedDamageType = "stain";
+    else if (simplifiedDamageType.includes("scratch")) simplifiedDamageType = "scratch";
+    else {
+        console.log("No matching damage type found in labor.json for:", damageType);
         return "Contact for estimate";
     }
 
-    let baseCost = parseFloat(serviceMatch.Price);
-    if (isNaN(baseCost)) {
-        console.warn("Invalid price in laborData for service:", serviceMatch.Service);
+    const laborEntry = laborData.find(entry => 
+        entry.repair_type.toLowerCase() === simplifiedDamageType
+    );
+    if (!laborEntry) {
+        console.log("Labor entry not found for simplified damage type:", simplifiedDamageType);
         return "Contact for estimate";
     }
 
     const severityMultiplier = {
         "Low": 1,
-        "Moderate": 1.5,
-        "Severe": 2,
-        "N/A": 1,
+        "Moderate": 2,
+        "Severe": 3,
+        "N/A": 0,
         "None": 0
     }[severity] || 1;
 
-    const cost = baseCost * severityMultiplier;
-    console.log("Calculated repair cost:", { damageType: simplifiedDamageType, severity, service: serviceMatch.Service, cost });
+    const cost = laborEntry.rate_per_sqft * severityMultiplier * laborEntry.hours;
+    console.log(`Calculated cost: $${cost.toFixed(2)} for ${simplifiedDamageType}, severity: ${severity}`);
     return `$${cost.toFixed(2)}`;
 }
 
