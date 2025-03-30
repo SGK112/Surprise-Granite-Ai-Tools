@@ -60,13 +60,13 @@ async function loadLaborData() {
     } catch (err) {
         logError("Failed to load labor.json", err);
         laborData = [
-            { type: "crack", rate_per_sqft: 10, hours: 2 },
-            { type: "chip", rate_per_sqft: 8, hours: 1 },
-            { type: "stain", rate_per_sqft: 6, hours: 1.5 },
-            { type: "scratch", rate_per_sqft: 5, hours: 0.5 },
-            { type: "installation", rate_per_sqft: 15, hours: 1 },
-            { type: "cutout", rate_per_unit: 50, hours: 0.5 },
-            { type: "edge_profile", rate_per_linear_ft: 20, hours: 0.25 }
+            { type: "crack", rate_per_sqft: 10, hours: 2, confidence: 1 },
+            { type: "chip", rate_per_sqft: 8, hours: 1, confidence: 1 },
+            { type: "stain", rate_per_sqft: 6, hours: 1.5, confidence: 1 },
+            { type: "scratch", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
+            { type: "installation", rate_per_sqft: 15, hours: 1, confidence: 1 },
+            { type: "cutout", rate_per_unit: 50, hours: 0.5, confidence: 1 },
+            { type: "edge_profile", rate_per_linear_ft: 20, hours: 0.25, confidence: 1 }
         ];
         console.log("Using default labor data:", laborData.length, "entries");
     }
@@ -81,12 +81,12 @@ async function loadMaterialsData() {
     } catch (err) {
         logError("Failed to load materials.json", err);
         materialsData = [
-            { type: "Granite", cost_per_sqft: 50 },
-            { type: "Quartz", cost_per_sqft: 60 },
-            { type: "Marble", cost_per_sqft: 70 },
-            { type: "Soapstone", cost_per_sqft: 80 },
-            { type: "Concrete", cost_per_sqft: 65 },
-            { type: "Acrylic or Fiberglass", cost_per_sqft: 20 }
+            { type: "Granite", cost_per_sqft: 50, confidence: 1 },
+            { type: "Quartz", cost_per_sqft: 60, confidence: 1 },
+            { type: "Marble", cost_per_sqft: 70, confidence: 1 },
+            { type: "Soapstone", cost_per_sqft: 80, confidence: 1 },
+            { type: "Concrete", cost_per_sqft: 65, confidence: 1 },
+            { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 }
         ];
         console.log("Using default materials data:", materialsData.length, "entries");
     }
@@ -223,6 +223,7 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
             { _id: new ObjectId(req.params.id) },
             { $set: { "metadata.likes": newLikes } }
         );
+        updatePricingConfidence(countertop.metadata.estimate, 0.05); // Increase confidence on like
         console.log("Like added, new likes:", newLikes);
         res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
     } catch (err) {
@@ -243,6 +244,7 @@ app.post("/api/dislike-countertop/:id", async (req, res, next) => {
             { _id: new ObjectId(req.params.id) },
             { $set: { "metadata.dislikes": newDislikes } }
         );
+        updatePricingConfidence(countertop.metadata.estimate, -0.05); // Decrease confidence on dislike
         console.log("Dislike added, new dislikes:", newDislikes);
         res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
@@ -266,15 +268,12 @@ app.post("/api/send-email", async (req, res, next) => {
             contact_phone: SURPRISE_GRANITE_PHONE,
         };
 
-        // EmailJS.send doesn't need publicKey again since it's initialized globally
         const emailResponse = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
         console.log("Email sent successfully:", emailResponse);
-
         res.status(200).json({ message: "Email sent successfully", emailResponse });
     } catch (err) {
         logError("Error sending email", err);
-        const status = err.status || 500;
-        res.status(status).json({
+        res.status(err.status || 500).json({
             error: "Failed to send email",
             details: err.message || "Unknown error",
             emailjsError: err.response?.data || "No additional error details"
@@ -282,36 +281,73 @@ app.post("/api/send-email", async (req, res, next) => {
     }
 });
 
-// Analysis Functions
+// Learning and Analysis Functions
+function updatePricingConfidence(estimate, adjustment) {
+    // Adjust material confidence
+    const material = materialsData.find(m => m.type.toLowerCase() === estimate.material_type?.toLowerCase());
+    if (material) {
+        material.confidence = Math.min(1, Math.max(0, (material.confidence || 1) + adjustment));
+        console.log(`Updated confidence for ${material.type}: ${material.confidence}`);
+    }
+
+    // Adjust labor confidence for condition and features
+    if (estimate.project_scope?.toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
+        const labor = laborData.find(l => l.type === estimate.condition.damage_type.toLowerCase());
+        if (labor) {
+            labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
+            console.log(`Updated confidence for ${labor.type}: ${labor.confidence}`);
+        }
+    }
+    estimate.additional_features.forEach(feature => {
+        const labor = laborData.find(l => feature.toLowerCase().includes(l.type));
+        if (labor) {
+            labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
+            console.log(`Updated confidence for ${labor.type}: ${labor.confidence}`);
+        }
+    });
+}
+
 async function estimateProject(fileContent, customerNeeds) {
     console.log("Starting estimateProject with customerNeeds:", customerNeeds);
     try {
         if (!db) throwError("Database not connected", 503);
-        console.log("Fetching past images from MongoDB");
+        console.log("Fetching past estimates from MongoDB");
         const imagesCollection = db.collection("countertop_images");
-        const pastImages = await imagesCollection.find({
+        const pastEstimates = await imagesCollection.find({
             "metadata.estimate.material_type": { $exists: true }
-        }).limit(5).toArray();
-        console.log("Fetched past images:", pastImages.length);
+        }).sort({ "metadata.uploadDate": -1 }).limit(10).toArray();
+        console.log("Fetched past estimates:", pastEstimates.length);
 
-        const pastData = pastImages.map(img => ({
+        const pastData = pastEstimates.map(img => ({
             material_type: img.metadata.estimate.material_type || "Unknown",
+            project_scope: img.metadata.estimate.project_scope,
             condition: img.metadata.estimate.condition,
+            additional_features: img.metadata.estimate.additional_features,
             solutions: img.metadata.estimate.solutions || "Professional evaluation required",
+            cost: enhanceCostEstimate(img.metadata.estimate).totalCost,
             likes: img.metadata.likes || 0,
             dislikes: img.metadata.dislikes || 0,
         }));
         console.log("Past data prepared:", pastData);
 
-        const prompt = `You are CARI, a professional countertop and remodeling expert estimator at Surprise Granite with the latest industry knowledge as of March 2025. Analyze this countertop image and customer needs ("${customerNeeds}") for a precise estimate:
-        - Project scope: New installation, replacement, or repair (use customer needs or infer; default "replacement").
-        - Material type: Identify material (e.g., "Quartz", "Granite") from image with confidence; if uncertain, return "Unknown".
-        - Color and pattern: Describe briefly from image.
-        - Dimensions: Use customer needs (e.g., "25 sq ft") or assume 25 sq ft for kitchen, 5 sq ft for vanity.
-        - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or image; default to [].
+        const prompt = `You are CARI, an AI estimator at Surprise Granite, optimized to provide the most accurate countertop estimates using our pricing data as of March 2025. Analyze this countertop image and customer needs ("${customerNeeds}") with the following:
+
+        **Pricing Data**:
+        - Labor: ${JSON.stringify(laborData)} (use rate_per_sqft, rate_per_unit, or rate_per_linear_ft as applicable; confidence indicates reliability).
+        - Materials: ${JSON.stringify(materialsData)} (use cost_per_sqft; confidence indicates reliability).
+
+        **Historical Estimates**: ${JSON.stringify(pastData)} (use to refine material identification, solutions, and costs; prioritize entries with high likes and low dislikes).
+
+        Estimate:
+        - Project scope: New installation, replacement, or repair (infer from customer needs or image; default "replacement").
+        - Material type: Identify from image (e.g., "Quartz", "Granite"), cross-check with past data and confidence; if uncertain, return "Unknown".
+        - Color and pattern: Describe from image.
+        - Dimensions: Use customer needs (e.g., "25 sq ft") or assume 25 sq ft (kitchen) or 5 sq ft (vanity) based on image context.
+        - Additional features: List as array (e.g., "sink cutout") from customer needs or image; default [].
         - Condition: For repairs, detect damage (e.g., "crack") and severity (None, Low, Moderate, Severe); default { damage_type: "No visible damage", severity: "None" }.
-        - Solutions: Propose repair or replacement solutions based on condition and past data (${JSON.stringify(pastData)}). Consider user feedback (likes/dislikes) to refine suggestions; prioritize highly liked solutions. Suggest modern techniques or materials if applicable.
-        - Reasoning: Explain concisely, note assumptions, and reference past data/feedback if used.
+        - Solutions: Propose based on condition, past data (favor high-liked solutions), and pricing; suggest modern techniques if applicable.
+        - Reasoning: Explain estimate, referencing pricing data, past estimates, and feedback.
+
         Respond in JSON with: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition (object), solutions (string), reasoning.`;
 
         console.log("Sending request to OpenAI");
@@ -392,30 +428,32 @@ function enhanceCostEstimate(estimate) {
     console.log("Calculated sq ft:", sqFt);
 
     const materialType = estimate.material_type || "Unknown";
-    const material = materialsData.find(m => m.type.toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50 };
-    const baseMaterialCost = material.cost_per_sqft * sqFt;
+    const material = materialsData.find(m => m.type.toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, confidence: 1 };
+    const materialCostAdjustment = material.confidence || 1; // Adjust cost based on confidence
+    const baseMaterialCost = material.cost_per_sqft * sqFt * materialCostAdjustment;
     const materialCostWithMargin = baseMaterialCost * 1.3; // 30% margin
     console.log("Material cost with margin:", materialCostWithMargin);
 
     let laborCost = 0;
     if (estimate.project_scope?.toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
         const damageType = estimate.condition.damage_type.toLowerCase();
-        const laborEntry = laborData.find(entry => entry.type === damageType) || { rate_per_sqft: 15, hours: 1 };
+        const laborEntry = laborData.find(entry => entry.type === damageType) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity] || 1;
-        laborCost = laborEntry.rate_per_sqft * sqFt * laborEntry.hours * severityMultiplier;
+        laborCost = laborEntry.rate_per_sqft * sqFt * laborEntry.hours * severityMultiplier * (laborEntry.confidence || 1);
         console.log("Repair labor cost:", laborCost);
     } else {
-        const installEntry = laborData.find(entry => entry.type === "installation") || { rate_per_sqft: 15, hours: 1 };
-        laborCost = installEntry.rate_per_sqft * sqFt * installEntry.hours;
+        const installEntry = laborData.find(entry => entry.type === "installation") || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+        laborCost = installEntry.rate_per_sqft * sqFt * installEntry.hours * (installEntry.confidence || 1);
         console.log("Installation labor cost:", laborCost);
     }
 
     const featuresCost = estimate.additional_features.reduce((sum, feature) => {
         const featureLower = feature.toLowerCase();
-        const laborEntry = laborData.find(entry => featureLower.includes(entry.type)) || { rate_per_unit: 0, rate_per_linear_ft: 0, rate_per_sqft: 0 };
-        if (laborEntry.rate_per_unit) return sum + laborEntry.rate_per_unit;
-        if (laborEntry.rate_per_linear_ft) return sum + (laborEntry.rate_per_linear_ft * sqFt);
-        return sum + (laborEntry.rate_per_sqft * sqFt || 0);
+        const laborEntry = laborData.find(entry => featureLower.includes(entry.type)) || { rate_per_unit: 0, rate_per_linear_ft: 0, rate_per_sqft: 0, confidence: 1 };
+        const confidence = laborEntry.confidence || 1;
+        if (laborEntry.rate_per_unit) return sum + laborEntry.rate_per_unit * confidence;
+        if (laborEntry.rate_per_linear_ft) return sum + (laborEntry.rate_per_linear_ft * sqFt * confidence);
+        return sum + (laborEntry.rate_per_sqft * sqFt * confidence || 0);
     }, 0);
     console.log("Features cost:", featuresCost);
 
