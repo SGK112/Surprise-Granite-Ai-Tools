@@ -404,16 +404,33 @@ async function estimateProject(fileContent, customerNeeds) {
             logError("Failed to fetch past estimates, proceeding without historical data", err);
         }
 
-        const pastData = pastEstimates.map(img => ({
-            material_type: img.metadata.estimate.material_type || "Unknown",
-            project_scope: img.metadata.estimate.project_scope,
-            condition: img.metadata.estimate.condition,
-            additional_features: img.metadata.estimate.additional_features,
-            solutions: img.metadata.estimate.solutions || "Professional evaluation required",
-            cost: enhanceCostEstimate(img.metadata.estimate)?.totalCost || "Contact for estimate",
-            likes: img.metadata.likes || 0,
-            dislikes: img.metadata.dislikes || 0,
-        }));
+        const pastData = pastEstimates.map(img => {
+            try {
+                const cost = enhanceCostEstimate(img.metadata.estimate)?.totalCost || "Contact for estimate";
+                return {
+                    material_type: img.metadata.estimate.material_type || "Unknown",
+                    project_scope: img.metadata.estimate.project_scope || "Replacement",
+                    condition: img.metadata.estimate.condition || { damage_type: "No visible damage", severity: "None" },
+                    additional_features: Array.isArray(img.metadata.estimate.additional_features) ? img.metadata.estimate.additional_features : [],
+                    solutions: img.metadata.estimate.solutions || "Professional evaluation required",
+                    cost,
+                    likes: img.metadata.likes || 0,
+                    dislikes: img.metadata.dislikes || 0,
+                };
+            } catch (err) {
+                logError("Error processing historical estimate", err);
+                return {
+                    material_type: "Unknown",
+                    project_scope: "Replacement",
+                    condition: { damage_type: "No visible damage", severity: "None" },
+                    additional_features: [],
+                    solutions: "Professional evaluation required",
+                    cost: "Contact for estimate",
+                    likes: 0,
+                    dislikes: 0,
+                };
+            }
+        });
         console.log("Past data prepared:", pastData);
 
         const prompt = `You are CARI, an advanced AI estimator at Surprise Granite, optimized for accurate estimates across various remodeling projects (countertops, cabinets, showers, repairs, etc.) using our pricing data as of March 2025. Analyze this image and customer needs ("${customerNeeds}") with:
@@ -536,7 +553,7 @@ function enhanceCostEstimate(estimate) {
 
     let laborCost = 0;
     const projectScope = (estimate.project_scope || "replacement").toLowerCase();
-    if (projectScope.includes("repair") && estimate.condition?.damage_type !== "No visible damage") {
+    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
         const damageType = estimate.condition.damage_type.toLowerCase();
         const laborEntry = laborData.find(entry => entry.type.toLowerCase() === damageType) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity] || 1;
@@ -548,7 +565,7 @@ function enhanceCostEstimate(estimate) {
         console.log("Installation labor cost:", laborCost);
     }
 
-    const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
+    const featuresCost = (Array.isArray(estimate.additional_features) ? estimate.additional_features : []).reduce((sum, feature) => {
         const featureLower = feature.toLowerCase();
         const laborEntry = laborData.find(entry => featureLower.includes(entry.type.toLowerCase())) || { rate_per_unit: 0, rate_per_linear_ft: 0, rate_per_sqft: 0, confidence: 1 };
         const confidence = laborEntry.confidence || 1;
