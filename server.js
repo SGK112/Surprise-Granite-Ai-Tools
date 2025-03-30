@@ -380,9 +380,4 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
             message: "Estimate generated successfully",
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
-            colorAndPattern: estimate.color_and_pattern,
-            dimensions: estimate.dimensions,
-            additionalFeatures: estimate.additional_features.join(", ") || "None",
-            condition: estimate.condition,
-            costEstimate,
-            reasoning: estimate.reasoning
+            colorAndPattern: estimate.color_and_pattern
