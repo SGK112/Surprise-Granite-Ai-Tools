@@ -38,7 +38,7 @@ function logError(message, err) {
   console.error(`${message}: ${err.message}`, err.stack);
 }
 
-// Load Labor Data (Optimized: Load once at startup)
+// Load Labor Data
 async function loadLaborData() {
   try {
     const laborJsonPath = path.join(__dirname, "data", "labor.json");
@@ -59,7 +59,7 @@ async function loadLaborData() {
   }
 }
 
-// MongoDB Connection (Optimized: Connection pooling)
+// MongoDB Connection
 async function connectToMongoDB() {
   try {
     const client = new MongoClient(MONGODB_URI, {
@@ -76,7 +76,7 @@ async function connectToMongoDB() {
   }
 }
 
-// Middleware (Optimized: Compression and rate limiting)
+// Middleware
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 app.use(compression());
@@ -88,7 +88,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per window
+    max: 100, // Limit each IP to 100 requests
   })
 );
 
