@@ -1,2039 +1,2363 @@
 [
+  // Countertops (CT) - Adjusted and Expanded
   {
     "Code": "CT-001",
     "Service": "Quartz Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 45,
-    "Description": "Standard quartz countertop cuts with edge finishing for durability and elegance."
+    "Price": 50,
+    "Description": "Standard quartz cuts with eased edges; includes templating and finishing. Material cost ~$30/sqft, labor ~$20/sqft."
   },
   {
     "Code": "CT-002",
     "Service": "Granite Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 55,
-    "Description": "Includes edge finishing, polishing, and sealing for natural stone."
+    "Price": 60,
+    "Description": "Natural granite with polishing and sealing; durable and elegant. Material ~$35/sqft, labor ~$25/sqft."
   },
   {
     "Code": "CT-003",
     "Service": "Marble Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 65,
-    "Description": "Precision fabrication for delicate, high-maintenance marble countertops."
+    "Price": 70,
+    "Description": "Precision cuts for high-maintenance marble; includes sealing. Material ~$40/sqft, labor ~$30/sqft."
   },
   {
     "Code": "CT-004",
     "Service": "Porcelain/Dekton Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 85,
-    "Description": "Requires advanced handling and techniques for seamless, modern finishes."
+    "Price": 90,
+    "Description": "Advanced techniques for seamless, modern finishes. Material ~$50/sqft, labor ~$40/sqft."
   },
   {
     "Code": "CT-005",
     "Service": "Custom Island Fabrication",
     "U/M": "Per Job",
-    "Price": "1,000.00",
-    "Description": "For large or uniquely shaped countertop pieces tailored to specific designs."
+    "Price": 1200,
+    "Description": "Large or unique island designs; includes material and labor for complex shapes."
   },
   {
     "Code": "CT-006",
     "Service": "Countertop Installation",
-    "U/M": "Per SQFT",
-    "Price": 37.5,
-    "Description": "Professional placement, securing, and seam polishing for a flawless finish."
+    "U/M": "SQFT",
+    "Price": 40,
+    "Description": "Professional placement, leveling, and seam finishing. Labor ~$30/sqft, equipment ~$10/sqft."
   },
   {
     "Code": "CT-007",
     "Service": "Undermount Sink Cutout",
-    "U/M": "EA.",
-    "Price": 574,
-    "Description": "Includes precision cutting and polishing for a seamless sink integration."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Precision cutting and polishing for seamless sink integration. Adjusted from $574 (industry avg $150-$250)."
   },
   {
     "Code": "CT-008",
     "Service": "Farmhouse Sink Cutout",
-    "U/M": "EA.",
-    "Price": 674,
-    "Description": "Custom cutouts for large, apron-front farmhouse sinks."
+    "U/M": "EA",
+    "Price": 250,
+    "Description": "Custom cutouts for apron-front sinks. Adjusted from $674 (avg $200-$300)."
   },
   {
     "Code": "CT-009",
     "Service": "Cooktop Cutout",
-    "U/M": "EA.",
+    "U/M": "EA",
     "Price": 150,
-    "Description": "Precision cutting for stovetops or custom appliance integration."
+    "Description": "Precision cutting for stovetops or appliances; matches industry standard."
   },
   {
     "Code": "CT-010",
     "Service": "Countertop Sealing",
-    "U/M": "Per SQFT",
-    "Price": 12,
-    "Description": "Protects natural stone countertops from stains and damage, extending lifespan."
+    "U/M": "SQFT",
+    "Price": 15,
+    "Description": "Protects natural stone from stains; sealant ~$5/sqft, labor ~$10/sqft."
   },
   {
     "Code": "CT-011",
     "Service": "Edge Polishing (Ogee/Chiseled)",
     "U/M": "LF",
-    "Price": 25,
-    "Description": "Adds decorative and premium edges like ogee, chiseled, or beveled styles."
+    "Price": 30,
+    "Description": "Premium edges like ogee or chiseled; labor ~$20/lf, materials ~$10/lf."
   },
   {
     "Code": "CT-012",
     "Service": "Countertop Crack/Chip Repair",
     "U/M": "Per Job",
-    "Price": 250,
-    "Description": "Restores chips, cracks, or minor damage to countertops for a like-new appearance."
+    "Price": 200,
+    "Description": "Repairs minor damage; adjusted from $250 to align with avg $150-$250."
   },
   {
     "Code": "CT-013",
     "Service": "Seamless Countertop Installation",
     "U/M": "Per Job",
-    "Price": 750,
-    "Description": "Precision hidden seams for luxury and high-end finishes."
+    "Price": 800,
+    "Description": "Hidden seams for luxury finishes; includes extra labor."
   },
   {
     "Code": "CT-014",
     "Service": "Full-Slab Feature Wall Installation",
     "U/M": "SQFT",
-    "Price": 85,
-    "Description": "Vertical installations of large countertop slabs for stunning accent walls."
+    "Price": 90,
+    "Description": "Vertical slab installation for accent walls; material ~$50/sqft, labor ~$40/sqft."
   },
   {
     "Code": "CT-015",
     "Service": "Bar Top Counter Installation",
     "U/M": "Per Job",
-    "Price": 750,
-    "Description": "Elevated counters designed for bars and entertainment spaces."
+    "Price": 900,
+    "Description": "Elevated counters for bars; includes support framing."
   },
   {
     "Code": "CT-016",
     "Service": "Custom Waterfall Edge Fabrication",
     "U/M": "LF",
-    "Price": 35,
-    "Description": "Elegant, seamless edge design extending countertops vertically for islands and ends."
+    "Price": 40,
+    "Description": "Seamless vertical edges; labor ~$25/lf, material ~$15/lf."
   },
   {
     "Code": "CT-017",
     "Service": "Multi-Level Countertop Installation",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Includes tiered bar tops, breakfast nooks, or layered counter setups."
+    "Price": 1600,
+    "Description": "Tiered designs for bars or nooks; includes additional support."
   },
   {
     "Code": "CT-018",
     "Service": "Countertop Releveling",
     "U/M": "Per Job",
-    "Price": 250,
-    "Description": "Adjusts and levels existing countertops to ensure stability and alignment."
+    "Price": 300,
+    "Description": "Adjusts existing countertops for stability; labor-intensive."
   },
   {
     "Code": "CT-019",
     "Service": "Integrated Lighting Installation",
     "U/M": "Per Job",
-    "Price": "1,000.00",
-    "Description": "LED or under-counter lighting to enhance functionality and aesthetics."
+    "Price": 1200,
+    "Description": "LED under-counter lighting; includes wiring and fixtures."
   },
   {
     "Code": "CT-020",
     "Service": "Heat Rod Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Protects countertops from heat damage by integrating heat rods near cooktops or prep areas."
+    "U/M": "EA",
+    "Price": 300,
+    "Description": "Heat protection near cooktops; materials ~$100, labor ~$200."
   },
   {
     "Code": "CT-021",
     "Service": "Stone Inlay Countertop Design",
     "U/M": "Per Job",
-    "Price": "2,000.00",
-    "Description": "Custom inlays of contrasting stones for unique and artistic countertop designs."
+    "Price": 2200,
+    "Description": "Artistic inlays with contrasting stones; high labor and material cost."
   },
   {
     "Code": "CT-022",
     "Service": "Custom Desk Countertop Fabrication",
     "U/M": "Per Job",
-    "Price": 750,
-    "Description": "Tailored fabrication for desks or office spaces using quartz, granite, or other materials."
+    "Price": 800,
+    "Description": "Tailored desks with durable materials; avg job size ~15 sqft."
   },
   {
     "Code": "CT-023",
     "Service": "Outdoor Kitchen Countertop Installation",
     "U/M": "SQFT",
-    "Price": 85,
-    "Description": "Durable, weather-resistant countertops for outdoor kitchen setups."
+    "Price": 90,
+    "Description": "Weather-resistant counters; material ~$50/sqft, labor ~$40/sqft."
   },
   {
     "Code": "CT-024",
     "Service": "Recycled Glass Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 65,
-    "Description": "Eco-friendly countertops using recycled glass with unique, colorful designs."
+    "Price": 70,
+    "Description": "Eco-friendly glass counters; material ~$40/sqft, labor ~$30/sqft."
   },
   {
     "Code": "CT-025",
     "Service": "Sink Retrofit Cutout",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Adjusts or enlarges existing cutouts for new sinks or appliances."
+    "U/M": "EA",
+    "Price": 350,
+    "Description": "Adjusts existing cutouts; adjusted from $500 (avg $300-$400)."
   },
   {
     "Code": "CT-026",
     "Service": "Vanity Countertop Installation",
     "U/M": "Per Job",
-    "Price": 600,
-    "Description": "Includes precise placement and edge finishing for bathroom vanities."
+    "Price": 650,
+    "Description": "Bathroom vanities with edge finishing; avg size ~10 sqft."
   },
   {
     "Code": "CT-027",
     "Service": "Custom Backsplash Slab Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Seamless, large-slab backsplashes for a cohesive design."
+    "Price": 55,
+    "Description": "Seamless slab backsplashes; material ~$30/sqft, labor ~$25/sqft."
   },
   {
     "Code": "CT-028",
     "Service": "Countertop Removal and Disposal",
     "U/M": "Per Job",
-    "Price": 300,
-    "Description": "Safe removal of old countertops with responsible debris disposal."
+    "Price": 350,
+    "Description": "Safe removal and hauling; adjusted from $300 for profitability."
   },
   {
     "Code": "CT-029",
     "Service": "Semi-Precious Stone Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 150,
-    "Description": "Luxurious countertops using semi-precious stones for a truly unique finish."
+    "Price": 160,
+    "Description": "Luxury counters with semi-precious stones; material ~$100/sqft, labor ~$60/sqft."
   },
   {
     "Code": "CT-030",
     "Service": "Edge Repair and Refinish",
     "U/M": "Per Job",
-    "Price": 150,
-    "Description": "Repairs and polishes worn or damaged edges to restore beauty."
+    "Price": 175,
+    "Description": "Repairs and polishes edges; labor-intensive."
   },
   {
     "Code": "CT-031",
     "Service": "Concrete Countertop Fabrication",
     "U/M": "SQFT",
-    "Price": 70,
-    "Description": "Industrial, modern concrete counters with custom textures and stains."
+    "Price": 75,
+    "Description": "Modern concrete counters; material ~$40/sqft, labor ~$35/sqft."
   },
   {
     "Code": "CT-032",
     "Service": "Countertop Expansion",
     "U/M": "Per Job",
-    "Price": 800,
-    "Description": "Adds additional countertop space by extending existing installations."
+    "Price": 900,
+    "Description": "Extends existing counters; includes matching materials."
   },
   {
     "Code": "CT-033",
     "Service": "Countertop Surface Refinishing",
     "U/M": "SQFT",
-    "Price": 20,
-    "Description": "Repairs and polishes surface damage, scratches, or dull finishes."
+    "Price": 25,
+    "Description": "Repairs scratches and dull finishes; labor ~$20/sqft, materials ~$5/sqft."
   },
+  // New Countertop Additions
+  {
+    "Code": "CT-034",
+    "Service": "Butcher Block Countertop Fabrication",
+    "U/M": "SQFT",
+    "Price": 45,
+    "Description": "Wooden counters with sealing; material ~$25/sqft, labor ~$20/sqft."
+  },
+  {
+    "Code": "CT-035",
+    "Service": "Epoxy Countertop Overlay",
+    "U/M": "SQFT",
+    "Price": 35,
+    "Description": "Decorative epoxy over existing counters; material ~$15/sqft, labor ~$20/sqft."
+  },
+
+  // Cabinets (CB) - Adjusted and Expanded
   {
     "Code": "CB-001",
     "Service": "Kitchen Cabinet Installation",
-    "U/M": "EA.",
-    "Price": 74.25,
-    "Description": "Per cabinet installation for wall or base units."
+    "U/M": "EA",
+    "Price": 80,
+    "Description": "Per cabinet install; labor ~$60/ea, hardware ~$20/ea."
   },
   {
     "Code": "CB-002",
     "Service": "Bathroom Vanity Installation",
-    "U/M": "EA.",
-    "Price": 450,
-    "Description": "Includes plumbing setup for sinks and fixtures."
+    "U/M": "EA",
+    "Price": 500,
+    "Description": "Includes plumbing setup; adjusted from $450 for profitability."
   },
   {
     "Code": "CB-003",
     "Service": "Custom Cabinet Build",
     "U/M": "Per Job",
-    "Price": "3,000.00",
-    "Description": "High-end, fully customized cabinetry design and construction."
+    "Price": 3500,
+    "Description": "High-end custom cabinetry; materials ~$2000, labor ~$1500."
   },
   {
     "Code": "CB-004",
     "Service": "Crown Molding Installation",
     "U/M": "LF",
-    "Price": 12,
-    "Description": "Adds decorative trim to cabinets or walls for a polished look."
+    "Price": 15,
+    "Description": "Decorative trim; material ~$5/lf, labor ~$10/lf."
   },
   {
     "Code": "CB-005",
     "Service": "Soft-Close Hinge Upgrade",
-    "U/M": "EA.",
-    "Price": 25,
-    "Description": "Converts standard hinges to soft-close for quieter operation."
+    "U/M": "EA",
+    "Price": 30,
+    "Description": "Adds soft-close hinges; parts ~$15/ea, labor ~$15/ea."
   },
   {
     "Code": "CB-006",
     "Service": "Drawer Replacement",
-    "U/M": "EA.",
-    "Price": 100,
-    "Description": "Repairs or replaces broken or worn-out drawer mechanisms."
+    "U/M": "EA",
+    "Price": 120,
+    "Description": "New drawers with hardware; parts ~$70/ea, labor ~$50/ea."
   },
   {
     "Code": "CB-007",
     "Service": "Pull-Out Trash/Recycling Bin Installation",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "Installs custom pull-out bins for efficient waste management."
+    "U/M": "EA",
+    "Price": 250,
+    "Description": "Efficient waste bins; parts ~$150, labor ~$100."
   },
   {
     "Code": "CB-008",
     "Service": "Lazy Susan Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Adds rotating corner storage solutions for improved accessibility."
+    "U/M": "EA",
+    "Price": 300,
+    "Description": "Rotating storage; parts ~$180, labor ~$120."
   },
   {
     "Code": "CB-009",
     "Service": "Interior Cabinet Lighting",
     "U/M": "Per Unit",
-    "Price": 150,
-    "Description": "Installs LED lights to enhance visibility and aesthetics."
+    "Price": 175,
+    "Description": "LED lights; parts ~$100, labor ~$75."
   },
   {
     "Code": "CB-010",
     "Service": "Wine Rack Cabinet Build",
-    "U/M": "EA.",
-    "Price": 400,
-    "Description": "Custom storage for wine bottles, tailored to kitchen designs."
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "Custom wine storage; materials ~$250, labor ~$200."
   },
   {
     "Code": "CB-011",
     "Service": "Custom Built-In Installation",
     "U/M": "Per Unit",
-    "Price": 750,
-    "Description": "Includes entertainment centers, shelving units, and other built-in features."
+    "Price": 800,
+    "Description": "Shelving or entertainment units; materials ~$500, labor ~$300."
   },
   {
     "Code": "CB-012",
     "Service": "Open Shelf Conversion",
     "U/M": "Per Unit",
-    "Price": 300,
-    "Description": "Converts traditional cabinets into open shelving for a modern look."
+    "Price": 350,
+    "Description": "Converts cabinets to open shelves; labor-intensive."
   },
   {
     "Code": "CB-013",
     "Service": "Cabinet Refinishing",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Sanding, priming, and finishing to restore or update cabinet surfaces."
+    "Price": 1600,
+    "Description": "Sanding and finishing; materials ~$400, labor ~$1200."
   },
   {
     "Code": "CB-014",
     "Service": "Decorative Cabinet Panels",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "High-end custom panels for cabinet faces to elevate aesthetics."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Custom panels; parts ~$125, labor ~$100."
   },
   {
     "Code": "CB-015",
     "Service": "Appliance Garage Installation",
-    "U/M": "EA.",
-    "Price": 300,
-    "Description": "Concealed storage for small appliances, blending functionality and style."
+    "U/M": "EA",
+    "Price": 350,
+    "Description": "Concealed storage; parts ~$200, labor ~$150."
   },
   {
     "Code": "CB-016",
     "Service": "Sliding Barn Door Cabinet Installation",
-    "U/M": "EA.",
-    "Price": 400,
-    "Description": "Adds rustic sliding barn doors to cabinets for a unique look."
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "Rustic barn doors; parts ~$250, labor ~$200."
   },
   {
     "Code": "CB-017",
     "Service": "Custom Pantry Build-Out",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Tailored pantry organization with shelves, drawers, and storage solutions."
+    "Price": 1800,
+    "Description": "Full pantry setup; materials ~$1000, labor ~$800."
   },
   {
     "Code": "CB-018",
     "Service": "Adjustable Shelf Installation",
-    "U/M": "EA.",
-    "Price": 100,
-    "Description": "Installs adjustable shelving for flexible storage configurations."
+    "U/M": "EA",
+    "Price": 120,
+    "Description": "Flexible shelving; parts ~$70, labor ~$50."
   },
   {
     "Code": "CB-019",
     "Service": "Trash Compactor Cabinet Build",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Custom cabinets designed to fit trash compactors seamlessly."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Custom fit for compactors; materials ~$300, labor ~$250."
   },
   {
     "Code": "CB-020",
     "Service": "Vent Hood Cover Installation",
     "U/M": "Per Job",
-    "Price": 750,
-    "Description": "Custom covers for range hoods, matching cabinetry styles."
+    "Price": 800,
+    "Description": "Custom hood covers; materials ~$450, labor ~$350."
   },
   {
     "Code": "CB-021",
     "Service": "Custom Island Cabinet Build",
     "U/M": "Per Job",
-    "Price": "2,000.00",
-    "Description": "Designs and builds multi-functional kitchen islands with storage and seating."
+    "Price": 2200,
+    "Description": "Multi-functional islands; materials ~$1200, labor ~$1000."
   },
   {
     "Code": "CB-022",
     "Service": "Glass Door Cabinet Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Installs glass doors on cabinets for display and elegance."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Glass doors for display; parts ~$150, labor ~$125."
   },
   {
     "Code": "CB-023",
     "Service": "Floating Shelf Installation",
     "U/M": "Per Unit",
-    "Price": 150,
-    "Description": "Adds sleek floating shelves for kitchens, bathrooms, or living spaces."
+    "Price": 175,
+    "Description": "Sleek shelves; parts ~$100, labor ~$75."
   },
   {
     "Code": "CB-024",
     "Service": "Roll-Out Drawer Installation",
-    "U/M": "EA.",
-    "Price": 175,
-    "Description": "Converts cabinet interiors into roll-out drawers for better access."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Roll-out drawers; parts ~$120, labor ~$80."
   },
   {
     "Code": "CB-025",
     "Service": "Under-Sink Cabinet Organizer Install",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "Installs pull-out organizers for cleaning supplies and accessories."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Pull-out organizers; parts ~$130, labor ~$95."
   },
   {
     "Code": "CB-026",
     "Service": "Built-In Desk Installation",
     "U/M": "Per Unit",
-    "Price": "1,800.00",
-    "Description": "Custom desks integrated into home or office cabinetry."
+    "Price": 2000,
+    "Description": "Integrated desks; materials ~$1200, labor ~$800."
   },
   {
     "Code": "CB-027",
     "Service": "Spice Rack Drawer Installation",
-    "U/M": "EA.",
-    "Price": 150,
-    "Description": "Custom pull-out spice racks for efficient organization."
+    "U/M": "EA",
+    "Price": 175,
+    "Description": "Pull-out spice racks; parts ~$100, labor ~$75."
   },
   {
     "Code": "CB-028",
     "Service": "Corner Cabinet Swing Tray Install",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Installs swing-out trays for maximizing corner cabinet storage."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Swing-out trays; parts ~$150, labor ~$125."
   },
   {
     "Code": "CB-029",
     "Service": "High-Gloss Cabinet Finishing",
     "U/M": "Per Job",
-    "Price": "2,000.00",
-    "Description": "Adds a sleek, high-gloss finish to cabinets for a modern look."
+    "Price": 2200,
+    "Description": "High-gloss finish; materials ~$600, labor ~$1600."
   },
   {
     "Code": "CB-030",
     "Service": "Cabinet Door Replacement",
     "U/M": "Per Door",
-    "Price": 150,
-    "Description": "Replaces cabinet doors to refresh or update the style."
+    "Price": 160,
+    "Description": "New doors; parts ~$100, labor ~$60."
   },
   {
     "Code": "CB-031",
     "Service": "Pull and Handle Installation",
     "U/M": "Per Unit",
-    "Price": 10,
-    "Description": "Adds or upgrades cabinet handles and pulls."
+    "Price": 12,
+    "Description": "Adds handles; parts ~$5, labor ~$7."
   },
   {
     "Code": "CB-032",
     "Service": "Pet Feeding Station Cabinet Install",
     "U/M": "Per Unit",
-    "Price": 500,
-    "Description": "Custom-built cabinets with integrated pet feeding stations."
+    "Price": 550,
+    "Description": "Integrated pet stations; materials ~$300, labor ~$250."
   },
   {
     "Code": "CB-033",
     "Service": "Coffee Bar Cabinet Installation",
     "U/M": "Per Unit",
-    "Price": "1,000.00",
-    "Description": "Custom cabinets designed for coffee preparation and storage."
+    "Price": 1100,
+    "Description": "Coffee setup; materials ~$600, labor ~$500."
   },
   {
     "Code": "CB-034",
     "Service": "Toe Kick Drawer Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Utilizes unused toe kick space for additional storage."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Toe kick storage; parts ~$150, labor ~$125."
   },
   {
     "Code": "CB-035",
     "Service": "Display Cabinet Installation",
     "U/M": "Per Unit",
-    "Price": "1,500.00",
-    "Description": "Custom cabinets for displaying collectibles, books, or decor."
+    "Price": 1600,
+    "Description": "Display cabinets; materials ~$900, labor ~$700."
   },
+  // New Cabinet Additions
+  {
+    "Code": "CB-036",
+    "Service": "Cabinet Hardware Upgrade",
+    "U/M": "Per Job",
+    "Price": 300,
+    "Description": "Upgrades all pulls/knobs; parts ~$150, labor ~$150."
+  },
+  {
+    "Code": "CB-037",
+    "Service": "Cabinet Painting",
+    "U/M": "Per Job",
+    "Price": 1200,
+    "Description": "Full cabinet painting; materials ~$300, labor ~$900."
+  },
+  // Tile (TL) - Adjusted and Expanded
   {
     "Code": "TL-001",
     "Service": "Subway Tile Installation",
     "U/M": "SQFT",
-    "Price": 35,
-    "Description": "Classic straight-line patterns for backsplashes or walls."
+    "Price": 40,
+    "Description": "Classic patterns; material ~$15/sqft, labor ~$25/sqft."
   },
   {
     "Code": "TL-002",
     "Service": "Mosaic Tile Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Detailed designs using small, decorative tiles for artistic impact."
+    "Price": 55,
+    "Description": "Detailed designs; material ~$20/sqft, labor ~$35/sqft."
   },
   {
     "Code": "TL-003",
     "Service": "Herringbone/Fishscale Tile Install",
     "U/M": "SQFT",
-    "Price": 45,
-    "Description": "Precision layouts featuring intricate patterns for walls or floors."
+    "Price": 50,
+    "Description": "Intricate patterns; material ~$20/sqft, labor ~$30/sqft."
   },
   {
     "Code": "TL-004",
     "Service": "Large Format Tile Installation",
     "U/M": "SQFT",
-    "Price": 70,
-    "Description": "Tiles larger than 24\"x24\" for seamless, modern finishes on floors or walls."
+    "Price": 75,
+    "Description": "Tiles >24\"x24\"; material ~$30/sqft, labor ~$45/sqft."
   },
   {
     "Code": "TL-005",
     "Service": "Accent Wall Tile Installation",
     "U/M": "SQFT",
-    "Price": 60,
-    "Description": "High-impact decorative tiles for feature or statement walls."
+    "Price": 65,
+    "Description": "Decorative tiles; material ~$25/sqft, labor ~$40/sqft."
   },
   {
     "Code": "TL-006",
     "Service": "Glass Tile Installation",
     "U/M": "SQFT",
-    "Price": 70,
-    "Description": "Requires specialized handling and adhesives for transparent or reflective tiles."
+    "Price": 75,
+    "Description": "Specialized handling; material ~$30/sqft, labor ~$45/sqft."
   },
   {
     "Code": "TL-007",
     "Service": "Tile Over Existing Surface",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Installs new tile directly over existing surfaces with proper preparation."
+    "Price": 55,
+    "Description": "Overlay installation; material ~$20/sqft, labor ~$35/sqft."
   },
   {
     "Code": "TL-008",
     "Service": "Tile Edge Trim Installation",
     "U/M": "LF",
-    "Price": 15,
-    "Description": "Decorative or protective trim for exposed tile edges."
+    "Price": 18,
+    "Description": "Protective trim; material ~$8/lf, labor ~$10/lf."
   },
   {
     "Code": "TL-009",
     "Service": "Decorative Border Tile Installation",
     "U/M": "LF",
-    "Price": 25,
-    "Description": "Adds visual interest with custom border designs for floors or walls."
+    "Price": 30,
+    "Description": "Custom borders; material ~$12/lf, labor ~$18/lf."
   },
   {
     "Code": "TL-010",
     "Service": "Regrouting Existing Tile",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Refreshes grout lines to restore the original look of tiled surfaces."
+    "Price": 12,
+    "Description": "Refreshes grout; material ~$4/sqft, labor ~$8/sqft."
   },
   {
     "Code": "TL-011",
     "Service": "Grout Color Change and Sealing",
     "U/M": "Per Job",
-    "Price": 350,
-    "Description": "Updates grout color and applies protective sealant to prevent staining."
+    "Price": 400,
+    "Description": "Updates and seals grout; materials ~$100, labor ~$300."
   },
   {
     "Code": "TL-012",
     "Service": "Tile Removal",
     "U/M": "SQFT",
-    "Price": 4.5,
-    "Description": "Demolition and safe disposal of existing tile with minimal damage to underlying surfaces."
+    "Price": 5,
+    "Description": "Demolition and disposal; labor ~$4/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "TL-013",
     "Service": "Hexagon Tile Installation",
     "U/M": "SQFT",
-    "Price": 55,
-    "Description": "Custom placement of geometric hexagonal tiles for walls or floors."
+    "Price": 60,
+    "Description": "Geometric tiles; material ~$25/sqft, labor ~$35/sqft."
   },
   {
     "Code": "TL-014",
     "Service": "Penny Tile Installation",
     "U/M": "SQFT",
-    "Price": 60,
-    "Description": "Small circular tiles for a unique, textured appearance on walls or floors."
+    "Price": 65,
+    "Description": "Small circular tiles; material ~$25/sqft, labor ~$40/sqft."
   },
   {
     "Code": "TL-015",
     "Service": "Shower Tile Waterproofing",
     "U/M": "SQFT",
-    "Price": 20,
-    "Description": "Application of waterproof membranes for durable, watertight finishes in wet areas."
+    "Price": 25,
+    "Description": "Waterproof membranes; material ~$10/sqft, labor ~$15/sqft."
   },
   {
     "Code": "TL-016",
     "Service": "Tile Medallion Installation",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Custom tile medallions that create stunning focal points on floors or walls."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Custom medallions; materials ~$300, labor ~$250."
   },
   {
     "Code": "TL-017",
     "Service": "Porcelain Slab Tile Installation",
     "U/M": "SQFT",
-    "Price": 85,
-    "Description": "Oversized porcelain tiles for seamless finishes with minimal grout lines."
+    "Price": 90,
+    "Description": "Oversized slabs; material ~$50/sqft, labor ~$40/sqft."
   },
   {
     "Code": "TL-018",
     "Service": "Heat-Resistant Backsplash Install",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Specialized materials designed for high-heat areas behind stoves, grills, or fireplaces."
+    "Price": 55,
+    "Description": "High-heat tiles; material ~$25/sqft, labor ~$30/sqft."
   },
   {
     "Code": "TL-019",
     "Service": "Tile Refinishing",
     "U/M": "Per Job",
-    "Price": 300,
-    "Description": "Repairs and polishes older tiles to restore their appearance and durability."
+    "Price": 350,
+    "Description": "Repairs and polishes; materials ~$100, labor ~$250."
   },
   {
     "Code": "TL-020",
     "Service": "Custom Pattern Design",
     "U/M": "SQFT",
-    "Price": 75,
-    "Description": "Complex and artistic layouts tailored to customer preferences for unique tile arrangements."
+    "Price": 80,
+    "Description": "Artistic layouts; material ~$30/sqft, labor ~$50/sqft."
   },
   {
     "Code": "TL-021",
     "Service": "Outdoor Tile Installation",
     "U/M": "SQFT",
-    "Price": 40,
-    "Description": "Slip-resistant and weatherproof tiles for patios, decks, or outdoor walkways."
+    "Price": 45,
+    "Description": "Weatherproof tiles; material ~$20/sqft, labor ~$25/sqft."
   },
   {
     "Code": "TL-022",
     "Service": "Tile Stencil Work",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Adds hand-painted or stenciled designs to tiles for a personalized touch."
+    "Price": 55,
+    "Description": "Stenciled designs; material ~$20/sqft, labor ~$35/sqft."
   },
   {
     "Code": "TL-023",
     "Service": "Marble Tile Installation",
     "U/M": "SQFT",
-    "Price": 80,
-    "Description": "Luxurious marble tiles for high-end flooring or wall designs."
+    "Price": 85,
+    "Description": "Luxury marble; material ~$45/sqft, labor ~$40/sqft."
   },
   {
     "Code": "TL-024",
     "Service": "Tile Stair Riser Installation",
     "U/M": "Per Step",
-    "Price": 40,
-    "Description": "Decorative tiles on stair risers for an elegant or artistic look."
+    "Price": 45,
+    "Description": "Decorative risers; material ~$20/step, labor ~$25/step."
   },
   {
     "Code": "TL-025",
     "Service": "Pool Tile Installation",
     "U/M": "SQFT",
-    "Price": 60,
-    "Description": "Waterproof, durable tiles designed for pool interiors or surrounding areas."
+    "Price": 65,
+    "Description": "Waterproof pool tiles; material ~$30/sqft, labor ~$35/sqft."
   },
   {
     "Code": "TL-026",
     "Service": "Brick Veneer Tile Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Adds a rustic brick appearance for walls, fireplaces, or accent areas."
+    "Price": 55,
+    "Description": "Rustic brick look; material ~$25/sqft, labor ~$30/sqft."
   },
   {
     "Code": "TL-027",
     "Service": "Tile Backsplash with Integrated Outlets",
     "U/M": "SQFT",
-    "Price": 75,
-    "Description": "Tile installations that seamlessly integrate power outlets for a clean, modern look."
+    "Price": 80,
+    "Description": "Includes outlet cutouts; material ~$30/sqft, labor ~$50/sqft."
   },
   {
     "Code": "TL-028",
     "Service": "3D Tile Installation",
     "U/M": "SQFT",
-    "Price": 100,
-    "Description": "Installs textured, three-dimensional tiles for dramatic visual effects."
+    "Price": 110,
+    "Description": "Textured 3D tiles; material ~$50/sqft, labor ~$60/sqft."
   },
   {
     "Code": "TL-029",
     "Service": "Tile Caulking and Edging Repair",
     "U/M": "Per Job",
-    "Price": 150,
-    "Description": "Repairs gaps or damage to caulking or tile edges for a polished finish."
+    "Price": 175,
+    "Description": "Repairs caulking; materials ~$50, labor ~$125."
   },
   {
     "Code": "TL-030",
     "Service": "Artistic Mosaic Tile Wall",
     "U/M": "SQFT",
-    "Price": 150,
-    "Description": "Custom-designed artistic mosaic tiles for intricate, show-stopping installations."
+    "Price": 160,
+    "Description": "Custom mosaics; material ~$70/sqft, labor ~$90/sqft."
   },
+  // New Tile Additions
+  {
+    "Code": "TL-031",
+    "Service": "Tile Grout Cleaning",
+    "U/M": "SQFT",
+    "Price": 8,
+    "Description": "Deep cleaning; labor ~$6/sqft, materials ~$2/sqft."
+  },
+  {
+    "Code": "TL-032",
+    "Service": "Tile Replacement",
+    "U/M": "SQFT",
+    "Price": 20,
+    "Description": "Replaces damaged tiles; material ~$10/sqft, labor ~$10/sqft."
+  },
+  // Demolition (DD) - Adjusted and Expanded
   {
     "Code": "DD-001",
     "Service": "Full Kitchen Demo",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Includes cabinets, countertops, appliances, and debris removal."
+    "Price": 1800,
+    "Description": "Complete kitchen teardown; labor ~$1200, disposal ~$600."
   },
   {
     "Code": "DD-002",
     "Service": "Full Bathroom Demo",
     "U/M": "Per Job",
-    "Price": "1,200.00",
-    "Description": "Includes vanities, tile, fixtures, and plumbing removal."
+    "Price": 1400,
+    "Description": "Complete bathroom gutting; labor ~$1000, disposal ~$400."
   },
   {
     "Code": "DD-003",
     "Service": "Countertop Demo and Removal",
     "U/M": "Per Job",
-    "Price": 500,
-    "Description": "Safe removal of countertops with debris hauling."
+    "Price": 600,
+    "Description": "Countertop removal; labor ~$400, disposal ~$200."
   },
   {
     "Code": "DD-004",
     "Service": "Flooring Removal",
     "U/M": "SQFT",
-    "Price": 2.5,
-    "Description": "Includes removal of tile, laminate, carpet, or hardwood flooring with debris disposal."
+    "Price": 3,
+    "Description": "Removes all flooring types; labor ~$2/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "DD-005",
     "Service": "Appliance Removal",
     "U/M": "Per Unit",
-    "Price": 100,
-    "Description": "Removal and safe disposal of old appliances."
+    "Price": 120,
+    "Description": "Removes appliances; labor ~$80, disposal ~$40."
   },
   {
     "Code": "DD-006",
     "Service": "Selective Demolition",
     "U/M": "Per Hour",
-    "Price": 200,
-    "Description": "Targeted demolition for specific areas (e.g., walls, fixtures, etc.)."
+    "Price": 250,
+    "Description": "Targeted demo; labor ~$200/hr, equipment ~$50/hr."
   },
   {
     "Code": "DD-007",
     "Service": "Drywall Removal",
     "U/M": "SQFT",
-    "Price": 3,
-    "Description": "Removal of drywall and disposal of associated debris."
+    "Price": 3.5,
+    "Description": "Drywall demo; labor ~$2.5/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "DD-008",
     "Service": "Concrete Slab Removal",
     "U/M": "SQFT",
-    "Price": 15,
-    "Description": "Includes jackhammering and hauling concrete debris."
+    "Price": 18,
+    "Description": "Jackhammering concrete; labor ~$12/sqft, disposal ~$6/sqft."
   },
   {
     "Code": "DD-009",
     "Service": "Hazardous Material Disposal",
     "U/M": "Per Job",
-    "Price": 500,
-    "Description": "Safe removal of asbestos or mold-affected materials, compliant with regulations."
+    "Price": 600,
+    "Description": "Safe asbestos/mold removal; labor ~$400, disposal ~$200."
   },
   {
     "Code": "DD-010",
     "Service": "Pool Deck Demo",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Removal of concrete or stone pool decks with debris hauling."
+    "Price": 12,
+    "Description": "Pool deck removal; labor ~$8/sqft, disposal ~$4/sqft."
   },
   {
     "Code": "DD-011",
     "Service": "Cabinet Demo Only",
     "U/M": "Per Job",
-    "Price": 800,
-    "Description": "Safe removal of cabinets without disturbing surrounding areas."
+    "Price": 900,
+    "Description": "Cabinet removal; labor ~$600, disposal ~$300."
   },
   {
     "Code": "DD-012",
     "Service": "Garage Demolition",
     "U/M": "Per Job",
-    "Price": "3,000.00",
-    "Description": "Full garage teardown, including walls and roof structures."
+    "Price": 3500,
+    "Description": "Full garage teardown; labor ~$2500, disposal ~$1000."
   },
   {
     "Code": "DD-013",
     "Service": "Window and Door Frame Demo",
     "U/M": "Per Unit",
-    "Price": 200,
-    "Description": "Safely removes window and door frames with minimal damage to adjacent structures."
+    "Price": 225,
+    "Description": "Frame removal; labor ~$150, disposal ~$75."
   },
   {
     "Code": "DD-014",
     "Service": "Structural Wall Removal",
     "U/M": "Per Job",
-    "Price": "5,000.00",
-    "Description": "Includes engineering support for load-bearing walls and debris removal."
+    "Price": 5500,
+    "Description": "Load-bearing wall demo; includes engineering support."
   },
   {
     "Code": "DD-015",
     "Service": "Basement Demo",
     "U/M": "Per Job",
-    "Price": "10,000.00",
-    "Description": "Complete basement gutting, including walls, flooring, and fixtures."
+    "Price": 11000,
+    "Description": "Full basement gutting; labor ~$8000, disposal ~$3000."
   },
   {
     "Code": "DD-016",
     "Service": "Retaining Wall Demo",
     "U/M": "LF",
-    "Price": 25,
-    "Description": "Removal of stone, concrete, or block retaining walls with debris hauling."
+    "Price": 30,
+    "Description": "Retaining wall removal; labor ~$20/lf, disposal ~$10/lf."
   },
   {
     "Code": "DD-017",
     "Service": "Exterior Deck Demo",
     "U/M": "SQFT",
-    "Price": 5,
-    "Description": "Dismantles wooden or composite exterior decks, including safe debris removal."
+    "Price": 6,
+    "Description": "Deck removal; labor ~$4/sqft, disposal ~$2/sqft."
   },
   {
     "Code": "DD-018",
     "Service": "Shed Demolition",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Includes dismantling and removal of small shed structures."
+    "Price": 1600,
+    "Description": "Shed teardown; labor ~$1100, disposal ~$500."
   },
   {
     "Code": "DD-019",
     "Service": "Chimney Removal",
     "U/M": "Per Job",
-    "Price": "2,500.00",
-    "Description": "Safe teardown of chimney structures with debris hauling."
+    "Price": 2800,
+    "Description": "Chimney demo; labor ~$2000, disposal ~$800."
   },
   {
     "Code": "DD-020",
     "Service": "Fence Removal",
     "U/M": "LF",
-    "Price": 10,
-    "Description": "Includes removal of wood, chain-link, or vinyl fencing."
+    "Price": 12,
+    "Description": "Fence demo; labor ~$8/lf, disposal ~$4/lf."
   },
   {
     "Code": "DD-021",
     "Service": "Staircase Removal",
     "U/M": "Per Unit",
-    "Price": "1,000.00",
-    "Description": "Demolition of interior or exterior staircases, including debris hauling."
+    "Price": 1100,
+    "Description": "Staircase demo; labor ~$800, disposal ~$300."
   },
   {
     "Code": "DD-022",
     "Service": "Ceiling Demo",
     "U/M": "SQFT",
-    "Price": 3.5,
-    "Description": "Removal of dropped, plaster, or drywall ceilings."
+    "Price": 4,
+    "Description": "Ceiling removal; labor ~$3/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "DD-023",
     "Service": "Outdoor Kitchen Demo",
     "U/M": "Per Job",
-    "Price": "2,500.00",
-    "Description": "Includes removal of built-in grills, countertops, and appliances."
+    "Price": 2800,
+    "Description": "Outdoor kitchen teardown; labor ~$2000, disposal ~$800."
   },
   {
     "Code": "DD-024",
     "Service": "Spa/Hot Tub Removal",
     "U/M": "Per Unit",
-    "Price": 800,
-    "Description": "Removal and disposal of above-ground spas or hot tubs."
+    "Price": 900,
+    "Description": "Hot tub demo; labor ~$600, disposal ~$300."
   },
   {
     "Code": "DD-025",
     "Service": "Interior Wall Removal (Non-Structural)",
     "U/M": "Per Job",
-    "Price": "1,000.00",
-    "Description": "Safe demolition of non-load-bearing walls for renovations."
+    "Price": 1200,
+    "Description": "Non-load-bearing wall demo; labor ~$800, disposal ~$400."
   },
   {
     "Code": "DD-026",
     "Service": "Shed Roof Demo",
     "U/M": "Per Job",
-    "Price": 800,
-    "Description": "Removal of shed roof structures, including shingles and framing."
+    "Price": 900,
+    "Description": "Shed roof removal; labor ~$600, disposal ~$300."
   },
   {
     "Code": "DD-027",
     "Service": "Built-In Furniture Demo",
     "U/M": "Per Unit",
-    "Price": 400,
-    "Description": "Removal of built-in shelving, desks, or cabinets."
+    "Price": 450,
+    "Description": "Built-in removal; labor ~$300, disposal ~$150."
   },
   {
     "Code": "DD-028",
     "Service": "Patio Removal",
     "U/M": "SQFT",
-    "Price": 8,
-    "Description": "Includes removal of concrete or stone patios with hauling."
+    "Price": 10,
+    "Description": "Patio demo; labor ~$7/sqft, disposal ~$3/sqft."
   },
   {
     "Code": "DD-029",
     "Service": "Driveway Demo",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Breaks down concrete or asphalt driveways with proper disposal."
+    "Price": 12,
+    "Description": "Driveway removal; labor ~$8/sqft, disposal ~$4/sqft."
   },
   {
     "Code": "DD-030",
     "Service": "Treehouse Demo",
     "U/M": "Per Job",
-    "Price": "1,200.00",
-    "Description": "Safe dismantling and removal of treehouses or elevated play structures."
+    "Price": 1300,
+    "Description": "Treehouse removal; labor ~$900, disposal ~$400."
   },
+  // New Demolition Additions
+  {
+    "Code": "DD-031",
+    "Service": "Tile Floor Demo",
+    "U/M": "SQFT",
+    "Price": 4,
+    "Description": "Tile-specific removal; labor ~$3/sqft, disposal ~$1/sqft."
+  },
+  {
+    "Code": "DD-032",
+    "Service": "Popcorn Ceiling Removal",
+    "U/M": "SQFT",
+    "Price": 5,
+    "Description": "Removes textured ceilings; labor ~$4/sqft, disposal ~$1/sqft."
+  },
+  // Flooring (FL) - Adjusted and Expanded
   {
     "Code": "FL-001",
     "Service": "Laminate Flooring Installation",
     "U/M": "SQFT",
-    "Price": 5,
-    "Description": "Quick and cost-effective floating floors with a wide variety of styles and finishes."
+    "Price": 6,
+    "Description": "Floating laminate; material ~$2/sqft, labor ~$4/sqft."
   },
   {
     "Code": "FL-002",
     "Service": "Hardwood Flooring Installation",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Nail-down or glue-down solid hardwood flooring for long-lasting beauty."
+    "Price": 12,
+    "Description": "Solid hardwood; material ~$6/sqft, labor ~$6/sqft."
   },
   {
     "Code": "FL-003",
     "Service": "Luxury Vinyl Plank Installation",
     "U/M": "SQFT",
-    "Price": 6.5,
-    "Description": "Durable, waterproof planks ideal for high-traffic or moisture-prone areas."
+    "Price": 7,
+    "Description": "Waterproof LVP; material ~$3/sqft, labor ~$4/sqft."
   },
   {
     "Code": "FL-004",
     "Service": "Tile Flooring Installation",
     "U/M": "SQFT",
-    "Price": 8,
-    "Description": "Includes tile layout, grouting, and sealing for durability and style."
+    "Price": 9,
+    "Description": "Ceramic/porcelain tiles; material ~$4/sqft, labor ~$5/sqft."
   },
   {
     "Code": "FL-005",
     "Service": "Subfloor Leveling and Prep",
     "U/M": "SQFT",
-    "Price": 3,
-    "Description": "Ensures a flat, smooth surface to maximize flooring performance and longevity."
+    "Price": 4,
+    "Description": "Levels subfloor; material ~$2/sqft, labor ~$2/sqft."
   },
   {
     "Code": "FL-006",
     "Service": "Custom Inlay Design Installation",
     "U/M": "SQFT",
-    "Price": 20,
-    "Description": "Adds decorative wood or tile inlay designs for a unique, elegant look."
+    "Price": 25,
+    "Description": "Decorative inlays; material ~$10/sqft, labor ~$15/sqft."
   },
   {
     "Code": "FL-007",
     "Service": "Heated Flooring Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Installs radiant heating systems beneath floors for added comfort."
+    "Price": 55,
+    "Description": "Radiant heating; material ~$30/sqft, labor ~$25/sqft."
   },
   {
     "Code": "FL-008",
     "Service": "Scratch/Damage Repair for Flooring",
     "U/M": "Per Job",
-    "Price": 250,
-    "Description": "Restores chips, scratches, or gouges in hardwood or laminate flooring."
+    "Price": 300,
+    "Description": "Repairs scratches; materials ~$100, labor ~$200."
   },
   {
     "Code": "FL-009",
     "Service": "Vinyl Sheet Flooring Installation",
     "U/M": "SQFT",
-    "Price": 5.5,
-    "Description": "Economical and durable flooring ideal for kitchens and bathrooms."
+    "Price": 6,
+    "Description": "Durable vinyl; material ~$2.5/sqft, labor ~$3.5/sqft."
   },
   {
     "Code": "FL-010",
     "Service": "Hardwood Refinishing",
     "U/M": "SQFT",
-    "Price": 4.5,
-    "Description": "Sanding, staining, and sealing to renew and protect wood floors."
+    "Price": 5,
+    "Description": "Sanding and sealing; material ~$2/sqft, labor ~$3/sqft."
   },
   {
     "Code": "FL-011",
     "Service": "Flooring Removal",
     "U/M": "SQFT",
-    "Price": 2.5,
-    "Description": "Safe demolition and disposal of old flooring materials."
+    "Price": 3,
+    "Description": "Removes flooring; labor ~$2/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "FL-012",
     "Service": "Carpet Installation",
     "U/M": "SQFT",
-    "Price": 6,
-    "Description": "Includes padding, stretch fitting, and securing for a soft, durable finish."
+    "Price": 7,
+    "Description": "Includes padding; material ~$3/sqft, labor ~$4/sqft."
   },
   {
     "Code": "FL-013",
     "Service": "Staircase Flooring Installation",
     "U/M": "Per Step",
-    "Price": 100,
-    "Description": "Custom flooring for stair treads and risers, including nosing installation."
+    "Price": 120,
+    "Description": "Stair flooring; material ~$60/step, labor ~$60/step."
   },
   {
     "Code": "FL-014",
     "Service": "Waterproof Laminate Installation",
     "U/M": "SQFT",
-    "Price": 6.5,
-    "Description": "Ideal for high-moisture areas like kitchens, bathrooms, and basements."
+    "Price": 7.5,
+    "Description": "Waterproof laminate; material ~$3.5/sqft, labor ~$4/sqft."
   },
   {
     "Code": "FL-015",
     "Service": "Engineered Hardwood Installation",
     "U/M": "SQFT",
-    "Price": 9,
-    "Description": "Stable wood flooring suitable for all climates and subfloor types."
+    "Price": 10,
+    "Description": "Engineered wood; material ~$5/sqft, labor ~$5/sqft."
   },
   {
     "Code": "FL-016",
     "Service": "Floating Floor Installation",
     "U/M": "SQFT",
-    "Price": 5,
-    "Description": "Quick-installation flooring with no glue or nails; perfect for temporary setups."
+    "Price": 6,
+    "Description": "No-glue floors; material ~$2.5/sqft, labor ~$3.5/sqft."
   },
   {
     "Code": "FL-017",
     "Service": "Cork Flooring Installation",
     "U/M": "SQFT",
-    "Price": 7,
-    "Description": "Eco-friendly, sound-absorbing flooring option with a soft feel underfoot."
+    "Price": 8,
+    "Description": "Eco-friendly cork; material ~$4/sqft, labor ~$4/sqft."
   },
   {
     "Code": "FL-018",
     "Service": "Tile Baseboard Installation",
     "U/M": "LF",
-    "Price": 15,
-    "Description": "Durable and water-resistant alternative to traditional wood baseboards."
+    "Price": 18,
+    "Description": "Tile baseboards; material ~$8/lf, labor ~$10/lf."
   },
   {
     "Code": "FL-019",
     "Service": "Soundproof Underlayment Install",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Reduces noise and improves acoustics, ideal for multi-story homes or apartments."
+    "Price": 12,
+    "Description": "Reduces noise; material ~$6/sqft, labor ~$6/sqft."
   },
   {
     "Code": "FL-020",
     "Service": "Outdoor Deck Flooring Installation",
     "U/M": "SQFT",
-    "Price": 20,
-    "Description": "Specialized materials like composite or treated wood for outdoor patios and decks."
+    "Price": 25,
+    "Description": "Composite decking; material ~$15/sqft, labor ~$10/sqft."
   },
   {
     "Code": "FL-021",
     "Service": "Epoxy Flooring Installation",
     "U/M": "SQFT",
-    "Price": "12.00-25.00",
-    "Description": "Seamless, durable, and easy-to-maintain epoxy coating for garages or basements."
+    "Price": 15,
+    "Description": "Epoxy coating; material ~$8/sqft, labor ~$7/sqft."
   },
   {
     "Code": "FL-022",
     "Service": "Rubber Flooring Installation",
     "U/M": "SQFT",
-    "Price": 8,
-    "Description": "Ideal for gyms, playrooms, or high-impact areas requiring slip resistance."
+    "Price": 9,
+    "Description": "Rubber floors; material ~$4.5/sqft, labor ~$4.5/sqft."
   },
   {
     "Code": "FL-023",
     "Service": "Concrete Floor Polishing",
     "U/M": "SQFT",
-    "Price": "5.00-10.00",
-    "Description": "Grinds and polishes concrete floors for a sleek, modern finish."
+    "Price": 7,
+    "Description": "Polished concrete; labor ~$5/sqft, materials ~$2/sqft."
   },
   {
     "Code": "FL-024",
     "Service": "Custom Pattern Tile Installation",
     "U/M": "SQFT",
-    "Price": 15,
-    "Description": "Creates intricate tile patterns or layouts for a unique design."
+    "Price": 18,
+    "Description": "Patterned tiles; material ~$8/sqft, labor ~$10/sqft."
   },
   {
     "Code": "FL-025",
     "Service": "Bamboo Flooring Installation",
     "U/M": "SQFT",
-    "Price": 8.5,
-    "Description": "Sustainable and durable flooring option with a natural look."
+    "Price": 9.5,
+    "Description": "Sustainable bamboo; material ~$5/sqft, labor ~$4.5/sqft."
   },
   {
     "Code": "FL-026",
     "Service": "Carpet Removal",
     "U/M": "SQFT",
-    "Price": 2,
-    "Description": "Safe removal of existing carpet and padding with debris hauling."
+    "Price": 2.5,
+    "Description": "Carpet demo; labor ~$1.5/sqft, disposal ~$1/sqft."
   },
   {
     "Code": "FL-027",
     "Service": "Transition Strip Installation",
     "U/M": "LF",
-    "Price": 10,
-    "Description": "Ensures smooth transitions between different flooring materials."
+    "Price": 12,
+    "Description": "Floor transitions; material ~$5/lf, labor ~$7/lf."
   },
   {
     "Code": "FL-028",
     "Service": "Stair Tread Refinishing",
     "U/M": "Per Tread",
-    "Price": 150,
-    "Description": "Sanding, staining, and sealing to restore or enhance stair treads."
+    "Price": 160,
+    "Description": "Refinishes treads; materials ~$60/tread, labor ~$100/tread."
   },
   {
     "Code": "FL-029",
     "Service": "Basement Flooring Installation",
     "U/M": "SQFT",
-    "Price": 10,
-    "Description": "Moisture-resistant flooring tailored for basement environments."
+    "Price": 12,
+    "Description": "Moisture-resistant floors; material ~$6/sqft, labor ~$6/sqft."
   },
   {
     "Code": "FL-030",
     "Service": "Terrazzo Flooring Installation",
     "U/M": "SQFT",
-    "Price": 30,
-    "Description": "High-end, decorative flooring made from marble or glass chips embedded in cement."
+    "Price": 35,
+    "Description": "Decorative terrazzo; material ~$20/sqft, labor ~$15/sqft."
   },
+  // New Flooring Additions
+  {
+    "Code": "FL-031",
+    "Service": "Linoleum Flooring Installation",
+    "U/M": "SQFT",
+    "Price": 6,
+    "Description": "Eco-friendly linoleum; material ~$3/sqft, labor ~$3/sqft."
+  },
+  {
+    "Code": "FL-032",
+    "Service": "Flooring Repair",
+    "U/M": "Per Job",
+    "Price": 200,
+    "Description": "Fixes minor damage; materials ~$50, labor ~$150."
+  },
+
+  // Showers (SH) - Adjusted and Expanded
   {
     "Code": "SH-001",
     "Service": "Shower Tile Wall Installation",
     "U/M": "SQFT",
-    "Price": "32.50-55.00",
-    "Description": "Includes grouting and finishing for vertical surfaces with durable, decorative tiles."
+    "Price": 45,
+    "Description": "Tile walls; material ~$20/sqft, labor ~$25/sqft."
   },
   {
     "Code": "SH-002",
     "Service": "Shower Floor Tile Installation",
     "U/M": "SQFT",
-    "Price": 35,
-    "Description": "Installs slip-resistant tiles for a safe, long-lasting shower floor."
+    "Price": 40,
+    "Description": "Slip-resistant tiles; material ~$15/sqft, labor ~$25/sqft."
   },
   {
     "Code": "SH-003",
     "Service": "Waterproofing Membrane Installation",
     "U/M": "SQFT",
-    "Price": "12.00-20.00",
-    "Description": "Protects against water penetration, ensuring a watertight shower."
+    "Price": 15,
+    "Description": "Waterproofing; material ~$8/sqft, labor ~$7/sqft."
   },
   {
     "Code": "SH-004",
     "Service": "Schluter Shower Pan Installation",
-    "U/M": "EA.",
-    "Price": "1,350.00",
-    "Description": "Pre-formed, waterproof shower pans for a reliable base."
+    "U/M": "EA",
+    "Price": 1400,
+    "Description": "Pre-formed pans; materials ~$900, labor ~$500."
   },
   {
     "Code": "SH-005",
     "Service": "Shower Niche Installation",
-    "U/M": "EA.",
-    "Price": "300.00-600.00",
-    "Description": "Adds recessed shelving for shower storage and a modern aesthetic."
+    "U/M": "EA",
+    "Price": 400,
+    "Description": "Recessed shelving; materials ~$200, labor ~$200."
   },
   {
     "Code": "SH-006",
     "Service": "Frameless Glass Shower Door Installation",
-    "U/M": "EA.",
-    "Price": "1,000.00",
-    "Description": "Sleek, frameless glass doors to enhance any bathroom’s look."
+    "U/M": "EA",
+    "Price": 1100,
+    "Description": "Frameless doors; materials ~$700, labor ~$400."
   },
   {
     "Code": "SH-007",
     "Service": "Steam Shower Conversion",
     "U/M": "Per Job",
-    "Price": "4,000.00",
-    "Description": "Converts a standard shower into a steam shower with appropriate ventilation and sealing."
+    "Price": 4500,
+    "Description": "Steam setup; materials ~$2500, labor ~$2000."
   },
   {
     "Code": "SH-008",
     "Service": "Multi-Shower Head Installation",
-    "U/M": "EA.",
-    "Price": 750,
-    "Description": "Installs multiple showerheads for luxury showering experiences."
+    "U/M": "EA",
+    "Price": 800,
+    "Description": "Multiple heads; materials ~$450, labor ~$350."
   },
   {
     "Code": "SH-009",
     "Service": "Anti-Slip Coating for Shower Floors",
     "U/M": "SQFT",
-    "Price": 15,
-    "Description": "Adds a slip-resistant finish to shower floors for enhanced safety."
+    "Price": 18,
+    "Description": "Slip-resistant coating; material ~$8/sqft, labor ~$10/sqft."
   },
   {
     "Code": "SH-010",
     "Service": "Heated Shower Floor Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Installs radiant heating beneath tiles for a warm, spa-like feel."
+    "Price": 55,
+    "Description": "Radiant heat; material ~$30/sqft, labor ~$25/sqft."
   },
   {
     "Code": "SH-011",
     "Service": "Custom Shower Bench Build",
-    "U/M": "EA.",
-    "Price": "3,000.00",
-    "Description": "Built-in benches for added comfort, accessibility, and style."
+    "U/M": "EA",
+    "Price": 3200,
+    "Description": "Built-in benches; materials ~$1800, labor ~$1400."
   },
   {
     "Code": "SH-012",
     "Service": "Large Shower Glass Panel Installation",
-    "U/M": "EA.",
-    "Price": "1,500.00",
-    "Description": "Custom-sized, frameless glass panels to enhance shower openness and style."
+    "U/M": "EA",
+    "Price": 1600,
+    "Description": "Custom panels; materials ~$1000, labor ~$600."
   },
   {
     "Code": "SH-013",
     "Service": "Shower Curb Tile Installation",
     "U/M": "LF",
-    "Price": 30,
-    "Description": "Durable, watertight finishes for the edges of the shower entrance."
+    "Price": 35,
+    "Description": "Curb tiling; material ~$15/lf, labor ~$20/lf."
   },
   {
     "Code": "SH-014",
     "Service": "Porcelain Panel Shower Installation",
     "U/M": "SQFT",
-    "Price": 130,
-    "Description": "Installs large-format tiles for seamless, grout-free shower designs."
+    "Price": 140,
+    "Description": "Large-format panels; material ~$80/sqft, labor ~$60/sqft."
   },
   {
     "Code": "SH-015",
     "Service": "Rain Shower Head Installation",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Overhead rain-style showerheads for a luxurious experience."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Rain showerheads; materials ~$300, labor ~$250."
   },
   {
     "Code": "SH-016",
     "Service": "Body Spray System Installation",
-    "U/M": "EA.",
-    "Price": "1,000.00",
-    "Description": "Adds multiple body jets for a spa-like shower experience."
+    "U/M": "EA",
+    "Price": 1100,
+    "Description": "Body jets; materials ~$600, labor ~$500."
   },
   {
     "Code": "SH-017",
     "Service": "Shower Window Waterproof Wrap",
-    "U/M": "EA.",
-    "Price": 450,
-    "Description": "Ensures windows within shower enclosures are properly sealed and watertight."
+    "U/M": "EA",
+    "Price": 500,
+    "Description": "Waterproof window; materials ~$250, labor ~$250."
   },
   {
     "Code": "SH-018",
     "Service": "Custom Shower Door Seal Replacement",
-    "U/M": "EA.",
-    "Price": 150,
-    "Description": "Replaces old or damaged seals for glass doors to prevent leaks."
+    "U/M": "EA",
+    "Price": 175,
+    "Description": "Seal replacement; parts ~$75, labor ~$100."
   },
   {
     "Code": "SH-019",
     "Service": "Decorative Tile Insets",
-    "U/M": "EA.",
-    "Price": 350,
-    "Description": "Installs custom decorative tiles as accents on walls or floors."
+    "U/M": "EA",
+    "Price": 400,
+    "Description": "Tile accents; materials ~$200, labor ~$200."
   },
   {
     "Code": "SH-020",
     "Service": "High-Pressure Shower Head Upgrade",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "Enhances water flow with a high-pressure showerhead for a more luxurious feel."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "High-pressure heads; parts ~$100, labor ~$125."
   },
   {
     "Code": "SH-021",
     "Service": "Custom LED Lighting for Showers",
     "U/M": "Per Job",
-    "Price": "1,200.00",
-    "Description": "Installs waterproof LED lighting for mood or accent lighting in showers."
+    "Price": 1300,
+    "Description": "Waterproof LEDs; materials ~$700, labor ~$600."
   },
   {
     "Code": "SH-022",
     "Service": "Frameless Sliding Shower Door Installation",
-    "U/M": "EA.",
-    "Price": "1,200.00",
-    "Description": "Modern sliding glass doors for space-saving and aesthetic purposes."
+    "U/M": "EA",
+    "Price": 1300,
+    "Description": "Sliding doors; materials ~$800, labor ~$500."
   },
   {
     "Code": "SH-023",
     "Service": "Walk-In Shower Conversion",
     "U/M": "Per Job",
-    "Price": "8,000.00",
-    "Description": "Converts traditional tub-shower combos into spacious walk-in showers."
+    "Price": 8500,
+    "Description": "Tub-to-shower conversion; materials ~$4500, labor ~$4000."
   },
   {
     "Code": "SH-024",
     "Service": "Ceiling-Mounted Showerhead Installation",
-    "U/M": "EA.",
-    "Price": 750,
-    "Description": "Adds a ceiling-mounted showerhead for rain or waterfall effects."
+    "U/M": "EA",
+    "Price": 800,
+    "Description": "Ceiling showerheads; materials ~$450, labor ~$350."
   },
   {
     "Code": "SH-025",
     "Service": "Shower Tile Repair",
     "U/M": "SQFT",
-    "Price": "15.00-25.00",
-    "Description": "Repairs and replaces damaged tiles to restore shower integrity and aesthetics."
+    "Price": 20,
+    "Description": "Tile repairs; material ~$10/sqft, labor ~$10/sqft."
   },
   {
     "Code": "SH-026",
     "Service": "Wall-Mounted Soap Dispenser Install",
-    "U/M": "EA.",
-    "Price": 150,
-    "Description": "Adds convenient, wall-mounted dispensers for soap, shampoo, or conditioner."
+    "U/M": "EA",
+    "Price": 175,
+    "Description": "Soap dispensers; parts ~$75, labor ~$100."
   },
   {
     "Code": "SH-027",
     "Service": "Shower Handle Replacement",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Replaces or upgrades shower handles for functionality and style."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Handle upgrade; parts ~$125, labor ~$150."
   },
   {
     "Code": "SH-028",
     "Service": "Custom Mosaic Tile Installation",
     "U/M": "SQFT",
-    "Price": 50,
-    "Description": "Installs intricate mosaic tiles for a unique, decorative look."
+    "Price": 55,
+    "Description": "Mosaic tiles; material ~$20/sqft, labor ~$35/sqft."
   },
   {
     "Code": "SH-029",
     "Service": "Glass Block Wall Installation",
     "U/M": "SQFT",
-    "Price": 75,
-    "Description": "Adds semi-transparent glass block walls for privacy and style in showers."
+    "Price": 80,
+    "Description": "Glass blocks; material ~$45/sqft, labor ~$35/sqft."
   },
   {
     "Code": "SH-030",
     "Service": "Shower Drain Replacement",
-    "U/M": "EA.",
-    "Price": 300,
-    "Description": "Upgrades or replaces drains to ensure proper water flow."
+    "U/M": "EA",
+    "Price": 350,
+    "Description": "Drain upgrade; parts ~$150, labor ~$200."
   },
+  // New Shower Additions
+  {
+    "Code": "SH-031",
+    "Service": "Shower Glass Coating",
+    "U/M": "Per Job",
+    "Price": 250,
+    "Description": "Water-repellent coating; materials ~$100, labor ~$150."
+  },
+  {
+    "Code": "SH-032",
+    "Service": "Shower Grab Bar Installation",
+    "U/M": "EA",
+    "Price": 150,
+    "Description": "Safety bars; parts ~$75, labor ~$75."
+  },
+
+  // Outdoor (OC) - Adjusted and Expanded
   {
     "Code": "OC-001",
     "Service": "Patio Construction",
     "U/M": "SQFT",
-    "Price": "20.00-35.00",
-    "Description": "Concrete, pavers, or stone surfaces for outdoor patios, customizable to design preferences."
+    "Price": 25,
+    "Description": "Concrete or pavers; material ~$15/sqft, labor ~$10/sqft."
   },
   {
     "Code": "OC-002",
     "Service": "Deck Building",
     "U/M": "SQFT",
-    "Price": "25.00-50.00",
-    "Description": "Custom wood or composite decks designed for durability and style."
+    "Price": 35,
+    "Description": "Wood/composite decks; material ~$20/sqft, labor ~$15/sqft."
   },
   {
     "Code": "OC-003",
     "Service": "Pergola Installation",
     "U/M": "SQFT",
-    "Price": "30.00-60.00",
-    "Description": "Elegant wood or aluminum pergolas for shade and aesthetic appeal."
+    "Price": 40,
+    "Description": "Wood/aluminum pergolas; material ~$25/sqft, labor ~$15/sqft."
   },
   {
     "Code": "OC-004",
     "Service": "Outdoor Kitchen Installation",
-    "U/M": "EA.",
-    "Price": "7,500.00",
-    "Description": "Built-in grills, countertops, sinks, and storage cabinets for outdoor cooking spaces."
+    "U/M": "EA",
+    "Price": 8000,
+    "Description": "Full kitchen setup; materials ~$4500, labor ~$3500."
   },
   {
     "Code": "OC-005",
     "Service": "Fire Pit Construction",
-    "U/M": "EA.",
-    "Price": "2,500.00",
-    "Description": "Custom stone, concrete, or metal fire pits for outdoor warmth and ambiance."
+    "U/M": "EA",
+    "Price": 2800,
+    "Description": "Custom fire pits; materials ~$1500, labor ~$1300."
   },
   {
     "Code": "OC-006",
     "Service": "Outdoor Bar Installation",
-    "U/M": "EA.",
-    "Price": "3,500.00",
-    "Description": "Includes countertops, seating areas, and storage for an outdoor bar setup."
+    "U/M": "EA",
+    "Price": 4000,
+    "Description": "Bar setup; materials ~$2200, labor ~$1800."
   },
   {
     "Code": "OC-007",
     "Service": "Poolside Countertop Installation",
     "U/M": "SQFT",
-    "Price": 85,
-    "Description": "Weather-resistant countertops for poolside or outdoor kitchen areas."
+    "Price": 90,
+    "Description": "Weather-resistant counters; material ~$50/sqft, labor ~$40/sqft."
   },
   {
     "Code": "OC-008",
     "Service": "Retaining Wall Construction",
     "U/M": "LF",
-    "Price": 40,
-    "Description": "For landscaping, erosion control, or structural support with decorative finishes."
+    "Price": 45,
+    "Description": "Retaining walls; material ~$25/lf, labor ~$20/lf."
   },
   {
     "Code": "OC-009",
     "Service": "Outdoor Ceiling Fan Installation",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Installation of fans in covered patios or pergolas to enhance airflow."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Outdoor fans; parts ~$300, labor ~$250."
   },
   {
     "Code": "OC-010",
     "Service": "Patio Roof Extension",
     "U/M": "SQFT",
-    "Price": 60,
-    "Description": "Adds covered shade and protection for patio spaces."
+    "Price": 65,
+    "Description": "Roof extension; material ~$35/sqft, labor ~$30/sqft."
   },
   {
     "Code": "OC-011",
     "Service": "Hardscape Lighting Installation",
     "U/M": "Per Unit",
-    "Price": 150,
-    "Description": "Includes pathway, wall-mounted, or accent LED lighting for outdoor areas."
+    "Price": 175,
+    "Description": "Outdoor lighting; parts ~$100, labor ~$75."
   },
   {
     "Code": "OC-012",
     "Service": "Stone Veneer Wall Installation",
     "U/M": "SQFT",
-    "Price": 45,
-    "Description": "Decorative stone veneer finishes for outdoor or retaining walls."
+    "Price": 50,
+    "Description": "Stone veneer; material ~$25/sqft, labor ~$25/sqft."
   },
   {
     "Code": "OC-013",
     "Service": "Outdoor Fireplace Installation",
-    "U/M": "EA.",
-    "Price": "5,000.00",
-    "Description": "Custom-built outdoor fireplaces for patios, decks, or gardens."
+    "U/M": "EA",
+    "Price": 5500,
+    "Description": "Custom fireplaces; materials ~$3000, labor ~$2500."
   },
   {
     "Code": "OC-014",
     "Service": "Built-In Seating for Patios",
     "U/M": "Per Unit",
-    "Price": "1,500.00",
-    "Description": "Custom stone, wood, or composite seating areas for patios."
+    "Price": 1600,
+    "Description": "Built-in seats; materials ~$900, labor ~$700."
   },
   {
     "Code": "OC-015",
     "Service": "Turf Installation",
     "U/M": "SQFT",
-    "Price": 15,
-    "Description": "Durable, low-maintenance artificial grass for landscaping and play areas."
+    "Price": 18,
+    "Description": "Artificial turf; material ~$10/sqft, labor ~$8/sqft."
   },
   {
     "Code": "OC-016",
     "Service": "Outdoor TV Enclosure Installation",
-    "U/M": "EA.",
-    "Price": "1,000.00",
-    "Description": "Weatherproof enclosures for TVs in patios or outdoor entertainment spaces."
+    "U/M": "EA",
+    "Price": 1100,
+    "Description": "Weatherproof TV enclosures; materials ~$600, labor ~$500."
   },
   {
     "Code": "OC-017",
     "Service": "Custom Trellis Design and Install",
     "U/M": "LF",
-    "Price": 50,
-    "Description": "Functional and decorative garden trellises for climbing plants or shade."
+    "Price": 55,
+    "Description": "Trellises; material ~$30/lf, labor ~$25/lf."
   },
   {
     "Code": "OC-018",
     "Service": "Water Feature Installation",
     "U/M": "Per Job",
-    "Price": "2,500.00",
-    "Description": "Includes fountains, small waterfalls, or koi pond features."
+    "Price": 2800,
+    "Description": "Fountains/ponds; materials ~$1500, labor ~$1300."
   },
   {
     "Code": "OC-019",
     "Service": "Outdoor Tile Installation",
     "U/M": "SQFT",
-    "Price": 20,
-    "Description": "Slip-resistant tiles for patios, walkways, or poolside areas."
+    "Price": 25,
+    "Description": "Slip-resistant tiles; material ~$12/sqft, labor ~$13/sqft."
   },
   {
     "Code": "OC-020",
     "Service": "Exterior Stone Steps Installation",
     "U/M": "Per Step",
-    "Price": 300,
-    "Description": "Durable, weather-resistant stone steps for outdoor pathways or elevations."
+    "Price": 350,
+    "Description": "Stone steps; material ~$200/step, labor ~$150/step."
   },
   {
     "Code": "OC-021",
     "Service": "Gazebo Construction",
     "U/M": "SQFT",
-    "Price": "40.00-70.00",
-    "Description": "Custom-built gazebos with wood or composite materials."
+    "Price": 50,
+    "Description": "Custom gazebos; material ~$30/sqft, labor ~$20/sqft."
   },
   {
     "Code": "OC-022",
     "Service": "Outdoor Shower Installation",
-    "U/M": "EA.",
-    "Price": "2,500.00",
-    "Description": "Installation of outdoor showers with plumbing and weatherproof finishes."
+    "U/M": "EA",
+    "Price": 2800,
+    "Description": "Outdoor showers; materials ~$1500, labor ~$1300."
   },
   {
     "Code": "OC-023",
     "Service": "Playground Installation",
     "U/M": "Per Job",
-    "Price": "5,000.00",
-    "Description": "Assembly and installation of playground equipment for residential or commercial spaces."
+    "Price": 5500,
+    "Description": "Playground setup; materials ~$3000, labor ~$2500."
   },
   {
     "Code": "OC-024",
     "Service": "Outdoor Storage Shed Installation",
     "U/M": "Per Job",
-    "Price": "4,000.00",
-    "Description": "Includes foundation, framing, and finish for custom storage sheds."
+    "Price": 4500,
+    "Description": "Shed construction; materials ~$2500, labor ~$2000."
   },
   {
     "Code": "OC-025",
     "Service": "Driveway Expansion or Resurfacing",
     "U/M": "SQFT",
-    "Price": "15.00-30.00",
-    "Description": "Extends or resurfaces driveways with concrete, asphalt, or pavers."
+    "Price": 20,
+    "Description": "Driveway work; material ~$12/sqft, labor ~$8/sqft."
   },
   {
     "Code": "OC-026",
     "Service": "Outdoor Heating Installation",
     "U/M": "Per Unit",
-    "Price": "1,500.00",
-    "Description": "Includes installation of outdoor heaters or radiant heating systems for patios or decks."
+    "Price": 1600,
+    "Description": "Outdoor heaters; materials ~$900, labor ~$700."
   },
   {
     "Code": "OC-027",
     "Service": "Garden Wall Construction",
     "U/M": "LF",
-    "Price": 30,
-    "Description": "Low decorative garden walls made from stone, brick, or concrete."
+    "Price": 35,
+    "Description": "Garden walls; material ~$20/lf, labor ~$15/lf."
   },
   {
     "Code": "OC-028",
     "Service": "Outdoor Dining Area Construction",
     "U/M": "Per Job",
-    "Price": "10,000.00",
-    "Description": "Fully equipped dining spaces with tables, seating, and lighting."
+    "Price": 11000,
+    "Description": "Dining setup; materials ~$6000, labor ~$5000."
   },
   {
     "Code": "OC-029",
     "Service": "Outdoor Cabinet Installation",
     "U/M": "Per Unit",
-    "Price": "1,200.00",
-    "Description": "Weather-resistant cabinets for outdoor kitchens or bars."
+    "Price": 1300,
+    "Description": "Weather-resistant cabinets; materials ~$700, labor ~$600."
   },
   {
     "Code": "OC-030",
     "Service": "Decorative Concrete Overlay",
     "U/M": "SQFT",
-    "Price": "12.00-25.00",
-    "Description": "Enhances outdoor surfaces with stamped, stained, or textured concrete."
+    "Price": 15,
+    "Description": "Concrete overlay; material ~$8/sqft, labor ~$7/sqft."
   },
+  // New Outdoor Additions
+  {
+    "Code": "OC-031",
+    "Service": "Outdoor Sink Installation",
+    "U/M": "EA",
+    "Price": 800,
+    "Description": "Outdoor sinks; materials ~$450, labor ~$350."
+  },
+  {
+    "Code": "OC-032",
+    "Service": "Fence Installation",
+    "U/M": "LF",
+    "Price": 25,
+    "Description": "Wood/vinyl fencing; material ~$15/lf, labor ~$10/lf."
+    }, 
+  // Plumbing (PL) - Adjusted and Expanded
   {
     "Code": "PL-001",
     "Service": "Angle Stops",
-    "U/M": "EA.",
-    "Price": 195.94,
-    "Description": "Replacement of angle stops (e.g., under sinks or behind toilets). Includes parts and labor."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Angle stop replacement; parts ~$50, labor ~$150."
   },
   {
     "Code": "PL-002",
     "Service": "New Garbage Disposal",
-    "U/M": "EA.",
-    "Price": 206.25,
-    "Description": "Installation of a standard garbage disposal unit. Unit not included."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Disposal install; parts ~$75, labor ~$150."
   },
   {
     "Code": "PL-003",
     "Service": "Kitchen Sink Basket",
-    "U/M": "EA.",
-    "Price": 113.44,
-    "Description": "Replacement or installation of a sink basket strainer."
+    "U/M": "EA",
+    "Price": 120,
+    "Description": "Sink strainer; parts ~$40, labor ~$80."
   },
   {
     "Code": "PL-004",
     "Service": "Kitchen Sink P-Trap Connect/Reconnect",
-    "U/M": "EA.",
-    "Price": 412.5,
-    "Description": "Includes P-trap and all necessary fittings."
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "P-trap setup; parts ~$100, labor ~$350."
   },
   {
     "Code": "PL-005",
     "Service": "Dishwasher Hookup",
-    "U/M": "EA.",
-    "Price": 195.94,
-    "Description": "Standard connection to plumbing and electrical supply."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Dishwasher connect; labor ~$150, parts ~$50."
   },
   {
     "Code": "PL-006",
     "Service": "Refrigerator Angle Stop",
-    "U/M": "EA.",
-    "Price": 134.06,
-    "Description": "Includes connection for refrigerator water lines."
+    "U/M": "EA",
+    "Price": 150,
+    "Description": "Fridge water line; parts ~$50, labor ~$100."
   },
   {
     "Code": "PL-007",
     "Service": "Bathroom Sink Connect",
-    "U/M": "EA.",
-    "Price": 247.5,
-    "Description": "Installation of sink supply lines and drain connections."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Sink connect; parts ~$75, labor ~$200."
   },
   {
     "Code": "PL-008",
     "Service": "Kitchen Sink Connect",
-    "U/M": "EA.",
-    "Price": 547.5,
-    "Description": "Installation of sink supply lines and drain connections."
+    "U/M": "EA",
+    "Price": 600,
+    "Description": "Kitchen sink setup; parts ~$150, labor ~$450."
   },
   {
     "Code": "PL-009",
     "Service": "Shower Valve",
-    "U/M": "EA.",
-    "Price": "TBD",
-    "Description": "Price depends on type and complexity of installation."
+    "U/M": "EA",
+    "Price": 600,
+    "Description": "Shower valve install; parts ~$200, labor ~$400."
   },
   {
     "Code": "PL-010",
     "Service": "Tub Drain Hookup",
-    "U/M": "EA.",
-    "Price": 309.38,
-    "Description": "Includes drain assembly and connection to plumbing."
+    "U/M": "EA",
+    "Price": 325,
+    "Description": "Tub drain; parts ~$100, labor ~$225."
   },
   {
     "Code": "PL-011",
     "Service": "Free-Standing Tub Installation",
-    "U/M": "EA.",
-    "Price": 721.88,
-    "Description": "Installation of a free-standing tub with standard fittings."
+    "U/M": "EA",
+    "Price": 800,
+    "Description": "Freestanding tub; parts ~$300, labor ~$500."
   },
   {
     "Code": "PL-012",
     "Service": "Tub Installation (Stud Mount)",
-    "U/M": "EA.",
-    "Price": 928.13,
-    "Description": "Includes wall-mounted tubs with framing."
+    "U/M": "EA",
+    "Price": 1000,
+    "Description": "Stud-mounted tub; parts ~$400, labor ~$600."
   },
   {
     "Code": "PL-013",
     "Service": "Tub Spout Hookup",
-    "U/M": "EA.",
-    "Price": 216.56,
-    "Description": "Installation of a tub spout and water supply connection."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Tub spout; parts ~$75, labor ~$150."
   },
   {
     "Code": "PL-014",
     "Service": "Shower Head Installation",
-    "U/M": "EA.",
-    "Price": 92.81,
-    "Description": "Installation or replacement of a shower head."
+    "U/M": "EA",
+    "Price": 100,
+    "Description": "Showerhead install; parts ~$30, labor ~$70."
   },
   {
     "Code": "PL-015",
     "Service": "Washer Machine Water Supply Box",
-    "U/M": "EA.",
-    "Price": 515.63,
-    "Description": "Includes connection for hot/cold water lines and drain."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Washer box; parts ~$200, labor ~$350."
   },
   {
     "Code": "PL-016",
     "Service": "Washer Machine Water Supply Line Install",
-    "U/M": "EA.",
-    "Price": 72.19,
-    "Description": "Replacement of water supply lines for washer machines."
+    "U/M": "EA",
+    "Price": 80,
+    "Description": "Supply lines; parts ~$30, labor ~$50."
   },
   {
     "Code": "PL-017",
     "Service": "Exterior Hose Bib",
-    "U/M": "EA.",
-    "Price": "TBD",
-    "Description": "Price depends on location and complexity."
+    "U/M": "EA",
+    "Price": 250,
+    "Description": "Outdoor faucet; parts ~$100, labor ~$150."
   },
   {
     "Code": "PL-018",
     "Service": "Water Heater Installation",
-    "U/M": "EA.",
-    "Price": "1,640.63",
-    "Description": "Includes installation of standard tank water heater (excludes unit cost)."
+    "U/M": "EA",
+    "Price": 1700,
+    "Description": "Tank water heater; parts ~$600, labor ~$1100."
   },
   {
     "Code": "PL-019",
     "Service": "Rough-In Plumbing for New Construction",
     "U/M": "Per Unit",
-    "Price": "6,250.00",
-    "Description": "Complete rough-in plumbing for a single unit (kitchen, bathroom, etc.)."
+    "Price": 6500,
+    "Description": "Full rough-in; materials ~$2500, labor ~$4000."
   },
   {
     "Code": "PL-020",
     "Service": "Shower Valve Replacement",
-    "U/M": "EA.",
-    "Price": 562.5,
-    "Description": "Removal and replacement of an existing shower valve."
+    "U/M": "EA",
+    "Price": 600,
+    "Description": "Valve replacement; parts ~$200, labor ~$400."
   },
   {
     "Code": "PL-021",
     "Service": "Kitchen Faucet Installation",
-    "U/M": "EA.",
-    "Price": 187.5,
-    "Description": "Includes installation and connection of a new faucet."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Faucet install; parts ~$50, labor ~$150."
   },
   {
     "Code": "PL-022",
     "Service": "Garbage Disposal Repair",
-    "U/M": "EA.",
-    "Price": 156.25,
-    "Description": "Labor to repair existing garbage disposal (parts additional)."
+    "U/M": "EA",
+    "Price": 175,
+    "Description": "Disposal repair; labor ~$150, parts ~$25."
   },
   {
     "Code": "PL-023",
     "Service": "Reverse Osmosis (R/O) System Install",
-    "U/M": "EA.",
-    "Price": 937.5,
-    "Description": "Installation of a new R/O system, including water supply line connection."
+    "U/M": "EA",
+    "Price": 1000,
+    "Description": "R/O system; parts ~$500, labor ~$500."
   },
   {
     "Code": "PL-024",
     "Service": "Drain Cleaning",
     "U/M": "Per Hour",
-    "Price": 250,
-    "Description": "Includes mechanical drain cleaning for blockages."
+    "Price": 275,
+    "Description": "Drain cleaning; labor ~$225/hr, equipment ~$50/hr."
   },
   {
     "Code": "PL-025",
     "Service": "Plumbing Leak Repair",
     "U/M": "Per Job",
-    "Price": 437.5,
-    "Description": "Repair of standard plumbing leaks (price varies by severity)."
+    "Price": 450,
+    "Description": "Leak repair; parts ~$100, labor ~$350."
   },
   {
     "Code": "PL-026",
     "Service": "Bathtub Faucet Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Installation or replacement of a bathtub faucet."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Tub faucet; parts ~$100, labor ~$175."
   },
   {
     "Code": "PL-027",
     "Service": "Main Water Line Replacement",
     "U/M": "Per Job",
-    "Price": "3,125.00",
-    "Description": "Includes trenching and replacement of main water supply line (pricing may vary)."
+    "Price": 3500,
+    "Description": "Main line replacement; materials ~$1500, labor ~$2000."
   },
   {
     "Code": "PL-028",
     "Service": "Sump Pump Installation",
-    "U/M": "EA.",
-    "Price": "1,000.00",
-    "Description": "Installation of a new sump pump for basement or crawl space."
+    "U/M": "EA",
+    "Price": 1100,
+    "Description": "Sump pump; parts ~$500, labor ~$600."
   },
+     // Plumbing (PL) - Continued and Adjusted
   {
     "Code": "PL-029",
     "Service": "Gas Line Installation",
     "U/M": "Per Job",
-    "Price": "3,750.00",
-    "Description": "Includes running new gas lines for appliances (permits not included)."
+    "Price": 4000,
+    "Description": "New gas lines for appliances; materials ~$2000, labor ~$2000, permits extra."
   },
   {
     "Code": "PL-030",
     "Service": "Pressure-Reducing Valve Install",
-    "U/M": "EA.",
-    "Price": 375,
-    "Description": "Installation of a pressure-reducing valve to protect home plumbing."
+    "U/M": "EA",
+    "Price": 400,
+    "Description": "Pressure valve; parts ~$150, labor ~$250."
   },
   {
     "Code": "PL-031",
     "Service": "Tankless Water Heater Installation",
-    "U/M": "EA.",
-    "Price": "3,125.00",
-    "Description": "Installation of a tankless water heater (excludes unit cost)."
+    "U/M": "EA",
+    "Price": 3300,
+    "Description": "Tankless heater; parts ~$1500, labor ~$1800, excludes unit cost."
   },
   {
     "Code": "PL-032",
     "Service": "Toilet Installation",
-    "U/M": "EA.",
-    "Price": 312.5,
-    "Description": "Includes removal of the old toilet and installation of a new one."
+    "U/M": "EA",
+    "Price": 350,
+    "Description": "Toilet replacement; parts ~$100, labor ~$250."
   },
   {
     "Code": "PL-033",
     "Service": "Backflow Preventer Install",
-    "U/M": "EA.",
-    "Price": 437.5,
-    "Description": "Installation of a backflow prevention device."
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "Backflow device; parts ~$200, labor ~$250."
   },
   {
     "Code": "PL-034",
     "Service": "Floor Drain Installation",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Installation of a floor drain in concrete or tiled areas."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Floor drain; parts ~$200, labor ~$350."
   },
   {
     "Code": "PL-035",
     "Service": "Pool Fill Line Installation",
-    "U/M": "EA.",
-    "Price": 562.5,
-    "Description": "Installation of a water line for filling swimming pools."
+    "U/M": "EA",
+    "Price": 600,
+    "Description": "Pool water line; parts ~$250, labor ~$350."
   },
   {
     "Code": "PL-036",
     "Service": "Ice Maker Water Line Install",
-    "U/M": "EA.",
-    "Price": 187.5,
-    "Description": "Installation of a water line for refrigerator ice makers."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Ice maker line; parts ~$50, labor ~$150."
   },
   {
     "Code": "PL-037",
     "Service": "Outdoor Shower Installation",
-    "U/M": "EA.",
-    "Price": "1,250.00",
-    "Description": "Installation of a complete outdoor shower system."
+    "U/M": "EA",
+    "Price": 1300,
+    "Description": "Outdoor shower; parts ~$600, labor ~$700."
   },
   {
     "Code": "PL-038",
     "Service": "Bidet Installation",
-    "U/M": "EA.",
-    "Price": 375,
-    "Description": "Installation of a bidet with plumbing and supply line connections."
+    "U/M": "EA",
+    "Price": 400,
+    "Description": "Bidet setup; parts ~$150, labor ~$250."
   },
   {
     "Code": "PL-039",
     "Service": "Shower Panel Installation",
-    "U/M": "EA.",
-    "Price": 625,
-    "Description": "Installation of a shower panel with multiple features (e.g., jets, handheld showerhead)."
+    "U/M": "EA",
+    "Price": 650,
+    "Description": "Shower panel; parts ~$300, labor ~$350."
   },
+  // New Plumbing Additions
+  {
+    "Code": "PL-040",
+    "Service": "Water Softener Installation",
+    "U/M": "EA",
+    "Price": 1200,
+    "Description": "Softener install; parts ~$600, labor ~$600."
+  },
+  {
+    "Code": "PL-041",
+    "Service": "Pipe Replacement (Interior)",
+    "U/M": "LF",
+    "Price": 25,
+    "Description": "Replaces old pipes; material ~$10/lf, labor ~$15/lf."
+  },
+  // Electrical (EL) - Adjusted and Expanded
   {
     "Code": "EL-001",
     "Service": "GFCI Outlet Installation",
-    "U/M": "EA.",
-    "Price": 90.75,
-    "Description": "Ground-fault circuit interrupter for safety in wet areas like kitchens, bathrooms, and garages."
+    "U/M": "EA",
+    "Price": 100,
+    "Description": "GFCI outlets; parts ~$30, labor ~$70."
   },
   {
     "Code": "EL-002",
     "Service": "Standard Outlet Replacement",
-    "U/M": "EA.",
-    "Price": 74.25,
-    "Description": "Replaces old outlets with new standard receptacles."
+    "U/M": "EA",
+    "Price": 80,
+    "Description": "Outlet replacement; parts ~$20, labor ~$60."
   },
   {
     "Code": "EL-003",
     "Service": "Light Switch Installation",
-    "U/M": "EA.",
-    "Price": 74.25,
-    "Description": "Installation or replacement of single-pole or 3-way light switches."
+    "U/M": "EA",
+    "Price": 80,
+    "Description": "Switch install; parts ~$20, labor ~$60."
   },
   {
     "Code": "EL-004",
     "Service": "Recessed Light Replacement",
-    "U/M": "EA.",
-    "Price": 190,
-    "Description": "Removes old can lights and installs new recessed fixtures."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Recessed light swap; parts ~$80, labor ~$120."
   },
   {
     "Code": "EL-005",
     "Service": "New Recessed Light Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Adds recessed lights with wiring and placement; price depends on the number and location."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "New recessed lights; parts ~$100, labor ~$175."
   },
   {
     "Code": "EL-006",
     "Service": "Ceiling Fan Installation",
-    "U/M": "EA.",
-    "Price": 180,
-    "Description": "Includes mounting, wiring, and balancing of fans with or without lights."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Ceiling fan; parts ~$50, labor ~$150."
   },
   {
     "Code": "EL-007",
     "Service": "Light Fixture Replacement",
-    "U/M": "EA.",
-    "Price": 125,
-    "Description": "Replaces old fixtures with customer-provided new designs."
+    "U/M": "EA",
+    "Price": 150,
+    "Description": "Fixture swap; parts ~$50, labor ~$100."
   },
   {
     "Code": "EL-008",
     "Service": "Exterior Weatherproof Outlet Installation",
-    "U/M": "EA.",
-    "Price": 225,
-    "Description": "Outdoor-rated outlets with weatherproof covers for safety and protection from the elements."
+    "U/M": "EA",
+    "Price": 250,
+    "Description": "Outdoor outlets; parts ~$100, labor ~$150."
   },
   {
     "Code": "EL-009",
     "Service": "Exterior Light Fixture Installation",
-    "U/M": "EA.",
-    "Price": 190,
-    "Description": "Installs outdoor lights, including wall-mounted, flood, or pathway fixtures."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Outdoor lights; parts ~$70, labor ~$130."
   },
   {
     "Code": "EL-010",
     "Service": "Smoke/Carbon Monoxide Detector Installation",
-    "U/M": "EA.",
-    "Price": 35,
-    "Description": "Ensures proper placement and functionality of life-saving alarms."
+    "U/M": "EA",
+    "Price": 40,
+    "Description": "Detectors; parts ~$15, labor ~$25."
   },
   {
     "Code": "EL-011",
     "Service": "EV Charger Installation",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Installs dedicated circuits and chargers for electric vehicles; price varies based on complexity."
+    "Price": 1600,
+    "Description": "EV charger; parts ~$800, labor ~$800."
   },
   {
     "Code": "EL-012",
     "Service": "Circuit Breaker Replacement",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "Replaces old or faulty circuit breakers with new compliant units."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Breaker swap; parts ~$75, labor ~$150."
   },
   {
     "Code": "EL-013",
     "Service": "Panel Upgrade (200 Amp Service)",
     "U/M": "Per Job",
-    "Price": "3,500.00",
-    "Description": "Increases home electrical capacity to support modern appliances and systems."
+    "Price": 3800,
+    "Description": "Panel upgrade; parts ~$1800, labor ~$2000."
   },
   {
     "Code": "EL-014",
     "Service": "Backup Generator Installation",
     "U/M": "Per Job",
-    "Price": "6,000.00",
-    "Description": "Integrates whole-house generators for backup power during outages."
+    "Price": 6500,
+    "Description": "Generator install; parts ~$3500, labor ~$3000."
   },
   {
     "Code": "EL-015",
     "Service": "Whole-House Surge Protector Install",
-    "U/M": "EA.",
-    "Price": 500,
-    "Description": "Protects sensitive electronics and appliances from power surges and spikes."
+    "U/M": "EA",
+    "Price": 550,
+    "Description": "Surge protector; parts ~$250, labor ~$300."
   },
   {
     "Code": "EL-016",
     "Service": "Under-Cabinet Lighting Installation",
     "U/M": "Per Job",
-    "Price": 750,
-    "Description": "LED lighting solutions for kitchens, offices, or workspaces; includes fixtures and wiring."
+    "Price": 800,
+    "Description": "Under-cabinet LEDs; parts ~$400, labor ~$400."
   },
   {
     "Code": "EL-017",
     "Service": "Landscape Lighting Installation",
     "U/M": "Per Unit",
-    "Price": 150,
-    "Description": "Installs pathway, accent, or spotlight fixtures for outdoor spaces."
+    "Price": 175,
+    "Description": "Outdoor lighting; parts ~$100, labor ~$75."
   },
   {
     "Code": "EL-018",
     "Service": "Smart Home Lighting Setup",
     "U/M": "Per Job",
-    "Price": "1,000.00",
-    "Description": "Installs smart switches, dimmers, and app-controlled lighting systems for modern convenience."
+    "Price": 1100,
+    "Description": "Smart lighting; parts ~$600, labor ~$500."
   },
   {
     "Code": "EL-019",
     "Service": "Hardwired Appliance Installation",
-    "U/M": "EA.",
-    "Price": 250,
-    "Description": "Includes electrical connections for ovens, dishwashers, range hoods, and more."
+    "U/M": "EA",
+    "Price": 275,
+    "Description": "Appliance wiring; parts ~$75, labor ~$200."
   },
   {
     "Code": "EL-020",
     "Service": "Hot Tub Electrical Hookup",
     "U/M": "Per Job",
-    "Price": "1,200.00",
-    "Description": "Dedicated circuits and wiring for hot tubs or spa equipment; includes outdoor-rated materials."
+    "Price": 1300,
+    "Description": "Hot tub wiring; parts ~$600, labor ~$700."
   },
   {
     "Code": "EL-021",
     "Service": "Chandelier Installation",
-    "U/M": "EA.",
-    "Price": 300,
-    "Description": "Mounting and wiring chandeliers, including high ceilings."
+    "U/M": "EA",
+    "Price": 325,
+    "Description": "Chandelier install; parts ~$75, labor ~$250."
   },
   {
     "Code": "EL-022",
     "Service": "Power Outlet for Appliances",
-    "U/M": "EA.",
-    "Price": 180,
-    "Description": "Dedicated outlets for microwaves, refrigerators, or other appliances."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Appliance outlets; parts ~$50, labor ~$150."
   },
   {
     "Code": "EL-023",
     "Service": "Doorbell Installation",
-    "U/M": "EA.",
-    "Price": 75,
-    "Description": "Installation of wired or wireless doorbells, including video doorbells."
+    "U/M": "EA",
+    "Price": 80,
+    "Description": "Doorbell install; parts ~$30, labor ~$50."
   },
   {
     "Code": "EL-024",
     "Service": "Attic Fan Installation",
-    "U/M": "EA.",
-    "Price": 400,
-    "Description": "Installation of energy-efficient attic fans for improved ventilation."
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "Attic fan; parts ~$200, labor ~$250."
   },
   {
     "Code": "EL-025",
     "Service": "Basement Wiring Setup",
     "U/M": "Per Job",
-    "Price": "2,000.00",
-    "Description": "Complete electrical wiring for basement renovations or additions."
+    "Price": 2200,
+    "Description": "Basement wiring; parts ~$1000, labor ~$1200."
   },
   {
     "Code": "EL-026",
     "Service": "Home Office Wiring",
     "U/M": "Per Job",
-    "Price": "1,500.00",
-    "Description": "Installation of dedicated circuits, outlets, and lighting for office spaces."
+    "Price": 1600,
+    "Description": "Office wiring; parts ~$700, labor ~$900."
   },
   {
     "Code": "EL-027",
     "Service": "Ethernet and Data Wiring",
     "U/M": "Per Drop",
-    "Price": 125,
-    "Description": "Runs and installs ethernet cables for home or office networking."
+    "Price": 140,
+    "Description": "Ethernet drops; parts ~$60, labor ~$80."
   },
   {
     "Code": "EL-028",
     "Service": "Security Camera Installation",
     "U/M": "Per Unit",
-    "Price": 250,
-    "Description": "Installs hardwired or wireless cameras for home or business security."
+    "Price": 275,
+    "Description": "Camera install; parts ~$125, labor ~$150."
   },
   {
     "Code": "EL-029",
     "Service": "Motion Sensor Light Installation",
-    "U/M": "EA.",
-    "Price": 175,
-    "Description": "Installs motion-activated outdoor or indoor lights for safety and convenience."
+    "U/M": "EA",
+    "Price": 200,
+    "Description": "Motion lights; parts ~$80, labor ~$120."
   },
   {
     "Code": "EL-030",
     "Service": "Dimmer Switch Installation",
-    "U/M": "EA.",
-    "Price": 100,
-    "Description": "Replaces or installs dimmer switches for adjustable lighting."
+    "U/M": "EA",
+    "Price": 110,
+    "Description": "Dimmer install; parts ~$30, labor ~$80."
   },
   {
     "Code": "EL-031",
     "Service": "Outlet Relocation",
-    "U/M": "EA.",
-    "Price": 200,
-    "Description": "Moves existing outlets to new locations (e.g., for TVs or appliances)."
+    "U/M": "EA",
+    "Price": 225,
+    "Description": "Outlet move; parts ~$75, labor ~$150."
   },
   {
     "Code": "EL-032",
     "Service": "Generator Maintenance",
     "U/M": "Per Visit",
-    "Price": 250,
-    "Description": "Inspection and servicing of backup generators."
+    "Price": 275,
+    "Description": "Generator service; labor ~$200, parts ~$75."
   },
   {
     "Code": "EL-033",
     "Service": "Pool or Spa Light Installation",
     "U/M": "Per Unit",
-    "Price": 400,
-    "Description": "Installs lights for pools or spas, including wiring and waterproofing."
+    "Price": 450,
+    "Description": "Pool lights; parts ~$200, labor ~$250."
   },
   {
     "Code": "EL-034",
     "Service": "Bathroom Exhaust Fan Installation",
-    "U/M": "EA.",
+    "U/M": "EA",
+    "Price": 375,
+    "Description": "Exhaust fan; parts ~$150, labor ~$225."
+  },
+  // New Electrical Additions
+  {
+    "Code": "EL-035",
+    "Service": "Electrical Panel Repair",
+    "U/M": "Per Job",
+    "Price": 600,
+    "Description": "Panel repair; parts ~$200, labor ~$400."
+  },
+  {
+    "Code": "EL-036",
+    "Service": "Whole-House Rewiring",
+    "U/M": "Per Job",
+    "Price": 10000,
+    "Description": "Full rewiring; parts ~$4000, labor ~$6000."
+   },
+  {
+  // Painting (PT) - New Category
+  {
+    "Code": "PT-001",
+    "Service": "Interior Wall Painting",
+    "U/M": "SQFT",
+    "Price": 3,
+    "Description": "Standard wall painting; paint ~$1/sqft, labor ~$2/sqft."
+  },
+  {
+    "Code": "PT-002",
+    "Service": "Exterior Wall Painting",
+    "U/M": "SQFT",
+    "Price": 4,
+    "Description": "Exterior painting; paint ~$1.5/sqft, labor ~$2.5/sqft."
+  },
+  {
+    "Code": "PT-003",
+    "Service": "Ceiling Painting",
+    "U/M": "SQFT",
+    "Price": 3.5,
+    "Description": "Ceiling painting; paint ~$1/sqft, labor ~$2.5/sqft."
+  },
+  {
+    "Code": "PT-004",
+    "Service": "Trim Painting",
+    "U/M": "LF",
+    "Price": 5,
+    "Description": "Trim painting; paint ~$2/lf, labor ~$3/lf."
+  },
+  {
+    "Code": "PT-005",
+    "Service": "Cabinet Painting",
+    "U/M": "Per Job",
+    "Price": 1200,
+    "Description": "Cabinet painting; paint ~$300, labor ~$900."
+  },
+  {
+    "Code": "PT-006",
+    "Service": "Deck Staining",
+    "U/M": "SQFT",
+    "Price": 6,
+    "Description": "Deck staining; stain ~$2/sqft, labor ~$4/sqft."
+  },
+  {
+    "Code": "PT-007",
+    "Service": "Wallpaper Installation",
+    "U/M": "SQFT",
+    "Price": 8,
+    "Description": "Wallpaper install; material ~$4/sqft, labor ~$4/sqft."
+  },
+  {
+    "Code": "PT-008",
+    "Service": "Paint Removal",
+    "U/M": "SQFT",
+    "Price": 5,
+    "Description": "Paint stripping; labor ~$4/sqft, materials ~$1/sqft."
+  },
+
+  // Drywall (DW) - New Category
+  {
+    "Code": "DW-001",
+    "Service": "Drywall Installation",
+    "U/M": "SQFT",
+    "Price": 2.5,
+    "Description": "New drywall; material ~$1/sqft, labor ~$1.5/sqft."
+  },
+  {
+    "Code": "DW-002",
+    "Service": "Drywall Repair",
+    "U/M": "Per Job",
+    "Price": 250,
+    "Description": "Patch repairs; materials ~$75, labor ~$175."
+  },
+  {
+    "Code": "DW-003",
+    "Service": "Drywall Taping and Mudding",
+    "U/M": "SQFT",
+    "Price": 1.5,
+    "Description": "Taping/mudding; material ~$0.5/sqft, labor ~$1/sqft."
+  },
+  {
+    "Code": "DW-004",
+    "Service": "Drywall Texturing",
+    "U/M": "SQFT",
+    "Price": 2,
+    "Description": "Textured finish; material ~$0.5/sqft, labor ~$1.5/sqft."
+  },
+  {
+    "Code": "DW-005",
+    "Service": "Drywall Removal",
+    "U/M": "SQFT",
+    "Price": 3,
+    "Description": "Drywall demo; labor ~$2/sqft, disposal ~$1/sqft."
+  },
+
+  // Windows/Doors (WD) - New Category
+  {
+    "Code": "WD-001",
+    "Service": "Window Installation (Standard)",
+    "U/M": "EA",
+    "Price": 500,
+    "Description": "Standard window; parts ~$300, labor ~$200."
+  },
+  {
+    "Code": "WD-002",
+    "Service": "Window Replacement",
+    "U/M": "EA",
+    "Price": 450,
+    "Description": "Window swap; parts ~$250, labor ~$200."
+  },
+  {
+    "Code": "WD-003",
+    "Service": "Sliding Glass Door Installation",
+    "U/M": "EA",
+    "Price": 1200,
+    "Description": "Sliding door; parts ~$700, labor ~$500."
+  },
+  {
+    "Code": "WD-004",
+    "Service": "Interior Door Installation",
+    "U/M": "EA",
+    "Price": 250,
+    "Description": "Interior door; parts ~$100, labor ~$150."
+  },
+  {
+    "Code": "WD-005",
+    "Service": "Exterior Door Installation",
+    "U/M": "EA",
+    "Price": 600,
+    "Description": "Exterior door; parts ~$350, labor ~$250."
+  },
+  {
+    "Code": "WD-006",
+    "Service": "Window/Door Frame Repair",
+    "U/M": "Per Job",
+    "Price": 300,
+    "Description": "Frame repair; materials ~$100, labor ~$200."
+  },
+
+  // General Repairs (GR) - New Category
+  {
+    "Code": "GR-001",
+    "Service": "Minor Carpentry Repair",
+    "U/M": "Per Job",
+    "Price": 200,
+    "Description": "Small fixes; materials ~$50, labor ~$150."
+  },
+  {
+    "Code": "GR-002",
+    "Service": "Roof Leak Repair",
+    "U/M": "Per Job",
     "Price": 350,
-    "Description": "Replaces or installs bathroom exhaust fans with venting."
+    "Description": "Roof patching; materials ~$100, labor ~$250."
+  },
+  {
+    "Code": "GR-003",
+    "Service": "Gutter Cleaning",
+    "U/M": "LF",
+    "Price": 3,
+    "Description": "Gutter cleaning; labor ~$2.5/lf, disposal ~$0.5/lf."
+  },
+  {
+    "Code": "GR-004",
+    "Service": "Siding Repair",
+    "U/M": "SQFT",
+    "Price": 10,
+    "Description": "Siding fix; material ~$5/sqft, labor ~$5/sqft."
+  },
+  {
+    "Code": "GR-005",
+    "Service": "Fence Repair",
+    "U/M": "LF",
+    "Price": 15,
+    "Description": "Fence fix; material ~$7/lf, labor ~$8/lf."
   }
 ]
