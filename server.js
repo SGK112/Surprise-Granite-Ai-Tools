@@ -9,7 +9,7 @@ const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
 const { createHash } = require("crypto");
 const EmailJS = require("@emailjs/nodejs");
-const NodeCache = require("node-cache"); // Added for caching
+const NodeCache = require("node-cache");
 
 // Constants
 const PORT = process.env.PORT || 10000;
@@ -168,7 +168,7 @@ app.post("/api/upload-countertop", upload.single("image"), async (req, res) => {
         uploadDate: new Date(),
         analysis,
         likes: 0,
-        dislikes: 0, // Added dislikes
+        dislikes: 0,
       },
     };
 
@@ -222,7 +222,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
           uploadDate: new Date(),
           estimate,
           likes: 0,
-          dislikes: 0, // Added dislikes
+          dislikes: 0,
         },
       };
       const result = await imagesCollection.insertOne(imageDoc);
@@ -231,7 +231,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
     }
 
     await fs.unlink(filePath);
-    const costEstimate = enhanceCostEstimate(estimate, laborData);
+    const costEstimate = enhanceCostEstimate(estimate); // Updated to use OpenAI pricing
 
     const cleanedResponse = {
       imageId,
@@ -247,6 +247,7 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res) =>
       costEstimate: {
         materialCost: costEstimate.material_cost,
         laborCost: costEstimate.labor_cost,
+        additionalFeaturesCost: costEstimate.additional_features_cost || "$0",
         totalCost: costEstimate.total_cost,
       },
       reasoning: estimate.reasoning,
@@ -274,7 +275,7 @@ app.get("/api/get-countertop/:id", async (req, res) => {
       metadata: {
         ...countertop.metadata,
         likes: countertop.metadata.likes || 0,
-        dislikes: countertop.metadata.dislikes || 0, // Added dislikes
+        dislikes: countertop.metadata.dislikes || 0,
         shareDescription: `Countertop Estimate: ${countertop.metadata.estimate?.material_type || "Unknown"}, ${countertop.metadata.estimate?.project_scope || "Project"}`,
         shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${countertop._id}`,
       },
@@ -394,6 +395,9 @@ app.post("/api/tts", async (req, res) => {
       });
       audioBuffer = Buffer.from(await response.arrayBuffer());
       cache.set(cacheKey, audioBuffer);
+      console.log("Generated TTS audio with OpenAI");
+    } else {
+      console.log("Served TTS audio from cache");
     }
 
     res.set({ "Content-Type": "audio/mpeg", "Content-Length": audioBuffer.length });
@@ -404,7 +408,7 @@ app.post("/api/tts", async (req, res) => {
   }
 });
 
-// Analysis Functions (Optimized: Simplified prompts, caching)
+// Analysis Functions
 async function analyzeImage(imageBase64) {
   console.log("Analyzing image with OpenAI for repair...");
   const cacheKey = `analysis_${createHash("sha256").update(imageBase64).digest("hex")}`;
@@ -426,7 +430,7 @@ async function analyzeImage(imageBase64) {
         { role: "system", content: prompt },
         { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }] },
       ],
-      max_tokens: 1000, // Reduced tokens for speed
+      max_tokens: 1000,
       temperature: 0.5,
       response_format: { type: "json_object" },
     });
@@ -465,7 +469,7 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
   - Dimensions: Use customer needs or estimate (default 25 sq ft).
   - Additional features: List extras (e.g., "sink cutout") as an array from customer needs or input.
   - Condition: For repairs, detect damage and severity (None, Low, Moderate, Severe).
-  - Cost estimate: Provide material cost (per sq ft), labor cost (installation, features), and total cost range.
+  - Cost estimate: Provide material cost (per sq ft), labor cost (installation, features), additional features cost, and total cost range.
   - Reasoning: Explain concisely.
   Respond in JSON with keys: project_scope, material_type, color_and_pattern, dimensions, additional_features (array), condition, cost_estimate, reasoning.`;
 
@@ -483,7 +487,7 @@ async function estimateProject(fileContent, mimeType, customerNeeds = "") {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
-      max_tokens: 1500, // Reduced for speed
+      max_tokens: 1500,
       temperature: 0.5,
       response_format: { type: "json_object" },
     });
@@ -529,37 +533,15 @@ function calculateRepairCost(damageType, severity) {
   return `$${cost.toFixed(2)}`;
 }
 
-function enhanceCostEstimate(estimate, laborData) {
-  const area = parseFloat(estimate.dimensions) || 25;
-  const materialCost = parseFloat(estimate.cost_estimate?.material_cost?.replace(/[^\d.]/g, "") || "50") * area;
-  const laborCost = { installation: 0, cutouts: 0, edge_profile: 0, total: 0 };
-
-  const installLabor = laborData.find((d) => d.type === "installation");
-  laborCost.installation = installLabor ? installLabor.rate_per_sqft * area : 375;
-
-  const features = Array.isArray(estimate.additional_features) ? estimate.additional_features : [];
-  const cutouts = features.filter((f) => f.toLowerCase().includes("cutout")).length;
-  const cutoutLabor = laborData.find((d) => d.type === "cutout");
-  laborCost.cutouts = cutoutLabor ? cutoutLabor.rate_per_unit * cutouts : 0;
-
-  const edgeProfileLabor = laborData.find((d) => d.type === "edge_profile");
-  const perimeter = estimate.dimensions ? (2 * (Math.sqrt(area * 144) + Math.sqrt(area * 144))) / 12 : 20;
-  laborCost.edge_profile = edgeProfileLabor && features.some((f) => f.toLowerCase().includes("edge profile"))
-    ? edgeProfileLabor.rate_per_linear_ft * perimeter
-    : 0;
-
-  laborCost.total = laborCost.installation + laborCost.cutouts + laborCost.edge_profile;
-  const totalCost = materialCost + laborCost.total;
-
+function enhanceCostEstimate(estimate) {
+  // Use OpenAI's cost_estimate directly instead of recalculating
   return {
-    material_cost: `$${materialCost.toFixed(2)}`,
+    material_cost: estimate.cost_estimate.material_cost || "Contact for estimate",
     labor_cost: {
-      installation: `$${laborCost.installation.toFixed(2)}`,
-      cutouts: `$${laborCost.cutouts.toFixed(2)}`,
-      edge_profile: `$${laborCost.edge_profile.toFixed(2)}`,
-      total: `$${laborCost.total.toFixed(2)}`,
+      total: estimate.cost_estimate.labor_cost || "Contact for estimate"
     },
-    total_cost: `$${totalCost.toFixed(2)} - $${(totalCost + 125).toFixed(2)}`,
+    additional_features_cost: estimate.cost_estimate.additional_features_cost || "$0",
+    total_cost: estimate.cost_estimate.total_cost || "Contact for estimate",
   };
 }
 
