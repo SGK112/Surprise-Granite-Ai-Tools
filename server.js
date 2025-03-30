@@ -10,13 +10,15 @@ const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
 const EmailJS = require("@emailjs/nodejs");
 const NodeCache = require("node-cache");
+const compression = require("compression");
+const rateLimit = require("express-rate-limit");
 
 const PORT = process.env.PORT || 10000;
-const MONGODB_URI = process.env.MONGODB_URI || (() => { throw new Error("MONGODB_URI is required"); })();
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || (() => { throw new Error("OPENAI_API_KEY is required"); })();
-const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || (() => { throw new Error("EMAILJS_SERVICE_ID is required"); })();
-const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || (() => { throw new Error("EMAILJS_TEMPLATE_ID is required"); })();
-const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || (() => { throw new Error("EMAILJS_PUBLIC_KEY is required"); })();
+const MONGODB_URI = process.env.MONGODB_URI || throwConfigError("MONGODB_URI");
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || throwConfigError("OPENAI_API_KEY");
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || throwConfigError("EMAILJS_SERVICE_ID");
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || throwConfigError("EMAILJS_TEMPLATE_ID");
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || throwConfigError("EMAILJS_PUBLIC_KEY");
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 const app = express();
@@ -33,22 +35,26 @@ let mongoClient;
 EmailJS.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
 // Middleware
-app.use(require("compression")());
+app.use(compression());
 app.use(cors({ origin: "*" }));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(require("express-rate-limit")({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, keyGenerator: (req) => req.ip }));
 
 // Utility Functions
+function throwConfigError(key) {
+    throw new Error(`${key} is required in environment variables`);
+}
+
 function throwError(message, status = 500) {
     const err = new Error(message);
     err.status = status;
     throw err;
 }
 
-function logError(message, err) {
-    console.error(`${message}: ${err ? err.message : "Unknown error"}`, err?.stack || err);
+function logError(message, err, req = {}) {
+    console.error(`[${req.requestId || 'NO_ID'}] ${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
 }
 
 async function loadLaborData() {
@@ -104,6 +110,13 @@ async function connectToMongoDB() {
     }
 }
 
+async function ensureMongoDBConnection() {
+    if (!db) {
+        await connectToMongoDB();
+        if (!db) throwError("Database connection failed after retry", 503);
+    }
+}
+
 // Routes
 app.get("/", (req, res) => {
     console.log("GET / - Health check");
@@ -118,14 +131,15 @@ app.get("/api/health", (req, res) => {
 app.post("/api/contractor-estimate", upload.single("image"), async (req, res, next) => {
     console.log("POST /api/contractor-estimate - Starting estimate process");
     try {
-        if (!db) throwError("Database not connected", 503);
+        await ensureMongoDBConnection();
         if (!req.file) throwError("No image uploaded", 400);
 
         const imageBuffer = req.file.buffer;
         const fileContent = imageBuffer.toString("base64");
         const customerNeeds = (req.body.customer_needs || "").trim();
         const imageHash = createHash("sha256").update(fileContent).digest("hex");
-        const cacheKey = `estimate_${imageHash}_${customerNeeds}`;
+        const safeCustomerNeeds = customerNeeds.replace(/[^a-zA-Z0-9]/g, '').slice(0, 50);
+        const cacheKey = `estimate_${imageHash}_${safeCustomerNeeds}`;
 
         console.log("Checking cache for estimate:", cacheKey);
         let estimate = cache.get(cacheKey);
@@ -157,9 +171,22 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
         console.log("Estimate stored, imageId:", estimate.imageId);
 
         console.log("Calculating cost estimate");
-        const costEstimate = enhanceCostEstimate(estimate);
+        let costEstimate;
+        try {
+            costEstimate = enhanceCostEstimate(estimate);
+        } catch (err) {
+            logError("Cost estimate calculation failed", err, req);
+            costEstimate = { materialCost: "Contact for estimate", laborCost: { total: "Contact for estimate" }, additionalFeaturesCost: "$0", totalCost: "Contact for estimate" };
+        }
+
         console.log("Generating TTS");
-        const audioBuffer = await generateTTS(estimate, customerNeeds);
+        let audioBuffer;
+        try {
+            audioBuffer = await generateTTS(estimate, customerNeeds);
+        } catch (err) {
+            logError("TTS generation failed", err, req);
+            audioBuffer = Buffer.from("Error generating audio. Please contact Surprise Granite.");
+        }
 
         const responseData = {
             imageId: estimate.imageId,
@@ -182,6 +209,9 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
         console.log("Sending response:", responseData);
         res.status(201).json(responseData);
     } catch (err) {
+        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "File size exceeds 5MB limit" });
+        }
         next(err);
     }
 });
@@ -189,9 +219,15 @@ app.post("/api/contractor-estimate", upload.single("image"), async (req, res, ne
 app.get("/api/get-countertop/:id", async (req, res, next) => {
     console.log("GET /api/get-countertop/", req.params.id);
     try {
-        if (!db) throwError("Database not connected", 503);
+        await ensureMongoDBConnection();
         const imagesCollection = db.collection("countertop_images");
-        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        let objectId;
+        try {
+            objectId = new ObjectId(req.params.id);
+        } catch (err) {
+            throwError("Invalid countertop ID", 400);
+        }
+        const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
 
         res.json({
@@ -213,14 +249,20 @@ app.get("/api/get-countertop/:id", async (req, res, next) => {
 app.post("/api/like-countertop/:id", async (req, res, next) => {
     console.log("POST /api/like-countertop/", req.params.id);
     try {
-        if (!db) throwError("Database not connected", 503);
+        await ensureMongoDBConnection();
         const imagesCollection = db.collection("countertop_images");
-        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        let objectId;
+        try {
+            objectId = new ObjectId(req.params.id);
+        } catch (err) {
+            throwError("Invalid countertop ID", 400);
+        }
+        const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
 
         const newLikes = (countertop.metadata.likes || 0) + 1;
         await imagesCollection.updateOne(
-            { _id: new ObjectId(req.params.id) },
+            { _id: objectId },
             { $set: { "metadata.likes": newLikes } }
         );
         updatePricingConfidence(countertop.metadata.estimate, 0.05);
@@ -234,14 +276,20 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
 app.post("/api/dislike-countertop/:id", async (req, res, next) => {
     console.log("POST /api/dislike-countertop/", req.params.id);
     try {
-        if (!db) throwError("Database not connected", 503);
+        await ensureMongoDBConnection();
         const imagesCollection = db.collection("countertop_images");
-        const countertop = await imagesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        let objectId;
+        try {
+            objectId = new ObjectId(req.params.id);
+        } catch (err) {
+            throwError("Invalid countertop ID", 400);
+        }
+        const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
 
         const newDislikes = (countertop.metadata.dislikes || 0) + 1;
         await imagesCollection.updateOne(
-            { _id: new ObjectId(req.params.id) },
+            { _id: objectId },
             { $set: { "metadata.dislikes": newDislikes } }
         );
         updatePricingConfidence(countertop.metadata.estimate, -0.05);
@@ -272,7 +320,7 @@ app.post("/api/send-email", async (req, res, next) => {
         console.log("Email sent successfully:", emailResponse);
         res.status(200).json({ message: "Email sent successfully", emailResponse });
     } catch (err) {
-        logError("Error sending email", err);
+        logError("Error sending email", err, req);
         res.status(err.status || 500).json({
             error: "Failed to send email",
             details: err.message || "Unknown error",
@@ -289,14 +337,14 @@ function updatePricingConfidence(estimate, adjustment) {
         console.log(`Updated confidence for ${material.type}: ${material.confidence}`);
     }
 
-    if ((estimate.project_scope || "").toLowerCase() === "repair" && estimate.condition.damage_type !== "No visible damage") {
+    if ((estimate.project_scope || "").toLowerCase() === "repair" && estimate.condition?.damage_type !== "No visible damage") {
         const labor = laborData.find(l => l.type === estimate.condition.damage_type.toLowerCase());
         if (labor) {
             labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
             console.log(`Updated confidence for ${labor.type}: ${labor.confidence}`);
         }
     }
-    estimate.additional_features.forEach(feature => {
+    (estimate.additional_features || []).forEach(feature => {
         const labor = laborData.find(l => feature.toLowerCase().includes(l.type));
         if (labor) {
             labor.confidence = Math.min(1, Math.max(0, (labor.confidence || 1) + adjustment));
@@ -308,14 +356,25 @@ function updatePricingConfidence(estimate, adjustment) {
 async function estimateProject(fileContent, customerNeeds) {
     console.log("Starting estimateProject with customerNeeds:", customerNeeds);
     try {
-        if (!db) throwError("Database not connected", 503);
+        await ensureMongoDBConnection();
         console.log("Fetching past estimates from MongoDB");
         const imagesCollection = db.collection("countertop_images");
+
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
+            .project({
+                "metadata.estimate.material_type": 1,
+                "metadata.estimate.project_scope": 1,
+                "metadata.estimate.condition": 1,
+                "metadata.estimate.additional_features": 1,
+                "metadata.estimate.solutions": 1,
+                "metadata.uploadDate": 1,
+                "metadata.likes": 1,
+                "metadata.dislikes": 1
+            })
             .sort({ "metadata.uploadDate": -1 })
             .limit(10)
-            .allowDiskUse(true) // Enable disk use to handle large sorts
+            .allowDiskUse(true)
             .toArray();
         console.log("Fetched past estimates:", pastEstimates.length);
 
@@ -368,7 +427,7 @@ async function estimateProject(fileContent, customerNeeds) {
         result.material_type = result.material_type || "Unknown";
         result.additional_features = Array.isArray(result.additional_features) ? result.additional_features : [];
         result.condition = result.condition || { damage_type: "No visible damage", severity: "None" };
-        result.solutions = result.solutions || "No specific solutions identified; contact for professional evaluation.";
+        result.solutions = result.solutions || "Contact for professional evaluation.";
         console.log("Estimate result:", result);
         return result;
     } catch (err) {
@@ -396,7 +455,7 @@ async function generateTTS(estimate, customerNeeds) {
         Material: ${estimate.material_type || "Unknown"}. 
         Dimensions: ${estimate.dimensions || "25 sq ft"}. 
         Features: ${estimate.additional_features.length ? estimate.additional_features.join(", ") : "None"}. 
-        Condition: ${estimate.condition.damage_type}, ${estimate.condition.severity}. 
+        Condition: ${estimate.condition?.damage_type || "No visible damage"}, ${estimate.condition?.severity || "None"}. 
         Total cost: ${costEstimate.totalCost || "Contact for estimate"}. 
         Solutions: ${estimate.solutions}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
@@ -412,7 +471,7 @@ async function generateTTS(estimate, customerNeeds) {
         return Buffer.from(await response.arrayBuffer());
     } catch (err) {
         logError("TTS generation failed", err);
-        return Buffer.from("");
+        return Buffer.from("Error generating audio. Please contact Surprise Granite.");
     }
 }
 
@@ -425,7 +484,11 @@ function enhanceCostEstimate(estimate) {
 
     const dimensions = estimate.dimensions || "25 sq ft";
     const sqFtMatch = dimensions.match(/(\d+)-?(\d+)?\s*sq\s*ft/i);
-    const sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseInt(sqFtMatch[1]) + parseInt(sqFtMatch[2])) / 2 : parseInt(sqFtMatch[1])) : 25;
+    let sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseInt(sqFtMatch[1], 10) + parseInt(sqFtMatch[2], 10)) / 2 : parseInt(sqFtMatch[1], 10)) : 25;
+    if (isNaN(sqFt)) {
+        sqFt = 25;
+        console.warn(`Parsed sqFt is NaN for dimensions: ${dimensions}, defaulting to 25 sq ft`);
+    }
     console.log("Calculated sq ft:", sqFt);
 
     const materialType = estimate.material_type || "Unknown";
@@ -437,7 +500,7 @@ function enhanceCostEstimate(estimate) {
 
     let laborCost = 0;
     const projectScope = (estimate.project_scope || "replacement").toLowerCase();
-    if (projectScope === "repair" && estimate.condition.damage_type !== "No visible damage") {
+    if (projectScope === "repair" && estimate.condition?.damage_type !== "No visible damage") {
         const damageType = estimate.condition.damage_type.toLowerCase();
         const laborEntry = laborData.find(entry => entry.type === damageType) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity] || 1;
@@ -449,7 +512,7 @@ function enhanceCostEstimate(estimate) {
         console.log("Installation labor cost:", laborCost);
     }
 
-    const featuresCost = estimate.additional_features.reduce((sum, feature) => {
+    const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
         const featureLower = feature.toLowerCase();
         const laborEntry = laborData.find(entry => featureLower.includes(entry.type)) || { rate_per_unit: 0, rate_per_linear_ft: 0, rate_per_sqft: 0, confidence: 1 };
         const confidence = laborEntry.confidence || 1;
@@ -472,7 +535,7 @@ function enhanceCostEstimate(estimate) {
 
 // Error Middleware
 app.use((err, req, res, next) => {
-    logError(`Unhandled error in ${req.method} ${req.path}`, err);
+    logError(`Unhandled error in ${req.method} ${req.path}`, err, req);
     res.status(err.status || 500).json({ error: "Internal server error", details: err.message });
 });
 
@@ -489,11 +552,16 @@ async function startServer() {
 }
 
 process.on("SIGINT", async () => {
-    if (mongoClient) {
-        await mongoClient.close();
+    try {
+        if (mongoClient) await mongoClient.close();
         console.log("MongoDB connection closed");
+        cache.flushAll();
+        console.log("Cache cleared");
+        process.exit(0);
+    } catch (err) {
+        logError("Shutdown error", err);
+        process.exit(1);
     }
-    process.exit(0);
 });
 
 startServer();
