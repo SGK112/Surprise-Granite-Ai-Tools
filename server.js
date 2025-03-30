@@ -1,3 +1,4 @@
+// server.js for Node.js v20.19.0, deployed on Render
 require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
@@ -21,6 +22,7 @@ const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 app.set("trust proxy", 1);
 
+// Multer setup
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -30,17 +32,18 @@ const upload = multer({
     }
 });
 
+// External service initializations
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 });
+if (process.env.EMAILJS_PUBLIC_KEY) {
+    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
+}
 
+// Global variables
 let laborData = [];
 let materialsData = [];
 let db = null;
 let mongoClient;
-
-if (process.env.EMAILJS_PUBLIC_KEY) {
-    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
-}
 
 // Middleware
 app.use(compression());
@@ -55,10 +58,6 @@ app.use((req, res, next) => {
 });
 
 // Utility Functions
-function throwConfigError(key) {
-    throw new Error(`${key} is required in environment variables`);
-}
-
 function throwError(message, status = 500) {
     const err = new Error(message);
     err.status = status;
@@ -295,6 +294,52 @@ function enhanceCostEstimate(estimate) {
     return costEstimate;
 }
 
+async function generateTTS(estimate, customerNeeds) {
+    if (!estimate || typeof estimate !== "object") {
+        logError("Invalid estimate object in generateTTS", estimate);
+        return Buffer.from(`Estimate unavailable. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for details.`);
+    }
+    const costEstimate = enhanceCostEstimate(estimate) || {
+        materialCost: "Contact for estimate",
+        laborCost: { total: "Contact for estimate" },
+        additionalFeaturesCost: "$0",
+        totalCost: "Contact for estimate"
+    };
+    const narrationText = `Your Surprise Granite estimate: 
+        Project: ${estimate.project_scope || "Replacement"}. 
+        Material: ${estimate.material_type || "Unknown"}. 
+        Dimensions: ${estimate.dimensions || "Not specified"}. 
+        Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
+        Condition: ${estimate.condition?.damage_type || "No visible damage"}, ${estimate.condition?.severity || "None"}. 
+        Total cost: ${costEstimate.totalCost || "Contact for estimate"}. 
+        Solutions: ${estimate.solutions || "Contact for evaluation"}. 
+        ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
+        Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`;
+    const chunks = chunkText(narrationText, 4096);
+
+    try {
+        const audioBuffers = await Promise.all(chunks.map(chunk =>
+            withRetry(() => openai.audio.speech.create({
+                model: "tts-1",
+                voice: "alloy",
+                input: chunk,
+            }))
+        ));
+        return Buffer.concat(await Promise.all(audioBuffers.map(res => res.arrayBuffer())));
+    } catch (err) {
+        logError("TTS generation failed", err);
+        return Buffer.from(`Error generating audio: ${err.message}. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
+    }
+}
+
+function chunkText(text, maxLength) {
+    const chunks = [];
+    for (let i = 0; i < text.length; i += maxLength) {
+        chunks.push(text.slice(i, i + maxLength));
+    }
+    return chunks;
+}
+
 // Routes
 app.get("/", (req, res) => {
     res.status(200).send("CARI Server is running");
@@ -380,4 +425,69 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
             message: "Estimate generated successfully",
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
-            colorAndPattern: estimate.color_and_pattern
+            colorAndPattern: estimate.color_and_pattern,
+            dimensions: estimate.dimensions,
+            additionalFeatures: estimate.additional_features.join(", ") || "None",
+            condition: estimate.condition,
+            costEstimate,
+            reasoning: estimate.reasoning,
+            solutions: estimate.solutions,
+            contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
+            audioBase64: audioBuffer.toString("base64"),
+            shareUrl: estimate.imageId ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageId}` : null,
+            likes: 0,
+            dislikes: 0,
+        };
+        res.status(201).json(responseData);
+    } catch (err) {
+        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "File size exceeds 10MB limit" });
+        }
+        logError("Error in /api/contractor-estimate", err);
+        next(err);
+    }
+});
+
+// Error Middleware
+app.use((err, req, res, next) => {
+    const status = err.status || 500;
+    const message = err.message || "Unknown server error";
+    const details = status === 429 ? "Too many requests. Please wait and try again." : `Call ${SURPRISE_GRANITE_PHONE} if this persists.`;
+    logError(`Unhandled error in ${req.method} ${req.path}`, err);
+    res.status(status).json({ error: message, details });
+});
+
+// Startup and Shutdown
+async function startServer() {
+    try {
+        console.log("Starting server initialization");
+        await Promise.all([loadLaborData(), loadMaterialsData()]);
+        await connectToMongoDB();
+        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    } catch (err) {
+        logError("Server startup failed", err);
+        app.listen(PORT, () => console.log(`Server running on port ${PORT} with limited functionality`));
+    }
+}
+
+process.on("SIGINT", async () => {
+    try {
+        if (mongoClient) await mongoClient.close();
+        cache.flushAll();
+        console.log("Server shut down gracefully");
+        process.exit(0);
+    } catch (err) {
+        logError("Shutdown error", err);
+        process.exit(1);
+    }
+});
+
+process.on("uncaughtException", (err) => {
+    logError("Uncaught Exception", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+    logError("Unhandled Rejection at", reason);
+});
+
+startServer();
