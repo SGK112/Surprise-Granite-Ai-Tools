@@ -12,16 +12,10 @@ const EmailJS = require("@emailjs/nodejs");
 const NodeCache = require("node-cache");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
-
-let pdfParse;
-try {
-    pdfParse = require("pdf-parse");
-} catch (err) {
-    console.warn("pdf-parse not available; PDF support disabled:", err.message);
-}
+const pdfParse = require("pdf-parse");
 
 const PORT = process.env.PORT || 10000;
-const MONGODB_URI = process.env.MONGODB_URI ||basics || throwConfigError("MONGODB_URI");
+const MONGODB_URI = process.env.MONGODB_URI || throwConfigError("MONGODB_URI");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || throwConfigError("OPENAI_API_KEY");
 const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID || throwConfigError("EMAILJS_SERVICE_ID");
 const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || throwConfigError("EMAILJS_TEMPLATE_ID");
@@ -140,7 +134,7 @@ app.get("/api/health", async (req, res) => {
         dbStatus: db ? "Connected" : "Disconnected",
         openaiStatus: "Unknown",
         emailjsStatus: "Unknown",
-        pdfParseStatus: pdfParse ? "Available" : "Unavailable"
+        pdfParseStatus: "Available"
     };
     try {
         await openai.models.list();
@@ -226,8 +220,92 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
     }
 });
 
-// ... (rest of the routes remain unchanged: /api/get-countertop/:id, /api/like-countertop/:id, /api/dislike-countertop/:id, /api/send-email)
+app.get("/api/get-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        const imagesCollection = db.collection("countertop_images");
+        const objectId = new ObjectId(req.params.id);
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
 
+        res.json({
+            id: countertop._id.toString(),
+            fileBase64: countertop.fileData.buffer.toString("base64"),
+            metadata: {
+                ...countertop.metadata.estimate,
+                likes: countertop.metadata.likes || 0,
+                dislikes: countertop.metadata.dislikes || 0,
+                shareDescription: `Estimate: ${countertop.metadata.estimate.material_type || "Unknown"}, ${countertop.metadata.estimate.project_scope || "Project"}. Total: ${enhanceCostEstimate(countertop.metadata.estimate)?.totalCost || "Contact for estimate"}`,
+                shareUrl: `${req.protocol}://${req.get("host")}/api/get-countertop/${countertop._id}`,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post("/api/like-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        const imagesCollection = db.collection("countertop_images");
+        const objectId = new ObjectId(req.params.id);
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newLikes = (countertop.metadata.likes || 0) + 1;
+        await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.likes": newLikes } });
+        updatePricingConfidence(countertop.metadata.estimate, 0.05);
+        res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post("/api/dislike-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        const imagesCollection = db.collection("countertop_images");
+        const objectId = new ObjectId(req.params.id);
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newDislikes = (countertop.metadata.dislikes || 0) + 1;
+        await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.dislikes": newDislikes } });
+        updatePricingConfidence(countertop.metadata.estimate, -0.05);
+        res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post("/api/send-email", async (req, res, next) => {
+    try {
+        const { name, email, phone, message, stone_type, analysis_summary } = req.body;
+        if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
+
+        const templateParams = {
+            from_name: name,
+            from_email: email,
+            phone: phone || "Not provided",
+            message,
+            stone_type: stone_type || "N/A",
+            analysis_summary: analysis_summary || "No estimate provided",
+            contact_phone: SURPRISE_GRANITE_PHONE,
+        };
+
+        const emailResponse = await EmailJS.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+        res.status(200).json({ message: "Email sent successfully", emailResponse });
+    } catch (err) {
+        logError("Error sending email", err);
+        res.status(err.status || 500).json({
+            error: "Failed to send email",
+            details: err.message || "Unknown error",
+            emailjsError: err.response?.data || "No additional error details"
+        });
+    }
+});
+
+// Learning and Analysis Functions
 function updatePricingConfidence(estimate, adjustment) {
     const material = materialsData.find(m => m.type.toLowerCase() === (estimate.material_type || "").toLowerCase());
     if (material) material.confidence = Math.min(1, Math.max(0, (material.confidence || 1) + adjustment));
@@ -245,13 +323,13 @@ function updatePricingConfidence(estimate, adjustment) {
 async function extractFileContent(file) {
     if (file.mimetype.startsWith("image/")) {
         return { type: "image", content: file.buffer.toString("base64") };
-    } else if (file.mimetype === "application/pdf" && pdfParse) {
+    } else if (file.mimetype === "application/pdf") {
         const data = await pdfParse(file.buffer);
         return { type: "text", content: data.text };
     } else if (file.mimetype === "text/plain") {
         return { type: "text", content: file.buffer.toString("utf8") };
     }
-    return { type: "image", content: file.buffer.toString("base64") }; // Fallback to image
+    throwError("Unsupported file type", 400);
 }
 
 async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
