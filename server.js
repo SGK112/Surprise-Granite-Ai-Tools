@@ -8,7 +8,7 @@ const fs = require("fs").promises;
 const { createHash } = require("crypto");
 const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
-const EmailJS = require("@emailjs/nodejs");
+const nodemailer = require("nodemailer");
 const NodeCache = require("node-cache");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
@@ -37,9 +37,14 @@ let materialsData = [];
 let db = null;
 let mongoClient;
 
-if (process.env.EMAILJS_PUBLIC_KEY) {
-    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
-}
+// Nodemailer setup
+const transporter = nodemailer.createTransport({
+    service: "gmail", // Example; use your email service
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
@@ -150,6 +155,20 @@ async function extractFileContent(file) {
     }
 }
 
+function extractDimensionsFromNeeds(customerNeeds) {
+    const dimensionMatch = customerNeeds.match(/(\d+\.?\d*)\s*(?:x|by|\*)\s*(\d+\.?\d*)/i);
+    if (dimensionMatch) {
+        const [_, width, length] = dimensionMatch;
+        const sqFt = parseFloat(width) * parseFloat(length);
+        return `${sqFt.toFixed(2)} sq ft`;
+    }
+    const sqFtMatch = customerNeeds.match(/(\d+\.?\d*)\s*(?:sq\s*ft|sft|square\s*feet)/i);
+    if (sqFtMatch) {
+        return `${parseFloat(sqFtMatch[1]).toFixed(2)} sq ft`;
+    }
+    return null;
+}
+
 async function estimateProject(fileData, customerNeeds) {
     try {
         await ensureMongoDBConnection();
@@ -188,11 +207,11 @@ async function estimateProject(fileData, customerNeeds) {
         - Project scope (e.g., "countertop installation", "repair")
         - Material type (e.g., "Quartz", "Tile")
         - Color and pattern
-        - Dimensions (extract from needs or assume: 25 sq ft countertops, 10 sq ft showers, 5 units cabinets, 100 sq ft flooring)
+        - Dimensions (extract from image or needs; if unclear, estimate realistically: 25 sq ft for countertops, 48 sq ft for showers, 5 units for cabinets, 100 sq ft for flooring)
         - Additional features (array, e.g., ["sink cutout"])
         - Condition (for repairs, { damage_type, severity })
         - Solutions (detailed, modern techniques)
-        - Reasoning (explain estimate)
+        - Reasoning (explain estimate, including dimension assumptions)
 
         Respond in JSON with: project_scope, material_type, color_and_pattern, dimensions, additional_features, condition, solutions, reasoning.`;
 
@@ -216,11 +235,14 @@ async function estimateProject(fileData, customerNeeds) {
             result = {};
         }
 
+        const extractedDimensions = extractDimensionsFromNeeds(customerNeeds);
+        const isShower = customerNeeds.toLowerCase().includes("shower") || result.project_scope?.toLowerCase().includes("shower");
+
         const estimate = {
             project_scope: typeof result.project_scope === "string" ? result.project_scope : "Replacement",
             material_type: typeof result.material_type === "string" ? result.material_type : "Unknown",
             color_and_pattern: typeof result.color_and_pattern === "string" ? result.color_and_pattern : "Not identified",
-            dimensions: typeof result.dimensions === "string" ? result.dimensions : (customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)"),
+            dimensions: extractedDimensions || (typeof result.dimensions === "string" ? result.dimensions : (isShower ? "48 sq ft (assumed)" : "25 sq ft (assumed)")),
             additional_features: Array.isArray(result.additional_features) ? result.additional_features : [],
             condition: result.condition && typeof result.condition === "object" ? result.condition : { damage_type: "No visible damage", severity: "None" },
             solutions: typeof result.solutions === "string" ? result.solutions : "Contact for professional evaluation.",
@@ -230,7 +252,8 @@ async function estimateProject(fileData, customerNeeds) {
         return estimate;
     } catch (err) {
         logError("Estimate generation failed", err);
-        const assumedDimensions = customerNeeds.includes("shower") ? "10 sq ft (assumed)" : "25 sq ft (assumed)";
+        const isShower = customerNeeds.toLowerCase().includes("shower");
+        const assumedDimensions = isShower ? "48 sq ft (assumed)" : "25 sq ft (assumed)";
         const fallbackEstimate = {
             project_scope: "Replacement",
             material_type: "Unknown",
@@ -257,30 +280,30 @@ function enhanceCostEstimate(estimate) {
     console.log("Enhancing cost estimate for:", { materialType, projectScope });
 
     const dimensions = typeof estimate.dimensions === "string" ? estimate.dimensions : "25 sq ft";
-    const sqFtMatch = dimensions.match(/(\d+)-?(\d+)?\s*sq\s*ft/i);
-    const unitMatch = dimensions.match(/(\d+)\s*units?/i);
-    const sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseInt(sqFtMatch[1], 10) + parseInt(sqFtMatch[2], 10)) / 2 : parseInt(sqFtMatch[1], 10)) : 25;
-    const units = unitMatch ? parseInt(unitMatch[1], 10) : 0;
+    const sqFtMatch = dimensions.match(/(\d+\.?\d*)-?(\d+\.?\d*)?\s*sq\s*ft/i);
+    const unitMatch = dimensions.match(/(\d+\.?\d*)\s*units?/i);
+    const sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseFloat(sqFtMatch[1]) + parseFloat(sqFtMatch[2])) / 2 : parseFloat(sqFtMatch[1])) : 25;
+    const units = unitMatch ? parseFloat(unitMatch[1]) : 0;
     console.log(`Calculated sq ft: ${sqFt}, units: ${units}`);
 
     const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
     const materialCost = ((material.cost_per_sqft || 0) * sqFt + (material.cost_per_unit || 0) * units) * 1.3;
 
     let laborCost = 0;
+    const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
     if (projectScope.toLowerCase().includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
         const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
-        const laborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+        const repairLaborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || laborEntry;
         const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
-        laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * severityMultiplier * (laborEntry.confidence || 1);
+        laborCost = (repairLaborEntry.rate_per_sqft || 0) * sqFt * (repairLaborEntry.hours || 1) * severityMultiplier * (repairLaborEntry.confidence || 1);
     } else {
-        const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
         laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
     }
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
         const featureStr = typeof feature === "string" ? feature.toLowerCase() : "";
-        const laborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
-        const featureCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+        const featureLaborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
+        const featureCost = (featureLaborEntry.rate_per_sqft || 0) * sqFt * (featureLaborEntry.hours || 1) * (featureLaborEntry.confidence || 1);
         console.log(`Feature "${featureStr}" cost: $${featureCost}`);
         return sum + featureCost;
     }, 0);
@@ -356,7 +379,7 @@ app.get("/api/health", async (req, res) => {
         port: PORT,
         dbStatus: db ? "Connected" : "Disconnected",
         openaiStatus: "Unknown",
-        emailjsStatus: "Unknown",
+        emailStatus: "Unknown",
         pdfParseStatus: "Available"
     };
     try {
@@ -367,15 +390,11 @@ app.get("/api/health", async (req, res) => {
         health.openaiStatus = "Disconnected";
     }
     try {
-        if (process.env.EMAILJS_SERVICE_ID && process.env.EMAILJS_TEMPLATE_ID) {
-            await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, { test: "health" });
-            health.emailjsStatus = "Connected";
-        } else {
-            health.emailjsStatus = "Not configured";
-        }
+        await transporter.verify();
+        health.emailStatus = "Connected";
     } catch (err) {
-        logError("EmailJS health check failed", err);
-        health.emailjsStatus = "Disconnected";
+        logError("Email health check failed", err);
+        health.emailStatus = "Disconnected";
     }
     res.json(health);
 });
@@ -455,6 +474,73 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
     }
 });
 
+app.post("/api/like-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        if (!db) throwError("Database not connected", 500);
+        const imagesCollection = db.collection("countertop_images");
+        const objectId = new ObjectId(req.params.id);
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newLikes = (countertop.metadata.likes || 0) + 1;
+        await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.likes": newLikes } });
+        console.log(`Liked countertop ${req.params.id}: ${newLikes} likes`);
+        res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
+    } catch (err) {
+        logError("Error in /api/like-countertop", err);
+        next(err);
+    }
+});
+
+app.post("/api/dislike-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        if (!db) throwError("Database not connected", 500);
+        const imagesCollection = db.collection("countertop_images");
+        const objectId = new ObjectId(req.params.id);
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
+
+        const newDislikes = (countertop.metadata.dislikes || 0) + 1;
+        await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.dislikes": newDislikes } });
+        console.log(`Disliked countertop ${req.params.id}: ${newDislikes} dislikes`);
+        res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
+    } catch (err) {
+        logError("Error in /api/dislike-countertop", err);
+        next(err);
+    }
+});
+
+app.post("/api/send-email", async (req, res, next) => {
+    try {
+        const { name, email, phone, message, stone_type, analysis_summary } = req.body;
+        if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: "recipient@example.com", // Replace with your receiving email
+            subject: `New Quote Request from ${name}`,
+            text: `
+                Name: ${name}
+                Email: ${email}
+                Phone: ${phone || "Not provided"}
+                Message: ${message}
+                Stone Type: ${stone_type || "N/A"}
+                Analysis Summary: ${analysis_summary || "No estimate provided"}
+                Contact Phone: ${SURPRISE_GRANITE_PHONE}
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`Email sent successfully from ${email}`);
+        res.status(200).json({ message: "Email sent successfully" });
+    } catch (err) {
+        logError("Error sending email", err);
+        res.status(500).json({ error: "Failed to send email", details: err.message });
+    }
+});
+
 app.use((err, req, res, next) => {
     const status = err.status || 500;
     const message = err.message || "Unknown server error";
@@ -489,12 +575,10 @@ process.on("SIGINT", async () => {
 
 process.on("uncaughtException", (err) => {
     logError("Uncaught Exception", err);
-    // Prevent crash but allow debugging
 });
 
 process.on("unhandledRejection", (reason, promise) => {
     logError("Unhandled Rejection at", reason);
-    // Prevent crash but allow debugging
 });
 
 startServer();
