@@ -97,8 +97,7 @@ async function loadMaterialsData() {
             { type: "Porcelain Tile", cost_per_sqft: 15, confidence: 1 },
             { type: "Wood (Cabinet)", cost_per_unit: 100, confidence: 1 },
             { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 },
-            { type: "Tile", cost_per_sqft: 15, confidence: 1 },
-            { type: "Drywall", cost_per_sqft: 50, confidence: 1 } // Added for completeness
+            { type: "Tile", cost_per_sqft: 15, confidence: 1 }
         ];
     }
 }
@@ -277,8 +276,8 @@ function enhanceCostEstimate(estimate) {
         return null;
     }
 
-    const materialType = typeof estimate.material_type === "string" ? estimate.material_type.toLowerCase() : "unknown";
-    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope.toLowerCase() : "replacement";
+    const materialType = typeof estimate.material_type === "string" ? estimate.material_type : "Unknown";
+    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope : "replacement";
     console.log("Enhancing cost estimate for:", { materialType, projectScope });
 
     const dimensions = typeof estimate.dimensions === "string" ? estimate.dimensions : "25 sq ft";
@@ -288,28 +287,25 @@ function enhanceCostEstimate(estimate) {
     const units = unitMatch ? parseFloat(unitMatch[1]) : 0;
     console.log(`Calculated sq ft: ${sqFt}, units: ${units}`);
 
-    const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
+    const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
     const materialCost = ((material.cost_per_sqft || 0) * sqFt + (material.cost_per_unit || 0) * units) * 1.3;
-    console.log(`Material cost calculated: $${materialCost.toFixed(2)} using ${material.cost_per_sqft}/sqft`);
 
     let laborCost = 0;
-    const laborEntry = laborData.find(entry => projectScope.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
-    console.log(`Labor entry matched: ${JSON.stringify(laborEntry)} for scope "${projectScope}"`);
-    laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
-    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
-        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type.toLowerCase() : "";
-        const repairLaborEntry = laborData.find(entry => damageType.includes((entry.type || "").toLowerCase())) || laborEntry;
-        const severityMultiplier = { none: 0, low: 1, moderate: 2, severe: 3 }[estimate.condition.severity?.toLowerCase() || "none"] || 1;
+    const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+    console.log("Selected labor entry:", laborEntry);
+    laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+    if (projectScope.toLowerCase().includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
+        const repairLaborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || laborEntry;
+        const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
         laborCost = (repairLaborEntry.rate_per_sqft || 0) * sqFt * (repairLaborEntry.hours || 1) * severityMultiplier * (repairLaborEntry.confidence || 1);
-        console.log(`Repair labor entry: ${JSON.stringify(repairLaborEntry)}, severity multiplier: ${severityMultiplier}`);
     }
-    console.log(`Labor cost calculated: $${laborCost.toFixed(2)}`);
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
         const featureStr = typeof feature === "string" ? feature.toLowerCase() : "";
         const featureLaborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
         const featureCost = (featureLaborEntry.rate_per_sqft || 0) * sqFt * (featureLaborEntry.hours || 1) * (featureLaborEntry.confidence || 1);
-        console.log(`Feature "${featureStr}" matched: ${JSON.stringify(featureLaborEntry)}, cost: $${featureCost.toFixed(2)}`);
+        console.log(`Feature "${featureStr}" cost: $${featureCost}, using entry:`, featureLaborEntry);
         return sum + featureCost;
     }, 0);
 
@@ -354,7 +350,6 @@ async function generateTTS(estimate, customerNeeds) {
                     model: "tts-1",
                     voice: "alloy",
                     input: chunk,
-                    response_format: "mp3" // Ensure MP3 for broader compatibility
                 });
                 const arrayBuffer = await response.arrayBuffer();
                 return Buffer.from(arrayBuffer);
@@ -396,6 +391,7 @@ app.get("/api/health", async (req, res) => {
         health.openaiStatus = "Disconnected";
     }
     try {
+        console.log("Email credentials - USER:", process.env.EMAIL_USER ? "Set" : "Not set", "PASS:", process.env.EMAIL_PASS ? "Set" : "Not set");
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("Email credentials not configured");
         await transporter.verify();
         health.emailStatus = "Connected";
@@ -526,7 +522,7 @@ app.post("/api/send-email", async (req, res, next) => {
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: "recipient@example.com", // Replace with your email
+            to: "recipient@example.com", // Replace with your receiving email
             subject: `New Quote Request from ${name}`,
             text: `
                 Name: ${name}
