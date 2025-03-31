@@ -37,9 +37,8 @@ let materialsData = [];
 let db = null;
 let mongoClient;
 
-// Nodemailer setup
 const transporter = nodemailer.createTransport({
-    service: "gmail", // Example; use your email service
+    service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -79,7 +78,8 @@ async function loadLaborData() {
             { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
             { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
             { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
-            { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 }
+            { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 },
+            { type: "shower remodel", rate_per_sqft: 12, hours: 1.5, confidence: 1 }
         ];
     }
 }
@@ -96,7 +96,9 @@ async function loadMaterialsData() {
             { type: "Quartz", cost_per_sqft: 60, confidence: 1 },
             { type: "Porcelain Tile", cost_per_sqft: 15, confidence: 1 },
             { type: "Wood (Cabinet)", cost_per_unit: 100, confidence: 1 },
-            { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 }
+            { type: "Acrylic or Fiberglass", cost_per_sqft: 20, confidence: 1 },
+            { type: "Tile", cost_per_sqft: 15, confidence: 1 },
+            { type: "Drywall", cost_per_sqft: 50, confidence: 1 } // Added for completeness
         ];
     }
 }
@@ -204,7 +206,7 @@ async function estimateProject(fileData, customerNeeds) {
         **Historical Estimates (sample)**: ${JSON.stringify(pastData)}
 
         Estimate:
-        - Project scope (e.g., "countertop installation", "repair")
+        - Project scope (e.g., "countertop installation", "repair", "shower remodel")
         - Material type (e.g., "Quartz", "Tile")
         - Color and pattern
         - Dimensions (extract from image or needs; if unclear, estimate realistically: 25 sq ft for countertops, 48 sq ft for showers, 5 units for cabinets, 100 sq ft for flooring)
@@ -275,8 +277,8 @@ function enhanceCostEstimate(estimate) {
         return null;
     }
 
-    const materialType = typeof estimate.material_type === "string" ? estimate.material_type : "Unknown";
-    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope : "replacement";
+    const materialType = typeof estimate.material_type === "string" ? estimate.material_type.toLowerCase() : "unknown";
+    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope.toLowerCase() : "replacement";
     console.log("Enhancing cost estimate for:", { materialType, projectScope });
 
     const dimensions = typeof estimate.dimensions === "string" ? estimate.dimensions : "25 sq ft";
@@ -286,25 +288,28 @@ function enhanceCostEstimate(estimate) {
     const units = unitMatch ? parseFloat(unitMatch[1]) : 0;
     console.log(`Calculated sq ft: ${sqFt}, units: ${units}`);
 
-    const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
+    const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
     const materialCost = ((material.cost_per_sqft || 0) * sqFt + (material.cost_per_unit || 0) * units) * 1.3;
+    console.log(`Material cost calculated: $${materialCost.toFixed(2)} using ${material.cost_per_sqft}/sqft`);
 
     let laborCost = 0;
-    const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
-    if (projectScope.toLowerCase().includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
-        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
-        const repairLaborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || laborEntry;
-        const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
+    const laborEntry = laborData.find(entry => projectScope.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+    console.log(`Labor entry matched: ${JSON.stringify(laborEntry)} for scope "${projectScope}"`);
+    laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type.toLowerCase() : "";
+        const repairLaborEntry = laborData.find(entry => damageType.includes((entry.type || "").toLowerCase())) || laborEntry;
+        const severityMultiplier = { none: 0, low: 1, moderate: 2, severe: 3 }[estimate.condition.severity?.toLowerCase() || "none"] || 1;
         laborCost = (repairLaborEntry.rate_per_sqft || 0) * sqFt * (repairLaborEntry.hours || 1) * severityMultiplier * (repairLaborEntry.confidence || 1);
-    } else {
-        laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+        console.log(`Repair labor entry: ${JSON.stringify(repairLaborEntry)}, severity multiplier: ${severityMultiplier}`);
     }
+    console.log(`Labor cost calculated: $${laborCost.toFixed(2)}`);
 
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
         const featureStr = typeof feature === "string" ? feature.toLowerCase() : "";
         const featureLaborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
         const featureCost = (featureLaborEntry.rate_per_sqft || 0) * sqFt * (featureLaborEntry.hours || 1) * (featureLaborEntry.confidence || 1);
-        console.log(`Feature "${featureStr}" cost: $${featureCost}`);
+        console.log(`Feature "${featureStr}" matched: ${JSON.stringify(featureLaborEntry)}, cost: $${featureCost.toFixed(2)}`);
         return sum + featureCost;
     }, 0);
 
@@ -349,6 +354,7 @@ async function generateTTS(estimate, customerNeeds) {
                     model: "tts-1",
                     voice: "alloy",
                     input: chunk,
+                    response_format: "mp3" // Ensure MP3 for broader compatibility
                 });
                 const arrayBuffer = await response.arrayBuffer();
                 return Buffer.from(arrayBuffer);
@@ -390,6 +396,7 @@ app.get("/api/health", async (req, res) => {
         health.openaiStatus = "Disconnected";
     }
     try {
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("Email credentials not configured");
         await transporter.verify();
         health.emailStatus = "Connected";
     } catch (err) {
@@ -519,7 +526,7 @@ app.post("/api/send-email", async (req, res, next) => {
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: "recipient@example.com", // Replace with your receiving email
+            to: "recipient@example.com", // Replace with your email
             subject: `New Quote Request from ${name}`,
             text: `
                 Name: ${name}
