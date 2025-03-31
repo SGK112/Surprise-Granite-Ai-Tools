@@ -8,7 +8,7 @@ const fs = require("fs").promises;
 const { createHash } = require("crypto");
 const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
-const EmailJS = require("@emailjs/nodejs");
+const nodemailer = require("nodemailer");
 const NodeCache = require("node-cache");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
@@ -37,12 +37,13 @@ let materialsData = [];
 let db = null;
 let mongoClient;
 
-// Initialize EmailJS
-if (process.env.EMAILJS_PUBLIC_KEY) {
-    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
-} else {
-    console.warn("EMAILJS_PUBLIC_KEY not set; email functionality will be disabled.");
-}
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
@@ -73,12 +74,13 @@ async function loadLaborData() {
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
-            { type: "countertop_installation", rate_per_sqft: 15, hours: 1, confidence: 1 },
+            { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 1 },
             { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
             { type: "cabinet_installation", rate_per_unit: 75, hours: 2, confidence: 1 },
             { type: "demolition", rate_per_sqft: 5, hours: 0.5, confidence: 1 },
             { type: "sink cutout", rate_per_sqft: 10, hours: 0.5, confidence: 1 },
-            { type: "shower remodel", rate_per_sqft: 12, hours: 1.5, confidence: 1 }
+            { type: "shower remodel", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
+            { type: "grab bar installation", rate_per_sqft: 5, hours: 0.5, confidence: 1 }
         ];
     }
 }
@@ -286,13 +288,17 @@ function enhanceCostEstimate(estimate) {
     const units = unitMatch ? parseFloat(unitMatch[1]) : 0;
     console.log(`Calculated sq ft: ${sqFt}, units: ${units}`);
 
+    // Material cost
     const material = materialsData.find(m => (m.type || "").toLowerCase() === materialType.toLowerCase()) || { cost_per_sqft: 50, cost_per_unit: 0, confidence: 1 };
     const materialCost = ((material.cost_per_sqft || 0) * sqFt + (material.cost_per_unit || 0) * units) * 1.3;
 
-    let laborCost = 0;
-    const laborEntry = laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 15, hours: 1, confidence: 1 };
+    // Labor cost
+    const laborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === projectScope.toLowerCase()) || 
+                      laborData.find(entry => projectScope.toLowerCase().includes((entry.type || "").toLowerCase())) || 
+                      { rate_per_sqft: 15, hours: 1, confidence: 1 };
     console.log("Selected labor entry:", laborEntry);
-    laborCost = ((laborEntry.rate_per_sqft || 0) * sqFt + (laborEntry.rate_per_unit || 0) * units) * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+    const laborCost = (laborEntry.rate_per_sqft || 0) * sqFt * (laborEntry.hours || 1) * (laborEntry.confidence || 1);
+    
     if (projectScope.toLowerCase().includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
         const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type : "";
         const repairLaborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === damageType.toLowerCase()) || laborEntry;
@@ -300,9 +306,12 @@ function enhanceCostEstimate(estimate) {
         laborCost = (repairLaborEntry.rate_per_sqft || 0) * sqFt * (repairLaborEntry.hours || 1) * severityMultiplier * (repairLaborEntry.confidence || 1);
     }
 
+    // Features cost
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
         const featureStr = typeof feature === "string" ? feature.toLowerCase() : "";
-        const featureLaborEntry = laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || { rate_per_sqft: 0, hours: 1, confidence: 1 };
+        const featureLaborEntry = laborData.find(entry => (entry.type || "").toLowerCase() === featureStr) || 
+                                 laborData.find(entry => featureStr.includes((entry.type || "").toLowerCase())) || 
+                                 { rate_per_sqft: 0, hours: 1, confidence: 1 };
         const featureCost = (featureLaborEntry.rate_per_sqft || 0) * sqFt * (featureLaborEntry.hours || 1) * (featureLaborEntry.confidence || 1);
         console.log(`Feature "${featureStr}" cost: $${featureCost}, using entry:`, featureLaborEntry);
         return sum + featureCost;
@@ -390,17 +399,12 @@ app.get("/api/health", async (req, res) => {
         health.openaiStatus = "Disconnected";
     }
     try {
-        console.log("EmailJS credentials - SERVICE_ID:", process.env.EMAILJS_SERVICE_ID ? "Set" : "Not set", 
-                    "TEMPLATE_ID:", process.env.EMAILJS_TEMPLATE_ID ? "Set" : "Not set", 
-                    "PUBLIC_KEY:", process.env.EMAILJS_PUBLIC_KEY ? "Set" : "Not set");
-        if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_TEMPLATE_ID || !process.env.EMAILJS_PUBLIC_KEY) {
-            throw new Error("EmailJS credentials not fully configured");
-        }
-        // Test EmailJS by sending a dummy email
-        await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, { test: "health check" });
+        console.log("Nodemailer credentials - USER:", process.env.EMAIL_USER ? "Set" : "Not set", "PASS:", process.env.EMAIL_PASS ? "Set" : "Not set");
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("Email credentials not configured");
+        await transporter.verify();
         health.emailStatus = "Connected";
     } catch (err) {
-        logError("EmailJS health check failed", err);
+        logError("Email health check failed", err);
         health.emailStatus = "Disconnected";
     }
     res.json(health);
@@ -524,21 +528,26 @@ app.post("/api/send-email", async (req, res, next) => {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
 
-        const templateParams = {
-            from_name: name,
-            from_email: email,
-            phone: phone || "Not provided",
-            message: message,
-            stone_type: stone_type || "N/A",
-            analysis_summary: analysis_summary || "No estimate provided",
-            contact_phone: SURPRISE_GRANITE_PHONE
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: "recipient@example.com", // Replace with your receiving email
+            subject: `New Quote Request from ${name}`,
+            text: `
+                Name: ${name}
+                Email: ${email}
+                Phone: ${phone || "Not provided"}
+                Message: ${message}
+                Stone Type: ${stone_type || "N/A"}
+                Analysis Summary: ${analysis_summary || "No estimate provided"}
+                Contact Phone: ${SURPRISE_GRANITE_PHONE}
+            `
         };
 
-        await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, templateParams);
+        await transporter.sendMail(mailOptions);
         console.log(`Email sent successfully from ${email}`);
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        logError("Error sending email with EmailJS", err);
+        logError("Error sending email", err);
         res.status(500).json({ error: "Failed to send email", details: err.message });
     }
 });
