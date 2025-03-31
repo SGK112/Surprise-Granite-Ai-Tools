@@ -8,7 +8,7 @@ const fs = require("fs").promises;
 const { createHash } = require("crypto");
 const { MongoClient, Binary, ObjectId } = require("mongodb");
 const OpenAI = require("openai");
-const nodemailer = require("nodemailer");
+const EmailJS = require("@emailjs/nodejs");
 const NodeCache = require("node-cache");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
@@ -37,13 +37,12 @@ let materialsData = [];
 let db = null;
 let mongoClient;
 
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+// Initialize EmailJS
+if (process.env.EMAILJS_PUBLIC_KEY) {
+    EmailJS.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY });
+} else {
+    console.warn("EMAILJS_PUBLIC_KEY not set; email functionality will be disabled.");
+}
 
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
@@ -391,12 +390,17 @@ app.get("/api/health", async (req, res) => {
         health.openaiStatus = "Disconnected";
     }
     try {
-        console.log("Email credentials - USER:", process.env.EMAIL_USER ? "Set" : "Not set", "PASS:", process.env.EMAIL_PASS ? "Set" : "Not set");
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("Email credentials not configured");
-        await transporter.verify();
+        console.log("EmailJS credentials - SERVICE_ID:", process.env.EMAILJS_SERVICE_ID ? "Set" : "Not set", 
+                    "TEMPLATE_ID:", process.env.EMAILJS_TEMPLATE_ID ? "Set" : "Not set", 
+                    "PUBLIC_KEY:", process.env.EMAILJS_PUBLIC_KEY ? "Set" : "Not set");
+        if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_TEMPLATE_ID || !process.env.EMAILJS_PUBLIC_KEY) {
+            throw new Error("EmailJS credentials not fully configured");
+        }
+        // Test EmailJS by sending a dummy email
+        await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, { test: "health check" });
         health.emailStatus = "Connected";
     } catch (err) {
-        logError("Email health check failed", err);
+        logError("EmailJS health check failed", err);
         health.emailStatus = "Disconnected";
     }
     res.json(health);
@@ -520,26 +524,21 @@ app.post("/api/send-email", async (req, res, next) => {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: "recipient@example.com", // Replace with your receiving email
-            subject: `New Quote Request from ${name}`,
-            text: `
-                Name: ${name}
-                Email: ${email}
-                Phone: ${phone || "Not provided"}
-                Message: ${message}
-                Stone Type: ${stone_type || "N/A"}
-                Analysis Summary: ${analysis_summary || "No estimate provided"}
-                Contact Phone: ${SURPRISE_GRANITE_PHONE}
-            `
+        const templateParams = {
+            from_name: name,
+            from_email: email,
+            phone: phone || "Not provided",
+            message: message,
+            stone_type: stone_type || "N/A",
+            analysis_summary: analysis_summary || "No estimate provided",
+            contact_phone: SURPRISE_GRANITE_PHONE
         };
 
-        await transporter.sendMail(mailOptions);
+        await EmailJS.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_TEMPLATE_ID, templateParams);
         console.log(`Email sent successfully from ${email}`);
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        logError("Error sending email", err);
+        logError("Error sending email with EmailJS", err);
         res.status(500).json({ error: "Failed to send email", details: err.message });
     }
 });
