@@ -674,7 +674,7 @@ app.post("/api/send-email", async (req, res, next) => {
             text: `
                 Name: ${name}
                 Email: ${email}
-                Phone: ${phone ||  || "Not provided"}
+                Phone: ${phone || "Not provided"}
                 Message: ${message}
                 Stone Type: ${stone_type || "N/A"}
                 Analysis Summary: ${analysis_summary || "No estimate provided"}
