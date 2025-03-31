@@ -3,313 +3,1044 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CARI - Countertop Analysis</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        /* [Your existing CSS remains unchanged, adding styles for matches] */
-        .matches {
-            margin-top: 25px;
-            padding: 25px;
-            background: var(--card-bg);
-            border-radius: 15px;
-            box-shadow: 0 6px 15px var(--shadow);
-            width: 100%;
-            max-width: 800px;
-        }
-        .matches h2 {
-            color: var(--text-primary);
-            text-align: center;
-        }
-        .match-item {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin: 15px 0;
-            padding: 15px;
-            background: var(--button-bg);
-            border-radius: 10px;
-        }
-        .match-item img {
-            max-width: 100px;
-            border-radius: 5px;
-        }
-        .match-item p {
-            margin: 0;
-            color: var(--text-primary);
-        }
-    </style>
+    <title>CARI - Get Your Free Remodeling Quote Today!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="cari-app">
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
-        <div class="logo-container">
-            <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
+        <div class="theme-buttons">
+            <button id="light-mode-btn" class="theme-btn" aria-label="Switch to light mode">☀️</button>
+            <button id="dark-mode-btn" class="theme-btn" aria-label="Switch to dark mode">🌙</button>
         </div>
-        <h1>CARI - Countertop Analysis</h1>
-        <div id="upload-area" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop a countertop image">
-            <input type="file" id="file-input" accept="image/*" style="display: none;" aria-label="Upload countertop image" />
-            <p id="upload-text">Drop a countertop image here or click to upload</p>
-            <img id="preview-image" class="preview-image" alt="Uploaded countertop" />
+        <div class="logo-container">
+            <img id="logo" src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
+        </div>
+        <h1>CARI - Countertop And Remodeling Intelligence</h1>
+        <p class="subtitle">Upload Your Project Details for a FREE Quote from Surprise Granite!</p>
+        <div id="upload-area" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop a file">
+            <input type="file" id="file-input" accept="image/*,application/pdf,text/plain" style="display: none;" aria-label="Upload image, PDF, or text file" />
+            <p id="upload-text">Drop your image, PDF, or text file here or click to upload</p>
+            <img id="preview-image" class="preview-image" alt="Uploaded image preview" />
+            <p id="file-type" class="file-type"></p>
+        </div>
+        <div class="input-area">
+            <textarea id="customer-needs" placeholder="E.g., '25 sq ft kitchen countertop, quartz, sink cutout' or 'New tile shower with pan' - include size, location, material, and features" aria-label="Describe your project needs"></textarea>
         </div>
         <div class="buttons">
-            <button id="search-btn" disabled aria-label="Search for matches">Search Matches</button>
+            <button id="analyze-btn" disabled aria-label="Get your free estimate">Get Your FREE Estimate</button>
             <button id="reset-btn" aria-label="Reset upload">Reset</button>
         </div>
-        <div id="loading-spinner" class="loading-spinner" style="display: none;">
+        <div id="loading-spinner" class="loading-spinner">
             <div class="spinner"></div>
-            <p id="loading-text">Searching...</p>
-            <div class="progress-bar">
-                <div id="progress-fill" class="progress-fill"></div>
-            </div>
+            <p id="loading-text">Processing Your Quote...</p>
+            <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
         </div>
-        <div id="error-message" class="error" style="display: none;">
+        <div id="error-message" class="error">
             <p id="error-text"></p>
             <button id="retry-btn" class="retry-btn">Retry</button>
         </div>
-        <div id="matches" class="matches" style="display: none;">
-            <h2>Possible Matches</h2>
-            <div id="matches-list"></div>
-            <div class="results-buttons">
-                <button id="contact-btn" class="contact-btn">Contact Surprise Granite</button>
+        <div id="results" class="results" role="region" aria-live="polite">
+            <h2>Your Free Project Estimate</h2>
+            <div class="results-grid">
+                <p><strong>Material Type:</strong> <span id="stone-type">Estimating...</span></p>
+                <p><strong>Color & Pattern:</strong> <span id="color-pattern">Estimating...</span></p>
+                <p><strong>Project Scope:</strong> <span id="project-scope">Estimating...</span></p>
+                <p><strong>Dimensions:</strong> <span id="dimensions">Estimating...</span></p>
+                <p><strong>Features:</strong> <span id="additional-features">Estimating...</span></p>
+                <p><strong>Condition:</strong> <span id="condition">Estimating...</span></p>
+                <div class="cost-estimate">
+                    <strong>Cost Breakdown:</strong>
+                    <ul id="cost-breakdown">
+                        <li>Material Cost: <span id="material-cost">Estimating...</span></li>
+                        <li>Labor Cost: <span id="labor-cost">Estimating...</span></li>
+                        <li>Additional Features Cost: <span id="features-cost">Estimating...</span></li>
+                        <li>Total Estimate: <span id="total-cost">Estimating...</span></li>
+                    </ul>
+                </div>
+                <p class="recommendation"><strong>Solutions:</strong> <span id="solutions">Estimating...</span></p>
+                <p class="recommendation"><strong>Next Steps:</strong> <span id="recommendation">Estimating...</span></p>
             </div>
-            <div id="contact-form" class="contact-form" style="display: none;">
-                <h3>Contact Surprise Granite</h3>
-                <form id="lead-form">
-                    <label for="name">Name:</label>
-                    <input type="text" id="name" name="name" required placeholder="Your Name" />
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" name="email" required placeholder="Your Email" />
-                    <label for="phone">Phone:</label>
-                    <input type="tel" id="phone" name="phone" placeholder="Your Phone (optional)" />
-                    <label for="message">Message:</label>
-                    <textarea id="message" name="message" placeholder="Your Message" required></textarea>
-                    <button type="submit" class="submit-btn">Send Request</button>
-                    <button type="button" id="close-form-btn" class="close-btn">Close</button>
-                </form>
+            <div class="audio-section">
+                <h3>Hear Your Estimate</h3>
+                <div class="audio-controls">
+                    <button id="play-pause-btn" class="control-btn" aria-label="Play or pause audio"><span class="icon">▶️</span></button>
+                    <span id="audio-current" class="time">0:00</span>
+                    <input type="range" id="audio-progress" min="0" max="100" value="0" class="progress-slider" aria-label="Seek audio">
+                    <span id="audio-duration" class="time">0:00</span>
+                    <button id="mute-btn" class="control-btn" aria-label="Mute or unmute audio"><span class="icon">🔊</span></button>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="volume-slider" aria-label="Adjust volume">
+                    <button id="retry-tts-btn" class="control-btn" aria-label="Retry audio"><span class="icon">🔄</span></button>
+                </div>
+            </div>
+            <div class="results-buttons">
+                <button id="like-btn" class="like-btn" aria-label="Like this estimate">👍 <span id="like-count">0</span></button>
+                <button id="dislike-btn" class="dislike-btn" aria-label="Dislike this estimate">👎 <span id="dislike-count">0</span></button>
+                <button id="share-btn" class="share-btn" aria-label="Share this estimate">Share</button>
+                <button id="contact-btn" class="contact-btn" aria-label="Claim your free quote">Claim Your FREE Quote Now!</button>
             </div>
         </div>
-        <footer>Powered by Surprise Granite © 2025</footer>
+        <div id="quote-popup" class="popup">
+            <div class="popup-content">
+                <h3>Claim Your FREE Quote</h3>
+                <p>Let Surprise Granite bring your vision to life! Fill out the form below to get started.</p>
+                <input type="text" id="quote-name" placeholder="Your Name" aria-label="Your Name" required>
+                <input type="email" id="quote-email" placeholder="Your Email" aria-label="Your Email" required>
+                <input type="tel" id="quote-phone" placeholder="Your Phone (optional)" aria-label="Your Phone">
+                <textarea id="quote-message" placeholder="Your Message" aria-label="Your Message" required></textarea>
+                <button id="send-quote-btn" aria-label="Send quote request">Send & Get Your Quote!</button>
+                <button id="close-quote-btn" class="close-btn" aria-label="Close quote popup">✖</button>
+            </div>
+        </div>
+        <footer>Powered by Surprise Granite © 2025 | Call (602) 833-3189 for Immediate Assistance</footer>
     </div>
 
-    <script>
-        const BASE_URL = "https://surprise-granite-connections-dev.onrender.com";
+    <style>
+        body {
+            background-color: var(--background);
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const uploadArea = document.getElementById("upload-area");
-            const fileInput = document.getElementById("file-input");
-            const uploadText = document.getElementById("upload-text");
-            const previewImage = document.getElementById("preview-image");
-            const searchBtn = document.getElementById("search-btn");
-            const resetBtn = document.getElementById("reset-btn");
-            const loadingSpinner = document.getElementById("loading-spinner");
-            const loadingText = document.getElementById("loading-text");
-            const progressFill = document.getElementById("progress-fill");
-            const errorMessage = document.getElementById("error-message");
-            const errorText = document.getElementById("error-text");
-            const retryBtn = document.getElementById("retry-btn");
-            const matches = document.getElementById("matches");
-            const matchesList = document.getElementById("matches-list");
-            const contactBtn = document.getElementById("contact-btn");
-            const contactForm = document.getElementById("contact-form");
-            const leadForm = document.getElementById("lead-form");
-            const closeFormBtn = document.getElementById("close-form-btn");
-            const themeToggle = document.getElementById("theme-toggle");
+        :root {
+            --background: #f9f9f9;
+            --card-bg: #ffffff;
+            --text-primary: #2f4f4f;
+            --text-secondary: #666;
+            --accent: #d4a373;
+            --accent-hover: #c68e5a;
+            --shadow: rgba(0, 0, 0, 0.2);
+            --error-bg: #ffebee;
+            --error-text: #d32f2f;
+            --button-bg: #d9dcdc;
+            --button-text: #333;
+            --match-bg: #ecf0f1;
+            --popup-bg: rgba(0, 0, 0, 0.8);
+            --like-color: #e74c3c;
+            --dislike-color: #7f8c8d;
+            --share-color: #3498db;
+            --cta-color: #28a745;
+            --cta-hover: #218838;
+        }
+
+        [data-theme="dark"] {
+            --background: #1a1a1a;
+            --card-bg: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #e6b800;
+            --accent-hover: #cc9900;
+            --shadow: rgba(255, 255, 255, 0.15);
+            --error-bg: #4a2a2a;
+            --error-text: #ff9999;
+            --button-bg: #383838;
+            --button-text: #e0e0e0;
+            --match-bg: #2c3e50;
+            --popup-bg: rgba(255, 255, 255, 0.1);
+            --like-color: #ff6b6b;
+            --dislike-color: #95a5a6;
+            --share-color: #5dade2;
+            --cta-color: #2ecc71;
+            --cta-hover: #27ae60;
+        }
+
+        #cari-app {
+            width: 90%;
+            max-width: 1200px;
+            padding: 40px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 8px 25px var(--shadow);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text-primary);
+            min-height: 80vh;
+            margin: 20px auto;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        .theme-buttons {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .theme-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            padding: 5px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: transform 0.3s ease, color 0.3s ease;
+        }
+
+        .theme-btn:hover {
+            transform: scale(1.1);
+            color: var(--accent);
+        }
+
+        .theme-btn.active {
+            color: var(--accent);
+        }
+
+        .logo-container { margin-bottom: 25px; }
+        .logo { max-width: 220px; transition: transform 0.3s ease; }
+        .logo:hover { transform: scale(1.05); }
+
+        h1 {
+            font-size: 2.8rem;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .subtitle {
+            font-size: 1.3rem;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        .upload-area {
+            padding: 30px;
+            border: 4px dashed var(--accent);
+            border-radius: 15px;
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 850px;
+            margin: 0 auto 20px;
+            box-shadow: inset 0 2px 10px var(--shadow);
+        }
+
+        .upload-area.drag-active {
+            border-color: var(--accent-hover);
+            transform: scale(1.02);
+            background: rgba(212, 163, 115, 0.1);
+        }
+
+        .upload-area p {
+            color: var(--text-secondary);
+            font-size: 1.3rem;
+            margin: 0 0 20px 0;
+            font-weight: 500;
+        }
+
+        .preview-image {
+            max-width: 90%;
+            max-height: 360px;
+            border-radius: 10px;
+            display: none;
+            object-fit: cover;
+            box-shadow: 0 6px 15px var(--shadow);
+        }
+
+        .preview-image.visible { display: block; }
+        .file-type { color: var(--text-secondary); font-size: 1rem; margin-top: 10px; display: none; }
+
+        .input-area {
+            width: 100%;
+            max-width: 850px;
+            margin-bottom: 20px;
+        }
+
+        #customer-needs {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid var(--text-secondary);
+            border-radius: 10px;
+            font-size: 1.1rem;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.3s ease;
+        }
+
+        #customer-needs:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .buttons button {
+            padding: 15px 35px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #analyze-btn {
+            border: 2px solid var(--cta-color);
+            background: var(--cta-color);
+            color: white;
+        }
+
+        #analyze-btn:disabled {
+            background: var(--button-bg);
+            border-color: var(--button-bg);
+            color: var(--button-text);
+            cursor: not-allowed;
+        }
+
+        #analyze-btn:not(:disabled):hover {
+            background: var(--cta-hover);
+            border-color: var(--cta-hover);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px var(--shadow);
+        }
+
+        #reset-btn {
+            border: 2px solid var(--text-secondary);
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        #reset-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-3px);
+        }
+
+        .loading-spinner {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            margin: 30px 0;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 6px solid var(--button-bg);
+            border-top: 6px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-spinner p {
+            margin-top: 20px;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 400px;
+            height: 12px;
+            background: var(--button-bg);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .progress-fill {
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            transition: width 0.3s ease;
+        }
+
+        .error {
+            display: none;
+            margin: 25px 0;
+            padding: 20px;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border-radius: 10px;
+            font-size: 1.2rem;
+            box-shadow: 0 3px 8px var(--shadow);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .retry-btn {
+            margin-top: 15px;
+            padding: 12px 25px;
+            border: 2px solid var(--accent);
+            background: transparent;
+            color: var(--accent);
+            border-radius: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .retry-btn:hover {
+            border-color: var(--accent-hover);
+            color: var(--accent-hover);
+            transform: translateY(-3px);
+        }
+
+        .results {
+            display: none;
+            padding: 30px;
+            background: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: 0 6px 15px var(--shadow);
+            text-align: left;
+            margin-top: 25px;
+            width: 100%;
+            max-width: 850px;
+            transition: background 0.3s ease;
+        }
+
+        .results h2 {
+            color: var(--text-primary);
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            padding: 15px;
+            background: var(--match-bg);
+            border-radius: 10px;
+        }
+
+        .results p { margin: 0; line-height: 1.6; }
+        .results strong { color: var(--text-primary); font-weight: 600; }
+
+        .cost-estimate {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            padding: 10px;
+            background: var(--card-bg);
+            border-radius: 8px;
+        }
+
+        .cost-estimate ul { list-style-type: none; padding: 0; margin: 10px 0; }
+        .cost-estimate li { margin: 8px 0; font-size: 1.1rem; }
+
+        .recommendation {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            line-height: 1.6;
+            text-align: center;
+            padding: 10px;
+            background: var(--card-bg);
+            border-radius: 8px;
+        }
+
+        .audio-section {
+            display: none;
+            margin-top: 25px;
+            padding: 15px;
+            background: var(--match-bg);
+            border-radius: 10px;
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+
+        .audio-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: inset 0 2px 5px var(--shadow);
+        }
+
+        .control-btn {
+            background: none;
+            border: 1px solid var(--text-secondary);
+            border-radius: 8px;
+            padding: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: var(--text-primary);
+            transition: border-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .control-btn:hover {
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .mute-btn.muted::before { content: "🔇"; }
+
+        #volume-slider {
+            width: 100px;
+            accent-color: var(--accent);
+            margin: 0 5px;
+        }
+
+        #audio-duration {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin: 0 5px;
+        }
+
+        .results-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .like-btn, .dislike-btn, .share-btn, .contact-btn {
+            padding: 15px 35px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .like-btn {
+            border: 2px solid var(--like-color);
+            color: var(--like-color);
+            background: transparent;
+        }
+
+        .like-btn.liked {
+            background: var(--like-color);
+            color: white;
+        }
+
+        .dislike-btn {
+            border: 2px solid var(--dislike-color);
+            color: var(--dislike-color);
+            background: transparent;
+        }
+
+        .dislike-btn.disliked {
+            background: var(--dislike-color);
+            color: white;
+        }
+
+        .share-btn {
+            border: 2px solid var(--share-color);
+            color: var(--share-color);
+            background: transparent;
+        }
+
+        .share-btn:hover {
+            border-color: #2980b9;
+            color: #2980b9;
+            transform: translateY(-3px);
+        }
+
+        .contact-btn {
+            border: 2px solid var(--cta-color);
+            background: var(--cta-color);
+            color: white;
+        }
+
+        .contact-btn:hover {
+            background: var(--cta-hover);
+            border-color: var(--cta-hover);
+            transform: translateY(-3px);
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--popup-bg);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .popup-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 6px 15px var(--shadow);
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .popup-content h3 { color: var(--text-primary); font-size: 1.8rem; margin-bottom: 15px; }
+        .popup-content p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 20px; }
+
+        .popup-content input, .popup-content textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--text-secondary);
+            border-radius: 5px;
+            font-size: 1rem;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            transition: border-color 0.3s ease;
+        }
+
+        .popup-content input.invalid, .popup-content textarea.invalid { border-color: var(--error-text); }
+
+        .popup-content button {
+            padding: 14px 30px;
+            border: 2px solid var(--cta-color);
+            background: var(--cta-color);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .popup-content button:hover {
+            background: var(--cta-hover);
+            border-color: var(--cta-hover);
+            transform: translateY(-3px);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover { color: var(--accent); }
+
+        footer {
+            margin-top: 40px;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            #cari-app { padding: 20px; min-height: auto; }
+            h1 { font-size: 2rem; }
+            .upload-area { min-height: 200px; }
+            .results-grid { grid-template-columns: 1fr; }
+            .popup-content { width: 95%; }
+            .theme-buttons { position: static; margin-bottom: 20px; justify-content: center; }
+            .audio-section { max-width: 100%; }
+            .audio-controls { flex-direction: column; gap: 8px; }
+        }
+    </style>
+
+    <script>
+        const BASE_URL = window.location.hostname === "localhost" ? "http://localhost:10000" : "https://surprise-granite-connections-dev.onrender.com";
+        const LIGHT_LOGO = "https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg";
+        const DARK_LOGO = "https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb28216fbb16b_Surprise%20Granite%20Transparent%20White%20Narrow.svg";
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            const elements = {
+                uploadArea: document.getElementById("upload-area"),
+                fileInput: document.getElementById("file-input"),
+                uploadText: document.getElementById("upload-text"),
+                previewImage: document.getElementById("preview-image"),
+                fileType: document.getElementById("file-type"),
+                customerNeeds: document.getElementById("customer-needs"),
+                analyzeBtn: document.getElementById("analyze-btn"),
+                resetBtn: document.getElementById("reset-btn"),
+                loadingSpinner: document.getElementById("loading-spinner"),
+                loadingText: document.getElementById("loading-text"),
+                progressFill: document.getElementById("progress-fill"),
+                errorMessage: document.getElementById("error-message"),
+                errorText: document.getElementById("error-text"),
+                retryBtn: document.getElementById("retry-btn"),
+                results: document.getElementById("results"),
+                playPauseBtn: document.getElementById("play-pause-btn"),
+                audioCurrent: document.getElementById("audio-current"),
+                audioProgress: document.getElementById("audio-progress"),
+                audioDuration: document.getElementById("audio-duration"),
+                muteBtn: document.getElementById("mute-btn"),
+                volumeSlider: document.getElementById("volume-slider"),
+                retryTtsBtn: document.getElementById("retry-tts-btn"),
+                contactBtn: document.getElementById("contact-btn"),
+                likeBtn: document.getElementById("like-btn"),
+                dislikeBtn: document.getElementById("dislike-btn"),
+                shareBtn: document.getElementById("share-btn"),
+                likeCount: document.getElementById("like-count"),
+                dislikeCount: document.getElementById("dislike-count"),
+                quotePopup: document.getElementById("quote-popup"),
+                sendQuoteBtn: document.getElementById("send-quote-btn"),
+                closeQuoteBtn: document.getElementById("close-quote-btn"),
+                quoteName: document.getElementById("quote-name"),
+                quoteEmail: document.getElementById("quote-email"),
+                quotePhone: document.getElementById("quote-phone"),
+                quoteMessage: document.getElementById("quote-message"),
+                lightModeBtn: document.getElementById("light-mode-btn"),
+                darkModeBtn: document.getElementById("dark-mode-btn"),
+                logo: document.getElementById("logo"),
+            };
 
             let imageFile = null;
-            let currentMatches = null;
+            let currentResult = null;
+            let audio = null;
+            let isMuted = false;
 
-            // Theme Toggle
-            const toggleTheme = () => {
-                const currentTheme = document.documentElement.getAttribute("data-theme");
-                const newTheme = currentTheme === "dark" ? "light" : "dark";
-                document.documentElement.setAttribute("data-theme", newTheme);
-                themeToggle.textContent = newTheme === "dark" ? "☀️" : "🌙";
-                localStorage.setItem("theme", newTheme);
-            };
+            await checkServerHealth();
+
+            function setTheme(theme) {
+                document.documentElement.setAttribute("data-theme", theme);
+                localStorage.setItem("theme", theme);
+                elements.lightModeBtn.classList.toggle("active", theme === "light");
+                elements.darkModeBtn.classList.toggle("active", theme === "dark");
+                elements.logo.src = theme === "dark" ? DARK_LOGO : LIGHT_LOGO;
+                elements.logo.onerror = () => elements.logo.src = LIGHT_LOGO;
+            }
+
             const savedTheme = localStorage.getItem("theme") || "light";
-            document.documentElement.setAttribute("data-theme", savedTheme);
-            themeToggle.textContent = savedTheme === "dark" ? "☀️" : "🌙";
-            themeToggle.addEventListener("click", toggleTheme);
+            setTheme(savedTheme);
 
-            // Drag-and-Drop
-            uploadArea.addEventListener("dragover", (e) => { e.preventDefault(); uploadArea.classList.add("drag-active"); });
-            uploadArea.addEventListener("dragleave", (e) => { e.preventDefault(); uploadArea.classList.remove("drag-active"); });
-            uploadArea.addEventListener("drop", (e) => { e.preventDefault(); uploadArea.classList.remove("drag-active"); handleFile(e.dataTransfer.files[0]); });
-            uploadArea.addEventListener("click", () => fileInput.click());
-            fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+            elements.lightModeBtn.addEventListener("click", () => setTheme("light"));
+            elements.darkModeBtn.addEventListener("click", () => setTheme("dark"));
 
-            async function handleFile(file) {
-                if (file && file.type.startsWith("image/")) {
-                    if (file.size > 5 * 1024 * 1024) {
-                        showError("Image size exceeds 5MB limit.");
-                        return;
-                    }
-                    imageFile = file;
-                    const url = URL.createObjectURL(file);
-                    previewImage.src = url;
-                    previewImage.classList.add("visible");
-                    uploadText.textContent = file.name;
-                    searchBtn.disabled = false;
-                    clearMatches();
-                    clearError();
+            elements.uploadArea.addEventListener("dragover", e => {
+                e.preventDefault();
+                elements.uploadArea.classList.add("drag-active");
+            });
+
+            elements.uploadArea.addEventListener("dragleave", e => {
+                e.preventDefault();
+                elements.uploadArea.classList.remove("drag-active");
+            });
+
+            elements.uploadArea.addEventListener("drop", e => {
+                e.preventDefault();
+                elements.uploadArea.classList.remove("drag-active");
+                handleFile(e.dataTransfer.files[0]);
+            });
+
+            elements.uploadArea.addEventListener("click", () => elements.fileInput.click());
+            elements.uploadArea.addEventListener("keydown", e => {
+                if (e.key === "Enter" || e.key === " ") elements.fileInput.click();
+            });
+
+            elements.fileInput.addEventListener("change", e => handleFile(e.target.files[0]));
+
+            function handleFile(file) {
+                if (!file) return showError("No file provided.");
+                const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
+                if (!allowedTypes.includes(file.type)) return showError("Please upload an image, PDF, or text file.");
+                if (file.size > 10 * 1024 * 1024) return showError("File size exceeds 10MB limit.");
+
+                imageFile = file;
+                if (file.type.startsWith("image/")) {
+                    elements.previewImage.src = URL.createObjectURL(file);
+                    elements.previewImage.classList.add("visible");
                 } else {
-                    showError("Please upload a valid image file.");
+                    elements.previewImage.classList.remove("visible");
+                }
+                elements.uploadText.textContent = file.name;
+                elements.fileType.textContent = `File Type: ${file.type.split("/")[1].toUpperCase()}`;
+                elements.fileType.style.display = "block";
+                elements.analyzeBtn.disabled = false;
+                clearResults();
+                clearError();
+                elements.quotePopup.style.display = "none";
+            }
+
+            async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    try {
+                        return await fn();
+                    } catch (err) {
+                        if (attempt === maxAttempts) throw err;
+                        console.log(`Retry ${attempt}/${maxAttempts} after error: ${err.message}`);
+                        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+                    }
                 }
             }
 
-            searchBtn.addEventListener("click", async () => {
-                if (!imageFile) {
-                    showError("Please upload an image first.");
-                    return;
+            async function checkServerHealth() {
+                try {
+                    const response = await fetch(`${BASE_URL}/api/health`);
+                    if (!response.ok) throw new Error(`Health check failed with status ${response.status}`);
+                    const health = await response.json();
+                    if (health.dbStatus !== "Connected" || health.openaiStatus !== "Connected" || health.emailStatus !== "Connected") {
+                        showError("Server is partially available. Some features (e.g., email) may not work. Please try again later or call (602) 833-3189.");
+                    }
+                } catch (err) {
+                    showError(`Unable to reach server: ${err.message}. Please check your connection and retry or call (602) 833-3189.`);
                 }
+            }
 
-                searchBtn.disabled = true;
-                loadingSpinner.style.display = "flex";
-                let progress = 0;
-                const progressInterval = setInterval(() => {
-                    progress += 5;
-                    progressFill.style.width = `${Math.min(progress, 90)}%`;
-                }, 200);
+            elements.analyzeBtn.addEventListener("click", async () => {
+                if (!imageFile) return showError("Please upload a file first.");
 
+                elements.analyzeBtn.disabled = true;
+                elements.loadingSpinner.style.display = "flex";
+                elements.loadingText.textContent = "Preparing Your Quote...";
+                elements.progressFill.style.width = "10%";
+
+                const formData = new FormData();
+                formData.append("file", imageFile);
+                const needs = elements.customerNeeds.value.trim();
+                if (needs) formData.append("customer_needs", needs);
+
+                try {
+                    const fields = ["stone-type", "color-pattern", "project-scope", "dimensions", "additional-features", "condition", "material-cost", "labor-cost", "features-cost", "total-cost", "solutions", "recommendation"];
+                    fields.forEach(id => document.getElementById(id).textContent = "Estimating...");
+
+                    elements.loadingText.textContent = "Analyzing Your Project...";
+                    elements.progressFill.style.width = "40%";
+
+                    const response = await withRetry(() => fetch(`${BASE_URL}/api/contractor-estimate`, {
+                        method: "POST",
+                        body: formData
+                    }));
+
+                    elements.loadingText.textContent = "Calculating Costs...";
+                    elements.progressFill.style.width = "70%";
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(`${errorData.error || "Unknown error"}: ${errorData.details || `HTTP ${response.status}`}`);
+                    }
+
+                    const result = await response.json();
+                    if (!result.costEstimate) throw new Error("Invalid estimate data received from server");
+                    currentResult = result;
+
+                    elements.loadingText.textContent = "Generating Audio Quote...";
+                    elements.progressFill.style.width = "90%";
+                    audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
+                    audio.volume = elements.volumeSlider.value;
+                    audio.preload = "metadata";
+                    audio.addEventListener("loadedmetadata", () => {
+                        elements.audioDuration.textContent = `0:00 / ${formatTime(audio.duration)}`;
+                        audio.play().then(() => {
+                            console.log("Audio playing successfully");
+                        }).catch(err => {
+                            console.error("Auto-play failed:", err.message);
+                            setTimeout(() => audio.play().catch(e => console.error("Retry failed:", e.message)), 500);
+                        });
+                    });
+                    audio.addEventListener("timeupdate", () => {
+                        elements.audioDuration.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+                    });
+                    audio.addEventListener("error", (e) => {
+                        console.error("Audio error:", e);
+                        showError("Failed to load audio. Please retry.");
+                    });
+
+                    elements.progressFill.style.width = "100%";
+                    displayResults(result);
+                    setTimeout(() => elements.loadingSpinner.style.display = "none", 500);
+                } catch (err) {
+                    showError(`Failed to generate quote: ${err.message}. Please retry or call (602) 833-3189.`);
+                } finally {
+                    elements.analyzeBtn.disabled = false;
+                }
+            });
+
+            elements.muteBtn.addEventListener("click", () => {
+                isMuted = !isMuted;
+                elements.muteBtn.classList.toggle("muted", isMuted);
+                if (audio) audio.muted = isMuted;
+            });
+
+            elements.volumeSlider.addEventListener("input", () => {
+                if (audio) audio.volume = elements.volumeSlider.value;
+            });
+
+            elements.retryTtsBtn.addEventListener("click", async () => {
+                if (!currentResult?.imageId) return;
+                elements.loadingSpinner.style.display = "flex";
+                elements.loadingText.textContent = "Regenerating Audio...";
                 try {
                     const formData = new FormData();
                     formData.append("file", imageFile);
-
-                    loadingText.textContent = "Analyzing and searching...";
-                    const response = await fetch(`${BASE_URL}/api/visual-search`, {
-                        method: "POST",
-                        body: formData
+                    if (elements.customerNeeds.value) formData.append("customer_needs", elements.customerNeeds.value);
+                    const response = await fetch(`${BASE_URL}/api/contractor-estimate`, { method: "POST", body: formData });
+                    if (!response.ok) throw new Error("Failed to regenerate audio");
+                    const result = await response.json();
+                    audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
+                    audio.volume = elements.volumeSlider.value;
+                    audio.preload = "metadata";
+                    audio.addEventListener("loadedmetadata", () => {
+                        elements.audioDuration.textContent = `0:00 / ${formatTime(audio.duration)}`;
+                        audio.play().then(() => {
+                            console.log("Retry audio playing successfully");
+                        }).catch(err => {
+                            console.error("Retry auto-play failed:", err.message);
+                            setTimeout(() => audio.play().catch(e => console.error("Retry failed:", e.message)), 500);
+                        });
                     });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || "Search failed");
-                    }
-
-                    const { uploadedAnalysis, matches: searchMatches } = await response.json();
-                    currentMatches = { uploadedAnalysis, matches: searchMatches };
-                    displayMatches(uploadedAnalysis, searchMatches);
+                    audio.addEventListener("timeupdate", () => {
+                        elements.audioDuration.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+                    });
                 } catch (err) {
-                    showError(`Search failed: ${err.message}`);
-                    console.error("Error:", err);
+                    showError(`Audio regeneration failed: ${err.message}`);
                 } finally {
-                    clearInterval(progressInterval);
-                    progressFill.style.width = "100%";
-                    setTimeout(() => {
-                        loadingSpinner.style.display = "none";
-                        searchBtn.disabled = false;
-                    }, 300);
+                    elements.loadingSpinner.style.display = "none";
                 }
             });
 
-            function displayMatches(uploadedAnalysis, matches) {
-                matchesList.innerHTML = "";
-                matches.forEach(match => {
-                    const matchDiv = document.createElement("div");
-                    matchDiv.className = "match-item";
-                    matchDiv.innerHTML = `
-                        <img src="${BASE_URL}/api/image/${match.filename}" alt="${match.filename}" />
-                        <div>
-                            <p><strong>Stone Type:</strong> ${match.stone_type}</p>
-                            <p><strong>Color & Pattern:</strong> ${match.color_and_pattern}</p>
-                            <p><strong>Similarity:</strong> ${match.similarity}%</p>
-                        </div>
-                    `;
-                    matchesList.appendChild(matchDiv);
-                });
-                matches.style.display = "block";
-            }
-
-            // Serve images (optional endpoint for frontend display)
-            app.get("/api/image/:filename", async (req, res) => {
-                const { filename } = req.params;
-                const imagesCollection = db.collection(COLLECTION_NAME);
-                const imageDoc = await imagesCollection.findOne({ filename });
-                if (!imageDoc) return res.status(404).json({ error: "Image not found" });
-                res.set("Content-Type", "image/jpeg");
-                res.send(Buffer.from(imageDoc.imageBase64, "base64"));
-            });
-
-            resetBtn.addEventListener("click", () => {
-                imageFile = null;
-                fileInput.value = "";
-                uploadText.textContent = "Drop a countertop image here or click to upload";
-                previewImage.classList.remove("visible");
-                previewImage.src = "";
-                searchBtn.disabled = true;
-                clearMatches();
-                clearError();
-            });
-
-            contactBtn.addEventListener("click", () => {
-                if (currentMatches) {
-                    document.getElementById("message").value = `I searched for a countertop match:\nStone Type: ${currentMatches.uploadedAnalysis.stone_type}\nTop Match: ${currentMatches.matches[0]?.stone_type || "N/A"} (${currentMatches.matches[0]?.similarity || 0}%)`;
+            elements.likeBtn.addEventListener("click", async () => {
+                if (!currentResult?.imageId || elements.likeBtn.disabled) return;
+                try {
+                    const response = await fetch(`${BASE_URL}/api/like-countertop/${currentResult.imageId}`, { method: "POST" });
+                    if (!response.ok) throw new Error("Failed to like countertop");
+                    const data = await response.json();
+                    elements.likeCount.textContent = data.likes;
+                    elements.likeBtn.classList.add("liked");
+                    elements.likeBtn.disabled = true;
+                    elements.dislikeBtn.disabled = true;
+                } catch (err) {
+                    showError(`Failed to like: ${err.message}`);
                 }
-                contactForm.style.display = "block";
             });
 
-            closeFormBtn.addEventListener("click", () => {
-                contactForm.style.display = "none";
-                leadForm.reset();
+            elements.dislikeBtn.addEventListener("click", async () => {
+                if (!currentResult?.imageId || elements.dislikeBtn.disabled) return;
+                try {
+                    const response = await fetch(`${BASE_URL}/api/dislike-countertop/${currentResult.imageId}`, { method: "POST" });
+                    if (!response.ok) throw new Error("Failed to dislike countertop");
+                    const data = await response.json();
+                    elements.dislikeCount.textContent = data.dislikes;
+                    elements.dislikeBtn.classList.add("disliked");
+                    elements.likeBtn.disabled = true;
+                    elements.dislikeBtn.disabled = true;
+                } catch (err) {
+                    showError(`Failed to dislike: ${err.message}`);
+                }
             });
 
-            leadForm.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const name = document.getElementById("name").value;
-                const email = document.getElementById("email").value;
-                const phone = document.getElementById("phone").value;
-                const message = document.getElementById("message").value;
+            elements.shareBtn.addEventListener("click", () => {
+                if (!currentResult?.shareUrl) return showError("No quote to share yet.");
+                const shareText = `My FREE quote from Surprise Granite: ${currentResult.materialType || "Unknown"}, ${currentResult.projectScope || "Project"}. Total: ${currentResult.costEstimate.totalCost}. ${currentResult.shareUrl}`;
+                if (navigator.share) {
+                    navigator.share({ title: "CARI Quote", text: shareText, url: currentResult.shareUrl });
+                } else {
+                    navigator.clipboard.writeText(shareText).then(() => alert("Quote copied! Share it now!"));
+                }
+            });
+
+            elements.contactBtn.addEventListener("click", () => {
+                if (!currentResult) return showError("Please get a quote first.");
+                elements.quotePopup.style.display = "flex";
+                elements.quoteMessage.value = `Project Quote:\nMaterial: ${currentResult.materialType || "Unknown"}\nScope: ${currentResult.projectScope || "Not specified"}\nTotal Cost: ${currentResult.costEstimate.totalCost || "Contact for estimate"}\nSolutions: ${currentResult.solutions || "Contact for evaluation"}`;
+                clearQuoteValidation();
+            });
+
+            elements.closeQuoteBtn.addEventListener("click", () => {
+                elements.quotePopup.style.display = "none";
+                clearQuoteValidation();
+            });
+
+            elements.sendQuoteBtn.addEventListener("click", async () => {
+                const name = elements.quoteName.value.trim();
+                const email = elements.quoteEmail.value.trim();
+                const phone = elements.quotePhone.value.trim();
+                const message = elements.quoteMessage.value.trim();
+
+                clearQuoteValidation();
+                let isValid = true;
+                if (!name) { elements.quoteName.classList.add("invalid"); isValid = false; }
+                if (!email || !/^\S+@\S+\.\S+$/.test(email)) { elements.quoteEmail.classList.add("invalid"); isValid = false; }
+                if (!message) { elements.quoteMessage.classList.add("invalid"); isValid = false; }
+                if (!isValid) return showError("Please fill out all required fields correctly.");
 
                 try {
-                    const analysisSummary = currentMatches ? `
-                        Uploaded Stone Type: ${currentMatches.uploadedAnalysis.stone_type}
-                        Top Match: ${currentMatches.matches[0]?.stone_type || "N/A"} (${currentMatches.matches[0]?.similarity || 0}%)
-                    ` : "No search performed";
-
-                    const leadData = {
-                        name,
-                        email,
-                        phone: phone || "Not provided",
-                        message,
-                        stone_type: currentMatches?.uploadedAnalysis.stone_type || "N/A",
-                        analysis_summary: analysisSummary
-                    };
-
                     const response = await fetch(`${BASE_URL}/api/send-email`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(leadData)
+                        body: JSON.stringify({ name, email, phone, message, stone_type: currentResult.materialType, analysis_summary: message }),
                     });
-
-                    if (!response.ok) throw new Error("Failed to send email");
-
-                    alert("Thank you! Your request has been sent to Surprise Granite.");
-                    contactForm.style.display = "none";
-                    leadForm.reset();
+                    if (!response.ok) throw new Error((await response.json()).error || "Failed to send email");
+                    alert("Your FREE quote request has been sent! We'll contact you soon!");
+                    elements.quotePopup.style.display = "none";
                 } catch (err) {
-                    alert("Error sending request. Please email info@surprisegranite.com directly.");
-                    console.error("Email submission error:", err);
+                    showError(`Failed to send quote: ${err.message}`);
                 }
             });
 
-            retryBtn.addEventListener("click", () => {
+            elements.resetBtn.addEventListener("click", () => {
+                imageFile = null;
+                elements.fileInput.value = "";
+                elements.customerNeeds.value = "";
+                elements.uploadText.textContent = "Drop your image, PDF, or text file here or click to upload";
+                elements.previewImage.classList.remove("visible");
+                elements.fileType.style.display = "none";
+                elements.analyzeBtn.disabled = true;
+                clearResults();
                 clearError();
-                searchBtn.click();
+                elements.quotePopup.style.display = "none";
+                if (audio) {
+                    audio.pause();
+                    audio = null;
+                }
+            });
+
+            elements.retryBtn.addEventListener("click", () => {
+                clearError();
+                elements.analyzeBtn.click();
             });
 
             function showError(message) {
-                errorText.textContent = message;
-                errorMessage.style.display = "block";
+                elements.errorText.textContent = message;
+                elements.errorMessage.style.display = "block";
+                elements.results.style.display = "none";
+                elements.loadingSpinner.style.display = "none";
             }
 
-            function clearError() {
-                errorMessage.style.display = "none";
+            function clearError() { elements.errorMessage.style.display = "none"; }
+
+            function clearResults() {
+                currentResult = null;
+                elements.results.style.display = "none";
+                elements.audioSection.style.display = "none";
+                elements.audioDuration.textContent = "0:00 / 0:00";
             }
 
-            function clearMatches() {
-                currentMatches = null;
-                matches.style.display = "none";
-                matchesList.innerHTML = "";
+            function clearQuoteValidation() {
+                elements.quoteName.classList.remove("invalid");
+                elements.quoteEmail.classList.remove("invalid");
+                elements.quoteMessage.classList.remove("invalid");
+            }
+
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
             }
         });
     </script>
