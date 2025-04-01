@@ -111,7 +111,7 @@ async function loadMaterialsData() {
                 cost_per_sqft: totalCost / count,
                 confidence: 1
             };
-        }));
+        });
         console.log("Processed materials:", materialsData.length, "unique entries");
         console.log("Materials data sample:", JSON.stringify(materialsData.slice(0, 5), null, 2));
     } catch (err) {
