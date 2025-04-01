@@ -237,28 +237,28 @@ async function estimateProject(fileData, customerNeeds) {
         const needsLower = customerNeeds.toLowerCase();
         const keywords = {
             dimensions: extractDimensionsFromNeeds(customerNeeds),
-            material: needsLower.match(/granite|quartz|marble|dekton/i)?.[0],
+            material: needsLower.match(/granite|quartz|marble|dekton|tile/i)?.[0],
             scope: needsLower.includes("repair") ? "repair" : needsLower.includes("replace") ? "replacement" : "installation",
             features: needsLower.match(/sink|edge|backsplash/i)?.map(f => f.toLowerCase()) || [],
         };
 
-        const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop remodeling estimates as of March 31, 2025. Analyze this ${fileData ? "image" : "description"} and customer needs ("${customerNeeds}") to generate a precise countertop estimate:
+        const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and tile remodeling estimates as of March 31, 2025. Analyze this ${fileData ? "image" : "description"} and customer needs ("${customerNeeds}") to generate a precise estimate:
 
         **Instructions**:
-        - Focus on countertops (repair, replacement, or fabrication/installation).
+        - Focus on countertops and tiles (repair, replacement, or installation).
         ${fileData ? `
         - For images, analyze:
           - **Damage**: Detect cracks, stains, chips (type and severity: Low, Moderate, Severe).
-          - **Material**: Identify likely material (e.g., Granite, Quartz, Dekton) based on texture and sheen.
-          - **Color/Pattern**: Match dominant color and veining/streaks to known countertop styles.
-          - **Size Hints**: Estimate surface area if visible (e.g., table vs. full counter, adjust from 25 Square Feet if clear).
+          - **Material**: Identify likely material (e.g., Granite, Quartz, Tile) based on texture and sheen.
+          - **Color/Pattern**: Match dominant color and veining/streaks to known styles.
+          - **Size Hints**: Estimate surface area if visible (adjust from 25 Square Feet if clear).
         ` : ""}
         - Cross-reference with customer needs:
           - Dimensions: Use "${keywords.dimensions || 'unknown'}" if provided, else assume 25 Square Feet${fileData ? " or estimate from image" : ""}.
-          - Material: Prefer "${keywords.material || 'unknown'}" if specified${fileData ? ", else infer from image" : ""}.
+          - Material: Use "${keywords.material || 'unknown'}" if specified${fileData ? ", else infer from image" : ""}, match to materials.json by type and color.
           - Scope: Match "${keywords.scope}" (repair/replacement/installation) with intent${fileData ? " or damage; adjust if image contradicts" : ""}.
           - Features: Include "${keywords.features.join(", ") || 'none'}" if mentioned.
-        - Use labor and material data for accuracy.
+        - **Prioritize materials.json and labor.json pricing over defaults**—use exact matches or closest fuzzy matches for material type, color, and service type.
 
         **Pricing Data**:
         - Labor: ${JSON.stringify(laborData)}
@@ -267,14 +267,14 @@ async function estimateProject(fileData, customerNeeds) {
         **Historical Estimates**: ${JSON.stringify(pastData)}
 
         Respond in JSON with:
-        - project_scope: e.g., "Countertop Repair" or "Countertop Replacement"
+        - project_scope: e.g., "Countertop Repair"
         - material_type: e.g., "Granite"
-        - color_and_pattern: e.g., "Brown with black speckles"
+        - color_and_pattern: e.g., "Black Pearl"
         - dimensions: e.g., "25 Square Feet"
         - additional_features: array, e.g., ["sink cutout"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
         - solutions: e.g., "Seal cracks with epoxy"
-        - reasoning: Detail analysis and customer needs integration
+        - reasoning: Detail analysis, customer needs integration, and pricing source
         `;
 
         console.log("Sending prompt to OpenAI...");
@@ -290,7 +290,7 @@ async function estimateProject(fileData, customerNeeds) {
         const response = await withRetry(() => openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 3500,
+            max_tokens: 3000,
             temperature: 0.8,
             response_format: { type: "json_object" },
         }));
@@ -346,6 +346,7 @@ function enhanceCostEstimate(estimate) {
     }
 
     const materialType = estimate.material_type.toLowerCase();
+    const colorPattern = estimate.color_and_pattern.toLowerCase();
     const projectScope = estimate.project_scope.toLowerCase().replace(/\s+/g, "_");
     const customerNeeds = (estimate.customer_needs || "").toLowerCase();
     const dimensions = estimate.dimensions || "25 Square Feet";
@@ -354,14 +355,17 @@ function enhanceCostEstimate(estimate) {
 
     const materialMatches = materialsData.map(m => ({
         ...m,
-        similarity: stringSimilarity.compareTwoStrings(materialType, m.type.toLowerCase())
+        similarity: Math.max(
+            stringSimilarity.compareTwoStrings(materialType, m.type.toLowerCase()),
+            stringSimilarity.compareTwoStrings(colorPattern, m.color.toLowerCase())
+        )
     }));
     const material = materialMatches.reduce((best, current) => 
         current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
-        { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
+        { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 0.8 };
     const materialCostPerSqFt = material.cost_per_sqft;
     const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3;
-    console.log(`Material match: ${material.type} (similarity: ${material.similarity.toFixed(2)})`);
+    console.log(`Material match: ${material.type} - ${material.color} (similarity: ${material.similarity.toFixed(2)})`);
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
     const laborMatches = laborData.map(entry => ({
@@ -374,8 +378,8 @@ function enhanceCostEstimate(estimate) {
     const laborEntry = laborMatches.reduce((best, current) => 
         current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
         { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
-    if (laborEntry.similarity < 0.7) {
-        console.log("No strong labor match (similarity < 0.7), using default");
+    if (laborEntry.similarity < 0.5) {
+        console.log("No strong labor match (similarity < 0.5), using default");
         laborEntry.type = "default";
         laborEntry.rate_per_sqft = 15;
         laborEntry.hours = 1;
