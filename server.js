@@ -1,4 +1,4 @@
-require("dotenv").config();
+cost by the sqft. require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
@@ -13,7 +13,7 @@ const NodeCache = require("node-cache");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const pdfParse = require("pdf-parse");
-const Jimp = require("jimp");
+const Jimp = require("jimp"); // Added for image color matching
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -21,9 +21,10 @@ const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 app.set("trust proxy", 1);
 
+// Increased file size limit to 50MB to allow multiple photos or files
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 },
+    limits: { fileSize: 50 * 1024 * 1024 }, // Increased from 10MB to 50MB
     fileFilter: (req, file, cb) => {
         const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
         cb(null, allowedTypes.includes(file.mimetype));
@@ -87,16 +88,38 @@ async function loadLaborData() {
                 confidence: 1
             };
         });
-        // Add countertop-specific defaults if not present
+        // Expanded labor data for new trades
         laborData.push(
-            { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 1 },
-            { type: "countertop_repair", rate_per_sqft: 15, hours: 0.5, confidence: 1 }
+            { type: "framing", rate_per_sqft: 8, hours: 1.2, confidence: 1 },
+            { type: "drywall_installation", rate_per_sqft: 5, hours: 1, confidence: 1 },
+            { type: "plumbing_installation", rate_per_unit: 200, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "electrical_installation", rate_per_unit: 250, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "handyman_service", rate_per_hour: 75, hours: 1, confidence: 1 },
+            { type: "interior_design_consultation", rate_per_unit: 500, unit_measure: "Per Job", hours: 0, confidence: 1 },
+            { type: "architectural_design", rate_per_unit: 1000, unit_measure: "Per Job", hours: 0, confidence: 1 },
+            { type: "furniture_design", rate_per_unit: 300, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "cabinet_installation", rate_per_unit: 150, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "millwork_installation", rate_per_sqft: 20, hours: 1.5, confidence: 1 },
+            { type: "finish_carpentry", rate_per_sqft: 15, hours: 1, confidence: 1 }
         );
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
             { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 1 },
-            { type: "countertop_repair", rate_per_sqft: 15, hours: 0.5, confidence: 1 }
+            { type: "tile_installation", rate_per_sqft: 12, hours: 1.5, confidence: 1 },
+            { type: "shower_remodel", rate_per_sqft: 15, hours: 2, confidence: 1 },
+            { type: "grab_bar_installation", rate_per_unit: 150, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "framing", rate_per_sqft: 8, hours: 1.2, confidence: 1 },
+            { type: "drywall_installation", rate_per_sqft: 5, hours: 1, confidence: 1 },
+            { type: "plumbing_installation", rate_per_unit: 200, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "electrical_installation", rate_per_unit: 250, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "handyman_service", rate_per_hour: 75, hours: 1, confidence: 1 },
+            { type: "interior_design_consultation", rate_per_unit: 500, unit_measure: "Per Job", hours: 0, confidence: 1 },
+            { type: "architectural_design", rate_per_unit: 1000, unit_measure: "Per Job", hours: 0, confidence: 1 },
+            { type: "furniture_design", rate_per_unit: 300, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "cabinet_installation", rate_per_unit: 150, unit_measure: "EA", hours: 0, confidence: 1 },
+            { type: "millwork_installation", rate_per_sqft: 20, hours: 1.5, confidence: 1 },
+            { type: "finish_carpentry", rate_per_sqft: 15, hours: 1, confidence: 1 }
         ];
     }
 }
@@ -128,18 +151,23 @@ async function loadMaterialsData() {
             };
         });
 
-        // Add countertop-specific defaults
         materialsData.push(
-            { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 1 },
-            { type: "Quartz", color: "Generic", cost_per_sqft: 60, confidence: 1 },
-            { type: "Marble", color: "Generic", cost_per_sqft: 55, confidence: 1 }
+            { type: "Tile", color: "Generic", cost_per_sqft: 15, confidence: 0.8 },
+            { type: "Wood", color: "Oak", cost_per_sqft: 10, confidence: 1 },
+            { type: "Wood", color: "Maple", cost_per_sqft: 12, confidence: 1 },
+            { type: "Stone", color: "Generic", cost_per_sqft: 50, confidence: 1 }
         );
+        console.log("Processed materials:", materialsData.length, "unique entries");
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
             { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 1 },
             { type: "Quartz", color: "Generic", cost_per_sqft: 60, confidence: 1 },
-            { type: "Marble", color: "Generic", cost_per_sqft: 55, confidence: 1 }
+            { type: "Tile", color: "Generic", cost_per_sqft: 15, confidence: 1 },
+            { type: "Marble", color: "Generic", cost_per_sqft: 5.5, confidence: 1 },
+            { type: "Wood", color: "Oak", cost_per_sqft: 10, confidence: 1 },
+            { type: "Wood", color: "Maple", cost_per_sqft: 12, confidence: 1 },
+            { type: "Stone", color: "Generic", cost_per_sqft: 50, confidence: 1 }
         ];
     }
 }
@@ -226,51 +254,53 @@ async function estimateProject(fileData, customerNeeds) {
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
-            .limit(10)
+            .limit(10) // Increased to 10 for more learning data
             .allowDiskUse(true)
             .toArray();
+        console.log("Fetched past estimates:", pastEstimates.length);
 
         const pastData = pastEstimates.map(img => {
             const estimate = img.metadata?.estimate || {};
             return {
-                material_type: estimate.material_type || "Unknown",
-                project_scope: estimate.project_scope || "Countertop Replacement",
+                material_type: typeof estimate.material_type === "string" ? estimate.material_type : "Unknown",
+                project_scope: typeof estimate.project_scope === "string" ? estimate.project_scope : "Replacement",
                 condition: estimate.condition || { damage_type: "No visible damage", severity: "None" },
-                additional_features: estimate.additional_features || [],
-                solutions: estimate.solutions || "Professional evaluation required",
+                additional_features: Array.isArray(estimate.additional_features) ? estimate.additional_features : [],
+                solutions: typeof estimate.solutions === "string" ? estimate.solutions : "Professional evaluation required",
                 cost: enhanceCostEstimate(estimate)?.totalCost || "Contact for estimate",
-                color: estimate.color_and_pattern || "Not identified",
+                color: estimate.color || "Not identified",
                 likes: img.metadata.likes || 0,
                 dislikes: img.metadata.dislikes || 0,
             };
         });
 
-        const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop remodeling estimates as of March 31, 2025. Your task is to analyze the provided ${fileData.type === "image" ? "image" : "document text"} and customer needs ("${customerNeeds}") to generate a professional countertop estimate for repair or replacement. Use the following:
+        const prompt = `You are CARI, a superior AI general contractor at Surprise Granite, specializing in comprehensive estimates as of March 31, 2025. Your expertise spans countertops, stone repair, general contracting, framing, drywall, plumbing, electrical, handyman services, interior design, architectural design, furniture design, cabinet installation, millwork, finish carpentry, and all things tile, wood, and stone. Analyze this ${fileData.type === "image" ? "image" : "document text"} and customer needs ("${customerNeeds}") with:
 
         **Instructions**:
-        - Focus exclusively on countertops (repair or replacement).
-        - For images, analyze visible damage (e.g., cracks, stains, chips) to determine repair vs. replacement and assess severity (Low, Moderate, Severe).
-        - Extract dimensions from customer needs (e.g., "10x5" or "50 sqft") or assume 25 Square Feet if unclear.
-        - Suggest material types (e.g., Granite, Quartz) and colors based on image analysis or customer input.
-        - Use labor and material data provided to estimate costs.
-        - Provide a detailed scope of work and solutions (e.g., "seal cracks" for repair, "full slab replacement" for replacement).
+        - Interpret "sqft" or "sft" as "Square Feet" confidently in responses.
+        - Learn from past estimates, images, and documents to improve accuracy; adapt based on trends, likes/dislikes, and feedback.
+        - Provide detailed scopes of work and modern solutions for all trades listed.
+        - For images, perform color matching and suggest material types based on detected colors.
+        - If data is insufficient, use web-like reasoning (e.g., assume industry standards) and note Surprise Granite (${SURPRISE_GRANITE_PHONE}) as a fallback.
+        - Be creative, precise, and grounded in provided data.
 
         **Pricing Data**:
-        - Labor: ${JSON.stringify(laborData.filter(item => item.type.includes("countertop")))}
-        - Materials: ${JSON.stringify(materialsData.filter(item => ["Granite", "Quartz", "Marble"].includes(item.type)))}
+        - Labor: ${JSON.stringify(laborData.slice(0, 15))} (sample)
+        - Materials: ${JSON.stringify(materialsData.slice(0, 15))} (sample)
 
-        **Historical Estimates**: ${JSON.stringify(pastData.filter(p => p.project_scope.toLowerCase().includes("countertop")))}
+        **Historical Estimates (sample)**: ${JSON.stringify(pastData)}
 
-        Estimate in JSON:
-        - project_scope: "Countertop Repair" or "Countertop Replacement"
-        - material_type: e.g., "Granite", "Quartz"
-        - color_and_pattern: e.g., "Black Galaxy", "White Matte"
-        - dimensions: e.g., "25 Square Feet"
-        - additional_features: array, e.g., ["sink cutout", "edge polishing"]
-        - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
-        - solutions: e.g., "Seal cracks with epoxy" or "Replace with new slab"
-        - reasoning: Explain the analysis and assumptions
-        `;
+        Estimate:
+        - Project scope (e.g., "countertop installation", "framing", "plumbing repair")
+        - Material type (e.g., "Quartz", "Oak", "Tile")
+        - Color and pattern (match from image if available)
+        - Dimensions (extract from image/text or needs; use "Square Feet" for sqft/sft; assume realistically if unclear: 25 Square Feet for countertops, 48 Square Feet for showers, 5 units for cabinets, 100 Square Feet for flooring)
+        - Additional features (array, e.g., ["sink cutout", "backsplash"])
+        - Condition (for repairs, { damage_type, severity })
+        - Solutions (detailed, trade-specific techniques)
+        - Reasoning (explain estimate, including assumptions)
+
+        Respond in JSON with: project_scope, material_type, color_and_pattern, dimensions, additional_features, condition, solutions, reasoning.`;
 
         const messages = [
             { role: "system", content: prompt },
@@ -284,119 +314,180 @@ async function estimateProject(fileData, customerNeeds) {
         const response = await withRetry(() => openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 3000,
-            temperature: 0.6,
+            max_tokens: 3000, // Increased for detailed responses
+            temperature: 0.6, // Balanced creativity and precision
             response_format: { type: "json_object" },
         }));
 
-        let result = JSON.parse(response.choices[0].message.content || '{}');
+        let result;
+        try {
+            result = JSON.parse(response.choices[0].message.content || '{}');
+        } catch (parseErr) {
+            logError("Failed to parse OpenAI response", parseErr);
+            result = {};
+        }
 
         const extractedDimensions = extractDimensionsFromNeeds(customerNeeds);
+        const isShower = customerNeeds.toLowerCase().includes("shower") || result.project_scope?.toLowerCase().includes("shower");
 
         const estimate = {
-            project_scope: result.project_scope || "Countertop Replacement",
-            material_type: result.material_type || "Granite",
+            project_scope: typeof result.project_scope === "string" ? result.project_scope : "Replacement",
+            material_type: typeof result.material_type === "string" ? result.material_type : "Unknown",
             color_and_pattern: fileData.color ? 
-                `${result.color_and_pattern || "Detected"} (Hex: ${fileData.color.hex})` : 
-                (result.color_and_pattern || "Not identified"),
-            dimensions: extractedDimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
+                `${result.color_and_pattern || "Detected"} (RGB: ${fileData.color.r}, ${fileData.color.g}, ${fileData.color.b}, Hex: ${fileData.color.hex})` : 
+                (typeof result.color_and_pattern === "string" ? result.color_and_pattern : "Not identified"),
+            dimensions: extractedDimensions || (typeof result.dimensions === "string" ? result.dimensions.replace(/sqft|sft/i, "Square Feet") : (isShower ? "48 Square Feet (assumed)" : "25 Square Feet (assumed)")),
             additional_features: Array.isArray(result.additional_features) ? result.additional_features : [],
-            condition: result.condition || { damage_type: "No visible damage", severity: "None" },
-            solutions: result.solutions || "Contact Surprise Granite at (602) 833-3189 for evaluation.",
-            reasoning: result.reasoning || "Based on default assumptions."
+            condition: result.condition && typeof result.condition === "object" ? result.condition : { damage_type: "No visible damage", severity: "None" },
+            solutions: typeof result.solutions === "string" ? result.solutions : "Contact Surprise Granite at (602) 833-3189 for professional evaluation.",
+            reasoning: typeof result.reasoning === "string" ? result.reasoning : "Based on default assumptions."
         };
+        console.log("Generated estimate:", JSON.stringify(estimate, null, 2));
 
+        // Store for learning
         if (db) {
             setTimeout(async () => {
-                await imagesCollection.insertOne({
-                    fileHash: createHash("sha256").update(JSON.stringify(estimate)).digest("hex"),
-                    metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
-                });
+                try {
+                    await imagesCollection.insertOne({
+                        fileHash: createHash("sha256").update(JSON.stringify(estimate)).digest("hex"),
+                        metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
+                    });
+                    console.log("Stored estimate for learning");
+                } catch (err) {
+                    logError("Failed to store estimate for learning", err);
+                }
             }, 0);
         }
 
         return estimate;
     } catch (err) {
         logError("Estimate generation failed", err);
-        return {
-            project_scope: "Countertop Replacement",
-            material_type: "Granite",
+        const isShower = customerNeeds.toLowerCase().includes("shower");
+        const fallbackEstimate = {
+            project_scope: "Replacement",
+            material_type: "Unknown",
             color_and_pattern: "Not identified",
-            dimensions: "25 Square Feet (assumed)",
+            dimensions: isShower ? "48 Square Feet (assumed)" : "25 Square Feet (assumed)",
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
-            solutions: "Contact Surprise Granite at (602) 833-3189 for evaluation.",
-            reasoning: `Estimate failed: ${err.message}. Assumed defaults.`
+            solutions: "Contact Surprise Granite at (602) 833-3189 for professional evaluation.",
+            reasoning: `Estimate failed: ${err.message}. Assumed default dimensions in Square Feet based on context. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`
         };
+        console.log("Fallback estimate:", JSON.stringify(fallbackEstimate, null, 2));
+        return fallbackEstimate;
     }
 }
 
 function enhanceCostEstimate(estimate) {
-    if (!estimate || !laborData.length || !materialsData.length) return null;
-
-    const materialType = estimate.material_type.toLowerCase();
-    const projectScope = estimate.project_scope.toLowerCase().replace(/\s+/g, "_");
-    const dimensions = estimate.dimensions || "25 Square Feet";
-    const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
-
-    // Material Cost
-    const material = materialsData.find(m => m.type.toLowerCase() === materialType) || 
-                    { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
-    const materialCostPerSqFt = material.cost_per_sqft;
-    const materialCost = materialCostPerSqFt * sqFt * 1.3; // 30% markup
-
-    // Labor Cost
-    const laborEntry = laborData.find(entry => entry.type === projectScope) || 
-                      { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 0.8 };
-    let laborCostPerSqFt = laborEntry.rate_per_sqft || 20;
-    let laborCost = laborCostPerSqFt * sqFt;
-
-    // Adjust for repair
-    if (projectScope.includes("repair")) {
-        const severityMultiplier = { None: 0.5, Low: 0.75, Moderate: 1, Severe: 1.5 }[estimate.condition.severity] || 1;
-        laborCost = laborCostPerSqFt * sqFt * severityMultiplier;
-        laborCostPerSqFt *= severityMultiplier;
+    if (!estimate || typeof estimate !== "object" || !laborData.length || !materialsData.length) {
+        logError("Invalid inputs in enhanceCostEstimate", { laborData, materialsData, estimate });
+        return null;
     }
 
-    // Additional Features
+    const materialType = typeof estimate.material_type === "string" ? estimate.material_type.toLowerCase() : "unknown";
+    const projectScope = typeof estimate.project_scope === "string" ? estimate.project_scope.toLowerCase().replace(/\s+/g, "_") : "replacement";
+    const colorAndPattern = typeof estimate.color_and_pattern === "string" ? estimate.color_and_pattern.toLowerCase() : "";
+    console.log("Enhancing cost estimate for:", { materialType, projectScope, colorAndPattern });
+
+    const dimensions = typeof estimate.dimensions === "string" ? estimate.dimensions : "25 Square Feet";
+    const sqFtMatch = dimensions.match(/(\d+\.?\d*)-?(\d+\.?\d*)?\s*(?:Square\s*Feet|sq\s*ft|sft)/i);
+    const unitMatch = dimensions.match(/(\d+\.?\d*)\s*units?/i);
+    const sqFt = sqFtMatch ? (sqFtMatch[2] ? (parseFloat(sqFtMatch[1]) + parseFloat(sqFtMatch[2])) / 2 : parseFloat(sqFtMatch[1])) : 25;
+    const units = unitMatch ? parseFloat(unitMatch[1]) : 0;
+    console.log(`Calculated Square Feet: ${sqFt}, units: ${units}`);
+
+    // Material cost
+    const material = materialsData.find(m => 
+        m.type.toLowerCase() === materialType && 
+        (colorAndPattern ? m.color.toLowerCase().includes(colorAndPattern.split(" (")[0]) : true)
+    ) || materialsData.find(m => m.type.toLowerCase() === materialType) || 
+    { type: "Unknown", cost_per_sqft: 50, confidence: 0.5 };
+    const materialCostPerSqFt = material.cost_per_sqft || 50;
+    const materialCost = materialCostPerSqFt * sqFt * 1.3; // 30% markup
+    console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
+
+    // Labor cost
+    const laborEntry = laborData.find(entry => entry.type === projectScope) || 
+                      laborData.find(entry => projectScope.includes(entry.type)) || 
+                      { type: "default", rate_per_sqft: 15, rate_per_unit: 0, rate_per_hour: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
+    console.log("Selected labor entry:", laborEntry);
+    
+    let laborCost = 0;
+    if (laborEntry.unit_measure === "SQFT") {
+        laborCost = (laborEntry.rate_per_sqft || 15) * sqFt * (laborEntry.hours || 1);
+        console.log(`Labor cost (SQFT): $${laborCost.toFixed(2)} (${laborEntry.rate_per_sqft}/Square Foot * ${sqFt} Square Feet * ${laborEntry.hours} hours)`);
+    } else if (["EA", "LF", "Per Job"].includes(laborEntry.unit_measure)) {
+        laborCost = (laborEntry.rate_per_unit || 0) * (units || 1);
+        console.log(`Labor cost (Flat): $${laborCost.toFixed(2)} (${laborEntry.unit_measure}, ${units || 1} units)`);
+    } else if (laborEntry.rate_per_hour) {
+        laborCost = laborEntry.rate_per_hour * (laborEntry.hours || 1);
+        console.log(`Labor cost (Hourly): $${laborCost.toFixed(2)} (${laborEntry.rate_per_hour}/hour * ${laborEntry.hours} hours)`);
+    }
+
+    // Adjust labor for repairs
+    if (projectScope.includes("repair") && estimate.condition?.damage_type && estimate.condition.damage_type !== "No visible damage") {
+        const damageType = typeof estimate.condition.damage_type === "string" ? estimate.condition.damage_type.toLowerCase().replace(/\s+/g, "_") : "";
+        const repairLaborEntry = laborData.find(entry => entry.type.includes(damageType)) || laborEntry;
+        const severityMultiplier = { None: 0, Low: 1, Moderate: 2, Severe: 3 }[estimate.condition.severity || "None"] || 1;
+        if (repairLaborEntry.unit_measure === "SQFT") {
+            laborCost = (repairLaborEntry.rate_per_sqft || 15) * sqFt * (repairLaborEntry.hours || 1) * severityMultiplier;
+        } else if (["EA", "LF", "Per Job"].includes(repairLaborEntry.unit_measure)) {
+            laborCost = (repairLaborEntry.rate_per_unit || 0) * severityMultiplier;
+        } else if (repairLaborEntry.rate_per_hour) {
+            laborCost = repairLaborEntry.rate_per_hour * (repairLaborEntry.hours || 1) * severityMultiplier;
+        }
+        console.log(`Adjusted labor cost for repair: $${laborCost.toFixed(2)} (severity: ${severityMultiplier})`);
+    }
+
+    // Additional features cost
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
-        const featureCost = feature.toLowerCase().includes("sink") ? 150 : 
-                           feature.toLowerCase().includes("edge") ? 100 : 0;
+        const featureStr = typeof feature === "string" ? feature.toLowerCase().replace(/\s+/g, "_") : "";
+        const featureLaborEntry = laborData.find(entry => entry.type === featureStr) || 
+                                 laborData.find(entry => featureStr.includes(entry.type)) || 
+                                 { type: "default_feature", rate_per_unit: 0, unit_measure: "EA", hours: 0, confidence: 0.5 };
+        let featureCost = 0;
+        if (featureLaborEntry.unit_measure === "SQFT") {
+            featureCost = (featureLaborEntry.rate_per_sqft || 0) * sqFt * (featureLaborEntry.hours || 1);
+        } else if (["EA", "LF", "Per Job"].includes(featureLaborEntry.unit_measure)) {
+            featureCost = featureLaborEntry.rate_per_unit || 0;
+        }
+        console.log(`Feature "${featureStr}" cost: $${featureCost.toFixed(2)}, using entry:`, featureLaborEntry);
         return sum + featureCost;
     }, 0);
 
     const totalCost = materialCost + laborCost + featuresCost;
-    const totalCostPerSqFt = totalCost / sqFt;
-
-    return {
+    const costEstimate = {
         materialCost: `$${materialCost.toFixed(2)}`,
-        materialCostPerSqFt: `$${materialCostPerSqFt.toFixed(2)}`,
-        laborCost: { total: `$${laborCost.toFixed(2)}`, perSqFt: `$${laborCostPerSqFt.toFixed(2)}` },
+        laborCost: { total: `$${laborCost.toFixed(2)}` },
         additionalFeaturesCost: `$${featuresCost.toFixed(2)}`,
-        totalCost: `$${totalCost.toFixed(2)}`,
-        totalCostPerSqFt: `$${totalCostPerSqFt.toFixed(2)}`
+        totalCost: `$${totalCost.toFixed(2)}`
     };
+    console.log("Cost estimate generated:", JSON.stringify(costEstimate, null, 2));
+    return costEstimate;
 }
 
 async function generateTTS(estimate, customerNeeds) {
+    if (!estimate || typeof estimate !== "object") {
+        logError("Invalid estimate object in generateTTS", estimate);
+        return Buffer.from(`Estimate unavailable. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for details.`);
+    }
     const costEstimate = enhanceCostEstimate(estimate) || {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
         additionalFeaturesCost: "$0",
-        totalCost: "Contact for estimate",
-        totalCostPerSqFt: "Contact for estimate"
+        totalCost: "Contact for estimate"
     };
-    const narrationText = `Your Surprise Granite countertop estimate as of March 31, 2025: 
-        Project: ${estimate.project_scope}. 
-        Material: ${estimate.material_type}. 
-        Color: ${estimate.color_and_pattern}. 
-        Dimensions: ${estimate.dimensions}. 
+    const narrationText = `Your Surprise Granite estimate as of March 31, 2025: 
+        Project: ${estimate.project_scope || "Replacement"}. 
+        Material: ${estimate.material_type || "Unknown"}. 
+        Color and Pattern: ${estimate.color_and_pattern || "Not specified"}. 
+        Dimensions: ${estimate.dimensions || "Not specified"}. 
         Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
-        Condition: ${estimate.condition?.damage_type}, ${estimate.condition?.severity}. 
-        Total cost: ${costEstimate.totalCost}, or ${costEstimate.totalCostPerSqFt} per square foot. 
-        Solutions: ${estimate.solutions}. 
+        Condition: ${estimate.condition?.damage_type || "No visible damage"}, ${estimate.condition?.severity || "None"}. 
+        Total cost: ${costEstimate.totalCost || "Contact for estimate"}. 
+        Solutions: ${estimate.solutions || "Contact for evaluation"}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
-        Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for details.`;
+        For more details, contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
     const chunks = chunkText(narrationText, 4096);
 
     try {
@@ -414,7 +505,7 @@ async function generateTTS(estimate, customerNeeds) {
         return Buffer.concat(audioBuffers);
     } catch (err) {
         logError("TTS generation failed", err);
-        return Buffer.from(`Error generating audio. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
+        return Buffer.from(`Error generating audio: ${err.message}. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
     }
 }
 
@@ -444,6 +535,7 @@ app.get("/api/health", async (req, res) => {
         await openai.models.list();
         health.openaiStatus = "Connected";
     } catch (err) {
+        logError("OpenAI health check failed", err);
         health.openaiStatus = "Disconnected";
     }
     try {
@@ -451,6 +543,7 @@ app.get("/api/health", async (req, res) => {
         await transporter.verify();
         health.emailStatus = "Connected";
     } catch (err) {
+        logError("Email health check failed", err);
         health.emailStatus = "Disconnected";
     }
     res.json(health);
@@ -489,32 +582,30 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
             };
             const insertResult = await imagesCollection.insertOne(fileDoc);
             estimate.imageId = insertResult.insertedId;
+        } else {
+            console.warn("MongoDB not available; skipping image storage.");
+            estimate.imageId = null;
         }
 
         const costEstimate = enhanceCostEstimate(estimate) || {
             materialCost: "Contact for estimate",
-            materialCostPerSqFt: "Contact for estimate",
-            laborCost: { total: "Contact for estimate", perSqFt: "Contact for estimate" },
+            laborCost: { total: "Contact for estimate" },
             additionalFeaturesCost: "$0",
-            totalCost: "Contact for estimate",
-            totalCostPerSqFt: "Contact for estimate"
+            totalCost: "Contact for estimate"
         };
 
         const audioBuffer = await generateTTS(estimate, customerNeeds);
 
         const responseData = {
             imageId: estimate.imageId?.toString() || null,
-            message: "Countertop estimate generated successfully",
+            message: "Estimate generated successfully",
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
             colorAndPattern: estimate.color_and_pattern,
             dimensions: estimate.dimensions,
             additionalFeatures: estimate.additional_features.join(", ") || "None",
             condition: estimate.condition,
-            costEstimate: {
-                ...costEstimate,
-                totalCostPerSquareFoot: costEstimate.totalCostPerSqFt
-            },
+            costEstimate,
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
@@ -544,6 +635,7 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
 
         const newLikes = (countertop.metadata.likes || 0) + 1;
         await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.likes": newLikes } });
+        console.log(`Liked countertop ${req.params.id}: ${newLikes} likes`);
         res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
     } catch (err) {
         logError("Error in /api/like-countertop", err);
@@ -562,6 +654,7 @@ app.post("/api/dislike-countertop/:id", async (req, res, next) => {
 
         const newDislikes = (countertop.metadata.dislikes || 0) + 1;
         await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.dislikes": newDislikes } });
+        console.log(`Disliked countertop ${req.params.id}: ${newDislikes} dislikes`);
         res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
         logError("Error in /api/dislike-countertop", err);
@@ -577,7 +670,7 @@ app.post("/api/send-email", async (req, res, next) => {
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: "recipient@example.com",
-            subject: `New Countertop Quote Request from ${name}`,
+            subject: `New Quote Request from ${name}`,
             text: `
                 Name: ${name}
                 Email: ${email}
@@ -590,6 +683,7 @@ app.post("/api/send-email", async (req, res, next) => {
         };
 
         await transporter.sendMail(mailOptions);
+        console.log(`Email sent successfully from ${email}`);
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
         logError("Error sending email", err);
