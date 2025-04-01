@@ -250,7 +250,7 @@ async function estimateProject(fileData, customerNeeds) {
           - **Damage**: Detect cracks, stains, chips (type and severity: Low, Moderate, Severe).
           - **Material**: Identify likely material (e.g., Granite, Quartz, Dekton) based on texture and sheen.
           - **Color/Pattern**: Match dominant color and veining/streaks to known countertop styles.
-          - **Size Hints**: Estimate surface area if visible (e.g., table vs. full counter).
+          - **Size Hints**: Estimate surface area if visible (e.g., table vs. full counter, adjust from 25 Square Feet if clear).
         ` : ""}
         - Cross-reference with customer needs:
           - Dimensions: Use "${keywords.dimensions || 'unknown'}" if provided, else assume 25 Square Feet${fileData ? " or estimate from image" : ""}.
@@ -260,19 +260,19 @@ async function estimateProject(fileData, customerNeeds) {
         - Use labor and material data for accuracy.
 
         **Pricing Data**:
-        - Labor: ${JSON.stringify(laborData.filter(item => item.type.includes("countertop")))}
-        - Materials: ${JSON.stringify(materialsData.filter(item => ["Granite", "Quartz", "Marble", "Dekton"].includes(item.type)))}
+        - Labor: ${JSON.stringify(laborData)}
+        - Materials: ${JSON.stringify(materialsData)}
 
-        **Historical Estimates**: ${JSON.stringify(pastData.filter(p => p.project_scope.toLowerCase().includes("countertop")))}
+        **Historical Estimates**: ${JSON.stringify(pastData)}
 
         Respond in JSON with:
-        - project_scope: e.g., "Countertop Repair" or "Countertop Kitchen Table Fabrication and Installation"
-        - material_type: e.g., "Dekton"
-        - color_and_pattern: e.g., "Dark with veining"
-        - dimensions: e.g., "50 Square Feet"
+        - project_scope: e.g., "Countertop Repair" or "Countertop Replacement"
+        - material_type: e.g., "Granite"
+        - color_and_pattern: e.g., "Brown with black speckles"
+        - dimensions: e.g., "25 Square Feet"
         - additional_features: array, e.g., ["sink cutout"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
-        - solutions: e.g., "Seal cracks" or "Fabricate and install new slab"
+        - solutions: e.g., "Seal cracks with epoxy"
         - reasoning: Detail analysis and customer needs integration
         `;
 
@@ -351,11 +351,11 @@ function enhanceCostEstimate(estimate) {
     const material = materialsData.find(m => m.type.toLowerCase() === materialType) || 
                     { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
     const materialCostPerSqFt = material.cost_per_sqft;
-    const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3; // No material cost for repair
+    const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3;
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
     const laborEntry = laborData.find(entry => entry.type === projectScope) || 
-                      laborData.find(entry => entry.type === "countertop_installation") || 
+                      laborData.find(entry => entry.type.includes("countertop") && entry.type.includes(keywords.scope || "installation")) || 
                       { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
     console.log("Selected labor entry:", laborEntry);
     let laborCost = (laborEntry.rate_per_sqft || 15) * sqFt;
@@ -520,7 +520,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
             likes: 0,
             dislikes: 0,
         };
-        console.log("Sending response:", responseData.message);
+        console.log("Sending full response:", JSON.stringify(responseData, null, 2));
         res.status(201).json(responseData);
     } catch (err) {
         if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
