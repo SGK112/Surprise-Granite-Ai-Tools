@@ -14,6 +14,7 @@ const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const pdfParse = require("pdf-parse");
 const Jimp = require("jimp");
+const stringSimilarity = require("string-similarity"); // New dependency
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -79,10 +80,7 @@ async function loadLaborData() {
             description: item.Description,
             confidence: 1
         }));
-        laborData.push(
-            { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 1 },
-            { type: "countertop_repair", rate_per_sqft: 15, hours: 0.5, confidence: 1 }
-        );
+        console.log("Labor data loaded:", JSON.stringify(laborData.slice(0, 5), null, 2));
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -113,14 +111,9 @@ async function loadMaterialsData() {
                 cost_per_sqft: totalCost / count,
                 confidence: 1
             };
-        });
-        materialsData.push(
-            { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 1 },
-            { type: "Quartz", color: "Generic", cost_per_sqft: 60, confidence: 1 },
-            { type: "Marble", color: "Generic", cost_per_sqft: 55, confidence: 1 },
-            { type: "Dekton", color: "Generic", cost_per_sqft: 65, confidence: 1 }
-        );
+        }));
         console.log("Processed materials:", materialsData.length, "unique entries");
+        console.log("Materials data sample:", JSON.stringify(materialsData.slice(0, 5), null, 2));
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
@@ -138,6 +131,7 @@ async function connectToMongoDB() {
         return;
     }
     try {
+        console.log("Connecting to MongoDB...");
         mongoClient = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 50,
             minPoolSize: 5,
@@ -171,10 +165,12 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
 
 async function extractFileContent(file) {
     try {
+        console.log("Extracting file content...");
         if (file.mimetype.startsWith("image/")) {
             const image = await Jimp.read(file.buffer);
             const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
             const { r, g, b } = Jimp.intToRGBA(dominantColor);
+            console.log("File content extracted");
             return { 
                 type: "image", 
                 content: file.buffer.toString("base64"), 
@@ -182,8 +178,10 @@ async function extractFileContent(file) {
             };
         } else if (file.mimetype === "application/pdf") {
             const data = await pdfParse(file.buffer);
+            console.log("File content extracted");
             return { type: "text", content: data.text };
         } else if (file.mimetype === "text/plain") {
+            console.log("File content extracted");
             return { type: "text", content: file.buffer.toString("utf8") };
         }
         throwError("Unsupported file type", 400);
@@ -209,14 +207,17 @@ function extractDimensionsFromNeeds(customerNeeds) {
 
 async function estimateProject(fileData, customerNeeds) {
     try {
+        console.log("Starting estimateProject...");
         await ensureMongoDBConnection();
         const imagesCollection = db?.collection("countertop_images") || { find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) }) };
+        console.log("Fetching past estimates...");
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
             .limit(10)
             .allowDiskUse(true)
             .toArray();
+        console.log("Fetched past estimates:", pastEstimates.length);
 
         const pastData = pastEstimates.map(img => {
             const estimate = img.metadata?.estimate || {};
@@ -276,6 +277,7 @@ async function estimateProject(fileData, customerNeeds) {
         - reasoning: Detail analysis and customer needs integration
         `;
 
+        console.log("Sending prompt to OpenAI...");
         const messages = [
             { role: "system", content: prompt },
             { 
@@ -292,6 +294,7 @@ async function estimateProject(fileData, customerNeeds) {
             temperature: 0.6,
             response_format: { type: "json_object" },
         }));
+        console.log("Received OpenAI response");
 
         let result = JSON.parse(response.choices[0].message.content || '{}');
 
@@ -311,13 +314,13 @@ async function estimateProject(fileData, customerNeeds) {
         console.log("Generated estimate:", JSON.stringify(estimate, null, 2));
 
         if (db) {
-            setTimeout(async () => {
-                await imagesCollection.insertOne({
-                    fileHash: createHash("sha256").update(JSON.stringify(estimate)).digest("hex"),
-                    metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
-                });
-                console.log("Stored estimate for learning");
-            }, 0);
+            console.log("Storing estimate in MongoDB...");
+            const insertResult = await imagesCollection.insertOne({
+                fileHash: createHash("sha256").update(JSON.stringify(estimate)).digest("hex"),
+                metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
+            });
+            estimate.imageId = insertResult.insertedId.toString();
+            console.log("Stored estimate with ID:", estimate.imageId);
         }
 
         return estimate;
@@ -344,20 +347,43 @@ function enhanceCostEstimate(estimate) {
 
     const materialType = estimate.material_type.toLowerCase();
     const projectScope = estimate.project_scope.toLowerCase().replace(/\s+/g, "_");
+    const customerNeeds = (estimate.customer_needs || "").toLowerCase();
     const dimensions = estimate.dimensions || "25 Square Feet";
     const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
     console.log(`Calculated Square Feet: ${sqFt}`);
 
-    const material = materialsData.find(m => m.type.toLowerCase() === materialType) || 
-                    { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
+    // Fuzzy match material
+    const materialMatches = materialsData.map(m => ({
+        ...m,
+        similarity: stringSimilarity.compareTwoStrings(materialType, m.type.toLowerCase())
+    }));
+    const material = materialMatches.reduce((best, current) => 
+        current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
+        { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
     const materialCostPerSqFt = material.cost_per_sqft;
     const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3;
+    console.log(`Material match: ${material.type} (similarity: ${material.similarity.toFixed(2)})`);
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
-    const laborEntry = laborData.find(entry => entry.type === projectScope) || 
-                      laborData.find(entry => entry.type.includes("countertop")) || 
-                      { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
-    console.log("Selected labor entry:", laborEntry);
+    // Fuzzy match labor
+    const laborMatches = laborData.map(entry => ({
+        ...entry,
+        similarity: Math.max(
+            stringSimilarity.compareTwoStrings(projectScope, entry.type),
+            stringSimilarity.compareTwoStrings(customerNeeds, entry.type)
+        )
+    }));
+    const laborEntry = laborMatches.reduce((best, current) => 
+        current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
+        { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
+    if (laborEntry.similarity < 0.7) {
+        console.log("No strong labor match (similarity < 0.7), using default");
+        laborEntry.type = "default";
+        laborEntry.rate_per_sqft = 15;
+        laborEntry.hours = 1;
+        laborEntry.confidence = 0.5;
+    }
+    console.log("Selected labor entry:", JSON.stringify(laborEntry, null, 2));
     let laborCost = (laborEntry.rate_per_sqft || 15) * sqFt;
 
     if (projectScope.includes("repair")) {
@@ -384,6 +410,8 @@ function enhanceCostEstimate(estimate) {
 }
 
 async function generateTTS(estimate, customerNeeds) {
+    console.log("Generating TTS...");
+    estimate.customer_needs = customerNeeds; // Pass needs for TTS context
     const costEstimate = enhanceCostEstimate(estimate) || {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
@@ -414,6 +442,7 @@ async function generateTTS(estimate, customerNeeds) {
                 return Buffer.from(await response.arrayBuffer());
             })
         ));
+        console.log("TTS generated successfully");
         return Buffer.concat(audioBuffers);
     } catch (err) {
         logError("TTS generation failed", err);
@@ -471,6 +500,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
         if (!estimate) {
             console.log("Generating new estimate...");
             estimate = await estimateProject(fileData, customerNeeds);
+            estimate.customer_needs = customerNeeds; // Store for cost estimate
             cache.set(cacheKey, estimate);
         }
 
@@ -490,7 +520,8 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
                 },
             };
             const insertResult = await imagesCollection.insertOne(fileDoc);
-            estimate.imageId = insertResult.insertedId;
+            estimate.imageId = insertResult.insertedId.toString();
+            console.log("Image stored with ID:", estimate.imageId);
         }
 
         const costEstimate = enhanceCostEstimate(estimate) || {
@@ -503,7 +534,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
         const audioBuffer = await generateTTS(estimate, customerNeeds);
 
         const responseData = {
-            imageId: estimate.imageId?.toString() || null,
+            imageId: estimate.imageId || null,
             message: "Estimate generated successfully",
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
