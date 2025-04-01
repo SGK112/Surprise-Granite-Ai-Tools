@@ -24,7 +24,7 @@ app.set("trust proxy", 1);
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 },
+    limits: { fileSize: 10 * 1024 * 1024 }, // Reduced to 10MB to limit memory
     fileFilter: (req, file, cb) => {
         const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
         cb(null, allowedTypes.includes(file.mimetype));
@@ -123,8 +123,8 @@ async function connectToMongoDB() {
     try {
         console.log("Connecting to MongoDB...");
         mongoClient = new MongoClient(process.env.MONGODB_URI, {
-            maxPoolSize: 50,
-            minPoolSize: 5,
+            maxPoolSize: 20, // Reduced to conserve resources
+            minPoolSize: 2,
             connectTimeoutMS: 10000,
             socketTimeoutMS: 30000
         });
@@ -158,12 +158,13 @@ async function extractFileContent(file) {
         console.log("Extracting file content...");
         if (file.mimetype.startsWith("image/")) {
             const image = await Jimp.read(file.buffer);
+            image.resize(200, Jimp.AUTO); // Resize to reduce memory
             const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
             const { r, g, b } = Jimp.intToRGBA(dominantColor);
             console.log("File content extracted");
             return { 
                 type: "image", 
-                content: file.buffer.toString("base64"), 
+                content: image.getBase64Async(Jimp.MIME_JPEG).then(buf => buf.split(",")[1]), 
                 color: { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` }
             };
         } else if (file.mimetype === "application/pdf") {
@@ -204,7 +205,7 @@ async function estimateProject(fileData, customerNeeds) {
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
-            .limit(10)
+            .limit(5) // Reduced to 5 to save memory
             .allowDiskUse(true)
             .toArray();
         console.log("Fetched past estimates:", pastEstimates.length);
@@ -230,7 +231,8 @@ async function estimateProject(fileData, customerNeeds) {
             material: needsLower.match(/granite|quartz|marble|dekton|tile/i)?.[0],
             scope: needsLower.includes("repair") ? "repair" : needsLower.includes("replace") ? "replacement" : "installation",
             features: needsLower.match(/sink|edge|backsplash|demo|cutout|plumbing/i)?.map(f => f.toLowerCase()) || [],
-            color: needsLower.match(/(black|white|gray|brown|pearl|mist)[\s-]*(pearl|mist)?/i)?.[0]
+            color: needsLower.match(/(black|white|gray|brown|pearl|mist)[\s-]*(pearl|mist)?/i)?.[0],
+            thickness: needsLower.match(/(\d+\.?\d*)\s*(cm|mm)/i)?.[0]
         };
 
         const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and tile remodeling estimates as of March 31, 2025. Analyze this ${fileData ? "image" : "description"} and customer needs ("${customerNeeds}") to generate a precise estimate:
@@ -246,11 +248,12 @@ async function estimateProject(fileData, customerNeeds) {
         ` : ""}
         - Cross-reference with customer needs:
           - Dimensions: Use "${keywords.dimensions || 'unknown'}" if provided, else assume 25 Square Feet${fileData ? " or estimate from image" : ""}.
-          - Material: Use "${keywords.material || 'unknown'}" if specified${fileData ? ", else infer from image" : ""}, match to materials.json by type and color.
+          - Material: Use "${keywords.material || 'unknown'}" if specified${fileData ? ", else infer from image" : ""}, match to materials.json by type.
           - Scope: Match "${keywords.scope}" (repair/replacement/installation) with intent${fileData ? " or damage" : ""}.
           - Features: Include "${keywords.features.join(", ") || 'none'}" if mentioned.
-          - Color: Use "${keywords.color || 'unknown'}" if specified, match to materials.json.
-        - **MANDATORY**: Use materials.json pricing FIRST for material_type and color_and_pattern—only use defaults if no match found. Log reasoning if defaulting.
+          - Color: Use "${keywords.color || 'unknown'}" if specified, match to materials.json color.
+          - Thickness: Use "${keywords.thickness || 'unknown'}" if specified, match to materials.json.
+        - **MANDATORY**: Use materials.json pricing FIRST for material_type, color_and_pattern, and thickness—only use defaults if no match found. Log reasoning if defaulting.
 
         **Pricing Data**:
         - Labor: ${JSON.stringify(laborData)}
@@ -262,6 +265,7 @@ async function estimateProject(fileData, customerNeeds) {
         - project_scope: e.g., "Countertop Repair"
         - material_type: e.g., "Granite"
         - color_and_pattern: e.g., "Black Pearl"
+        - thickness: e.g., "2cm"
         - dimensions: e.g., "25 Square Feet"
         - additional_features: array, e.g., ["sink cutout"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
@@ -275,14 +279,14 @@ async function estimateProject(fileData, customerNeeds) {
             { 
                 role: "user", 
                 content: fileData ? 
-                    [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${fileData.content}` } }] : 
+                    [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${await fileData.content}` } }] : 
                     customerNeeds 
             }
         ];
         const response = await withRetry(() => openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 3000,
+            max_tokens: 2000, // Reduced to save resources
             temperature: 0.8,
             response_format: { type: "json_object" },
         }));
@@ -294,6 +298,7 @@ async function estimateProject(fileData, customerNeeds) {
             project_scope: result.project_scope || (keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement"),
             material_type: result.material_type || keywords.material || "Granite",
             color_and_pattern: result.color_and_pattern || keywords.color || "Not identified",
+            thickness: result.thickness || keywords.thickness || "N/A",
             dimensions: keywords.dimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
             additional_features: result.additional_features || keywords.features,
             condition: result.condition || { damage_type: "No visible damage", severity: "None" },
@@ -307,6 +312,7 @@ async function estimateProject(fileData, customerNeeds) {
             console.log("Storing estimate in MongoDB...");
             const insertResult = await imagesCollection.insertOne({
                 fileHash: createHash("sha256").update(JSON.stringify(estimate)).digest("hex"),
+                fileData: fileData ? new Binary(Buffer.from(await fileData.content, "base64")) : null,
                 metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
             });
             estimate.imageId = insertResult.insertedId.toString();
@@ -320,6 +326,7 @@ async function estimateProject(fileData, customerNeeds) {
             project_scope: "Countertop Replacement",
             material_type: "Granite",
             color_and_pattern: "Not identified",
+            thickness: "N/A",
             dimensions: "25 Square Feet (assumed)",
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
@@ -337,6 +344,7 @@ function enhanceCostEstimate(estimate) {
 
     const materialType = estimate.material_type.toLowerCase();
     const colorPattern = estimate.color_and_pattern.toLowerCase();
+    const thickness = estimate.thickness?.toLowerCase() || "n/a";
     const projectScope = estimate.project_scope.toLowerCase().replace(/\s+/g, "_");
     const customerNeeds = (estimate.customer_needs || "").toLowerCase();
     const dimensions = estimate.dimensions || "25 Square Feet";
@@ -347,18 +355,19 @@ function enhanceCostEstimate(estimate) {
         ...m,
         similarity: Math.max(
             stringSimilarity.compareTwoStrings(materialType, m.type.toLowerCase()),
-            stringSimilarity.compareTwoStrings(colorPattern, m.color.toLowerCase())
+            stringSimilarity.compareTwoStrings(colorPattern, m.color.toLowerCase()),
+            stringSimilarity.compareTwoStrings(thickness, m.thickness.toLowerCase())
         )
     }));
     const material = materialMatches.reduce((best, current) => 
         current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
         { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 0.8 };
     if (material.similarity < 0.5) {
-        console.log(`No strong material match for ${materialType} - ${colorPattern} (similarity: ${material.similarity.toFixed(2)}), using default`);
+        console.log(`No strong material match for ${materialType} - ${colorPattern} - ${thickness} (similarity: ${material.similarity.toFixed(2)}), using default`);
     }
     const materialCostPerSqFt = material.cost_per_sqft;
     const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3;
-    console.log(`Material match: ${material.type} - ${material.color} (similarity: ${material.similarity.toFixed(2)}, cost_per_sqft: ${materialCostPerSqFt})`);
+    console.log(`Material match: ${material.type} - ${material.color} - ${material.thickness} (similarity: ${material.similarity.toFixed(2)}, cost_per_sqft: ${materialCostPerSqFt})`);
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
     const laborMatches = laborData.map(entry => ({
@@ -413,6 +422,7 @@ async function generateTTS(estimate, customerNeeds) {
         Project: ${estimate.project_scope}. 
         Material: ${estimate.material_type}. 
         Color: ${estimate.color_and_pattern}. 
+        Thickness: ${estimate.thickness}. 
         Dimensions: ${estimate.dimensions}. 
         Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
         Condition: ${estimate.condition?.damage_type}, ${estimate.condition?.severity}. 
@@ -451,7 +461,8 @@ app.get("/api/health", async (req, res) => {
         openaiStatus: "Unknown",
         emailStatus: "Unknown",
         pdfParseStatus: "Available",
-        colorMatchingStatus: "Available"
+        colorMatchingStatus: "Available",
+        memoryUsage: process.memoryUsage()
     };
     try {
         await openai.models.list();
@@ -466,6 +477,7 @@ app.get("/api/health", async (req, res) => {
     } catch (err) {
         health.emailStatus = "Disconnected";
     }
+    console.log("Health check:", health);
     res.json(health);
 });
 
@@ -484,7 +496,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res) => 
             console.log("No file uploaded, proceeding with customer_needs only");
         }
 
-        const fileHash = fileData ? createHash("sha256").update(fileData.content).digest("hex") : createHash("sha256").update(customerNeeds).digest("hex");
+        const fileHash = fileData ? createHash("sha256").update(await fileData.content).digest("hex") : createHash("sha256").update(customerNeeds).digest("hex");
         const cacheKey = `estimate_${fileHash}_${customerNeeds.slice(0, 50).replace(/[^a-zA-Z0-9]/g, '')}`;
 
         let estimate = cache.get(cacheKey);
@@ -530,6 +542,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res) => 
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
             colorAndPattern: estimate.color_and_pattern,
+            thickness: estimate.thickness,
             dimensions: estimate.dimensions,
             additionalFeatures: estimate.additional_features.join(", ") || "None",
             condition: estimate.condition,
@@ -546,11 +559,63 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res) => 
         res.status(201).json(responseData);
     } catch (err) {
         if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-            console.log("File size exceeds 50MB limit");
-            return res.status(400).json({ error: "File size exceeds 50MB limit" });
+            console.log("File size exceeds 10MB limit");
+            return res.status(400).json({ error: "File size exceeds 10MB limit" });
         }
         logError("Error in /api/contractor-estimate", err);
         res.status(500).json({ error: "Failed to generate estimate", details: err.message || "Unknown error" });
+    }
+});
+
+app.post("/api/image-search", async (req, res) => {
+    try {
+        console.log("Image search request:", req.body);
+        await ensureMongoDBConnection();
+        const { vendor, material_type, thickness, color_name, availability } = req.body;
+
+        const imagesCollection = db.collection("countertop_images");
+        const query = {
+            ...(vendor && { "metadata.estimate.vendor": new RegExp(vendor, "i") }),
+            ...(material_type && { "metadata.estimate.material_type": new RegExp(material_type, "i") }),
+            ...(color_name && { "metadata.estimate.color_and_pattern": new RegExp(color_name, "i") }),
+            ...(thickness && { "metadata.estimate.thickness": new RegExp(thickness, "i") }),
+            ...(availability && { "metadata.estimate.availability": new RegExp(availability, "i") })
+        };
+        const images = await imagesCollection.find(query).limit(5).toArray(); // Reduced to 5
+        console.log("Found images:", images.length);
+
+        const materialMatches = materialsData.map(m => ({
+            ...m,
+            similarity: Math.max(
+                stringSimilarity.compareTwoStrings(material_type?.toLowerCase() || "", m.type.toLowerCase()),
+                stringSimilarity.compareTwoStrings(color_name?.toLowerCase() || "", m.color.toLowerCase()),
+                stringSimilarity.compareTwoStrings(thickness?.toLowerCase() || "", m.thickness.toLowerCase())
+            )
+        })).filter(m => m.similarity >= 0.5);
+        const material = materialMatches[0] || { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock" };
+
+        const responseData = {
+            images: images.map(img => ({
+                id: img._id.toString(),
+                material_type: img.metadata.estimate.material_type,
+                color: img.metadata.estimate.color_and_pattern,
+                thickness: img.metadata.estimate.thickness,
+                image: img.fileData?.buffer.toString("base64") || "No image"
+            })),
+            material: {
+                type: material.type,
+                color: material.color,
+                thickness: material.thickness,
+                vendor: material.vendor,
+                availability: material.availability,
+                cost_per_sqft: material.cost_per_sqft
+            }
+        };
+        console.log("Image search response:", JSON.stringify(responseData, null, 2));
+        res.status(200).json(responseData);
+    } catch (err) {
+        logError("Error in /api/image-search", err);
+        res.status(500).json({ error: "Failed to search images", details: err.message });
     }
 });
 
@@ -634,7 +699,7 @@ async function startServer() {
         app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
     } catch (err) {
         logError("Server startup failed", err);
-        app.listen(PORT, () => console.log(`Server running on port ${PORT} with limited functionality`));
+        process.exit(1);
     }
 }
 
@@ -650,7 +715,13 @@ process.on("SIGINT", async () => {
     }
 });
 
-process.on("uncaughtException", (err) => logError("Uncaught Exception", err));
-process.on("unhandledRejection", (reason, promise) => logError("Unhandled Rejection at", reason));
+process.on("uncaughtException", (err) => {
+    logError("Uncaught Exception", err);
+    process.exit(1);
+});
+process.on("unhandledRejection", (reason, promise) => {
+    logError("Unhandled Rejection at", reason);
+    process.exit(1);
+});
 
 startServer();
