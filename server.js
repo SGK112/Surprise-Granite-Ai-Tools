@@ -80,7 +80,7 @@ async function loadLaborData() {
             description: item.Description,
             confidence: 1
         }));
-        console.log("Labor data loaded:", JSON.stringify(laborData.slice(0, 5), null, 2));
+        console.log("Labor data sample:", JSON.stringify(laborData.slice(0, 5), null, 2));
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -95,32 +95,22 @@ async function loadMaterialsData() {
         const materialsJsonPath = path.join(__dirname, "data", "materials.json");
         const rawData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8"));
         console.log("Loaded materials.json:", rawData.length, "entries");
-        const materialMap = new Map();
-        rawData.forEach(item => {
-            const key = `${item.Material}-${item["Color Name"]}`.toLowerCase();
-            if (!materialMap.has(key)) materialMap.set(key, { totalCost: 0, count: 0 });
-            const entry = materialMap.get(key);
-            entry.totalCost += item["Cost/SqFt"];
-            entry.count += 1;
-        });
-        materialsData = Array.from(materialMap.entries()).map(([key, { totalCost, count }]) => {
-            const [material, color] = key.split("-");
-            return {
-                type: material.charAt(0).toUpperCase() + material.slice(1),
-                color: color.charAt(0).toUpperCase() + color.slice(1),
-                cost_per_sqft: totalCost / count,
-                confidence: 1
-            };
-        });
-        console.log("Processed materials:", materialsData.length, "unique entries");
+        materialsData = rawData.map(item => ({
+            type: item.Material,
+            color: item["Color Name"],
+            cost_per_sqft: item["Cost/SqFt"],
+            thickness: item.Thickness || "N/A",
+            vendor: item.Vendor || "Unknown",
+            availability: item.Availability || "In Stock",
+            confidence: 1
+        }));
+        console.log("Processed materials:", materialsData.length, "entries");
         console.log("Materials data sample:", JSON.stringify(materialsData.slice(0, 5), null, 2));
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
-            { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 1 },
-            { type: "Quartz", color: "Generic", cost_per_sqft: 60, confidence: 1 },
-            { type: "Marble", color: "Generic", cost_per_sqft: 55, confidence: 1 },
-            { type: "Dekton", color: "Generic", cost_per_sqft: 65, confidence: 1 }
+            { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 1 },
+            { type: "Quartz", color: "Generic", cost_per_sqft: 60, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 1 }
         ];
     }
 }
@@ -239,7 +229,8 @@ async function estimateProject(fileData, customerNeeds) {
             dimensions: extractDimensionsFromNeeds(customerNeeds),
             material: needsLower.match(/granite|quartz|marble|dekton|tile/i)?.[0],
             scope: needsLower.includes("repair") ? "repair" : needsLower.includes("replace") ? "replacement" : "installation",
-            features: needsLower.match(/sink|edge|backsplash/i)?.map(f => f.toLowerCase()) || [],
+            features: needsLower.match(/sink|edge|backsplash|demo|cutout|plumbing/i)?.map(f => f.toLowerCase()) || [],
+            color: needsLower.match(/(black|white|gray|brown|pearl|mist)[\s-]*(pearl|mist)?/i)?.[0]
         };
 
         const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and tile remodeling estimates as of March 31, 2025. Analyze this ${fileData ? "image" : "description"} and customer needs ("${customerNeeds}") to generate a precise estimate:
@@ -250,15 +241,16 @@ async function estimateProject(fileData, customerNeeds) {
         - For images, analyze:
           - **Damage**: Detect cracks, stains, chips (type and severity: Low, Moderate, Severe).
           - **Material**: Identify likely material (e.g., Granite, Quartz, Tile) based on texture and sheen.
-          - **Color/Pattern**: Match dominant color and veining/streaks to known styles.
+          - **Color/Pattern**: Match dominant color and veining/streaks to known styles (e.g., Black Pearl).
           - **Size Hints**: Estimate surface area if visible (adjust from 25 Square Feet if clear).
         ` : ""}
         - Cross-reference with customer needs:
           - Dimensions: Use "${keywords.dimensions || 'unknown'}" if provided, else assume 25 Square Feet${fileData ? " or estimate from image" : ""}.
           - Material: Use "${keywords.material || 'unknown'}" if specified${fileData ? ", else infer from image" : ""}, match to materials.json by type and color.
-          - Scope: Match "${keywords.scope}" (repair/replacement/installation) with intent${fileData ? " or damage; adjust if image contradicts" : ""}.
+          - Scope: Match "${keywords.scope}" (repair/replacement/installation) with intent${fileData ? " or damage" : ""}.
           - Features: Include "${keywords.features.join(", ") || 'none'}" if mentioned.
-        - **Prioritize materials.json and labor.json pricing over defaults**—use exact matches or closest fuzzy matches for material type, color, and service type.
+          - Color: Use "${keywords.color || 'unknown'}" if specified, match to materials.json.
+        - **MANDATORY**: Use materials.json pricing FIRST for material_type and color_and_pattern—only use defaults if no match found. Log reasoning if defaulting.
 
         **Pricing Data**:
         - Labor: ${JSON.stringify(laborData)}
@@ -294,16 +286,14 @@ async function estimateProject(fileData, customerNeeds) {
             temperature: 0.8,
             response_format: { type: "json_object" },
         }));
-        console.log("Received OpenAI response");
+        console.log("Received OpenAI response:", response.choices[0].message.content);
 
         let result = JSON.parse(response.choices[0].message.content || '{}');
 
         const estimate = {
             project_scope: result.project_scope || (keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement"),
             material_type: result.material_type || keywords.material || "Granite",
-            color_and_pattern: fileData && fileData.color ? 
-                `${result.color_and_pattern || "Detected"} (Hex: ${fileData.color.hex})` : 
-                (result.color_and_pattern || "Not identified"),
+            color_and_pattern: result.color_and_pattern || keywords.color || "Not identified",
             dimensions: keywords.dimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
             additional_features: result.additional_features || keywords.features,
             condition: result.condition || { damage_type: "No visible damage", severity: "None" },
@@ -362,10 +352,13 @@ function enhanceCostEstimate(estimate) {
     }));
     const material = materialMatches.reduce((best, current) => 
         current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
-        { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 0.8 };
+        { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 0.8 };
+    if (material.similarity < 0.5) {
+        console.log(`No strong material match for ${materialType} - ${colorPattern} (similarity: ${material.similarity.toFixed(2)}), using default`);
+    }
     const materialCostPerSqFt = material.cost_per_sqft;
     const materialCost = projectScope.includes("repair") ? 0 : materialCostPerSqFt * sqFt * 1.3;
-    console.log(`Material match: ${material.type} - ${material.color} (similarity: ${material.similarity.toFixed(2)})`);
+    console.log(`Material match: ${material.type} - ${material.color} (similarity: ${material.similarity.toFixed(2)}, cost_per_sqft: ${materialCostPerSqFt})`);
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
     const laborMatches = laborData.map(entry => ({
@@ -379,11 +372,7 @@ function enhanceCostEstimate(estimate) {
         current.similarity > best.similarity ? current : best, { similarity: 0 }) || 
         { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
     if (laborEntry.similarity < 0.5) {
-        console.log("No strong labor match (similarity < 0.5), using default");
-        laborEntry.type = "default";
-        laborEntry.rate_per_sqft = 15;
-        laborEntry.hours = 1;
-        laborEntry.confidence = 0.5;
+        console.log(`No strong labor match for ${projectScope} (similarity: ${laborEntry.similarity.toFixed(2)}), using default`);
     }
     console.log("Selected labor entry:", JSON.stringify(laborEntry, null, 2));
     let laborCost = (laborEntry.rate_per_sqft || 15) * sqFt;
@@ -480,7 +469,7 @@ app.get("/api/health", async (req, res) => {
     res.json(health);
 });
 
-app.post("/api/contractor-estimate", upload.single("file"), async (req, res, next) => {
+app.post("/api/contractor-estimate", upload.single("file"), async (req, res) => {
     try {
         console.log("Request headers:", req.headers);
         console.log("Request body:", req.body);
@@ -565,7 +554,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
     }
 });
 
-app.post("/api/like-countertop/:id", async (req, res, next) => {
+app.post("/api/like-countertop/:id", async (req, res) => {
     try {
         await ensureMongoDBConnection();
         if (!db) throwError("Database not connected", 500);
@@ -579,11 +568,11 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
         res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
     } catch (err) {
         logError("Error in /api/like-countertop", err);
-        next(err);
+        res.status(500).json({ error: "Failed to like countertop", details: err.message });
     }
 });
 
-app.post("/api/dislike-countertop/:id", async (req, res, next) => {
+app.post("/api/dislike-countertop/:id", async (req, res) => {
     try {
         await ensureMongoDBConnection();
         if (!db) throwError("Database not connected", 500);
@@ -597,11 +586,11 @@ app.post("/api/dislike-countertop/:id", async (req, res, next) => {
         res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
         logError("Error in /api/dislike-countertop", err);
-        next(err);
+        res.status(500).json({ error: "Failed to dislike countertop", details: err.message });
     }
 });
 
-app.post("/api/send-email", async (req, res, next) => {
+app.post("/api/send-email", async (req, res) => {
     try {
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
