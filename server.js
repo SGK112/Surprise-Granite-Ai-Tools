@@ -14,7 +14,7 @@ const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const pdfParse = require("pdf-parse");
 const Jimp = require("jimp");
-const stringSimilarity = require("string-similarity"); // New dependency
+const stringSimilarity = require("string-similarity");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -352,7 +352,6 @@ function enhanceCostEstimate(estimate) {
     const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
     console.log(`Calculated Square Feet: ${sqFt}`);
 
-    // Fuzzy match material
     const materialMatches = materialsData.map(m => ({
         ...m,
         similarity: stringSimilarity.compareTwoStrings(materialType, m.type.toLowerCase())
@@ -365,7 +364,6 @@ function enhanceCostEstimate(estimate) {
     console.log(`Material match: ${material.type} (similarity: ${material.similarity.toFixed(2)})`);
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
-    // Fuzzy match labor
     const laborMatches = laborData.map(entry => ({
         ...entry,
         similarity: Math.max(
@@ -411,7 +409,7 @@ function enhanceCostEstimate(estimate) {
 
 async function generateTTS(estimate, customerNeeds) {
     console.log("Generating TTS...");
-    estimate.customer_needs = customerNeeds; // Pass needs for TTS context
+    estimate.customer_needs = customerNeeds;
     const costEstimate = enhanceCostEstimate(estimate) || {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
@@ -500,7 +498,7 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
         if (!estimate) {
             console.log("Generating new estimate...");
             estimate = await estimateProject(fileData, customerNeeds);
-            estimate.customer_needs = customerNeeds; // Store for cost estimate
+            estimate.customer_needs = customerNeeds;
             cache.set(cacheKey, estimate);
         }
 
