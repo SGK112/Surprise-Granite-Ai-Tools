@@ -3,97 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CARI - Get Your Free Remodeling Quote Today!</title>
+    <title>CARI - Get Your Free Remodeling Quote</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div id="cari-app">
-        <div class="theme-buttons">
-            <button id="light-mode-btn" class="theme-btn" aria-label="Switch to light mode">☀️</button>
-            <button id="dark-mode-btn" class="theme-btn" aria-label="Switch to dark mode">🌙</button>
-        </div>
-        <div class="logo-container">
-            <img id="logo" src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
-        </div>
-        <h1>CARI - Countertop And Remodeling Intelligence</h1>
-        <p class="subtitle">Upload Your Project Details for a FREE Quote from Surprise Granite!</p>
-        <div id="upload-area" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop a file">
-            <input type="file" id="file-input" accept="image/*,application/pdf,text/plain" style="display: none;" aria-label="Upload image, PDF, or text file" />
-            <p id="upload-text">Drop your image, PDF, or text file here or click to upload</p>
-            <img id="preview-image" class="preview-image" alt="Uploaded image preview" />
-            <p id="file-type" class="file-type"></p>
-        </div>
-        <div class="input-area">
-            <textarea id="customer-needs" placeholder="E.g., '25 sq ft kitchen countertop, quartz, sink cutout' or 'New tile shower with pan' - include size, location, material, and features" aria-label="Describe your project needs"></textarea>
-        </div>
-        <div class="buttons">
-            <button id="analyze-btn" disabled aria-label="Get your free estimate">Get Your FREE Estimate</button>
-            <button id="reset-btn" aria-label="Reset upload">Reset</button>
-        </div>
-        <div id="loading-spinner" class="loading-spinner">
-            <div class="spinner"></div>
-            <p id="loading-text">Processing Your Quote...</p>
-            <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-        </div>
-        <div id="error-message" class="error">
-            <p id="error-text"></p>
-            <button id="retry-btn" class="retry-btn">Retry</button>
-        </div>
-        <div id="results" class="results" role="region" aria-live="polite">
-            <h2>Your Free Project Estimate</h2>
-            <div class="results-grid">
-                <p><strong>Material Type:</strong> <span id="stone-type">Estimating...</span></p>
-                <p><strong>Color & Pattern:</strong> <span id="color-pattern">Estimating...</span></p>
-                <p><strong>Project Scope:</strong> <span id="project-scope">Estimating...</span></p>
-                <p><strong>Dimensions:</strong> <span id="dimensions">Estimating...</span></p>
-                <p><strong>Features:</strong> <span id="additional-features">Estimating...</span></p>
-                <p><strong>Condition:</strong> <span id="condition">Estimating...</span></p>
-                <div class="cost-estimate">
-                    <strong>Cost Breakdown:</strong>
-                    <ul id="cost-breakdown">
-                        <li>Material Cost: <span id="material-cost">Estimating...</span></li>
-                        <li>Labor Cost: <span id="labor-cost">Estimating...</span></li>
-                        <li>Additional Features Cost: <span id="features-cost">Estimating...</span></li>
-                        <li>Total Estimate: <span id="total-cost">Estimating...</span></li>
-                    </ul>
-                </div>
-                <p class="recommendation"><strong>Solutions:</strong> <span id="solutions">Estimating...</span></p>
-                <p class="recommendation"><strong>Next Steps:</strong> <span id="recommendation">Estimating...</span></p>
-            </div>
-            <div class="audio-section">
-                <h3>Hear Your Estimate</h3>
-                <div class="audio-controls">
-                    <button id="play-pause-btn" class="control-btn" aria-label="Play or pause audio"><span class="icon">▶️</span></button>
-                    <span id="audio-current" class="time">0:00</span>
-                    <input type="range" id="audio-progress" min="0" max="100" value="0" class="progress-slider" aria-label="Seek audio">
-                    <span id="audio-duration" class="time">0:00</span>
-                    <button id="mute-btn" class="control-btn" aria-label="Mute or unmute audio"><span class="icon">🔊</span></button>
-                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="volume-slider" aria-label="Adjust volume">
-                    <button id="retry-tts-btn" class="control-btn" aria-label="Retry audio"><span class="icon">🔄</span></button>
-                </div>
-            </div>
-            <div class="results-buttons">
-                <button id="like-btn" class="like-btn" aria-label="Like this estimate">👍 <span id="like-count">0</span></button>
-                <button id="dislike-btn" class="dislike-btn" aria-label="Dislike this estimate">👎 <span id="dislike-count">0</span></button>
-                <button id="share-btn" class="share-btn" aria-label="Share this estimate">Share</button>
-                <button id="contact-btn" class="contact-btn" aria-label="Claim your free quote">Claim Your FREE Quote Now!</button>
-            </div>
-        </div>
-        <div id="quote-popup" class="popup">
-            <div class="popup-content">
-                <h3>Claim Your FREE Quote</h3>
-                <p>Let Surprise Granite bring your vision to life! Fill out the form below to get started.</p>
-                <input type="text" id="quote-name" placeholder="Your Name" aria-label="Your Name" required>
-                <input type="email" id="quote-email" placeholder="Your Email" aria-label="Your Email" required>
-                <input type="tel" id="quote-phone" placeholder="Your Phone (optional)" aria-label="Your Phone">
-                <textarea id="quote-message" placeholder="Your Message" aria-label="Your Message" required></textarea>
-                <button id="send-quote-btn" aria-label="Send quote request">Send & Get Your Quote!</button>
-                <button id="close-quote-btn" class="close-btn" aria-label="Close quote popup">✖</button>
-            </div>
-        </div>
-        <footer>Powered by Surprise Granite © 2025 | Call (602) 833-3189 for Immediate Assistance</footer>
-    </div>
-
     <style>
         body {
             background-color: var(--background);
@@ -101,173 +12,212 @@
             padding: 0;
             font-family: 'Montserrat', sans-serif;
             transition: background-color 0.3s ease, color 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
 
         :root {
-            --background: #f9f9f9;
+            --background: #f5f5f5;
             --card-bg: #ffffff;
-            --text-primary: #2f4f4f;
-            --text-secondary: #666;
-            --accent: #d4a373;
-            --accent-hover: #c68e5a;
-            --shadow: rgba(0, 0, 0, 0.2);
+            --text-primary: #1a1a1a;
+            --text-secondary: #555;
+            --accent: #6b7280;
+            --accent-hover: #4b5563;
+            --shadow: rgba(0, 0, 0, 0.1);
             --error-bg: #ffebee;
             --error-text: #d32f2f;
-            --button-bg: #d9dcdc;
+            --button-bg: #e0e0e0;
             --button-text: #333;
-            --match-bg: #ecf0f1;
-            --popup-bg: rgba(0, 0, 0, 0.8);
-            --like-color: #e74c3c;
-            --dislike-color: #7f8c8d;
-            --share-color: #3498db;
-            --cta-color: #28a745;
-            --cta-hover: #218838;
+            --match-bg: #f5f5f5;
+            --popup-bg: rgba(0, 0, 0, 0.85);
+            --like-color: #9ca3af;
+            --dislike-color: #6b7280;
+            --share-color: #4b5563;
+            --cta-color: #4b5e40;
+            --cta-hover: #374a31;
+            --cost-bg: #f9fafb;
+            --cost-border: #e5e7eb;
         }
 
         [data-theme="dark"] {
             --background: #1a1a1a;
-            --card-bg: #252525;
+            --card-bg: #1e1e1e;
             --text-primary: #e0e0e0;
             --text-secondary: #a0a0a0;
-            --accent: #e6b800;
-            --accent-hover: #cc9900;
-            --shadow: rgba(255, 255, 255, 0.15);
+            --accent: #9ca3af;
+            --accent-hover: #6b7280;
+            --shadow: rgba(255, 255, 255, 0.1);
             --error-bg: #4a2a2a;
             --error-text: #ff9999;
-            --button-bg: #383838;
+            --button-bg: #333;
             --button-text: #e0e0e0;
-            --match-bg: #2c3e50;
+            --match-bg: #2c2c2c;
             --popup-bg: rgba(255, 255, 255, 0.1);
-            --like-color: #ff6b6b;
-            --dislike-color: #95a5a6;
-            --share-color: #5dade2;
-            --cta-color: #2ecc71;
-            --cta-hover: #27ae60;
+            --like-color: #d1d5db;
+            --dislike-color: #9ca3af;
+            --share-color: #6b7280;
+            --cta-color: #6b7280;
+            --cta-hover: #4b5563;
+            --cost-bg: #2d2d2d;
+            --cost-border: #4b5563;
         }
 
         #cari-app {
             width: 90%;
-            max-width: 1200px;
-            padding: 40px;
+            max-width: 1000px;
+            padding: 30px;
             background: var(--card-bg);
-            border-radius: 20px;
-            box-shadow: 0 8px 25px var(--shadow);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px var(--shadow);
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
             color: var(--text-primary);
-            min-height: 80vh;
             margin: 20px auto;
             transition: background 0.3s ease, color 0.3s ease;
         }
 
-        .theme-buttons {
-            position: absolute;
-            top: 20px;
-            right: 20px;
+        .control-buttons {
+            position: fixed;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 1001;
         }
 
-        .theme-btn {
+        .control-btn {
             background: none;
             border: none;
-            font-size: 1.5rem;
-            padding: 5px;
+            font-size: 1.8rem;
+            padding: 8px;
             cursor: pointer;
-            color: var(--text-primary);
+            color: var(--text-secondary);
             transition: transform 0.3s ease, color 0.3s ease;
         }
 
-        .theme-btn:hover {
-            transform: scale(1.1);
+        .control-btn:hover {
+            transform: scale(1.15);
             color: var(--accent);
         }
 
-        .theme-btn.active {
+        .control-btn.active {
             color: var(--accent);
         }
 
-        .logo-container { margin-bottom: 25px; }
-        .logo { max-width: 220px; transition: transform 0.3s ease; }
+        .mute-btn.muted .icon { content: "🔇"; }
+
+        .logo-container { margin-bottom: 20px; }
+        .logo { max-width: 200px; transition: transform 0.3s ease; }
         .logo:hover { transform: scale(1.05); }
 
-        h1 {
-            font-size: 2.8rem;
-            color: var(--text-primary);
-            margin-bottom: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-        }
-
         .subtitle {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             color: var(--text-secondary);
-            margin-bottom: 20px;
-            font-style: italic;
+            margin-bottom: 25px;
+            line-height: 1.6;
         }
 
         .upload-area {
-            padding: 30px;
-            border: 4px dashed var(--accent);
-            border-radius: 15px;
-            background: var(--card-bg);
+            padding: 25px;
+            border: 3px dashed var(--accent);
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--card-bg), rgba(107, 114, 128, 0.05));
             cursor: pointer;
             transition: all 0.3s ease;
-            min-height: 320px;
+            min-height: 300px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             width: 100%;
-            max-width: 850px;
+            max-width: 800px;
             margin: 0 auto 20px;
-            box-shadow: inset 0 2px 10px var(--shadow);
         }
 
         .upload-area.drag-active {
             border-color: var(--accent-hover);
             transform: scale(1.02);
-            background: rgba(212, 163, 115, 0.1);
+            background: rgba(107, 114, 128, 0.05);
+        }
+
+        .upload-area:hover:not(.drag-active) {
+            border-color: var(--accent-hover);
+            background: rgba(107, 114, 128, 0.07);
         }
 
         .upload-area p {
             color: var(--text-secondary);
-            font-size: 1.3rem;
-            margin: 0 0 20px 0;
+            font-size: 1.2rem;
+            margin: 0 0 15px 0;
             font-weight: 500;
         }
 
         .preview-image {
             max-width: 90%;
-            max-height: 360px;
-            border-radius: 10px;
+            max-height: 340px;
+            border-radius: 8px;
             display: none;
             object-fit: cover;
-            box-shadow: 0 6px 15px var(--shadow);
+            box-shadow: 0 4px 10px var(--shadow);
         }
 
         .preview-image.visible { display: block; }
-        .file-type { color: var(--text-secondary); font-size: 1rem; margin-top: 10px; display: none; }
+        .file-type { color: var(--text-secondary); font-size: 0.9rem; margin-top: 10px; display: none; }
+
+        .cari-tips {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            text-align: left;
+            padding: 15px;
+            background: var(--match-bg);
+            border-radius: 8px;
+        }
+
+        .cari-tips h3 {
+            color: var(--text-primary);
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+        }
+
+        .cari-tips p {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .cari-tips ul {
+            list-style: disc;
+            padding-left: 20px;
+            color: var(--text-secondary);
+        }
+
+        .cari-tips li {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
 
         .input-area {
             width: 100%;
-            max-width: 850px;
+            max-width: 800px;
             margin-bottom: 20px;
         }
 
         #customer-needs {
             width: 100%;
-            padding: 15px;
-            border: 2px solid var(--text-secondary);
-            border-radius: 10px;
-            font-size: 1.1rem;
+            padding: 12px;
+            border: 1px solid var(--text-secondary);
+            border-radius: 8px;
+            font-size: 1rem;
             background: var(--card-bg);
             color: var(--text-primary);
             resize: vertical;
-            min-height: 100px;
+            min-height: 90px;
             transition: border-color 0.3s ease;
         }
 
@@ -278,43 +228,41 @@
 
         .buttons {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
-            margin: 30px 0;
+            margin: 25px 0;
             flex-wrap: wrap;
         }
 
         .buttons button {
-            padding: 15px 35px;
-            border-radius: 10px;
-            font-size: 1.2rem;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
         #analyze-btn {
-            border: 2px solid var(--cta-color);
+            border: none;
             background: var(--cta-color);
             color: white;
         }
 
         #analyze-btn:disabled {
             background: var(--button-bg);
-            border-color: var(--button-bg);
             color: var(--button-text);
             cursor: not-allowed;
         }
 
         #analyze-btn:not(:disabled):hover {
             background: var(--cta-hover);
-            border-color: var(--cta-hover);
-            transform: translateY(-3px);
-            box-shadow: 0 6px 15px var(--shadow);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px var(--shadow);
         }
 
         #reset-btn {
-            border: 2px solid var(--text-secondary);
+            border: 1px solid var(--text-secondary);
             background: transparent;
             color: var(--text-secondary);
         }
@@ -322,21 +270,21 @@
         #reset-btn:hover {
             border-color: var(--accent);
             color: var(--accent);
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
 
         .loading-spinner {
             display: none;
             flex-direction: column;
             align-items: center;
-            margin: 30px 0;
+            margin: 25px 0;
         }
 
         .spinner {
-            width: 50px;
-            height: 50px;
-            border: 6px solid var(--button-bg);
-            border-top: 6px solid var(--accent);
+            width: 40px;
+            height: 40px;
+            border: 5px solid var(--button-bg);
+            border-top: 5px solid var(--accent);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -347,50 +295,50 @@
         }
 
         .loading-spinner p {
-            margin-top: 20px;
+            margin-top: 15px;
             color: var(--text-primary);
-            font-size: 1.2rem;
-            font-weight: 600;
+            font-size: 1.1rem;
+            font-weight: 500;
         }
 
         .progress-bar {
             width: 100%;
-            max-width: 400px;
-            height: 12px;
+            max-width: 350px;
+            height: 10px;
             background: var(--button-bg);
-            border-radius: 6px;
+            border-radius: 5px;
             overflow: hidden;
-            margin-top: 20px;
+            margin-top: 15px;
         }
 
         .progress-fill {
             width: 0;
             height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            background: var(--accent);
             transition: width 0.3s ease;
         }
 
         .error {
             display: none;
-            margin: 25px 0;
-            padding: 20px;
+            margin: 20px 0;
+            padding: 15px;
             background: var(--error-bg);
             color: var(--error-text);
-            border-radius: 10px;
-            font-size: 1.2rem;
-            box-shadow: 0 3px 8px var(--shadow);
+            border-radius: 8px;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 6px var(--shadow);
             width: 100%;
-            max-width: 800px;
+            max-width: 750px;
         }
 
         .retry-btn {
-            margin-top: 15px;
-            padding: 12px 25px;
-            border: 2px solid var(--accent);
+            margin-top: 10px;
+            padding: 10px 20px;
+            border: 1px solid var(--accent);
             background: transparent;
             color: var(--accent);
-            border-radius: 10px;
-            font-size: 1.1rem;
+            border-radius: 8px;
+            font-size: 1rem;
             cursor: pointer;
             transition: all 0.3s ease;
         }
@@ -398,179 +346,147 @@
         .retry-btn:hover {
             border-color: var(--accent-hover);
             color: var(--accent-hover);
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
 
         .results {
             display: none;
-            padding: 30px;
+            padding: 25px;
             background: var(--card-bg);
-            border-radius: 15px;
-            box-shadow: 0 6px 15px var(--shadow);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px var(--shadow);
             text-align: left;
-            margin-top: 25px;
+            margin-top: 20px;
             width: 100%;
-            max-width: 850px;
+            max-width: 800px;
             transition: background 0.3s ease;
         }
 
         .results h2 {
             color: var(--text-primary);
             text-align: center;
-            font-size: 2rem;
+            font-size: 1.8rem;
             margin-bottom: 20px;
         }
 
         .results-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px;
-            font-size: 1.1rem;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            font-size: 1rem;
             color: var(--text-secondary);
-            padding: 15px;
+            padding: 20px;
             background: var(--match-bg);
-            border-radius: 10px;
-        }
-
-        .results p { margin: 0; line-height: 1.6; }
-        .results strong { color: var(--text-primary); font-weight: 600; }
-
-        .cost-estimate {
-            grid-column: 1 / -1;
-            margin-top: 20px;
-            padding: 10px;
-            background: var(--card-bg);
             border-radius: 8px;
         }
 
-        .cost-estimate ul { list-style-type: none; padding: 0; margin: 10px 0; }
-        .cost-estimate li { margin: 8px 0; font-size: 1.1rem; }
-
-        .recommendation {
-            grid-column: 1 / -1;
-            margin-top: 20px;
-            line-height: 1.6;
-            text-align: center;
-            padding: 10px;
+        .result-item {
             background: var(--card-bg);
-            border-radius: 8px;
-        }
-
-        .audio-section {
-            display: none;
-            margin-top: 25px;
             padding: 15px;
-            background: var(--match-bg);
-            border-radius: 10px;
-            text-align: center;
-            width: 100%;
-            max-width: 400px;
-            box-sizing: border-box;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px var(--shadow);
         }
 
-        .audio-controls {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            background: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: inset 0 2px 5px var(--shadow);
-        }
-
-        .control-btn {
-            background: none;
-            border: 1px solid var(--text-secondary);
-            border-radius: 8px;
-            padding: 6px;
-            cursor: pointer;
-            font-size: 1.2rem;
+        .result-item strong {
             color: var(--text-primary);
-            transition: border-color 0.3s ease, transform 0.3s ease;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
         }
 
-        .control-btn:hover {
-            border-color: var(--accent);
-            transform: scale(1.1);
+        .result-item span {
+            word-wrap: break-word;
         }
 
-        .mute-btn.muted::before { content: "🔇"; }
-
-        #volume-slider {
-            width: 100px;
-            accent-color: var(--accent);
-            margin: 0 5px;
+        .cost-details {
+            background: var(--cost-bg);
+            border: 1px solid var(--cost-border);
+            padding: 15px;
         }
 
-        #audio-duration {
+        .cost-details h4 {
+            color: var(--text-primary);
             font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .cost-details p {
+            margin: 8px 0;
             color: var(--text-secondary);
-            margin: 0 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .cost-details p strong {
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .cost-details p span {
+            flex: 1;
+            text-align: right;
         }
 
         .results-buttons {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
-            margin-top: 30px;
+            margin-top: 25px;
             flex-wrap: wrap;
         }
 
         .like-btn, .dislike-btn, .share-btn, .contact-btn {
-            padding: 15px 35px;
-            border-radius: 10px;
-            font-size: 1.2rem;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
         .like-btn {
-            border: 2px solid var(--like-color);
+            border: 1px solid var(--like-color);
             color: var(--like-color);
             background: transparent;
         }
 
         .like-btn.liked {
             background: var(--like-color);
-            color: white;
+            color: var(--card-bg);
         }
 
         .dislike-btn {
-            border: 2px solid var(--dislike-color);
+            border: 1px solid var(--dislike-color);
             color: var(--dislike-color);
             background: transparent;
         }
 
         .dislike-btn.disliked {
             background: var(--dislike-color);
-            color: white;
+            color: var(--card-bg);
         }
 
         .share-btn {
-            border: 2px solid var(--share-color);
+            border: 1px solid var(--share-color);
             color: var(--share-color);
             background: transparent;
         }
 
         .share-btn:hover {
-            border-color: #2980b9;
-            color: #2980b9;
-            transform: translateY(-3px);
+            border-color: var(--accent-hover);
+            color: var(--accent-hover);
+            transform: translateY(-2px);
         }
 
         .contact-btn {
-            border: 2px solid var(--cta-color);
+            border: none;
             background: var(--cta-color);
             color: white;
         }
 
         .contact-btn:hover {
             background: var(--cta-hover);
-            border-color: var(--cta-hover);
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
 
         .popup {
@@ -588,23 +504,25 @@
 
         .popup-content {
             background: var(--card-bg);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 6px 15px var(--shadow);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px var(--shadow);
             width: 90%;
             max-width: 600px;
-            text-align: center;
+            text-align: left;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
-        .popup-content h3 { color: var(--text-primary); font-size: 1.8rem; margin-bottom: 15px; }
-        .popup-content p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 20px; }
+        .popup-content h3 { color: var(--text-primary); font-size: 1.6rem; margin-bottom: 12px; text-align: center; }
+        .popup-content p { color: var(--text-secondary); font-size: 1rem; margin-bottom: 15px; }
 
-        .popup-content input, .popup-content textarea {
+        .popup-content input, .popup-content select, .popup-content textarea {
             width: 100%;
             padding: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             border: 1px solid var(--text-secondary);
-            border-radius: 5px;
+            border-radius: 6px;
             font-size: 1rem;
             background: var(--card-bg);
             color: var(--text-primary);
@@ -614,21 +532,22 @@
         .popup-content input.invalid, .popup-content textarea.invalid { border-color: var(--error-text); }
 
         .popup-content button {
-            padding: 14px 30px;
-            border: 2px solid var(--cta-color);
+            padding: 12px 25px;
+            border: none;
             background: var(--cta-color);
             color: white;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
+            display: block;
+            margin: 0 auto;
         }
 
         .popup-content button:hover {
             background: var(--cta-hover);
-            border-color: var(--cta-hover);
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
 
         .close-btn {
@@ -637,7 +556,7 @@
             right: 10px;
             background: none;
             border: none;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             color: var(--text-secondary);
             cursor: pointer;
             transition: color 0.3s ease;
@@ -645,24 +564,171 @@
 
         .close-btn:hover { color: var(--accent); }
 
+        .search-results {
+            margin-top: 20px;
+        }
+
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid var(--cost-border);
+        }
+
+        .search-result-item img {
+            max-width: 100px;
+            margin-right: 15px;
+            border-radius: 4px;
+        }
+
+        .search-result-item div {
+            flex: 1;
+        }
+
         footer {
-            margin-top: 40px;
-            font-size: 1rem;
+            margin-top: 30px;
+            font-size: 0.9rem;
             color: var(--text-secondary);
             font-weight: 500;
         }
 
         @media (max-width: 768px) {
-            #cari-app { padding: 20px; min-height: auto; }
-            h1 { font-size: 2rem; }
+            #cari-app { padding: 20px; }
             .upload-area { min-height: 200px; }
             .results-grid { grid-template-columns: 1fr; }
             .popup-content { width: 95%; }
-            .theme-buttons { position: static; margin-bottom: 20px; justify-content: center; }
-            .audio-section { max-width: 100%; }
-            .audio-controls { flex-direction: column; gap: 8px; }
+            .control-buttons { right: 5px; }
+            .search-result-item { flex-direction: column; align-items: flex-start; }
+            .search-result-item img { margin-bottom: 10px; }
         }
     </style>
+</head>
+<body>
+    <div class="control-buttons">
+        <button id="light-mode-btn" class="control-btn" aria-label="Switch to light mode">☀️</button>
+        <button id="dark-mode-btn" class="control-btn" aria-label="Switch to dark mode">🌙</button>
+        <button id="mute-btn" class="control-btn" aria-label="Mute or unmute audio"><span class="icon">🔊</span></button>
+        <button id="search-btn" class="control-btn" aria-label="Search materials">🔍</button>
+    </div>
+    <div id="cari-app">
+        <div class="logo-container">
+            <img id="logo" src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
+        </div>
+        <p class="subtitle">Upload Your Project Details for a FREE Quote from Surprise Granite!<br>Specializing in countertops, tile, framing, plumbing, and more.</p>
+        <div id="upload-area" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop a file">
+            <input type="file" id="file-input" accept="image/*,application/pdf,text/plain" style="display: none;" aria-label="Upload image, PDF, or text file (up to 50MB)" />
+            <p id="upload-text">Drop your image, PDF, or text file here (up to 50MB) or click to upload</p>
+            <img id="preview-image" class="preview-image" alt="Uploaded image preview" />
+            <p id="file-type" class="file-type"></p>
+        </div>
+        <div class="cari-tips">
+            <h3>CARI’s Tips for Best Photos</h3>
+            <p>Hi, I’m CARI! For the most accurate estimate, please:</p>
+            <ul>
+                <li>Take clear, well-lit photos from multiple angles.</li>
+                <li>Include a ruler or common object for scale.</li>
+                <li>Capture the entire project area, avoiding obstructions.</li>
+                <li>Use natural daylight or bright indoor lighting.</li>
+                <li>For countertops or tiles, show edges and surfaces closely.</li>
+            </ul>
+        </div>
+        <div class="input-area">
+            <textarea id="customer-needs" placeholder="E.g., '25 sq ft quartz countertop with sink cutout', '48 sq ft tile shower', or 'plumbing installation for 2 fixtures' - include size, location, material, and features" aria-label="Describe your project needs"></textarea>
+        </div>
+        <div class="buttons">
+            <button id="analyze-btn" disabled aria-label="Get your free estimate">Get Your FREE Estimate</button>
+            <button id="reset-btn" aria-label="Reset upload">Reset</button>
+        </div>
+        <div id="loading-spinner" class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loading-text">Processing Your Quote...</p>
+            <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        </div>
+        <div id="error-message" class="error">
+            <p id="error-text"></p>
+            <button id="retry-btn" class="retry-btn">Retry</button>
+        </div>
+        <div id="results" class="results" role="region" aria-live="polite">
+            <h2>Your Free Project Estimate</h2>
+            <div class="results-grid">
+                <div class="result-item">
+                    <strong>Project Scope:</strong>
+                    <span id="project-scope">Estimating...</span>
+                </div>
+                <div class="result-item">
+                    <strong>Dimensions:</strong>
+                    <span id="dimensions">Estimating...</span>
+                </div>
+                <div class="result-item">
+                    <strong>Material:</strong>
+                    <span id="material-type">Estimating...</span>
+                </div>
+                <div class="result-item">
+                    <strong>Color & Pattern:</strong>
+                    <span id="color-pattern">Estimating...</span>
+                </div>
+                <div class="result-item">
+                    <strong>Additional Features:</strong>
+                    <span id="additional-features">Estimating...</span>
+                </div>
+                <div class="result-item">
+                    <strong>Condition:</strong>
+                    <span id="condition">Estimating...</span>
+                </div>
+                <div class="result-item cost-details">
+                    <h4>Cost Breakdown:</h4>
+                    <p><strong>Materials:</strong> <span id="material-cost">Estimating...</span></p>
+                    <p><strong>Labor:</strong> <span id="labor-cost">Estimating...</span></p>
+                    <p><strong>Additional Features:</strong> <span id="features-cost">Estimating...</span></p>
+                    <p><strong>Total:</strong> <span id="total-cost">Estimating...</span></p>
+                </div>
+                <div class="result-item reasoning">
+                    <strong>Reasoning:</strong>
+                    <span id="reasoning">Estimating...</span>
+                </div>
+                <div class="result-item recommendations">
+                    <strong>Recommendations:</strong>
+                    <span id="recommendations">Estimating...</span>
+                </div>
+                <div class="result-item recommendation">
+                    <strong>Next Steps:</strong>
+                    <span id="recommendation">Estimating...</span>
+                </div>
+            </div>
+            <div class="results-buttons">
+                <button id="like-btn" class="like-btn" aria-label="Like this estimate">👍 <span id="like-count">0</span></button>
+                <button id="dislike-btn" class="dislike-btn" aria-label="Dislike this estimate">👎 <span id="dislike-count">0</span></button>
+                <button id="share-btn" class="share-btn" aria-label="Share this estimate">Share</button>
+                <button id="contact-btn" class="contact-btn" aria-label="Claim your free quote">Claim Your FREE Quote Now!</button>
+            </div>
+        </div>
+        <div id="quote-popup" class="popup">
+            <div class="popup-content">
+                <h3>Claim Your FREE Quote</h3>
+                <p>Let Surprise Granite bring your vision to life! Fill out the form below to get started.</p>
+                <input type="text" id="quote-name" placeholder="Your Name" aria-label="Your Name" required>
+                <input type="email" id="quote-email" placeholder="Your Email" aria-label="Your Email" required>
+                <input type="tel" id="quote-phone" placeholder="(XXX) XXX-XXXX" aria-label="Your Phone (optional)">
+                <textarea id="quote-message" placeholder="Your Message" aria-label="Your Message" required></textarea>
+                <button id="send-quote-btn" aria-label="Send quote request">Send & Get Your Quote!</button>
+                <button id="close-quote-btn" class="close-btn" aria-label="Close quote popup">✖</button>
+            </div>
+        </div>
+        <div id="search-popup" class="popup">
+            <div class="popup-content">
+                <h3>Search Materials</h3>
+                <p>Find the perfect material for your project.</p>
+                <input type="text" id="search-vendor" placeholder="Vendor (e.g., StoneCo)" aria-label="Vendor Name">
+                <input type="text" id="search-material-type" placeholder="Material Type (e.g., Granite)" aria-label="Material Type">
+                <input type="text" id="search-thickness" placeholder="Thickness (e.g., 2cm)" aria-label="Thickness">
+                <input type="text" id="search-color-name" placeholder="Color Name (e.g., Black Pearl)" aria-label="Color Name">
+                <button id="search-submit-btn" aria-label="Search materials">Search</button>
+                <div id="search-results" class="search-results"></div>
+                <button id="close-search-btn" class="close-btn" aria-label="Close search popup">✖</button>
+            </div>
+        </div>
+        <footer>Powered by Surprise Granite © 2025 | Call (602) 833-3189 for Immediate Assistance</footer>
+    </div>
 
     <script>
         const BASE_URL = window.location.hostname === "localhost" ? "http://localhost:10000" : "https://surprise-granite-connections-dev.onrender.com";
@@ -686,13 +752,20 @@
                 errorText: document.getElementById("error-text"),
                 retryBtn: document.getElementById("retry-btn"),
                 results: document.getElementById("results"),
-                playPauseBtn: document.getElementById("play-pause-btn"),
-                audioCurrent: document.getElementById("audio-current"),
-                audioProgress: document.getElementById("audio-progress"),
-                audioDuration: document.getElementById("audio-duration"),
+                projectScope: document.getElementById("project-scope"),
+                dimensions: document.getElementById("dimensions"),
+                materialType: document.getElementById("material-type"),
+                colorPattern: document.getElementById("color-pattern"),
+                additionalFeatures: document.getElementById("additional-features"),
+                condition: document.getElementById("condition"),
+                materialCost: document.getElementById("material-cost"),
+                laborCost: document.getElementById("labor-cost"),
+                featuresCost: document.getElementById("features-cost"),
+                totalCost: document.getElementById("total-cost"),
+                reasoning: document.getElementById("reasoning"),
+                recommendations: document.getElementById("recommendations"),
+                recommendation: document.getElementById("recommendation"),
                 muteBtn: document.getElementById("mute-btn"),
-                volumeSlider: document.getElementById("volume-slider"),
-                retryTtsBtn: document.getElementById("retry-tts-btn"),
                 contactBtn: document.getElementById("contact-btn"),
                 likeBtn: document.getElementById("like-btn"),
                 dislikeBtn: document.getElementById("dislike-btn"),
@@ -709,6 +782,15 @@
                 lightModeBtn: document.getElementById("light-mode-btn"),
                 darkModeBtn: document.getElementById("dark-mode-btn"),
                 logo: document.getElementById("logo"),
+                searchBtn: document.getElementById("search-btn"),
+                searchPopup: document.getElementById("search-popup"),
+                searchVendor: document.getElementById("search-vendor"),
+                searchMaterialType: document.getElementById("search-material-type"),
+                searchThickness: document.getElementById("search-thickness"),
+                searchColorName: document.getElementById("search-color-name"),
+                searchSubmitBtn: document.getElementById("search-submit-btn"),
+                searchResults: document.getElementById("search-results"),
+                closeSearchBtn: document.getElementById("close-search-btn")
             };
 
             let imageFile = null;
@@ -760,7 +842,7 @@
                 if (!file) return showError("No file provided.");
                 const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
                 if (!allowedTypes.includes(file.type)) return showError("Please upload an image, PDF, or text file.");
-                if (file.size > 10 * 1024 * 1024) return showError("File size exceeds 10MB limit.");
+                if (file.size > 50 * 1024 * 1024) return showError("File size exceeds 50MB limit.");
 
                 imageFile = file;
                 if (file.type.startsWith("image/")) {
@@ -776,6 +858,7 @@
                 clearResults();
                 clearError();
                 elements.quotePopup.style.display = "none";
+                elements.searchPopup.style.display = "none";
             }
 
             async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
@@ -796,7 +879,7 @@
                     if (!response.ok) throw new Error(`Health check failed with status ${response.status}`);
                     const health = await response.json();
                     if (health.dbStatus !== "Connected" || health.openaiStatus !== "Connected" || health.emailStatus !== "Connected") {
-                        showError("Server is partially available. Some features (e.g., email) may not work. Please try again later or call (602) 833-3189.");
+                        showError("Server is partially available. Some features may not work. Please try again later or call (602) 833-3189.");
                     }
                 } catch (err) {
                     showError(`Unable to reach server: ${err.message}. Please check your connection and retry or call (602) 833-3189.`);
@@ -817,7 +900,7 @@
                 if (needs) formData.append("customer_needs", needs);
 
                 try {
-                    const fields = ["stone-type", "color-pattern", "project-scope", "dimensions", "additional-features", "condition", "material-cost", "labor-cost", "features-cost", "total-cost", "solutions", "recommendation"];
+                    const fields = ["project-scope", "dimensions", "material-type", "color-pattern", "additional-features", "condition", "material-cost", "labor-cost", "features-cost", "total-cost", "reasoning", "recommendations", "recommendation"];
                     fields.forEach(id => document.getElementById(id).textContent = "Estimating...");
 
                     elements.loadingText.textContent = "Analyzing Your Project...";
@@ -837,29 +920,15 @@
 
                     const result = await response.json();
                     if (!result.costEstimate) throw new Error("Invalid estimate data received from server");
+
                     currentResult = result;
 
                     elements.loadingText.textContent = "Generating Audio Quote...";
                     elements.progressFill.style.width = "90%";
                     audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
-                    audio.volume = elements.volumeSlider.value;
-                    audio.preload = "metadata";
-                    audio.addEventListener("loadedmetadata", () => {
-                        elements.audioDuration.textContent = `0:00 / ${formatTime(audio.duration)}`;
-                        audio.play().then(() => {
-                            console.log("Audio playing successfully");
-                        }).catch(err => {
-                            console.error("Auto-play failed:", err.message);
-                            setTimeout(() => audio.play().catch(e => console.error("Retry failed:", e.message)), 500);
-                        });
-                    });
-                    audio.addEventListener("timeupdate", () => {
-                        elements.audioDuration.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
-                    });
-                    audio.addEventListener("error", (e) => {
-                        console.error("Audio error:", e);
-                        showError("Failed to load audio. Please retry.");
-                    });
+                    audio.volume = 1;
+                    audio.preload = "auto";
+                    setupAudioControls();
 
                     elements.progressFill.style.width = "100%";
                     displayResults(result);
@@ -871,46 +940,47 @@
                 }
             });
 
+            function setupAudioControls() {
+                audio.addEventListener("loadedmetadata", () => {
+                    playAudioWithFallback();
+                });
+                audio.addEventListener("error", (e) => {
+                    console.error("Audio error:", e);
+                    showError("Failed to load audio. Please retry.");
+                });
+            }
+
+            function playAudioWithFallback() {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {})
+                        .catch(err => {
+                            console.error("Auto-play failed:", err.message);
+                            setTimeout(() => {
+                                audio.play().catch(e => console.error("Retry failed:", e.message));
+                            }, 1000);
+                        });
+                }
+            }
+
             elements.muteBtn.addEventListener("click", () => {
                 isMuted = !isMuted;
                 elements.muteBtn.classList.toggle("muted", isMuted);
                 if (audio) audio.muted = isMuted;
+                elements.muteBtn.querySelector(".icon").textContent = isMuted ? "🔇" : "🔊";
             });
 
-            elements.volumeSlider.addEventListener("input", () => {
-                if (audio) audio.volume = elements.volumeSlider.value;
-            });
-
-            elements.retryTtsBtn.addEventListener("click", async () => {
-                if (!currentResult?.imageId) return;
-                elements.loadingSpinner.style.display = "flex";
-                elements.loadingText.textContent = "Regenerating Audio...";
-                try {
-                    const formData = new FormData();
-                    formData.append("file", imageFile);
-                    if (elements.customerNeeds.value) formData.append("customer_needs", elements.customerNeeds.value);
-                    const response = await fetch(`${BASE_URL}/api/contractor-estimate`, { method: "POST", body: formData });
-                    if (!response.ok) throw new Error("Failed to regenerate audio");
-                    const result = await response.json();
-                    audio = new Audio(`data:audio/mpeg;base64,${result.audioBase64}`);
-                    audio.volume = elements.volumeSlider.value;
-                    audio.preload = "metadata";
-                    audio.addEventListener("loadedmetadata", () => {
-                        elements.audioDuration.textContent = `0:00 / ${formatTime(audio.duration)}`;
-                        audio.play().then(() => {
-                            console.log("Retry audio playing successfully");
-                        }).catch(err => {
-                            console.error("Retry auto-play failed:", err.message);
-                            setTimeout(() => audio.play().catch(e => console.error("Retry failed:", e.message)), 500);
-                        });
-                    });
-                    audio.addEventListener("timeupdate", () => {
-                        elements.audioDuration.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
-                    });
-                } catch (err) {
-                    showError(`Audio regeneration failed: ${err.message}`);
-                } finally {
-                    elements.loadingSpinner.style.display = "none";
+            elements.quotePhone.addEventListener("input", (e) => {
+                let value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                if (value.length > 6) {
+                    e.target.value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6)}`;
+                } else if (value.length > 3) {
+                    e.target.value = `(${value.slice(0, 3)}) ${value.slice(3)}`;
+                } else if (value.length > 0) {
+                    e.target.value = `(${value}`;
+                } else {
+                    e.target.value = "";
                 }
             });
 
@@ -918,7 +988,7 @@
                 if (!currentResult?.imageId || elements.likeBtn.disabled) return;
                 try {
                     const response = await fetch(`${BASE_URL}/api/like-countertop/${currentResult.imageId}`, { method: "POST" });
-                    if (!response.ok) throw new Error("Failed to like countertop");
+                    if (!response.ok) throw new Error("Failed to like estimate");
                     const data = await response.json();
                     elements.likeCount.textContent = data.likes;
                     elements.likeBtn.classList.add("liked");
@@ -933,7 +1003,7 @@
                 if (!currentResult?.imageId || elements.dislikeBtn.disabled) return;
                 try {
                     const response = await fetch(`${BASE_URL}/api/dislike-countertop/${currentResult.imageId}`, { method: "POST" });
-                    if (!response.ok) throw new Error("Failed to dislike countertop");
+                    if (!response.ok) throw new Error("Failed to dislike estimate");
                     const data = await response.json();
                     elements.dislikeCount.textContent = data.dislikes;
                     elements.dislikeBtn.classList.add("disliked");
@@ -946,7 +1016,7 @@
 
             elements.shareBtn.addEventListener("click", () => {
                 if (!currentResult?.shareUrl) return showError("No quote to share yet.");
-                const shareText = `My FREE quote from Surprise Granite: ${currentResult.materialType || "Unknown"}, ${currentResult.projectScope || "Project"}. Total: ${currentResult.costEstimate.totalCost}. ${currentResult.shareUrl}`;
+                const shareText = `My FREE quote from Surprise Granite: ${currentResult.projectScope || "Project"}. Total: ${currentResult.costEstimate.totalCost}. ${currentResult.shareUrl}`;
                 if (navigator.share) {
                     navigator.share({ title: "CARI Quote", text: shareText, url: currentResult.shareUrl });
                 } else {
@@ -957,7 +1027,7 @@
             elements.contactBtn.addEventListener("click", () => {
                 if (!currentResult) return showError("Please get a quote first.");
                 elements.quotePopup.style.display = "flex";
-                elements.quoteMessage.value = `Project Quote:\nMaterial: ${currentResult.materialType || "Unknown"}\nScope: ${currentResult.projectScope || "Not specified"}\nTotal Cost: ${currentResult.costEstimate.totalCost || "Contact for estimate"}\nSolutions: ${currentResult.solutions || "Contact for evaluation"}`;
+                elements.quoteMessage.value = `Project Quote:\nScope: ${currentResult.projectScope || "Not specified"}\nMaterial Cost: ${currentResult.costEstimate.materialCost}\nLabor Cost: ${currentResult.costEstimate.laborCost.total}\nAdditional Features Cost: ${currentResult.costEstimate.additionalFeaturesCost}\nTotal Cost: ${currentResult.costEstimate.totalCost}\nRecommendations: ${elements.recommendations.textContent}`;
                 clearQuoteValidation();
             });
 
@@ -983,7 +1053,7 @@
                     const response = await fetch(`${BASE_URL}/api/send-email`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name, email, phone, message, stone_type: currentResult.materialType, analysis_summary: message }),
+                        body: JSON.stringify({ name, email, phone, message, analysis_summary: message }),
                     });
                     if (!response.ok) throw new Error((await response.json()).error || "Failed to send email");
                     alert("Your FREE quote request has been sent! We'll contact you soon!");
@@ -997,13 +1067,14 @@
                 imageFile = null;
                 elements.fileInput.value = "";
                 elements.customerNeeds.value = "";
-                elements.uploadText.textContent = "Drop your image, PDF, or text file here or click to upload";
+                elements.uploadText.textContent = "Drop your image, PDF, or text file here (up to 50MB) or click to upload";
                 elements.previewImage.classList.remove("visible");
                 elements.fileType.style.display = "none";
                 elements.analyzeBtn.disabled = true;
                 clearResults();
                 clearError();
                 elements.quotePopup.style.display = "none";
+                elements.searchPopup.style.display = "none";
                 if (audio) {
                     audio.pause();
                     audio = null;
@@ -1015,34 +1086,107 @@
                 elements.analyzeBtn.click();
             });
 
+            elements.searchBtn.addEventListener("click", () => {
+                elements.searchPopup.style.display = "flex";
+                elements.searchVendor.value = "";
+                elements.searchMaterialType.value = "";
+                elements.searchThickness.value = "";
+                elements.searchColorName.value = "";
+                elements.searchResults.innerHTML = "";
+            });
+
+            elements.closeSearchBtn.addEventListener("click", () => {
+                elements.searchPopup.style.display = "none";
+            });
+
+            elements.searchSubmitBtn.addEventListener("click", async () => {
+                const body = {
+                    vendor: elements.searchVendor.value.trim(),
+                    material_type: elements.searchMaterialType.value.trim(),
+                    thickness: elements.searchThickness.value.trim(),
+                    color_name: elements.searchColorName.value.trim(),
+                    availability: "In Stock" // Default for now
+                };
+
+                try {
+                    const response = await fetch(`${BASE_URL}/api/image-search`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) throw new Error("Search failed");
+                    const data = await response.json();
+
+                    elements.searchResults.innerHTML = "";
+                    if (data.images.length === 0) {
+                        elements.searchResults.innerHTML = "<p>No matching materials found.</p>";
+                    } else {
+                        data.images.forEach(img => {
+                            const div = document.createElement("div");
+                            div.className = "search-result-item";
+                            div.innerHTML = `
+                                <img src="data:image/jpeg;base64,${img.image}" alt="${img.material_type} - ${img.color}">
+                                <div>
+                                    <strong>Material:</strong> ${img.material_type}<br>
+                                    <strong>Color:</strong> ${img.color}<br>
+                                    <strong>Thickness:</strong> ${img.thickness}<br>
+                                    <strong>Vendor:</strong> ${data.material.vendor}<br>
+                                    <strong>Availability:</strong> ${data.material.availability}<br>
+                                    <strong>Cost/SqFt:</strong> $${data.material.cost_per_sqft.toFixed(2)}<br>
+                                    <strong>Where to Find:</strong> Contact ${data.material.vendor} or visit Surprise Granite
+                                </div>
+                            `;
+                            elements.searchResults.appendChild(div);
+                        });
+                    }
+                } catch (err) {
+                    showError(`Search failed: ${err.message}`);
+                }
+            });
+
+            function displayResults(result) {
+                elements.projectScope.textContent = result.projectScope || "Not specified";
+                elements.dimensions.textContent = result.dimensions || "Not specified";
+                elements.materialType.textContent = result.materialType || "Not identified";
+                elements.colorPattern.textContent = result.colorAndPattern || "Not identified";
+                elements.additionalFeatures.textContent = result.additionalFeatures || "None";
+                elements.condition.textContent = result.condition ? `${result.condition.damage_type} (Severity: ${result.condition.severity || "Unknown"})` : "No visible damage";
+
+                elements.materialCost.textContent = result.costEstimate.materialCost || "Contact for estimate";
+                elements.laborCost.textContent = result.costEstimate.laborCost.total || "Contact for estimate";
+                elements.featuresCost.textContent = result.costEstimate.additionalFeaturesCost || "$0.00";
+                elements.totalCost.textContent = result.costEstimate.totalCost || "Contact for estimate";
+
+                elements.reasoning.textContent = result.reasoning || "Based on provided details and standard industry rates.";
+                elements.recommendations.textContent = generateRecommendations(result);
+                elements.recommendation.textContent = "Contact Surprise Granite at (602) 833-3189 to schedule your project or request further assistance.";
+                elements.likeCount.textContent = result.likes || 0;
+                elements.dislikeCount.textContent = result.dislikes || 0;
+                elements.results.style.display = "block";
+            }
+
+            function generateRecommendations(result) {
+                let recommendations = "Contact Surprise Granite at (602) 833-3189 for a detailed consultation.";
+                if (result.projectScope?.toLowerCase().includes("countertop") || result.materialType?.toLowerCase().includes("countertop")) {
+                    recommendations = "For countertops, ensure proper sealing and edge finishing. ";
+                }
+                if (result.condition && result.condition.damage_type) {
+                    const severity = result.condition.severity?.toLowerCase() || "unknown";
+                    recommendations += `Detected damage (${result.condition.damage_type}, Severity: ${severity}). `;
+                    if (severity === "severe") {
+                        recommendations += "Recommend immediate replacement or professional repair due to significant damage. ";
+                    } else if (severity === "moderate") {
+                        recommendations += "Consider repair or partial replacement based on extent of damage. ";
+                    } else {
+                        recommendations += "Minor damage detected; cleaning or minor touch-up may suffice. ";
+                    }
+                }
+                return recommendations + "Schedule an in-person evaluation for precise recommendations.";
+            }
+
             function showError(message) {
                 elements.errorText.textContent = message;
                 elements.errorMessage.style.display = "block";
                 elements.results.style.display = "none";
                 elements.loadingSpinner.style.display = "none";
             }
-
-            function clearError() { elements.errorMessage.style.display = "none"; }
-
-            function clearResults() {
-                currentResult = null;
-                elements.results.style.display = "none";
-                elements.audioSection.style.display = "none";
-                elements.audioDuration.textContent = "0:00 / 0:00";
-            }
-
-            function clearQuoteValidation() {
-                elements.quoteName.classList.remove("invalid");
-                elements.quoteEmail.classList.remove("invalid");
-                elements.quoteMessage.classList.remove("invalid");
-            }
-
-            function formatTime(seconds) {
-                const mins = Math.floor(seconds / 60);
-                const secs = Math.floor(seconds % 60);
-                return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-            }
-        });
-    </script>
-</body>
-</html>
