@@ -40,7 +40,10 @@ let mongoClient;
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
 });
 
 app.use(compression());
@@ -68,16 +71,23 @@ async function loadLaborData() {
     try {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
         const rawData = JSON.parse(await fs.readFile(laborJsonPath, "utf8"));
-        laborData = rawData.map(item => ({
-            code: item.Code,
-            type: item.Service.toLowerCase().replace(/\s+/g, "_"),
-            rate_per_sqft: item["U/M"] === "SQFT" ? item.Price : 0,
-            rate_per_unit: ["EA", "LF", "Per Job"].includes(item["U/M"]) ? item.Price : 0,
-            unit_measure: item["U/M"],
-            hours: item["U/M"] === "SQFT" ? 1 : (["EA", "LF", "Per Job"].includes(item["U/M"]) ? 0 : 0.5),
-            description: item.Description,
-            confidence: 1
-        }));
+        console.log("Loaded labor.json:", rawData.length, "entries");
+
+        laborData = rawData.map(item => {
+            const isPerSqFt = item["U/M"] === "SQFT";
+            const isPerUnit = ["EA", "LF", "Per Job"].includes(item["U/M"]);
+            return {
+                code: item.Code,
+                type: item.Service.toLowerCase().replace(/\s+/g, "_"),
+                rate_per_sqft: isPerSqFt ? item.Price : 0,
+                rate_per_unit: isPerUnit ? item.Price : 0,
+                unit_measure: item["U/M"],
+                hours: isPerSqFt ? 1 : (isPerUnit ? 0 : 0.5),
+                description: item.Description,
+                confidence: 1
+            };
+        });
+        // Add countertop-specific defaults if not present
         laborData.push(
             { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 1 },
             { type: "countertop_repair", rate_per_sqft: 15, hours: 0.5, confidence: 1 }
@@ -95,14 +105,19 @@ async function loadMaterialsData() {
     try {
         const materialsJsonPath = path.join(__dirname, "data", "materials.json");
         const rawData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8"));
+        console.log("Loaded materials.json:", rawData.length, "entries");
+
         const materialMap = new Map();
         rawData.forEach(item => {
             const key = `${item.Material}-${item["Color Name"]}`.toLowerCase();
-            if (!materialMap.has(key)) materialMap.set(key, { totalCost: 0, count: 0 });
+            if (!materialMap.has(key)) {
+                materialMap.set(key, { totalCost: 0, count: 0 });
+            }
             const entry = materialMap.get(key);
             entry.totalCost += item["Cost/SqFt"];
             entry.count += 1;
         });
+
         materialsData = Array.from(materialMap.entries()).map(([key, { totalCost, count }]) => {
             const [material, color] = key.split("-");
             return {
@@ -112,6 +127,8 @@ async function loadMaterialsData() {
                 confidence: 1
             };
         });
+
+        // Add countertop-specific defaults
         materialsData.push(
             { type: "Granite", color: "Generic", cost_per_sqft: 50, confidence: 1 },
             { type: "Quartz", color: "Generic", cost_per_sqft: 60, confidence: 1 },
@@ -217,7 +234,7 @@ async function estimateProject(fileData, customerNeeds) {
             const estimate = img.metadata?.estimate || {};
             return {
                 material_type: estimate.material_type || "Unknown",
-                project_scope: estimate.project_scope || "Replacement",
+                project_scope: estimate.project_scope || "Countertop Replacement",
                 condition: estimate.condition || { damage_type: "No visible damage", severity: "None" },
                 additional_features: estimate.additional_features || [],
                 solutions: estimate.solutions || "Professional evaluation required",
@@ -228,14 +245,15 @@ async function estimateProject(fileData, customerNeeds) {
             };
         });
 
-        const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop remodeling estimates as of March 31, 2025. Analyze this ${fileData.type === "image" ? "image" : "document text"} and customer needs ("${customerNeeds}") to generate a countertop estimate:
+        const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop remodeling estimates as of March 31, 2025. Your task is to analyze the provided ${fileData.type === "image" ? "image" : "document text"} and customer needs ("${customerNeeds}") to generate a professional countertop estimate for repair or replacement. Use the following:
 
         **Instructions**:
-        - Focus on countertops (repair or replacement).
-        - For images, analyze damage (e.g., cracks, stains) to determine repair vs. replacement and severity (Low, Moderate, Severe).
-        - Extract dimensions from needs or assume 25 Square Feet if unclear.
-        - Suggest material types (e.g., Granite, Quartz) and colors based on image or input.
-        - Use provided labor and material data.
+        - Focus exclusively on countertops (repair or replacement).
+        - For images, analyze visible damage (e.g., cracks, stains, chips) to determine repair vs. replacement and assess severity (Low, Moderate, Severe).
+        - Extract dimensions from customer needs (e.g., "10x5" or "50 sqft") or assume 25 Square Feet if unclear.
+        - Suggest material types (e.g., Granite, Quartz) and colors based on image analysis or customer input.
+        - Use labor and material data provided to estimate costs.
+        - Provide a detailed scope of work and solutions (e.g., "seal cracks" for repair, "full slab replacement" for replacement).
 
         **Pricing Data**:
         - Labor: ${JSON.stringify(laborData.filter(item => item.type.includes("countertop")))}
@@ -243,15 +261,15 @@ async function estimateProject(fileData, customerNeeds) {
 
         **Historical Estimates**: ${JSON.stringify(pastData.filter(p => p.project_scope.toLowerCase().includes("countertop")))}
 
-        Respond in JSON with:
+        Estimate in JSON:
         - project_scope: "Countertop Repair" or "Countertop Replacement"
-        - material_type: e.g., "Granite"
-        - color_and_pattern: e.g., "Black Galaxy"
+        - material_type: e.g., "Granite", "Quartz"
+        - color_and_pattern: e.g., "Black Galaxy", "White Matte"
         - dimensions: e.g., "25 Square Feet"
-        - additional_features: array, e.g., ["sink cutout"]
+        - additional_features: array, e.g., ["sink cutout", "edge polishing"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
-        - solutions: e.g., "Seal cracks" or "Replace slab"
-        - reasoning: Explain analysis
+        - solutions: e.g., "Seal cracks with epoxy" or "Replace with new slab"
+        - reasoning: Explain the analysis and assumptions
         `;
 
         const messages = [
@@ -272,6 +290,7 @@ async function estimateProject(fileData, customerNeeds) {
         }));
 
         let result = JSON.parse(response.choices[0].message.content || '{}');
+
         const extractedDimensions = extractDimensionsFromNeeds(customerNeeds);
 
         const estimate = {
@@ -320,30 +339,42 @@ function enhanceCostEstimate(estimate) {
     const dimensions = estimate.dimensions || "25 Square Feet";
     const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
 
+    // Material Cost
     const material = materialsData.find(m => m.type.toLowerCase() === materialType) || 
                     { type: "Granite", cost_per_sqft: 50, confidence: 0.8 };
-    const materialCost = material.cost_per_sqft * sqFt * 1.3;
+    const materialCostPerSqFt = material.cost_per_sqft;
+    const materialCost = materialCostPerSqFt * sqFt * 1.3; // 30% markup
 
+    // Labor Cost
     const laborEntry = laborData.find(entry => entry.type === projectScope) || 
                       { type: "countertop_installation", rate_per_sqft: 20, hours: 1, confidence: 0.8 };
-    let laborCost = (laborEntry.rate_per_sqft || 20) * sqFt;
+    let laborCostPerSqFt = laborEntry.rate_per_sqft || 20;
+    let laborCost = laborCostPerSqFt * sqFt;
 
+    // Adjust for repair
     if (projectScope.includes("repair")) {
         const severityMultiplier = { None: 0.5, Low: 0.75, Moderate: 1, Severe: 1.5 }[estimate.condition.severity] || 1;
-        laborCost *= severityMultiplier;
+        laborCost = laborCostPerSqFt * sqFt * severityMultiplier;
+        laborCostPerSqFt *= severityMultiplier;
     }
 
+    // Additional Features
     const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
-        return sum + (feature.toLowerCase().includes("sink") ? 150 : feature.toLowerCase().includes("edge") ? 100 : 0);
+        const featureCost = feature.toLowerCase().includes("sink") ? 150 : 
+                           feature.toLowerCase().includes("edge") ? 100 : 0;
+        return sum + featureCost;
     }, 0);
 
     const totalCost = materialCost + laborCost + featuresCost;
+    const totalCostPerSqFt = totalCost / sqFt;
 
     return {
         materialCost: `$${materialCost.toFixed(2)}`,
-        laborCost: { total: `$${laborCost.toFixed(2)}` },
+        materialCostPerSqFt: `$${materialCostPerSqFt.toFixed(2)}`,
+        laborCost: { total: `$${laborCost.toFixed(2)}`, perSqFt: `$${laborCostPerSqFt.toFixed(2)}` },
         additionalFeaturesCost: `$${featuresCost.toFixed(2)}`,
-        totalCost: `$${totalCost.toFixed(2)}`
+        totalCost: `$${totalCost.toFixed(2)}`,
+        totalCostPerSqFt: `$${totalCostPerSqFt.toFixed(2)}`
     };
 }
 
@@ -352,20 +383,21 @@ async function generateTTS(estimate, customerNeeds) {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
         additionalFeaturesCost: "$0",
-        totalCost: "Contact for estimate"
+        totalCost: "Contact for estimate",
+        totalCostPerSqFt: "Contact for estimate"
     };
-    const narrationText = `Your Surprise Granite estimate as of March 31, 2025: 
+    const narrationText = `Your Surprise Granite countertop estimate as of March 31, 2025: 
         Project: ${estimate.project_scope}. 
         Material: ${estimate.material_type}. 
         Color: ${estimate.color_and_pattern}. 
         Dimensions: ${estimate.dimensions}. 
         Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
         Condition: ${estimate.condition?.damage_type}, ${estimate.condition?.severity}. 
-        Total cost: ${costEstimate.totalCost}. 
+        Total cost: ${costEstimate.totalCost}, or ${costEstimate.totalCostPerSqFt} per square foot. 
         Solutions: ${estimate.solutions}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
-        Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
-    const chunks = narrationText.match(/.{1,4096}/g) || [narrationText];
+        Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for details.`;
+    const chunks = chunkText(narrationText, 4096);
 
     try {
         const audioBuffers = await Promise.all(chunks.map(chunk =>
@@ -375,7 +407,8 @@ async function generateTTS(estimate, customerNeeds) {
                     voice: "alloy",
                     input: chunk,
                 });
-                return Buffer.from(await response.arrayBuffer());
+                const arrayBuffer = await response.arrayBuffer();
+                return Buffer.from(arrayBuffer);
             })
         ));
         return Buffer.concat(audioBuffers);
@@ -385,7 +418,17 @@ async function generateTTS(estimate, customerNeeds) {
     }
 }
 
-app.get("/", (req, res) => res.status(200).send("CARI Server is running"));
+function chunkText(text, maxLength) {
+    const chunks = [];
+    for (let i = 0; i < text.length; i += maxLength) {
+        chunks.push(text.slice(i, i + maxLength));
+    }
+    return chunks;
+}
+
+app.get("/", (req, res) => {
+    res.status(200).send("CARI Server is running");
+});
 
 app.get("/api/health", async (req, res) => {
     const health = {
@@ -450,23 +493,28 @@ app.post("/api/contractor-estimate", upload.single("file"), async (req, res, nex
 
         const costEstimate = enhanceCostEstimate(estimate) || {
             materialCost: "Contact for estimate",
-            laborCost: { total: "Contact for estimate" },
+            materialCostPerSqFt: "Contact for estimate",
+            laborCost: { total: "Contact for estimate", perSqFt: "Contact for estimate" },
             additionalFeaturesCost: "$0",
-            totalCost: "Contact for estimate"
+            totalCost: "Contact for estimate",
+            totalCostPerSqFt: "Contact for estimate"
         };
 
         const audioBuffer = await generateTTS(estimate, customerNeeds);
 
         const responseData = {
             imageId: estimate.imageId?.toString() || null,
-            message: "Estimate generated successfully",
+            message: "Countertop estimate generated successfully",
             projectScope: estimate.project_scope,
             materialType: estimate.material_type,
             colorAndPattern: estimate.color_and_pattern,
             dimensions: estimate.dimensions,
             additionalFeatures: estimate.additional_features.join(", ") || "None",
             condition: estimate.condition,
-            costEstimate,
+            costEstimate: {
+                ...costEstimate,
+                totalCostPerSquareFoot: costEstimate.totalCostPerSqFt
+            },
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
@@ -529,7 +577,7 @@ app.post("/api/send-email", async (req, res, next) => {
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: "recipient@example.com",
-            subject: `New Quote Request from ${name}`,
+            subject: `New Countertop Quote Request from ${name}`,
             text: `
                 Name: ${name}
                 Email: ${email}
@@ -581,7 +629,12 @@ process.on("SIGINT", async () => {
     }
 });
 
-process.on("uncaughtException", (err) => logError("Uncaught Exception", err));
-process.on("unhandledRejection", (reason, promise) => logError("Unhandled Rejection at", reason));
+process.on("uncaughtException", (err) => {
+    logError("Uncaught Exception", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+    logError("Unhandled Rejection at", reason);
+});
 
 startServer();
