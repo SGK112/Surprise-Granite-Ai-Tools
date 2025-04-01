@@ -355,7 +355,7 @@ function enhanceCostEstimate(estimate) {
     console.log(`Material cost: $${materialCost.toFixed(2)} (${materialCostPerSqFt}/Square Foot * ${sqFt} Square Feet, 1.3x markup)`);
 
     const laborEntry = laborData.find(entry => entry.type === projectScope) || 
-                      laborData.find(entry => entry.type.includes("countertop") && entry.type.includes(keywords.scope || "installation")) || 
+                      laborData.find(entry => entry.type.includes("countertop")) || 
                       { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
     console.log("Selected labor entry:", laborEntry);
     let laborCost = (laborEntry.rate_per_sqft || 15) * sqFt;
