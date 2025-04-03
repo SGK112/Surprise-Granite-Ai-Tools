@@ -13,7 +13,7 @@ import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import pdfParse from "pdf-parse";
+import PDFParser from "pdf2json"; // Correct import for pdf2json
 import Jimp from "jimp";
 import stringSimilarity from "string-similarity";
 
@@ -184,13 +184,17 @@ async function extractFileContent(file) {
                 color: { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` }
             };
         } else if (file.mimetype === "application/pdf") {
-            try {
-                const data = await pdfParse(file.buffer);
-                return { type: "text", content: data.text };
-            } catch (err) {
-                logError("PDF parsing failed", err);
-                return { type: "text", content: "Unable to parse PDF" };
-            }
+            const pdfParser = new PDFParser();
+            return new Promise((resolve, reject) => {
+                pdfParser.on("pdfParser_dataError", (errData) => reject(new Error(errData.parserError)));
+                pdfParser.on("pdfParser_dataReady", (pdfData) => {
+                    const text = pdfData.Pages.map((page) => 
+                        page.Texts.map((text) => decodeURIComponent(text.R[0].T)).join(" ")
+                    ).join("\n");
+                    resolve({ type: "text", content: text });
+                });
+                pdfParser.parseBuffer(file.buffer);
+            });
         } else if (file.mimetype === "text/plain") {
             return { type: "text", content: file.buffer.toString("utf8") };
         }
