@@ -87,11 +87,13 @@ function throwError(message, status = 500) {
 
 function logError(message, err) {
     console.error(`[${new Date().toISOString()}] ${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
+    process.stdout.write(""); // Flush stdout
 }
 
 function logMemoryUsage() {
     const used = process.memoryUsage();
     console.log(`[${new Date().toISOString()}] Memory Usage: RSS=${(used.rss / 1024 / 1024).toFixed(2)}MB, HeapTotal=${(used.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(used.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+    process.stdout.write(""); // Flush stdout
 }
 
 async function loadLaborData() {
@@ -109,6 +111,7 @@ async function loadLaborData() {
             confidence: 1
         }));
         console.log("Labor data loaded successfully:", laborData.length, "entries");
+        process.stdout.write(""); // Flush stdout
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -132,6 +135,7 @@ async function loadMaterialsData() {
             confidence: 1
         }));
         console.log("Materials data loaded successfully:", materialsData.length, "entries");
+        process.stdout.write(""); // Flush stdout
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
@@ -144,6 +148,7 @@ async function loadMaterialsData() {
 async function connectToMongoDB() {
     if (!process.env.MONGODB_URI) {
         console.warn("MONGODB_URI not set; running without MongoDB");
+        process.stdout.write(""); // Flush stdout
         return;
     }
     try {
@@ -156,6 +161,7 @@ async function connectToMongoDB() {
         await appState.mongoClient.connect();
         appState.db = appState.mongoClient.db("countertops");
         console.log("Connected to MongoDB Atlas");
+        process.stdout.write(""); // Flush stdout
     } catch (err) {
         logError("MongoDB connection failed", err);
         appState.db = null;
@@ -662,6 +668,7 @@ async function startServer() {
         const server = app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Service live at http://localhost:${PORT} or Render URL`);
+            process.stdout.write(""); // Flush stdout
 
             // Perform initialization in the background
             Promise.all([loadLaborData(), loadMaterialsData()])
@@ -682,13 +689,17 @@ async function startServer() {
         // Handle SIGTERM gracefully
         process.on("SIGTERM", async () => {
             console.log("Received SIGTERM, shutting down...");
+            process.stdout.write(""); // Flush stdout immediately
             clearInterval(keepAlive);
             if (appState.mongoClient) await appState.mongoClient.close();
             cache.flushAll();
             server.close(() => {
                 console.log("Server shut down gracefully due to SIGTERM");
+                process.stdout.write(""); // Flush stdout
                 process.exit(0);
             });
+            // Delay exit slightly to ensure logs are written
+            await new Promise(resolve => setTimeout(resolve, 1000));
         });
 
     } catch (err) {
@@ -704,6 +715,7 @@ process.on("SIGINT", async () => {
         if (appState.mongoClient) await appState.mongoClient.close();
         cache.flushAll();
         console.log("Server shut down gracefully due to SIGINT");
+        process.stdout.write(""); // Flush stdout
         process.exit(0);
     } catch (err) {
         logError("Shutdown error", err);
