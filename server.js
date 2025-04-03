@@ -385,7 +385,7 @@ function enhanceCostEstimate(estimate) {
     const laborEntry = laborData.reduce(
         (best, current) => {
             const similarity = stringSimilarity.compareTwoStrings(projectScope, current.type);
-            return similarity > best.similarity ? { ...current, similarity> } : best;
+            return similarity > best.similarity ? { ...current, similarity } : best;
         },
         { similarity: 0 }
     ) || { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
