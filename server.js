@@ -275,7 +275,8 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 color_and_pattern: keywords.color || "Not identified",
                 thickness: keywords.thickness || "N/A",
                 dimensions: keywords.dimensions || "25 Square Feet",
-                additional_features: keywords.features,
+                edgeProfile: keywords.features.find(f => f.includes("edge")) || "Standard Edge",
+                additional_features: keywords.features.filter(f => !f.includes("edge")),
                 condition: { damage_type: "No visible damage", severity: "None" },
                 solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
                 reasoning: "OpenAI unavailable; default estimate based on customer needs."
@@ -296,7 +297,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
           - Dimensions: Use "${keywords.dimensions || 'unknown'}" if provided, else assume 25 Square Feet or estimate from images.
           - Material: Use "${keywords.material || 'unknown'}" if specified, else infer from images, match to materials.json.
           - Scope: Match "${keywords.scope}" (repair/replacement/installation) with intent or damage.
-          - Features: Include "${keywords.features.join(", ") || 'none'}" if mentioned.
+          - Features: Include "${keywords.features.join(", ") || 'none'}" if mentioned, separate edge profile if specified.
           - Color: Use "${keywords.color || 'unknown'}" if specified, match to materials.json.
           - Thickness: Use "${keywords.thickness || 'unknown'}" if specified, match to materials.json.
         - **MANDATORY**: Use materials.json pricing FIRST—default only if no match. Log reasoning if defaulting.
@@ -313,6 +314,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         - color_and_pattern: e.g., "Black Pearl"
         - thickness: e.g., "2cm"
         - dimensions: e.g., "25 Square Feet"
+        - edgeProfile: e.g., "Bullnose Edge"
         - additional_features: array, e.g., ["sink cutout"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
         - solutions: e.g., "Seal cracks with epoxy"
@@ -346,7 +348,8 @@ async function estimateProject(fileDataArray, customerNeeds) {
             color_and_pattern: result.color_and_pattern || keywords.color || "Not identified",
             thickness: result.thickness || keywords.thickness || "N/A",
             dimensions: keywords.dimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
-            additional_features: result.additional_features || keywords.features,
+            edgeProfile: result.edgeProfile || keywords.features.find(f => f.includes("edge")) || "Standard Edge",
+            additional_features: result.additional_features || keywords.features.filter(f => !f.includes("edge")),
             condition: result.condition || { damage_type: "No visible damage", severity: "None" },
             solutions: result.solutions || `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
             reasoning: result.reasoning || "Based on default assumptions and customer input."
@@ -376,6 +379,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
             color_and_pattern: "Not identified",
             thickness: "N/A",
             dimensions: "25 Square Feet (assumed)",
+            edgeProfile: "Standard Edge",
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
             solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
@@ -428,10 +432,10 @@ function enhanceCostEstimate(estimate) {
 
     const totalCost = materialCost + laborCost + featuresCost;
     return {
-        materialCost: `$${materialCost.toFixed(2)}`,
-        laborCost: { total: `$${laborCost.toFixed(2)}` },
-        additionalFeaturesCost: `$${featuresCost.toFixed(2)}`,
-        totalCost: `$${totalCost.toFixed(2)}`
+        materialCost: materialCost,
+        laborCost: { total: laborCost },
+        additionalFeaturesCost: featuresCost,
+        totalCost: totalCost // Numeric value
     };
 }
 
@@ -441,10 +445,10 @@ async function generateTTS(estimate, customerNeeds) {
     }
 
     const costEstimate = enhanceCostEstimate(estimate) || {
-        materialCost: "Contact for estimate",
-        laborCost: { total: "Contact for estimate" },
-        additionalFeaturesCost: "$0",
-        totalCost: "Contact for estimate"
+        materialCost: 0,
+        laborCost: { total: 0 },
+        additionalFeaturesCost: 0,
+        totalCost: 0
     };
     const narrationText = `Your Surprise Granite estimate: 
         Project: ${estimate.project_scope}. 
@@ -454,7 +458,7 @@ async function generateTTS(estimate, customerNeeds) {
         Dimensions: ${estimate.dimensions}. 
         Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
         Condition: ${estimate.condition?.damage_type}, ${estimate.condition?.severity}. 
-        Total cost: ${costEstimate.totalCost}. 
+        Total cost: $${costEstimate.totalCost.toFixed(2)}. 
         Solutions: ${estimate.solutions}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
         Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
@@ -515,10 +519,10 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
 
         const estimate = await estimateProject(fileDataArray, customerNeeds);
         const costEstimate = enhanceCostEstimate(estimate) || {
-            materialCost: "Contact for estimate",
-            laborCost: { total: "Contact for estimate" },
-            additionalFeaturesCost: "$0",
-            totalCost: "Contact for estimate"
+            materialCost: 0,
+            laborCost: { total: 0 },
+            additionalFeaturesCost: 0,
+            totalCost: 0
         };
         const audioFilePath = await generateTTS(estimate, customerNeeds);
 
@@ -541,6 +545,7 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
             colorAndPattern: estimate.color_and_pattern,
             thickness: estimate.thickness,
             dimensions: estimate.dimensions,
+            edgeProfile: estimate.edgeProfile,
             additionalFeatures: estimate.additional_features || [],
             condition: estimate.condition,
             costEstimate,
@@ -555,6 +560,18 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
         res.status(201).json(responseData);
     } catch (err) {
         next(err);
+    }
+});
+
+app.get("/api/audio/:filename", async (req, res) => {
+    const filePath = path.join(__dirname, "temp", req.params.filename);
+    try {
+        const audioBuffer = await fs.readFile(filePath);
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.send(audioBuffer);
+    } catch (err) {
+        logError("Audio file not found", err);
+        res.status(404).send("Audio file not found");
     }
 });
 
