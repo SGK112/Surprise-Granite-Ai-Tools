@@ -280,7 +280,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 edgeProfile: keywords.features.find(f => f.includes("edge")) || "Standard Edge",
                 additionalFeatures: keywords.features.filter(f => !f.includes("edge")),
                 condition: { damage_type: "No visible damage", severity: "None" },
-                solutions Arth`Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
+                solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
                 reasoning: "OpenAI unavailable; default estimate based on customer needs."
             };
         }
@@ -462,30 +462,47 @@ async function generateTTS(estimate, customerNeeds) {
         Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
 
     try {
-        const response = await withRetry(async () => {
+        // Use withRetry to handle potential transient errors
+        const audioBuffer = await withRetry(async () => {
             const ttsResponse = await openai.audio.speech.create({
                 model: "tts-1",
                 voice: "alloy",
                 input: narrationText,
-                response_format: "mp3" // Explicitly request MP3
+                response_format: "mp3" // Ensure MP3 format
             });
-            return Buffer.from(await ttsResponse.arrayBuffer());
+            const buffer = Buffer.from(await ttsResponse.arrayBuffer());
+            if (buffer.length < 1000) { // Basic validation
+                throw new Error("Generated MP3 is too small and likely invalid");
+            }
+            return buffer;
         });
-        
+
         const tempFilePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
-        await fs.writeFile(tempFilePath, response);
-        console.log(`[${new Date().toISOString()}] TTS file created: ${tempFilePath}, Size: ${response.length} bytes`);
-        
-        // Validate MP3 file
+        await fs.writeFile(tempFilePath, audioBuffer);
+        console.log(`[${new Date().toISOString()}] TTS file created: ${tempFilePath}, Size: ${audioBuffer.length} bytes`);
+
+        // Validate file existence and size
         const stats = await fs.stat(tempFilePath);
-        if (stats.size < 1000) { // Arbitrary minimum size check
-            throw new Error("Generated MP3 file is too small and likely invalid");
+        if (!stats.isFile() || stats.size !== audioBuffer.length) {
+            throw new Error("TTS file write failed or size mismatch");
         }
-        
+
         return tempFilePath;
     } catch (err) {
         logError("TTS generation failed", err);
-        return Buffer.from(`Error generating audio. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
+        // Fallback to a minimal valid MP3 buffer if TTS fails
+        const fallbackText = `Error generating audio. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
+        const fallbackResponse = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "alloy",
+            input: fallbackText,
+            response_format: "mp3"
+        });
+        const fallbackBuffer = Buffer.from(await fallbackResponse.arrayBuffer());
+        const fallbackPath = path.join(tempDir, `tts-fallback-${Date.now()}.mp3`);
+        await fs.writeFile(fallbackPath, fallbackBuffer);
+        console.log(`[${new Date().toISOString()}] Fallback TTS file created: ${fallbackPath}, Size: ${fallbackBuffer.length} bytes`);
+        return fallbackPath;
     }
 }
 
