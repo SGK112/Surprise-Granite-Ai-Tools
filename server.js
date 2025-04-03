@@ -75,6 +75,7 @@ app.use(
 );
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
+    process.stdout.write(""); // Flush stdout
     next();
 });
 
@@ -482,7 +483,7 @@ async function generateTTS(estimate, customerNeeds) {
     }
 }
 
-// Routes
+// Routes - Define before starting server
 app.get("/", (req, res) => {
     res.status(200).send("CARI Server is running");
 });
@@ -662,73 +663,71 @@ app.use((err, req, res, next) => {
 });
 
 // Server Startup
-async function startServer() {
-    try {
-        // Start the server immediately
-        const server = app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-            console.log(`Service live at http://localhost:${PORT} or Render URL`);
-            process.stdout.write(""); // Flush stdout
-
-            // Perform initialization in the background
-            Promise.all([loadLaborData(), loadMaterialsData()])
-                .then(() => console.log("Data initialization complete"))
-                .catch((err) => logError("Background data initialization failed", err));
-
-            connectToMongoDB()
-                .then(() => console.log("MongoDB initialization complete"))
-                .catch((err) => logError("Background MongoDB initialization failed", err));
-        });
-
-        // Keep-alive mechanism: Log memory usage every 30 seconds
-        const keepAlive = setInterval(() => {
-            console.log(`[${new Date().toISOString()}] Server is alive`);
-            logMemoryUsage();
-        }, 30000);
-
-        // Handle SIGTERM gracefully
-        process.on("SIGTERM", async () => {
-            console.log("Received SIGTERM, shutting down...");
-            process.stdout.write(""); // Flush stdout immediately
-            clearInterval(keepAlive);
-            if (appState.mongoClient) await appState.mongoClient.close();
-            cache.flushAll();
-            server.close(() => {
-                console.log("Server shut down gracefully due to SIGTERM");
-                process.stdout.write(""); // Flush stdout
-                process.exit(0);
-            });
-            // Delay exit slightly to ensure logs are written
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        });
-
-    } catch (err) {
-        logError("Server startup failed", err);
-        if (appState.mongoClient) await appState.mongoClient.close();
-        process.exit(1);
-    }
-}
-
-// Graceful Shutdown
-process.on("SIGINT", async () => {
-    try {
-        if (appState.mongoClient) await appState.mongoClient.close();
-        cache.flushAll();
-        console.log("Server shut down gracefully due to SIGINT");
+function startServer() {
+    const server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Service live at http://localhost:${PORT} or Render URL`);
         process.stdout.write(""); // Flush stdout
-        process.exit(0);
-    } catch (err) {
-        logError("Shutdown error", err);
-        process.exit(1);
-    }
-});
 
-process.on("uncaughtException", (err) => {
-    logError("Uncaught Exception", err);
-});
+        // Perform initialization in the background
+        Promise.all([loadLaborData(), loadMaterialsData()])
+            .then(() => console.log("Data initialization complete"))
+            .catch((err) => logError("Background data initialization failed", err));
 
-process.on("unhandledRejection", (reason, promise) => {
-    logError("Unhandled Rejection at", reason);
-});
+        connectToMongoDB()
+            .then(() => console.log("MongoDB initialization complete"))
+            .catch((err) => logError("Background MongoDB initialization failed", err));
+    });
+
+    // Keep-alive mechanism: Log memory usage every 30 seconds
+    const keepAlive = setInterval(() => {
+        console.log(`[${new Date().toISOString()}] Server is alive`);
+        logMemoryUsage();
+    }, 30000);
+
+    // Handle SIGTERM gracefully
+    process.on("SIGTERM", () => {
+        console.log("Received SIGTERM, shutting down...");
+        process.stdout.write(""); // Flush stdout immediately
+        clearInterval(keepAlive);
+        if (appState.mongoClient) {
+            appState.mongoClient.close().then(() => {
+                console.log("MongoDB connection closed");
+            }).catch(err => logError("Error closing MongoDB", err));
+        }
+        cache.flushAll();
+        server.close(() => {
+            console.log("Server shut down gracefully due to SIGTERM");
+            process.stdout.write(""); // Flush stdout
+            process.exit(0);
+        });
+    });
+
+    // Handle SIGINT (e.g., Ctrl+C locally)
+    process.on("SIGINT", () => {
+        console.log("Received SIGINT, shutting down...");
+        process.stdout.write(""); // Flush stdout
+        clearInterval(keepAlive);
+        if (appState.mongoClient) {
+            appState.mongoClient.close().then(() => {
+                console.log("MongoDB connection closed");
+            }).catch(err => logError("Error closing MongoDB", err));
+        }
+        cache.flushAll();
+        server.close(() => {
+            console.log("Server shut down gracefully due to SIGINT");
+            process.stdout.write(""); // Flush stdout
+            process.exit(0);
+        });
+    });
+
+    process.on("uncaughtException", (err) => {
+        logError("Uncaught Exception", err);
+    });
+
+    process.on("unhandledRejection", (reason, promise) => {
+        logError("Unhandled Rejection at", reason);
+    });
+}
 
 startServer();
