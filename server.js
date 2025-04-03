@@ -17,7 +17,7 @@ const Jimp = require("jimp");
 const stringSimilarity = require("string-similarity");
 
 const app = express();
-const PORT = process.env.PORT || 10000; // Dynamic port for Render
+const PORT = process.env.PORT || 10000;
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 app.set("trust proxy", 1);
@@ -127,14 +127,14 @@ async function connectToMongoDB() {
     if (!process.env.MONGODB_URI) {
         console.warn("MONGODB_URI not set; running without MongoDB");
         return;
-    }"https://your-frontend-url.netlify.app"
+    }
     try {
         console.log("Attempting MongoDB connection...");
         mongoClient = new MongoClient(process.env.MONGODB_URI, {
-            maxPoolSize: 10, // Reduced to conserve memory
+            maxPoolSize: 10,
             minPoolSize: 2,
-            connectTimeoutMS: 5000, // Shorter timeout
-            socketTimeoutMS: 15000
+            connectTimeoutMS: 3000, // Shortened timeout
+            socketTimeoutMS: 10000
         });
         await mongoClient.connect();
         db = mongoClient.db("countertops");
@@ -165,7 +165,7 @@ async function extractFileContent(file) {
     try {
         if (file.mimetype.startsWith("image/")) {
             const image = await Jimp.read(file.buffer);
-            image.resize(150, Jimp.AUTO); // Smaller resize for memory efficiency
+            image.resize(100, Jimp.AUTO); // Reduced to 100px for memory
             const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
             const { r, g, b } = Jimp.intToRGBA(dominantColor);
             return { 
@@ -207,7 +207,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
-            .limit(3) // Reduced to save memory
+            .limit(3)
             .allowDiskUse(true)
             .toArray();
 
@@ -300,7 +300,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const response = await withRetry(() => openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 2000, // Reduced to save resources
+            max_tokens: 2000,
             temperature: 0.825,
             response_format: { type: "json_object" },
         }));
@@ -462,7 +462,7 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
             additionalFeaturesCost: "$0",
             totalCost: "Contact for estimate"
         };
-        const audioBuffer = await generateTTS(estimate, customerNeeds);
+        const audioBuffer = await generateyorsTTS(estimate, customerNeeds);
 
         if (db) {
             console.log("Storing lead in MongoDB...");
@@ -584,19 +584,23 @@ app.use((err, req, res, next) => {
 async function startServer() {
     console.log("Starting server initialization...");
     try {
+        console.log("Loading data files...");
         await Promise.all([loadLaborData(), loadMaterialsData()]);
         console.log("Data files loaded");
+        console.log("Connecting to MongoDB...");
         await connectToMongoDB();
+        console.log("MongoDB connection attempted");
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Service live at http://localhost:${PORT} or Render URL`);
+            console.log("Post-startup check"); // Confirm server stays alive
         });
     } catch (err) {
         logError("Server startup failed", err);
-        // Keep running with minimal functionality
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT} with limited functionality`);
             console.log(`Service live at http://localhost:${PORT} or Render URL (limited mode)`);
+            console.log("Post-startup check (limited mode)");
         });
     }
 }
@@ -615,12 +619,10 @@ process.on("SIGINT", async () => {
 
 process.on("uncaughtException", (err) => {
     logError("Uncaught Exception", err);
-    // Avoid crashing; keep server alive
 });
 
 process.on("unhandledRejection", (reason, promise) => {
     logError("Unhandled Rejection at", reason);
-    // Avoid crashing
 });
 
 startServer();
