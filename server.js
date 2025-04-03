@@ -1,71 +1,81 @@
-require("dotenv").config();
-const express = require("express");
-const multer = require("multer");
-const cors = require("cors");
-const helmet = require("helmet");
-const path = require("path");
-const fs = require("fs").promises;
-const { createHash } = require("crypto");
-const { MongoClient, Binary, ObjectId } = require("mongodb");
-const OpenAI = require("openai");
-const nodemailer = require("nodemailer");
-const NodeCache = require("node-cache");
-const compression = require("compression");
-const rateLimit = require("express-rate-limit");
-const pdfParse = require("pdf-parse");
-const Jimp = require("jimp");
-const stringSimilarity = require("string-similarity");
+// server.js
+import "dotenv/config"; // Load environment variables
+import express from "express";
+import multer from "multer";
+import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
+import { MongoClient, Binary, ObjectId } from "mongodb";
+import OpenAI from "openai";
+import nodemailer from "nodemailer";
+import NodeCache from "node-cache";
+import { createHash } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import pdfParse from "pdf-parse";
+import Jimp from "jimp";
+import stringSimilarity from "string-similarity";
 
+// Constants and Configuration
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 10000;
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
-app.set("trust proxy", 1);
+// Global Variables
+let global = { db: null, mongoClient: null };
+const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 }); // 2-hour TTL
+let laborData = [];
+let materialsData = [];
 
+// Multer Configuration
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024, files: 9 },
+    limits: { fileSize: 5 * 1024 * 1024, files: 9 }, // 5MB limit, 9 files max
     fileFilter: (req, file, cb) => {
         const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
-        cb(null, allowedTypes.includes(file.mimetype));
+        if (!allowedTypes.includes(file.mimetype)) {
+            return cb(new Error("Invalid file type"), false);
+        }
+        cb(null, true);
     }
 });
 
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-    try {
-        openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        console.log("OpenAI initialized successfully");
-    } catch (err) {
-        console.error("Failed to initialize OpenAI:", err.message);
-    }
-} else {
-    console.warn("OPENAI_API_KEY not set; AI features disabled");
-}
+// OpenAI Initialization
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 });
+// Email Transporter
+const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
+    ? nodemailer.createTransport({
+          service: "gmail",
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      })
+    : null;
 
-let laborData = [];
-let materialsData = [];
-let db = null;
-let mongoClient;
-
-const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS ? nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-}) : null;
-
+// Middleware Setup
+app.set("trust proxy", 1); // For rate limiting behind proxies
 app.use(compression());
-app.use(cors({ origin: ["http://localhost:3000", "https://your-frontend-url.netlify.app"], credentials: true })); // Replace with your frontend URL
-app.use(helmet());
+app.use(cors({ origin: ["http://localhost:3000", "https://your-frontend-url.netlify.app"], credentials: true }));
+app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } } })); // Enhanced security headers
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, keyGenerator: (req) => req.ip }));
+app.use(
+    rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 1000, // Increased for production
+        keyGenerator: (req) => req.ip,
+        message: "Too many requests. Please try again later."
+    })
+);
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`); // Replace with Pino in production
     next();
 });
 
+// Helper Functions
 function throwError(message, status = 500) {
     const err = new Error(message);
     err.status = status;
@@ -73,24 +83,23 @@ function throwError(message, status = 500) {
 }
 
 function logError(message, err) {
-    console.error(`${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
+    console.error(`[${new Date().toISOString()}] ${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
 }
 
 async function loadLaborData() {
     try {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
         const rawData = JSON.parse(await fs.readFile(laborJsonPath, "utf8"));
-        laborData = rawData.map(item => ({
+        laborData = rawData.map((item) => ({
             code: item.Code,
             type: item.Service.toLowerCase().replace(/\s+/g, "_"),
             rate_per_sqft: item["U/M"] === "SQFT" ? item.Price : 0,
             rate_per_unit: ["EA", "LF", "Per Job"].includes(item["U/M"]) ? item.Price : 0,
             unit_measure: item["U/M"],
-            hours: item["U/M"] === "SQFT" ? 1 : (["EA", "LF", "Per Job"].includes(item["U/M"]) ? 0 : 0.5),
+            hours: item["U/M"] === "SQFT" ? 1 : ["EA", "LF", "Per Job"].includes(item["U/M"]) ? 0 : 0.5,
             description: item.Description,
             confidence: 1
         }));
-        console.log("Labor data loaded successfully:", laborData.length, "entries");
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -104,7 +113,7 @@ async function loadMaterialsData() {
     try {
         const materialsJsonPath = path.join(__dirname, "data", "materials.json");
         const rawData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8"));
-        materialsData = rawData.map(item => ({
+        materialsData = rawData.map((item) => ({
             type: item.Material,
             color: item["Color Name"],
             cost_per_sqft: item["Cost/SqFt"],
@@ -113,7 +122,6 @@ async function loadMaterialsData() {
             availability: item.Availability || "In Stock",
             confidence: 1
         }));
-        console.log("Materials data loaded successfully:", materialsData.length, "entries");
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
@@ -129,24 +137,23 @@ async function connectToMongoDB() {
         return;
     }
     try {
-        console.log("Attempting MongoDB connection...");
-        mongoClient = new MongoClient(process.env.MONGODB_URI, {
-            maxPoolSize: 10,
+        global.mongoClient = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 50, // Increased for production
             minPoolSize: 2,
-            connectTimeoutMS: 3000, // Shortened timeout
+            connectTimeoutMS: 3000,
             socketTimeoutMS: 10000
         });
-        await mongoClient.connect();
-        db = mongoClient.db("countertops");
+        await global.mongoClient.connect();
+        global.db = global.mongoClient.db("countertops");
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
-        logError("MongoDB connection failed, continuing without DB", err);
-        db = null;
+        logError("MongoDB connection failed", err);
+        global.db = null;
     }
 }
 
 async function ensureMongoDBConnection() {
-    if (!db && process.env.MONGODB_URI) await connectToMongoDB();
+    if (!global.db && process.env.MONGODB_URI) await connectToMongoDB();
 }
 
 async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
@@ -156,7 +163,7 @@ async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
         } catch (err) {
             if (attempt === maxAttempts || !err.status || err.status < 500) throw err;
             console.log(`Retry ${attempt}/${maxAttempts} after error: ${err.message}`);
-            await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+            await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
         }
     }
 }
@@ -165,12 +172,12 @@ async function extractFileContent(file) {
     try {
         if (file.mimetype.startsWith("image/")) {
             const image = await Jimp.read(file.buffer);
-            image.resize(100, Jimp.AUTO); // Reduced to 100px for memory
+            image.resize(100, Jimp.AUTO);
             const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
             const { r, g, b } = Jimp.intToRGBA(dominantColor);
-            return { 
-                type: "image", 
-                content: await image.getBase64Async(Jimp.MIME_JPEG).then(buf => buf.split(",")[1]), 
+            return {
+                type: "image",
+                content: (await image.getBase64Async(Jimp.MIME_JPEG)).split(",")[1],
                 color: { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` }
             };
         } else if (file.mimetype === "application/pdf") {
@@ -203,7 +210,9 @@ function extractDimensionsFromNeeds(customerNeeds) {
 async function estimateProject(fileDataArray, customerNeeds) {
     try {
         await ensureMongoDBConnection();
-        const imagesCollection = db?.collection("countertop_images") || { find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) }) };
+        const imagesCollection = global.db?.collection("countertop_images") || {
+            find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) })
+        };
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
@@ -211,33 +220,29 @@ async function estimateProject(fileDataArray, customerNeeds) {
             .allowDiskUse(true)
             .toArray();
 
-        const pastData = pastEstimates.map(img => {
-            const estimate = img.metadata?.estimate || {};
-            return {
-                material_type: estimate.material_type || "Unknown",
-                project_scope: estimate.project_scope || "Countertop Replacement",
-                condition: estimate.condition || { damage_type: "No visible damage", severity: "None" },
-                additional_features: estimate.additional_features || [],
-                solutions: estimate.solutions || "Professional evaluation required",
-                cost: enhanceCostEstimate(estimate)?.totalCost || "Contact for estimate",
-                color: estimate.color_and_pattern || "Not identified",
-                likes: img.metadata.likes || 0,
-                dislikes: img.metadata.dislikes || 0,
-            };
-        });
+        const pastData = pastEstimates.map((img) => ({
+            material_type: img.metadata?.estimate.material_type || "Unknown",
+            project_scope: img.metadata?.estimate.project_scope || "Countertop Replacement",
+            condition: img.metadata?.estimate.condition || { damage_type: "No visible damage", severity: "None" },
+            additional_features: img.metadata?.estimate.additional_features || [],
+            solutions: img.metadata?.estimate.solutions || "Professional evaluation required",
+            cost: enhanceCostEstimate(img.metadata?.estimate)?.totalCost || "Contact for estimate",
+            color: img.metadata?.estimate.color_and_pattern || "Not identified",
+            likes: img.metadata.likes || 0,
+            dislikes: img.metadata.dislikes || 0
+        }));
 
         const needsLower = customerNeeds.toLowerCase();
         const keywords = {
             dimensions: extractDimensionsFromNeeds(customerNeeds),
             material: needsLower.match(/granite|quartz|marble|dekton|tile/i)?.[0],
             scope: needsLower.includes("repair") ? "repair" : needsLower.includes("replace") ? "replacement" : "installation",
-            features: needsLower.match(/sink|edge|backsplash|demo|cutout|plumbing/i)?.map(f => f.toLowerCase()) || [],
+            features: needsLower.match(/sink|edge|backsplash|demo|cutout|plumbing/i)?.map((f) => f.toLowerCase()) || [],
             color: needsLower.match(/(black|white|gray|brown|pearl|mist)[\s-]*(pearl|mist)?/i)?.[0],
             thickness: needsLower.match(/(\d+\.?\d*)\s*(cm|mm)/i)?.[0]
         };
 
         if (!openai) {
-            console.warn("OpenAI unavailable; returning default estimate");
             return {
                 project_scope: keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement",
                 material_type: keywords.material || "Granite",
@@ -246,7 +251,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 dimensions: keywords.dimensions || "25 Square Feet",
                 additional_features: keywords.features,
                 condition: { damage_type: "No visible damage", severity: "None" },
-                solutions: "Contact Surprise Granite at (602) 833-3189 for evaluation.",
+                solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
                 reasoning: "OpenAI unavailable; default estimate based on customer needs."
             };
         }
@@ -290,22 +295,24 @@ async function estimateProject(fileDataArray, customerNeeds) {
 
         const messages = [
             { role: "system", content: prompt },
-            { 
-                role: "user", 
-                content: fileDataArray.length ? 
-                    fileDataArray.map(f => ({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${f.content}` } })) : 
-                    customerNeeds 
+            {
+                role: "user",
+                content: fileDataArray.length
+                    ? fileDataArray.map((f) => ({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${f.content}` } }))
+                    : customerNeeds
             }
         ];
-        const response = await withRetry(() => openai.chat.completions.create({
-            model: "gpt-4o",
-            messages,
-            max_tokens: 2000,
-            temperature: 0.825,
-            response_format: { type: "json_object" },
-        }));
+        const response = await withRetry(() =>
+            openai.chat.completions.create({
+                model: "gpt-4o",
+                messages,
+                max_tokens: 2000,
+                temperature: 0.825,
+                response_format: { type: "json_object" }
+            })
+        );
 
-        let result = JSON.parse(response.choices[0].message.content || '{}');
+        let result = JSON.parse(response.choices[0].message.content || "{}");
 
         const estimate = {
             project_scope: result.project_scope || (keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement"),
@@ -315,20 +322,22 @@ async function estimateProject(fileDataArray, customerNeeds) {
             dimensions: keywords.dimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
             additional_features: result.additional_features || keywords.features,
             condition: result.condition || { damage_type: "No visible damage", severity: "None" },
-            solutions: result.solutions || "Contact Surprise Granite at (602) 833-3189 for evaluation.",
+            solutions: result.solutions || `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
             reasoning: result.reasoning || "Based on default assumptions and customer input."
         };
 
-        if (db) {
-            const imagesCollection = db.collection("countertop_images");
-            const imageIds = await Promise.all(fileDataArray.map(async (fileData, i) => {
-                const insertResult = await imagesCollection.insertOne({
-                    fileHash: createHash("sha256").update(fileData.content).digest("hex"),
-                    fileData: new Binary(Buffer.from(fileData.content, "base64")),
-                    metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
-                });
-                return insertResult.insertedId.toString();
-            }));
+        if (global.db) {
+            const imagesCollection = global.db.collection("countertop_images");
+            const imageIds = await Promise.all(
+                fileDataArray.map(async (fileData) => {
+                    const insertResult = await imagesCollection.insertOne({
+                        fileHash: createHash("sha256").update(fileData.content).digest("hex"),
+                        fileData: new Binary(Buffer.from(fileData.content, "base64")),
+                        metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
+                    });
+                    return insertResult.insertedId.toString();
+                })
+            );
             estimate.imageIds = imageIds;
         }
 
@@ -343,7 +352,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
             dimensions: "25 Square Feet (assumed)",
             additional_features: [],
             condition: { damage_type: "No visible damage", severity: "None" },
-            solutions: "Contact Surprise Granite at (602) 833-3189 for evaluation.",
+            solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
             reasoning: `Estimate failed: ${err.message}. Assumed defaults.`
         };
     }
@@ -359,21 +368,27 @@ function enhanceCostEstimate(estimate) {
     const dimensions = estimate.dimensions || "25 Square Feet";
     const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
 
-    const material = materialsData.reduce((best, current) => {
-        const similarity = Math.max(
-            stringSimilarity.compareTwoStrings(materialType, current.type.toLowerCase()),
-            stringSimilarity.compareTwoStrings(colorPattern, current.color.toLowerCase()),
-            stringSimilarity.compareTwoStrings(thickness, current.thickness.toLowerCase())
-        );
-        return similarity > best.similarity ? { ...current, similarity } : best;
-    }, { similarity: 0 }) || { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 0.8 };
+    const material = materialsData.reduce(
+        (best, current) => {
+            const similarity = Math.max(
+                stringSimilarity.compareTwoStrings(materialType, current.type.toLowerCase()),
+                stringSimilarity.compareTwoStrings(colorPattern, current.color.toLowerCase()),
+                stringSimilarity.compareTwoStrings(thickness, current.thickness.toLowerCase())
+            );
+            return similarity > best.similarity ? { ...current, similarity } : best;
+        },
+        { similarity: 0 }
+    ) || { type: "Granite", color: "Generic", cost_per_sqft: 50, thickness: "N/A", vendor: "Unknown", availability: "In Stock", confidence: 0.8 };
 
     const materialCost = projectScope.includes("repair") ? 0 : material.cost_per_sqft * sqFt * 1.3;
 
-    const laborEntry = laborData.reduce((best, current) => {
-        const similarity = stringSimilarity.compareTwoStrings(projectScope, current.type);
-        return similarity > best.similarity ? { ...current, similarity } : best;
-    }, { similarity: 0 }) || { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
+    const laborEntry = laborData.reduce(
+        (best, current) => {
+            const similarity = stringSimilarity.compareTwoStrings(projectScope, current.type);
+            return similarity > best.similarity ? { ...current, similarity> } : best;
+        },
+        { similarity: 0 }
+    ) || { type: "default", rate_per_sqft: 15, rate_per_unit: 0, unit_measure: "SQFT", hours: 1, confidence: 0.5 };
 
     let laborCost = (laborEntry.rate_per_sqft || 15) * sqFt;
     if (projectScope.includes("repair")) {
@@ -396,7 +411,6 @@ function enhanceCostEstimate(estimate) {
 
 async function generateTTS(estimate, customerNeeds) {
     if (!openai) {
-        console.warn("OpenAI unavailable; TTS disabled");
         return Buffer.from(`Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for your estimate.`);
     }
 
@@ -421,16 +435,18 @@ async function generateTTS(estimate, customerNeeds) {
     const chunks = narrationText.match(/.{1,4096}/g) || [narrationText];
 
     try {
-        const audioBuffers = await Promise.all(chunks.map(chunk =>
-            withRetry(async () => {
-                const response = await openai.audio.speech.create({
-                    model: "tts-1",
-                    voice: "alloy",
-                    input: chunk,
-                });
-                return Buffer.from(await response.arrayBuffer());
-            })
-        ));
+        const audioBuffers = await Promise.all(
+            chunks.map((chunk) =>
+                withRetry(async () => {
+                    const response = await openai.audio.speech.create({
+                        model: "tts-1",
+                        voice: "alloy",
+                        input: chunk
+                    });
+                    return Buffer.from(await response.arrayBuffer());
+                })
+            )
+        );
         return Buffer.concat(audioBuffers);
     } catch (err) {
         logError("TTS generation failed", err);
@@ -438,17 +454,26 @@ async function generateTTS(estimate, customerNeeds) {
     }
 }
 
+// Routes
 app.get("/", (req, res) => {
-    console.log("Health check successful");
     res.status(200).send("CARI Server is running");
 });
 
-app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) => {
+app.get("/health", (req, res) => {
+    const health = {
+        uptime: process.uptime(),
+        mongoConnected: !!global.db,
+        openaiAvailable: !!openai,
+        timestamp: new Date().toISOString()
+    };
+    res.status(200).json(health);
+});
+
+app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, next) => {
     try {
-        console.log("Processing contractor estimate request...");
         const customerNeeds = (req.body.customer_needs || "").trim();
         const files = req.files || [];
-        const fileDataArray = await Promise.all(files.map(file => extractFileContent(file)));
+        const fileDataArray = await Promise.all(files.map((file) => extractFileContent(file)));
         const leadData = {
             name: req.body.name || "Unknown",
             email: req.body.email || "Unknown",
@@ -462,11 +487,10 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
             additionalFeaturesCost: "$0",
             totalCost: "Contact for estimate"
         };
-        const audioBuffer = await generateyorsTTS(estimate, customerNeeds);
+        const audioBuffer = await generateTTS(estimate, customerNeeds);
 
-        if (db) {
-            console.log("Storing lead in MongoDB...");
-            const leadsCollection = db.collection("leads");
+        if (global.db) {
+            const leadsCollection = global.db.collection("leads");
             await leadsCollection.insertOne({
                 ...leadData,
                 customerNeeds,
@@ -474,8 +498,6 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
                 timestamp: new Date(),
                 status: "new"
             });
-        } else {
-            console.warn("MongoDB unavailable; lead not stored");
         }
 
         const responseData = {
@@ -497,22 +519,17 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
             likes: 0,
             dislikes: 0
         };
-        console.log("Estimate generated successfully");
         res.status(201).json(responseData);
     } catch (err) {
-        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-            return res.status(400).json({ error: "File size exceeds 5MB limit" });
-        }
-        logError("Error in /api/contractor-estimate", err);
-        res.status(500).json({ error: "Failed to generate estimate", details: err.message });
+        next(err);
     }
 });
 
-app.post("/api/like-countertop/:id", async (req, res) => {
+app.post("/api/like-countertop/:id", async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
-        if (!db) throwError("Database not connected", 500);
-        const imagesCollection = db.collection("countertop_images");
+        if (!global.db) throwError("Database not connected", 500);
+        const imagesCollection = global.db.collection("countertop_images");
         const objectId = new ObjectId(req.params.id);
         const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
@@ -521,16 +538,15 @@ app.post("/api/like-countertop/:id", async (req, res) => {
         await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.likes": newLikes } });
         res.status(200).json({ message: "Like added", likes: newLikes, dislikes: countertop.metadata.dislikes || 0 });
     } catch (err) {
-        logError("Error in /api/like-countertop", err);
-        res.status(500).json({ error: "Failed to like countertop", details: err.message });
+        next(err);
     }
 });
 
-app.post("/api/dislike-countertop/:id", async (req, res) => {
+app.post("/api/dislike-countertop/:id", async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
-        if (!db) throwError("Database not connected", 500);
-        const imagesCollection = db.collection("countertop_images");
+        if (!global.db) throwError("Database not connected", 500);
+        const imagesCollection = global.db.collection("countertop_images");
         const objectId = new ObjectId(req.params.id);
         const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
@@ -539,12 +555,11 @@ app.post("/api/dislike-countertop/:id", async (req, res) => {
         await imagesCollection.updateOne({ _id: objectId }, { $set: { "metadata.dislikes": newDislikes } });
         res.status(200).json({ message: "Dislike added", likes: countertop.metadata.likes || 0, dislikes: newDislikes });
     } catch (err) {
-        logError("Error in /api/dislike-countertop", err);
-        res.status(500).json({ error: "Failed to dislike countertop", details: err.message });
+        next(err);
     }
 });
 
-app.post("/api/send-email", async (req, res) => {
+app.post("/api/send-email", async (req, res, next) => {
     try {
         if (!transporter) throwError("Email service not configured", 500);
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
@@ -568,46 +583,46 @@ app.post("/api/send-email", async (req, res) => {
         await transporter.sendMail(mailOptions);
         res.status(200).json({ message: "Email sent successfully" });
     } catch (err) {
-        logError("Error sending email", err);
-        res.status(500).json({ error: "Failed to send email", details: err.message });
+        next(err);
     }
 });
 
+// Error Handling Middleware
 app.use((err, req, res, next) => {
     const status = err.status || 500;
     const message = err.message || "Unknown server error";
-    const details = status === 429 ? "Too many requests. Please wait and try again." : `Call ${SURPRISE_GRANITE_PHONE} if this persists.`;
+    const details =
+        status === 429
+            ? "Too many requests. Please wait and try again."
+            : `Call ${SURPRISE_GRANITE_PHONE} if this persists.`;
     logError(`Unhandled error in ${req.method} ${req.path}`, err);
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "File size exceeds 5MB limit" });
+    }
     res.status(status).json({ error: message, details });
 });
 
+// Server Startup
 async function startServer() {
-    console.log("Starting server initialization...");
     try {
-        console.log("Loading data files...");
         await Promise.all([loadLaborData(), loadMaterialsData()]);
-        console.log("Data files loaded");
-        console.log("Connecting to MongoDB...");
         await connectToMongoDB();
-        console.log("MongoDB connection attempted");
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
-            console.log(`Service live at http://localhost:${PORT} or Render URL`);
-            console.log("Post-startup check"); // Confirm server stays alive
+            console.log(`Service live at http://localhost:${PORT}`);
         });
     } catch (err) {
         logError("Server startup failed", err);
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT} with limited functionality`);
-            console.log(`Service live at http://localhost:${PORT} or Render URL (limited mode)`);
-            console.log("Post-startup check (limited mode)");
         });
     }
 }
 
+// Graceful Shutdown
 process.on("SIGINT", async () => {
     try {
-        if (mongoClient) await mongoClient.close();
+        if (global.mongoClient) await global.mongoClient.close();
         cache.flushAll();
         console.log("Server shut down gracefully");
         process.exit(0);
