@@ -17,21 +17,32 @@ const Jimp = require("jimp");
 const stringSimilarity = require("string-similarity");
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000; // Dynamic port for Render
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
 app.set("trust proxy", 1);
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024, files: 9 }, // 5MB per file, up to 9 files
+    limits: { fileSize: 5 * 1024 * 1024, files: 9 },
     fileFilter: (req, file, cb) => {
         const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
         cb(null, allowedTypes.includes(file.mimetype));
     }
 });
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+    try {
+        openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        console.log("OpenAI initialized successfully");
+    } catch (err) {
+        console.error("Failed to initialize OpenAI:", err.message);
+    }
+} else {
+    console.warn("OPENAI_API_KEY not set; AI features disabled");
+}
+
 const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 });
 
 let laborData = [];
@@ -39,13 +50,13 @@ let materialsData = [];
 let db = null;
 let mongoClient;
 
-const transporter = nodemailer.createTransport({
+const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS ? nodemailer.createTransport({
     service: "gmail",
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-});
+}) : null;
 
 app.use(compression());
-app.use(cors({ origin: ["http://localhost:3000", "https://your-frontend-url.netlify.app"], credentials: true }));
+app.use(cors({ origin: ["http://localhost:3000", "https://your-frontend-url.netlify.app"], credentials: true })); // Replace with your frontend URL
 app.use(helmet());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -79,6 +90,7 @@ async function loadLaborData() {
             description: item.Description,
             confidence: 1
         }));
+        console.log("Labor data loaded successfully:", laborData.length, "entries");
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -101,6 +113,7 @@ async function loadMaterialsData() {
             availability: item.Availability || "In Stock",
             confidence: 1
         }));
+        console.log("Materials data loaded successfully:", materialsData.length, "entries");
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
@@ -112,21 +125,22 @@ async function loadMaterialsData() {
 
 async function connectToMongoDB() {
     if (!process.env.MONGODB_URI) {
-        console.warn("MONGODB_URI not set; skipping MongoDB connection.");
+        console.warn("MONGODB_URI not set; running without MongoDB");
         return;
-    }
+    }"https://your-frontend-url.netlify.app"
     try {
+        console.log("Attempting MongoDB connection...");
         mongoClient = new MongoClient(process.env.MONGODB_URI, {
-            maxPoolSize: 20,
+            maxPoolSize: 10, // Reduced to conserve memory
             minPoolSize: 2,
-            connectTimeoutMS: 10000,
-            socketTimeoutMS: 30000
+            connectTimeoutMS: 5000, // Shorter timeout
+            socketTimeoutMS: 15000
         });
         await mongoClient.connect();
         db = mongoClient.db("countertops");
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
-        logError("MongoDB connection failed", err);
+        logError("MongoDB connection failed, continuing without DB", err);
         db = null;
     }
 }
@@ -151,7 +165,7 @@ async function extractFileContent(file) {
     try {
         if (file.mimetype.startsWith("image/")) {
             const image = await Jimp.read(file.buffer);
-            image.resize(200, Jimp.AUTO);
+            image.resize(150, Jimp.AUTO); // Smaller resize for memory efficiency
             const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
             const { r, g, b } = Jimp.intToRGBA(dominantColor);
             return { 
@@ -193,7 +207,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const pastEstimates = await imagesCollection
             .find({ "metadata.estimate.material_type": { $exists: true } })
             .sort({ "metadata.uploadDate": -1 })
-            .limit(5)
+            .limit(3) // Reduced to save memory
             .allowDiskUse(true)
             .toArray();
 
@@ -221,6 +235,21 @@ async function estimateProject(fileDataArray, customerNeeds) {
             color: needsLower.match(/(black|white|gray|brown|pearl|mist)[\s-]*(pearl|mist)?/i)?.[0],
             thickness: needsLower.match(/(\d+\.?\d*)\s*(cm|mm)/i)?.[0]
         };
+
+        if (!openai) {
+            console.warn("OpenAI unavailable; returning default estimate");
+            return {
+                project_scope: keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement",
+                material_type: keywords.material || "Granite",
+                color_and_pattern: keywords.color || "Not identified",
+                thickness: keywords.thickness || "N/A",
+                dimensions: keywords.dimensions || "25 Square Feet",
+                additional_features: keywords.features,
+                condition: { damage_type: "No visible damage", severity: "None" },
+                solutions: "Contact Surprise Granite at (602) 833-3189 for evaluation.",
+                reasoning: "OpenAI unavailable; default estimate based on customer needs."
+            };
+        }
 
         const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and tile remodeling estimates as of April 02, 2025. Analyze these ${fileDataArray.length} files and customer needs ("${customerNeeds}") to generate a precise estimate:
 
@@ -271,7 +300,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const response = await withRetry(() => openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 3000,
+            max_tokens: 2000, // Reduced to save resources
             temperature: 0.825,
             response_format: { type: "json_object" },
         }));
@@ -366,6 +395,11 @@ function enhanceCostEstimate(estimate) {
 }
 
 async function generateTTS(estimate, customerNeeds) {
+    if (!openai) {
+        console.warn("OpenAI unavailable; TTS disabled");
+        return Buffer.from(`Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for your estimate.`);
+    }
+
     const costEstimate = enhanceCostEstimate(estimate) || {
         materialCost: "Contact for estimate",
         laborCost: { total: "Contact for estimate" },
@@ -404,17 +438,21 @@ async function generateTTS(estimate, customerNeeds) {
     }
 }
 
-app.get("/", (req, res) => res.status(200).send("CARI Server is running"));
+app.get("/", (req, res) => {
+    console.log("Health check successful");
+    res.status(200).send("CARI Server is running");
+});
 
 app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) => {
     try {
+        console.log("Processing contractor estimate request...");
         const customerNeeds = (req.body.customer_needs || "").trim();
         const files = req.files || [];
         const fileDataArray = await Promise.all(files.map(file => extractFileContent(file)));
         const leadData = {
-            name: req.body.name,
-            email: req.body.email,
-            phone: req.body.phone
+            name: req.body.name || "Unknown",
+            email: req.body.email || "Unknown",
+            phone: req.body.phone || "Not provided"
         };
 
         const estimate = await estimateProject(fileDataArray, customerNeeds);
@@ -427,6 +465,7 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
         const audioBuffer = await generateTTS(estimate, customerNeeds);
 
         if (db) {
+            console.log("Storing lead in MongoDB...");
             const leadsCollection = db.collection("leads");
             await leadsCollection.insertOne({
                 ...leadData,
@@ -435,6 +474,8 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
                 timestamp: new Date(),
                 status: "new"
             });
+        } else {
+            console.warn("MongoDB unavailable; lead not stored");
         }
 
         const responseData = {
@@ -456,6 +497,7 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
             likes: 0,
             dislikes: 0
         };
+        console.log("Estimate generated successfully");
         res.status(201).json(responseData);
     } catch (err) {
         if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
@@ -504,12 +546,13 @@ app.post("/api/dislike-countertop/:id", async (req, res) => {
 
 app.post("/api/send-email", async (req, res) => {
     try {
+        if (!transporter) throwError("Email service not configured", 500);
         const { name, email, phone, message, stone_type, analysis_summary } = req.body;
         if (!name || !email || !message) throwError("Missing required fields: name, email, and message", 400);
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: "recipient@example.com",
+            to: "recipient@example.com", // Replace with your email
             subject: `New Quote Request from ${name}`,
             text: `
                 Name: ${name}
@@ -539,13 +582,22 @@ app.use((err, req, res, next) => {
 });
 
 async function startServer() {
+    console.log("Starting server initialization...");
     try {
         await Promise.all([loadLaborData(), loadMaterialsData()]);
+        console.log("Data files loaded");
         await connectToMongoDB();
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log(`Service live at http://localhost:${PORT} or Render URL`);
+        });
     } catch (err) {
         logError("Server startup failed", err);
-        process.exit(1);
+        // Keep running with minimal functionality
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT} with limited functionality`);
+            console.log(`Service live at http://localhost:${PORT} or Render URL (limited mode)`);
+        });
     }
 }
 
@@ -563,11 +615,12 @@ process.on("SIGINT", async () => {
 
 process.on("uncaughtException", (err) => {
     logError("Uncaught Exception", err);
-    process.exit(1);
+    // Avoid crashing; keep server alive
 });
+
 process.on("unhandledRejection", (reason, promise) => {
     logError("Unhandled Rejection at", reason);
-    process.exit(1);
+    // Avoid crashing
 });
 
 startServer();
