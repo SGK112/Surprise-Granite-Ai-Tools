@@ -61,7 +61,12 @@ const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
 // Middleware Setup
 app.set("trust proxy", 1); // For rate limiting behind proxies
 app.use(compression());
-app.use(cors({ origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"], credentials: true }));
+app.use(cors({
+    origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000", "https://your-frontend-url.netlify.app"], // Add your frontend URL
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
+}));
 app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } } }));
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));
@@ -72,6 +77,14 @@ app.use(
         keyGenerator: (req) => req.ip,
         message: "Too many requests. Please try again later."
     })
+);
+
+// Debug all incoming requests
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip} - Headers:`, req.headers);
+    process.stdout.write(""); // Flush stdout
+    next();
+});
 );
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
