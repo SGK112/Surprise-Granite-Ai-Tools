@@ -63,14 +63,14 @@ app.use(cors({
     origin: process.env.CORS_ORIGINS?.split(",") || [
         "http://localhost:3000",
         "https://surprise-granite-connections-dev.onrender.com",
-        "https://www.surprisegranite.com" // Ensure frontend origin is included
+        "https://www.surprisegranite.com"
     ],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204,
-    maxAge: 86400 // Cache preflight for 24 hours
+    maxAge: 86400
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "10mb" }));
@@ -280,7 +280,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 edgeProfile: keywords.features.find(f => f.includes("edge")) || "Standard Edge",
                 additionalFeatures: keywords.features.filter(f => !f.includes("edge")),
                 condition: { damage_type: "No visible damage", severity: "None" },
-                solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
+                solutions Arth`Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
                 reasoning: "OpenAI unavailable; default estimate based on customer needs."
             };
         }
@@ -443,15 +443,11 @@ function enhanceCostEstimate(estimate) {
 
 async function generateTTS(estimate, customerNeeds) {
     if (!openai) {
+        console.error("OpenAI not initialized. Missing API key?");
         return Buffer.from(`Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for your estimate.`);
     }
 
-    const costEstimate = enhanceCostEstimate(estimate) || {
-        materialCost: 0,
-        laborCost: { total: 0 },
-        additionalFeaturesCost: 0,
-        totalCost: 0
-    };
+    const costEstimate = enhanceCostEstimate(estimate) || { totalCost: 0 };
     const narrationText = `Your Surprise Granite estimate: 
         Project: ${estimate.projectScope}. 
         Material: ${estimate.materialType}. 
@@ -464,24 +460,28 @@ async function generateTTS(estimate, customerNeeds) {
         Solutions: ${estimate.solutions}. 
         ${customerNeeds ? "Customer needs: " + customerNeeds + ". " : ""}
         Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`;
-    const chunks = narrationText.match(/.{1,4096}/g) || [narrationText];
 
     try {
-        const audioBuffers = await Promise.all(
-            chunks.map(chunk =>
-                withRetry(async () => {
-                    const response = await openai.audio.speech.create({
-                        model: "tts-1",
-                        voice: "alloy",
-                        input: chunk
-                    });
-                    return Buffer.from(await response.arrayBuffer());
-                })
-            )
-        );
-        const audioBuffer = Buffer.concat(audioBuffers);
+        const response = await withRetry(async () => {
+            const ttsResponse = await openai.audio.speech.create({
+                model: "tts-1",
+                voice: "alloy",
+                input: narrationText,
+                response_format: "mp3" // Explicitly request MP3
+            });
+            return Buffer.from(await ttsResponse.arrayBuffer());
+        });
+        
         const tempFilePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
-        await fs.writeFile(tempFilePath, audioBuffer);
+        await fs.writeFile(tempFilePath, response);
+        console.log(`[${new Date().toISOString()}] TTS file created: ${tempFilePath}, Size: ${response.length} bytes`);
+        
+        // Validate MP3 file
+        const stats = await fs.stat(tempFilePath);
+        if (stats.size < 1000) { // Arbitrary minimum size check
+            throw new Error("Generated MP3 file is too small and likely invalid");
+        }
+        
         return tempFilePath;
     } catch (err) {
         logError("TTS generation failed", err);
@@ -566,12 +566,15 @@ app.get("/api/audio/:filename", async (req, res) => {
     const filePath = path.join(tempDir, req.params.filename);
     try {
         const audioBuffer = await fs.readFile(filePath);
+        console.log(`[${new Date().toISOString()}] Serving audio file: ${filePath}, Size: ${audioBuffer.length} bytes`);
         res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Content-Length", audioBuffer.length);
         res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("Access-Control-Allow-Origin", "https://www.surprisegranite.com");
         res.send(audioBuffer);
     } catch (err) {
-        logError("Audio file not found", err);
-        res.status(404).send("Audio file not found");
+        logError("Audio file not found or failed to serve", err);
+        res.status(404).json({ error: "Audio file not found" });
     }
 });
 
