@@ -89,6 +89,11 @@ function logError(message, err) {
     console.error(`[${new Date().toISOString()}] ${message}: ${err?.message || "Unknown error"}`, err?.stack || err);
 }
 
+function logMemoryUsage() {
+    const used = process.memoryUsage();
+    console.log(`[${new Date().toISOString()}] Memory Usage: RSS=${(used.rss / 1024 / 1024).toFixed(2)}MB, HeapTotal=${(used.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(used.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+}
+
 async function loadLaborData() {
     try {
         const laborJsonPath = path.join(__dirname, "data", "labor.json");
@@ -482,6 +487,7 @@ app.get("/health", (req, res) => {
         mongoConnected: !!appState.db,
         openaiAvailable: !!openai,
         dataLoaded: laborData.length > 0 && materialsData.length > 0,
+        memory: process.memoryUsage(),
         timestamp: new Date().toISOString()
     };
     res.status(200).json(health);
@@ -653,7 +659,7 @@ app.use((err, req, res, next) => {
 async function startServer() {
     try {
         // Start the server immediately
-        app.listen(PORT, () => {
+        const server = app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Service live at http://localhost:${PORT} or Render URL`);
 
@@ -666,6 +672,25 @@ async function startServer() {
                 .then(() => console.log("MongoDB initialization complete"))
                 .catch((err) => logError("Background MongoDB initialization failed", err));
         });
+
+        // Keep-alive mechanism: Log memory usage every 30 seconds
+        const keepAlive = setInterval(() => {
+            console.log(`[${new Date().toISOString()}] Server is alive`);
+            logMemoryUsage();
+        }, 30000);
+
+        // Handle SIGTERM gracefully
+        process.on("SIGTERM", async () => {
+            console.log("Received SIGTERM, shutting down...");
+            clearInterval(keepAlive);
+            if (appState.mongoClient) await appState.mongoClient.close();
+            cache.flushAll();
+            server.close(() => {
+                console.log("Server shut down gracefully due to SIGTERM");
+                process.exit(0);
+            });
+        });
+
     } catch (err) {
         logError("Server startup failed", err);
         if (appState.mongoClient) await appState.mongoClient.close();
@@ -678,7 +703,7 @@ process.on("SIGINT", async () => {
     try {
         if (appState.mongoClient) await appState.mongoClient.close();
         cache.flushAll();
-        console.log("Server shut down gracefully");
+        console.log("Server shut down gracefully due to SIGINT");
         process.exit(0);
     } catch (err) {
         logError("Shutdown error", err);
