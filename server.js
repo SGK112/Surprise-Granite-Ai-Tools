@@ -63,10 +63,10 @@ app.use(cors({
     origin: process.env.CORS_ORIGINS?.split(",") || [
         "http://localhost:3000",
         "https://surprise-granite-connections-dev.onrender.com",
-        "https://www.surprisegranite.com" // Added frontend origin
+        "https://www.surprisegranite.com" // Ensure frontend origin is included
     ],
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -159,8 +159,8 @@ async function connectToMongoDB() {
         appState.mongoClient = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 50,
             minPoolSize: 2,
-            connectTimeoutMS: 5000, // Increased timeout
-            socketTimeoutMS: 15000  // Increased timeout
+            connectTimeoutMS: 5000,
+            socketTimeoutMS: 15000
         });
         await appState.mongoClient.connect();
         appState.db = appState.mongoClient.db("countertops");
@@ -272,13 +272,13 @@ async function estimateProject(fileDataArray, customerNeeds) {
 
         if (!openai) {
             return {
-                project_scope: keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement",
-                material_type: keywords.material || "Granite",
-                color_and_pattern: keywords.color || "Not identified",
+                projectScope: keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement",
+                materialType: keywords.material || "Granite",
+                colorAndPattern: keywords.color || "Not identified",
                 thickness: keywords.thickness || "N/A",
                 dimensions: keywords.dimensions || "25 Square Feet",
                 edgeProfile: keywords.features.find(f => f.includes("edge")) || "Standard Edge",
-                additional_features: keywords.features.filter(f => !f.includes("edge")),
+                additionalFeatures: keywords.features.filter(f => !f.includes("edge")),
                 condition: { damage_type: "No visible damage", severity: "None" },
                 solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
                 reasoning: "OpenAI unavailable; default estimate based on customer needs."
@@ -311,13 +311,13 @@ async function estimateProject(fileDataArray, customerNeeds) {
         **Historical Estimates**: ${JSON.stringify(pastData)}
 
         Respond in JSON with:
-        - project_scope: e.g., "Countertop Repair"
-        - material_type: e.g., "Granite"
-        - color_and_pattern: e.g., "Black Pearl"
+        - projectScope: e.g., "Countertop Repair"
+        - materialType: e.g., "Granite"
+        - colorAndPattern: e.g., "Black Pearl"
         - thickness: e.g., "2cm"
         - dimensions: e.g., "25 Square Feet"
         - edgeProfile: e.g., "Bullnose Edge"
-        - additional_features: array, e.g., ["sink cutout"]
+        - additionalFeatures: array, e.g., ["sink cutout"]
         - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
         - solutions: e.g., "Seal cracks with epoxy"
         - reasoning: Detail analysis, customer needs integration, and pricing source
@@ -345,13 +345,13 @@ async function estimateProject(fileDataArray, customerNeeds) {
         let result = JSON.parse(response.choices[0].message.content || "{}");
 
         const estimate = {
-            project_scope: result.project_scope || (keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement"),
-            material_type: result.material_type || keywords.material || "Granite",
-            color_and_pattern: result.color_and_pattern || keywords.color || "Not identified",
+            projectScope: result.projectScope || (keywords.scope === "repair" ? "Countertop Repair" : "Countertop Replacement"),
+            materialType: result.materialType || keywords.material || "Granite",
+            colorAndPattern: result.colorAndPattern || keywords.color || "Not identified",
             thickness: result.thickness || keywords.thickness || "N/A",
             dimensions: keywords.dimensions || (result.dimensions?.replace(/sqft|sft/i, "Square Feet") || "25 Square Feet"),
             edgeProfile: result.edgeProfile || keywords.features.find(f => f.includes("edge")) || "Standard Edge",
-            additional_features: result.additional_features || keywords.features.filter(f => !f.includes("edge")),
+            additionalFeatures: result.additionalFeatures || keywords.features.filter(f => !f.includes("edge")),
             condition: result.condition || { damage_type: "No visible damage", severity: "None" },
             solutions: result.solutions || `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
             reasoning: result.reasoning || "Based on default assumptions and customer input."
@@ -376,13 +376,13 @@ async function estimateProject(fileDataArray, customerNeeds) {
     } catch (err) {
         logError("Estimate generation failed", err);
         return {
-            project_scope: "Countertop Replacement",
-            material_type: "Granite",
-            color_and_pattern: "Not identified",
+            projectScope: "Countertop Replacement",
+            materialType: "Granite",
+            colorAndPattern: "Not identified",
             thickness: "N/A",
             dimensions: "25 Square Feet (assumed)",
             edgeProfile: "Standard Edge",
-            additional_features: [],
+            additionalFeatures: [],
             condition: { damage_type: "No visible damage", severity: "None" },
             solutions: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for evaluation.`,
             reasoning: `Estimate failed: ${err.message}. Assumed defaults.`
@@ -393,10 +393,10 @@ async function estimateProject(fileDataArray, customerNeeds) {
 function enhanceCostEstimate(estimate) {
     if (!estimate || !laborData.length || !materialsData.length) return null;
 
-    const materialType = estimate.material_type.toLowerCase();
-    const colorPattern = estimate.color_and_pattern.toLowerCase();
+    const materialType = estimate.materialType.toLowerCase();
+    const colorPattern = estimate.colorAndPattern.toLowerCase();
     const thickness = estimate.thickness?.toLowerCase() || "n/a";
-    const projectScope = estimate.project_scope.toLowerCase().replace(/\s+/g, "_");
+    const projectScope = estimate.projectScope.toLowerCase().replace(/\s+/g, "_");
     const dimensions = estimate.dimensions || "25 Square Feet";
     const sqFt = parseFloat(dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
 
@@ -428,7 +428,7 @@ function enhanceCostEstimate(estimate) {
         laborCost *= severityMultiplier;
     }
 
-    const featuresCost = (estimate.additional_features || []).reduce((sum, feature) => {
+    const featuresCost = (estimate.additionalFeatures || []).reduce((sum, feature) => {
         return sum + (feature.toLowerCase().includes("sink") ? 150 : feature.toLowerCase().includes("edge") ? 100 : 0);
     }, 0);
 
@@ -453,12 +453,12 @@ async function generateTTS(estimate, customerNeeds) {
         totalCost: 0
     };
     const narrationText = `Your Surprise Granite estimate: 
-        Project: ${estimate.project_scope}. 
-        Material: ${estimate.material_type}. 
-        Color: ${estimate.color_and_pattern}. 
+        Project: ${estimate.projectScope}. 
+        Material: ${estimate.materialType}. 
+        Color: ${estimate.colorAndPattern}. 
         Thickness: ${estimate.thickness}. 
         Dimensions: ${estimate.dimensions}. 
-        Features: ${estimate.additional_features?.length ? estimate.additional_features.join(", ") : "None"}. 
+        Features: ${estimate.additionalFeatures?.length ? estimate.additionalFeatures.join(", ") : "None"}. 
         Condition: ${estimate.condition?.damage_type}, ${estimate.condition?.severity}. 
         Total cost: $${costEstimate.totalCost.toFixed(2)}. 
         Solutions: ${estimate.solutions}. 
@@ -536,19 +536,19 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
         const responseData = {
             imageIds: estimate.imageIds || [],
             message: "Estimate generated successfully",
-            projectScope: estimate.project_scope,
-            materialType: estimate.material_type,
-            colorAndPattern: estimate.color_and_pattern,
+            projectScope: estimate.projectScope,
+            materialType: estimate.materialType,
+            colorAndPattern: estimate.colorAndPattern,
             thickness: estimate.thickness,
             dimensions: estimate.dimensions,
             edgeProfile: estimate.edgeProfile,
-            additionalFeatures: estimate.additional_features || [],
+            additionalFeatures: estimate.additionalFeatures || [],
             condition: estimate.condition,
             costEstimate,
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
-            audioFilePath: path.basename(audioFilePath), // Use basename for consistency
+            audioFilePath: path.basename(audioFilePath),
             shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null,
             likes: 0,
             dislikes: 0
@@ -567,7 +567,7 @@ app.get("/api/audio/:filename", async (req, res) => {
     try {
         const audioBuffer = await fs.readFile(filePath);
         res.setHeader("Content-Type", "audio/mpeg");
-        res.setHeader("Cache-Control", "public, max-age=3600"); // Cache audio for 1 hour
+        res.setHeader("Cache-Control", "public, max-age=3600");
         res.send(audioBuffer);
     } catch (err) {
         logError("Audio file not found", err);
