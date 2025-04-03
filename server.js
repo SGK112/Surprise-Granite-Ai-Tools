@@ -60,14 +60,19 @@ const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
 // Middleware
 app.use(compression());
 app.use(cors({
-    origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000", "https://surprise-granite-connections-dev.onrender.com"],
+    origin: process.env.CORS_ORIGINS?.split(",") || [
+        "http://localhost:3000",
+        "https://surprise-granite-connections-dev.onrender.com",
+        "https://www.surprisegranite.com" // Added frontend origin
+    ],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
     preflightContinue: false,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    maxAge: 86400 // Cache preflight for 24 hours
 }));
-app.use(helmet({ contentSecurityPolicy: false })); // Simplified for testing
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(rateLimit({
@@ -154,8 +159,8 @@ async function connectToMongoDB() {
         appState.mongoClient = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 50,
             minPoolSize: 2,
-            connectTimeoutMS: 3000,
-            socketTimeoutMS: 10000
+            connectTimeoutMS: 5000, // Increased timeout
+            socketTimeoutMS: 15000  // Increased timeout
         });
         await appState.mongoClient.connect();
         appState.db = appState.mongoClient.db("countertops");
@@ -170,14 +175,14 @@ async function ensureMongoDBConnection() {
     if (!appState.db && process.env.MONGODB_URI) await connectToMongoDB();
 }
 
-async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
+async function withRetry(fn, maxAttempts = 3, delayMs = 2000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             return await fn();
         } catch (err) {
             if (attempt === maxAttempts || !err.status || err.status < 500) throw err;
             console.log(`Retry ${attempt}/${maxAttempts} after error: ${err.message}`);
-            await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+            await new Promise(resolve => setTimeout(resolve, delayMs));
         }
     }
 }
@@ -543,13 +548,13 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res) 
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
-            audioFilePath: audioFilePath.split(path.sep).pop(), // Send only filename
+            audioFilePath: path.basename(audioFilePath), // Use basename for consistency
             shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null,
             likes: 0,
             dislikes: 0
         };
 
-        console.log(`[${new Date().toISOString()}] Sending response for /api/contractor-estimate`);
+        console.log(`[${new Date().toISOString()}] Sending response for /api/contractor-estimate:`, responseData);
         res.status(201).json(responseData);
     } catch (err) {
         logError("Error in /api/contractor-estimate", err);
@@ -562,6 +567,7 @@ app.get("/api/audio/:filename", async (req, res) => {
     try {
         const audioBuffer = await fs.readFile(filePath);
         res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Cache-Control", "public, max-age=3600"); // Cache audio for 1 hour
         res.send(audioBuffer);
     } catch (err) {
         logError("Audio file not found", err);
