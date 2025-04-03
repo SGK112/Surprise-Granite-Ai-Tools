@@ -62,7 +62,7 @@ const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
 app.set("trust proxy", 1); // For rate limiting behind proxies
 app.use(compression());
 app.use(cors({
-    origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000", "https://your-frontend-url.netlify.app"], // Add your frontend URL
+    origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"], // Update with your frontend URL if hosted
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
@@ -82,12 +82,6 @@ app.use(
 // Debug all incoming requests
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip} - Headers:`, req.headers);
-    process.stdout.write(""); // Flush stdout
-    next();
-});
-);
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
     process.stdout.write(""); // Flush stdout
     next();
 });
@@ -265,7 +259,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
             condition: img.metadata?.estimate.condition || { damage_type: "No visible damage", severity: "None" },
             additional_features: img.metadata?.estimate.additional_features || [],
             solutions: img.metadata?.estimate.solutions || "Professional evaluation required",
-            cost: enhanceCostEstimate(img.metadata?.estimate)?.totalCost || "Contact for estimate",
+            cost: enhanceCostEstimate(img.metadata?.estimate)?.totalCost || 0,
             color: img.metadata?.estimate.color_and_pattern || "Not identified",
             likes: img.metadata.likes || 0,
             dislikes: img.metadata.dislikes || 0
@@ -445,10 +439,10 @@ function enhanceCostEstimate(estimate) {
 
     const totalCost = materialCost + laborCost + featuresCost;
     return {
-        materialCost: materialCost,
+        materialCost,
         laborCost: { total: laborCost },
         additionalFeaturesCost: featuresCost,
-        totalCost: totalCost // Numeric value
+        totalCost
     };
 }
 
@@ -500,7 +494,7 @@ async function generateTTS(estimate, customerNeeds) {
     }
 }
 
-// Routes - Define before starting server
+// Routes
 app.get("/", (req, res) => {
     res.status(200).send("CARI Server is running");
 });
@@ -519,8 +513,9 @@ app.get("/health", (req, res) => {
 
 app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, next) => {
     try {
+        console.log(`[${new Date().toISOString()}] Starting /api/contractor-estimate request`);
         console.log("Received fields:", req.body);
-        console.log("Received files:", req.files);
+        console.log("Received files:", req.files ? req.files.map(f => f.originalname) : "None");
         const customerNeeds = (req.body.customer_needs || "").trim();
         const files = req.files || [];
         const fileDataArray = await Promise.all(files.map((file) => extractFileContent(file)));
@@ -565,11 +560,12 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
-            audioFilePath, // Send file path instead of base64
+            audioFilePath,
             shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null,
             likes: 0,
             dislikes: 0
         };
+        console.log(`[${new Date().toISOString()}] /api/contractor-estimate completed successfully`);
         res.status(201).json(responseData);
     } catch (err) {
         next(err);
@@ -718,7 +714,7 @@ function startServer() {
     // Handle SIGTERM gracefully
     process.on("SIGTERM", () => {
         console.log("Received SIGTERM, shutting down...");
-        process.stdout.write(""); // Flush stdout immediately
+        process.stdout.write(""); // Flush stdout
         clearInterval(keepAlive);
         if (appState.mongoClient) {
             appState.mongoClient.close().then(() => {
