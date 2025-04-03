@@ -1,4 +1,3 @@
-// server.js
 import "dotenv/config"; // Load environment variables
 import express from "express";
 import multer from "multer";
@@ -25,8 +24,12 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 
-// Global Variables
-let global = { db: null, mongoClient: null };
+// Ensure temp directory exists for audio files
+const tempDir = path.join(__dirname, "temp");
+fs.mkdir(tempDir, { recursive: true }).catch((err) => console.error("Failed to create temp dir:", err));
+
+// Global Variables (renamed from 'global' to avoid reserved word conflict)
+let appState = { db: null, mongoClient: null };
 const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 }); // 2-hour TTL
 let laborData = [];
 let materialsData = [];
@@ -38,7 +41,7 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
         if (!allowedTypes.includes(file.mimetype)) {
-            return cb(new Error("Invalid file type"), false);
+            return cb(new Error("Invalid file type. Allowed: JPEG, PNG, PDF, TXT"), false);
         }
         cb(null, true);
     }
@@ -58,20 +61,20 @@ const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
 // Middleware Setup
 app.set("trust proxy", 1); // For rate limiting behind proxies
 app.use(compression());
-app.use(cors({ origin: ["http://localhost:3000", "https://your-frontend-url.netlify.app"], credentials: true }));
-app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } } })); // Enhanced security headers
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(cors({ origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"], credentials: true }));
+app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } } }));
+app.use(express.json({ limit: "100mb" })); // Increased limit to 100mb
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 app.use(
     rateLimit({
         windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 1000, // Increased for production
+        max: 1000,
         keyGenerator: (req) => req.ip,
         message: "Too many requests. Please try again later."
     })
 );
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`); // Replace with Pino in production
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
     next();
 });
 
@@ -137,23 +140,23 @@ async function connectToMongoDB() {
         return;
     }
     try {
-        global.mongoClient = new MongoClient(process.env.MONGODB_URI, {
-            maxPoolSize: 50, // Increased for production
+        appState.mongoClient = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 50,
             minPoolSize: 2,
             connectTimeoutMS: 3000,
             socketTimeoutMS: 10000
         });
-        await global.mongoClient.connect();
-        global.db = global.mongoClient.db("countertops");
+        await appState.mongoClient.connect();
+        appState.db = appState.mongoClient.db("countertops");
         console.log("Connected to MongoDB Atlas");
     } catch (err) {
         logError("MongoDB connection failed", err);
-        global.db = null;
+        appState.db = null;
     }
 }
 
 async function ensureMongoDBConnection() {
-    if (!global.db && process.env.MONGODB_URI) await connectToMongoDB();
+    if (!appState.db && process.env.MONGODB_URI) await connectToMongoDB();
 }
 
 async function withRetry(fn, maxAttempts = 3, delayMs = 1000) {
@@ -181,8 +184,13 @@ async function extractFileContent(file) {
                 color: { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` }
             };
         } else if (file.mimetype === "application/pdf") {
-            const data = await pdfParse(file.buffer);
-            return { type: "text", content: data.text };
+            try {
+                const data = await pdfParse(file.buffer);
+                return { type: "text", content: data.text };
+            } catch (err) {
+                logError("PDF parsing failed", err);
+                return { type: "text", content: "Unable to parse PDF" };
+            }
         } else if (file.mimetype === "text/plain") {
             return { type: "text", content: file.buffer.toString("utf8") };
         }
@@ -210,7 +218,7 @@ function extractDimensionsFromNeeds(customerNeeds) {
 async function estimateProject(fileDataArray, customerNeeds) {
     try {
         await ensureMongoDBConnection();
-        const imagesCollection = global.db?.collection("countertop_images") || {
+        const imagesCollection = appState.db?.collection("countertop_images") || {
             find: () => ({ sort: () => ({ limit: () => ({ allowDiskUse: () => ({ toArray: async () => [] }) }) }) })
         };
         const pastEstimates = await imagesCollection
@@ -326,8 +334,8 @@ async function estimateProject(fileDataArray, customerNeeds) {
             reasoning: result.reasoning || "Based on default assumptions and customer input."
         };
 
-        if (global.db) {
-            const imagesCollection = global.db.collection("countertop_images");
+        if (appState.db) {
+            const imagesCollection = appState.db.collection("countertop_images");
             const imageIds = await Promise.all(
                 fileDataArray.map(async (fileData) => {
                     const insertResult = await imagesCollection.insertOne({
@@ -447,7 +455,10 @@ async function generateTTS(estimate, customerNeeds) {
                 })
             )
         );
-        return Buffer.concat(audioBuffers);
+        const audioBuffer = Buffer.concat(audioBuffers);
+        const tempFilePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
+        await fs.writeFile(tempFilePath, audioBuffer);
+        return tempFilePath; // Return file path instead of buffer
     } catch (err) {
         logError("TTS generation failed", err);
         return Buffer.from(`Error generating audio. Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE}.`);
@@ -462,7 +473,7 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
     const health = {
         uptime: process.uptime(),
-        mongoConnected: !!global.db,
+        mongoConnected: !!appState.db,
         openaiAvailable: !!openai,
         timestamp: new Date().toISOString()
     };
@@ -471,6 +482,8 @@ app.get("/health", (req, res) => {
 
 app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, next) => {
     try {
+        console.log("Received fields:", req.body);
+        console.log("Received files:", req.files);
         const customerNeeds = (req.body.customer_needs || "").trim();
         const files = req.files || [];
         const fileDataArray = await Promise.all(files.map((file) => extractFileContent(file)));
@@ -487,10 +500,10 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
             additionalFeaturesCost: "$0",
             totalCost: "Contact for estimate"
         };
-        const audioBuffer = await generateTTS(estimate, customerNeeds);
+        const audioFilePath = await generateTTS(estimate, customerNeeds);
 
-        if (global.db) {
-            const leadsCollection = global.db.collection("leads");
+        if (appState.db) {
+            const leadsCollection = appState.db.collection("leads");
             await leadsCollection.insertOne({
                 ...leadData,
                 customerNeeds,
@@ -514,7 +527,7 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
             reasoning: estimate.reasoning,
             solutions: estimate.solutions,
             contact: `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a full evaluation.`,
-            audioBase64: audioBuffer.toString("base64"),
+            audioFilePath, // Send file path instead of base64
             shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null,
             likes: 0,
             dislikes: 0
@@ -525,11 +538,34 @@ app.post("/api/contractor-estimate", upload.array("files", 9), async (req, res, 
     }
 });
 
+app.get("/api/get-countertop/:id", async (req, res, next) => {
+    try {
+        await ensureMongoDBConnection();
+        if (!appState.db) throwError("Database not connected", 500);
+        const imagesCollection = appState.db.collection("countertop_images");
+        let objectId;
+        try {
+            objectId = new ObjectId(req.params.id);
+        } catch (e) {
+            throwError("Invalid countertop ID", 400);
+        }
+        const countertop = await imagesCollection.findOne({ _id: objectId });
+        if (!countertop) throwError("Countertop not found", 404);
+        res.status(200).json({
+            estimate: countertop.metadata.estimate,
+            likes: countertop.metadata.likes || 0,
+            dislikes: countertop.metadata.dislikes || 0
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
 app.post("/api/like-countertop/:id", async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
-        if (!global.db) throwError("Database not connected", 500);
-        const imagesCollection = global.db.collection("countertop_images");
+        if (!appState.db) throwError("Database not connected", 500);
+        const imagesCollection = appState.db.collection("countertop_images");
         const objectId = new ObjectId(req.params.id);
         const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
@@ -545,8 +581,8 @@ app.post("/api/like-countertop/:id", async (req, res, next) => {
 app.post("/api/dislike-countertop/:id", async (req, res, next) => {
     try {
         await ensureMongoDBConnection();
-        if (!global.db) throwError("Database not connected", 500);
-        const imagesCollection = global.db.collection("countertop_images");
+        if (!appState.db) throwError("Database not connected", 500);
+        const imagesCollection = appState.db.collection("countertop_images");
         const objectId = new ObjectId(req.params.id);
         const countertop = await imagesCollection.findOne({ _id: objectId });
         if (!countertop) throwError("Countertop not found", 404);
@@ -567,7 +603,7 @@ app.post("/api/send-email", async (req, res, next) => {
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: "recipient@example.com", // Replace with your email
+            to: process.env.EMAIL_RECIPIENT || "recipient@example.com",
             subject: `New Quote Request from ${name}`,
             text: `
                 Name: ${name}
@@ -596,8 +632,12 @@ app.use((err, req, res, next) => {
             ? "Too many requests. Please wait and try again."
             : `Call ${SURPRISE_GRANITE_PHONE} if this persists.`;
     logError(`Unhandled error in ${req.method} ${req.path}`, err);
-    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ error: "File size exceeds 5MB limit" });
+    if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "File size exceeds 5MB limit" });
+        } else if (err.code === "LIMIT_UNEXPECTED_FILE") {
+            return res.status(400).json({ error: "Unexpected field in file upload. Use 'files' field." });
+        }
     }
     res.status(status).json({ error: message, details });
 });
@@ -605,24 +645,26 @@ app.use((err, req, res, next) => {
 // Server Startup
 async function startServer() {
     try {
-        await Promise.all([loadLaborData(), loadMaterialsData()]);
-        await connectToMongoDB();
-        app.listen(PORT, () => {
+        app.listen(PORT, async () => {
             console.log(`Server running on port ${PORT}`);
-            console.log(`Service live at http://localhost:${PORT}`);
+            console.log(`Service live at http://localhost:${PORT} or Render URL`);
+            // Load data and connect to MongoDB asynchronously after server starts
+            await Promise.all([loadLaborData(), loadMaterialsData()]);
+            console.log("Data files loaded");
+            await connectToMongoDB();
+            console.log("Post-startup check complete");
         });
     } catch (err) {
         logError("Server startup failed", err);
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT} with limited functionality`);
-        });
+        if (appState.mongoClient) await appState.mongoClient.close();
+        process.exit(1);
     }
 }
 
 // Graceful Shutdown
 process.on("SIGINT", async () => {
     try {
-        if (global.mongoClient) await global.mongoClient.close();
+        if (appState.mongoClient) await appState.mongoClient.close();
         cache.flushAll();
         console.log("Server shut down gracefully");
         process.exit(0);
