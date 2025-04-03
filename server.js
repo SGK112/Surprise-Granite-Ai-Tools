@@ -13,7 +13,7 @@ import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import PDFParser from "pdf2json"; // Correct import for pdf2json
+import PDFParser from "pdf2json";
 import Jimp from "jimp";
 import stringSimilarity from "string-similarity";
 
@@ -28,7 +28,7 @@ const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
 const tempDir = path.join(__dirname, "temp");
 fs.mkdir(tempDir, { recursive: true }).catch((err) => console.error("Failed to create temp dir:", err));
 
-// Global Variables (renamed from 'global' to avoid reserved word conflict)
+// Global Variables
 let appState = { db: null, mongoClient: null };
 const cache = new NodeCache({ stdTTL: 7200, checkperiod: 300 }); // 2-hour TTL
 let laborData = [];
@@ -63,7 +63,7 @@ app.set("trust proxy", 1); // For rate limiting behind proxies
 app.use(compression());
 app.use(cors({ origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"], credentials: true }));
 app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } } }));
-app.use(express.json({ limit: "100mb" })); // Increased limit to 100mb
+app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 app.use(
     rateLimit({
@@ -103,6 +103,7 @@ async function loadLaborData() {
             description: item.Description,
             confidence: 1
         }));
+        console.log("Labor data loaded successfully:", laborData.length, "entries");
     } catch (err) {
         logError("Failed to load labor.json, using defaults", err);
         laborData = [
@@ -125,6 +126,7 @@ async function loadMaterialsData() {
             availability: item.Availability || "In Stock",
             confidence: 1
         }));
+        console.log("Materials data loaded successfully:", materialsData.length, "entries");
     } catch (err) {
         logError("Failed to load materials.json, using defaults", err);
         materialsData = [
@@ -479,6 +481,7 @@ app.get("/health", (req, res) => {
         uptime: process.uptime(),
         mongoConnected: !!appState.db,
         openaiAvailable: !!openai,
+        dataLoaded: laborData.length > 0 && materialsData.length > 0,
         timestamp: new Date().toISOString()
     };
     res.status(200).json(health);
@@ -649,14 +652,19 @@ app.use((err, req, res, next) => {
 // Server Startup
 async function startServer() {
     try {
-        app.listen(PORT, async () => {
+        // Start the server immediately
+        app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Service live at http://localhost:${PORT} or Render URL`);
-            // Load data and connect to MongoDB asynchronously after server starts
-            await Promise.all([loadLaborData(), loadMaterialsData()]);
-            console.log("Data files loaded");
-            await connectToMongoDB();
-            console.log("Post-startup check complete");
+
+            // Perform initialization in the background
+            Promise.all([loadLaborData(), loadMaterialsData()])
+                .then(() => console.log("Data initialization complete"))
+                .catch((err) => logError("Background data initialization failed", err));
+
+            connectToMongoDB()
+                .then(() => console.log("MongoDB initialization complete"))
+                .catch((err) => logError("Background MongoDB initialization failed", err));
         });
     } catch (err) {
         logError("Server startup failed", err);
