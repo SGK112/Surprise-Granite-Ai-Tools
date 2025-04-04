@@ -28,9 +28,9 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 9 },
     fileFilter: (req, file, cb) => {
-        const allowedTypes = ["image/jpeg", "image/png"];
+        const allowedTypes = ["image/jpeg", "image/png", "audio/wav"];
         if (!allowedTypes.includes(file.mimetype)) {
-            return cb(new Error("Only JPEG and PNG allowed"), false);
+            return cb(new Error("Only JPEG, PNG, or WAV allowed"), false);
         }
         cb(null, true);
     }
@@ -49,14 +49,17 @@ app.use(express.static("public"));
 async function loadLaborData() {
     laborData = [
         { type: "countertop_repair", rate_per_sqft: 15 },
-        { type: "countertop_replacement", rate_per_sqft: 20 }
+        { type: "countertop_replacement", rate_per_sqft: 20 },
+        { type: "sink_repair", rate_per_sqft: 10 },
+        { type: "sink_replacement", rate_per_sqft: 25 }
     ];
 }
 
 async function loadMaterialsData() {
     materialsData = [
         { type: "Granite", color: "Generic", cost_per_sqft: 50 },
-        { type: "Quartz", color: "Generic", cost_per_sqft: 60 }
+        { type: "Quartz", color: "Generic", cost_per_sqft: 60 },
+        { type: "Sink", color: "Stainless Steel", cost_per_sqft: 20 }
     ];
 }
 
@@ -77,8 +80,13 @@ async function ensureMongoDBConnection() {
 }
 
 async function extractFileContent(file) {
-    const image = await Jimp.read(file.buffer);
-    return { type: "image", content: (await image.getBase64Async(Jimp.MIME_JPEG)).split(",")[1] };
+    if (file.mimetype.startsWith("image/")) {
+        const image = await Jimp.read(file.buffer);
+        return { type: "image", content: (await image.getBase64Async(Jimp.MIME_JPEG)).split(",")[1] };
+    } else if (file.mimetype === "audio/wav") {
+        return { type: "audio", content: file.buffer };
+    }
+    throw new Error("Unsupported file type");
 }
 
 async function estimateProject(fileDataArray, customerNeeds) {
@@ -86,23 +94,36 @@ async function estimateProject(fileDataArray, customerNeeds) {
     const needsLower = customerNeeds.toLowerCase();
     const keywords = {
         dimensions: needsLower.match(/(\d+\.?\d*)\s*(?:sq\s*ft|sft|square\s*feet)/i)?.[1],
-        material: needsLower.match(/granite|quartz|marble/i)?.[0],
+        material: needsLower.match(/granite|quartz|marble|sink/i)?.[0],
         scope: needsLower.includes("repair") ? "repair" : "replacement",
         edge: needsLower.match(/bullnose|ogee|bevel/i)?.[0],
         features: needsLower.match(/sink|backsplash|cutout/i)?.map(f => f.toLowerCase()) || []
     };
 
-    const prompt = `You are CARI, an expert AI at Surprise Granite, analyzing countertops with high scrutiny as of April 04, 2025. Analyze ${fileDataArray.length} images and customer needs ("${customerNeeds}"):
-        - Recommend "Repair" or "Replacement" based on detailed damage assessment.
-        - Detect specific damage types (e.g., cracks, stains, chips, scratches, discoloration) and severity (Low, Moderate, Severe).
-        - Identify material (e.g., Granite, Quartz, Marble) based on texture, sheen, and patterns.
-        - Determine color and veining patterns (e.g., Black Pearl with white veins).
-        - Assess edge profiles (e.g., bullnose, ogee) if visible or specified.
-        - Evaluate wear patterns (e.g., surface wear, structural damage).
-        - Use customer needs for dimensions, material, or additional features (e.g., sink cutout).
-        - Provide a detailed reasoning for the recommendation, including image-based observations.
+    let spokenText = "";
+    for (const file of fileDataArray) {
+        if (file.type === "audio") {
+            const audioResponse = await openai.audio.transcriptions.create({
+                file: fs.createReadStream(Buffer.from(file.content)),
+                model: "whisper-1"
+            });
+            spokenText += audioResponse.text + " ";
+        }
+    }
+    const fullNeeds = `${customerNeeds} ${spokenText}`.trim();
+
+    const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and remodeling analysis as of April 04, 2025. Analyze ${fileDataArray.length} files (images or audio) and customer needs ("${fullNeeds}"):
+        - Recommend "Repair" or "Replacement" for countertops, sinks, or related features.
+        - Detect specific issues: countertop damage (cracks, chips, etching, stains, scratches), sink problems (falling in, broken, leaking), or structural wear.
+        - Assess severity (Low, Moderate, Severe).
+        - Identify material (e.g., Granite, Quartz, Marble, Stainless Steel) from texture, sheen, or audio description.
+        - Determine color and patterns (e.g., Black Pearl with veins).
+        - Analyze edge profiles (e.g., bullnose, ogee) and additional features (e.g., sink cutout, backsplash).
+        - Use customer needs or spoken input for dimensions, material, or scope.
+        - Provide detailed reasoning, including image/audio observations and recommendations.
+        - Always suggest contacting Surprise Granite at ${SURPRISE_GRANITE_PHONE} for precise quotes or complex issues.
         - Respond in JSON with:
-          - recommendation: "Repair" or "Replacement"
+          - recommendation: e.g., "Repair" or "Replacement"
           - material_type: e.g., "Granite"
           - color: e.g., "Black Pearl"
           - dimensions: e.g., "25 Square Feet"
@@ -110,7 +131,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
           - edge_profile: e.g., "Bullnose"
           - additional_features: array, e.g., ["sink cutout"]
           - solutions: e.g., "Seal cracks or contact ${SURPRISE_GRANITE_PHONE}"
-          - reasoning: Detailed analysis of damage, material, and scope
+          - reasoning: Detailed analysis
     `;
 
     const messages = [
@@ -118,8 +139,11 @@ async function estimateProject(fileDataArray, customerNeeds) {
         {
             role: "user",
             content: fileDataArray.length
-                ? fileDataArray.map((f) => ({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${f.content}` } }))
-                : customerNeeds
+                ? fileDataArray.map((f) => ({
+                    type: f.type === "image" ? "image_url" : "text",
+                    [f.type === "image" ? "image_url" : "text"]: f.type === "image" ? { url: `data:image/jpeg;base64,${f.content}` } : spokenText
+                }))
+                : fullNeeds
         }
     ];
 
@@ -128,7 +152,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 1500,
+            max_tokens: 2000,
             temperature: 0.7,
             response_format: { type: "json_object" }
         });
@@ -143,7 +167,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
             edge_profile: keywords.edge || "Standard",
             additional_features: keywords.features,
             solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
-            reasoning: "No AI available, using defaults based on customer needs"
+            reasoning: "No AI available, using defaults based on customer needs or spoken input"
         };
     }
 
@@ -172,12 +196,12 @@ function enhanceCostEstimate(estimate) {
     const labor = laborData.find(l => l.type.includes(estimate.recommendation.toLowerCase())) || { rate_per_sqft: 15 };
     const materialCost = estimate.recommendation === "Repair" ? 0 : material.cost_per_sqft * sqFt;
     const laborCost = labor.rate_per_sqft * sqFt;
-    const additionalCost = (estimate.additional_features || []).length * 50; // $50 per feature (e.g., sink cutout)
+    const additionalCost = (estimate.additional_features || []).length * 50;
     const mid = materialCost + laborCost + additionalCost;
     return {
-        low: mid * 0.8,  // -20%
+        low: mid * 0.8,
         mid,
-        high: mid * 1.2  // +20%
+        high: mid * 1.2
     };
 }
 
@@ -208,7 +232,6 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
         const costEstimate = enhanceCostEstimate(estimate);
         const audioFilePath = await generateTTS(estimate);
 
-        // Lead capture
         if (transporter && email !== "unknown@example.com") {
             await transporter.sendMail({
                 from: process.env.EMAIL_USER,
