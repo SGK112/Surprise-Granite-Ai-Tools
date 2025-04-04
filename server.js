@@ -178,6 +178,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 response_format: { type: "json_object" }
             });
             estimate = JSON.parse(response.choices[0].message.content);
+            console.log("Estimate generated:", estimate);
         } else {
             estimate = {
                 recommendation: keywords.scope === "repair" ? "Repair" : "Replacement",
@@ -190,6 +191,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
                 solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
                 reasoning: "No AI available, using defaults based on limited input"
             };
+            console.log("Fallback estimate:", estimate);
         }
     } catch (err) {
         console.error("OpenAI analysis failed:", err);
@@ -212,13 +214,14 @@ async function estimateProject(fileDataArray, customerNeeds) {
             const imageIds = await Promise.all(
                 fileDataArray.map(async (fileData) => {
                     const insertResult = await imagesCollection.insertOne({
-                        fileData: new Binary(Buffer.from(fileData.content, "base64")),
+                        fileData: new Binary(Buffer.from(fileData.content)),
                         metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
                     });
                     return insertResult.insertedId.toString();
                 })
             );
             estimate.imageIds = imageIds;
+            console.log("Images stored in MongoDB with IDs:", imageIds);
         } catch (err) {
             console.error("MongoDB insert failed:", err);
         }
@@ -269,6 +272,7 @@ async function generateTTS(estimate) {
         const audioBuffer = Buffer.from(await response.arrayBuffer());
         const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
         await fs.writeFile(filePath, audioBuffer);
+        console.log("TTS generated at:", filePath);
         return filePath;
     } catch (err) {
         console.error("TTS generation failed:", err);
@@ -276,10 +280,14 @@ async function generateTTS(estimate) {
     }
 }
 
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/", (req, res) => {
+    console.log("Serving index.html");
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
     try {
+        console.log("Received estimate request:", req.body, req.files?.length);
         const customerNeeds = req.body.customer_needs || "";
         const name = req.body.name || "Unknown";
         const phone = req.body.phone || "Not provided";
@@ -337,6 +345,7 @@ app.get("/api/audio/:filename", async (req, res) => {
         res.setHeader("Content-Type", "audio/mpeg");
         res.send(audioBuffer);
     } catch (err) {
+        console.error("Audio fetch failed:", err);
         res.status(404).send("Audio not found");
     }
 });
