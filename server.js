@@ -39,7 +39,7 @@ const upload = multer({
 // Middleware
 app.use(compression());
 app.use(cors({
-    origin: ["http://localhost:3000", "https://www.surprisegranite.com"], // Updated CORS
+    origin: ["http://localhost:3000", "https://www.surprisegranite.com"],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept"],
     credentials: true,
