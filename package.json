@@ -27,5 +27,20 @@
     "node": ">=18.0.0"
   },
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "stone",
+    "database",
+    "granite",
+    "remnants",
+    "fabricators"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/stone-database.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/stone-database/issues"
+  },
+  "homepage": "https://github.com/yourusername/stone-database#readme"
 }
