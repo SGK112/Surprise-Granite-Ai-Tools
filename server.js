@@ -91,13 +91,18 @@ async function ensureMongoDBConnection() {
 }
 
 async function extractFileContent(file) {
-    if (file.mimetype.startsWith("image/")) {
-        const image = await Jimp.read(file.buffer);
-        return { type: "image", content: (await image.getBase64Async(Jimp.MIME_JPEG)).split(",")[1] };
-    } else if (file.mimetype === "audio/wav") {
-        return { type: "audio", content: file.buffer };
+    try {
+        if (file.mimetype.startsWith("image/")) {
+            const image = await Jimp.read(file.buffer);
+            return { type: "image", content: (await image.getBase64Async(Jimp.MIME_JPEG)).split(",")[1] };
+        } else if (file.mimetype === "audio/wav") {
+            return { type: "audio", content: file.buffer };
+        }
+        throw new Error("Unsupported file type");
+    } catch (err) {
+        console.error("File extraction failed:", err);
+        throw err;
     }
-    throw new Error("Unsupported file type");
 }
 
 async function estimateProject(fileDataArray, customerNeeds) {
@@ -114,23 +119,28 @@ async function estimateProject(fileDataArray, customerNeeds) {
     let spokenText = "";
     for (const file of fileDataArray) {
         if (file.type === "audio") {
-            const audioResponse = await openai.audio.transcriptions.create({
-                file: fs.createReadStream(Buffer.from(file.content)),
-                model: "whisper-1"
-            });
-            spokenText += audioResponse.text + " ";
+            try {
+                const audioResponse = await openai.audio.transcriptions.create({
+                    file: fs.createReadStream(Buffer.from(file.content)),
+                    model: "whisper-1"
+                });
+                spokenText += audioResponse.text + " ";
+            } catch (err) {
+                console.error("Audio transcription failed:", err);
+                spokenText += "Audio unavailable ";
+            }
         }
     }
     const fullNeeds = `${customerNeeds} ${spokenText}`.trim();
 
-    const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and remodeling analysis as of April 04, 2025. Analyze ${fileDataArray.length} files (primarily images, with optional audio) and customer needs ("${fullNeeds}"), prioritizing image analysis over written or spoken input:
+    const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and remodeling analysis as of April 04, 2025. Analyze ${fileDataArray.length} files (primarily images, with optional audio) and customer needs ("${fullNeeds}"), prioritizing image analysis:
         - Recommend "Repair" or "Replacement" for countertops, sinks, or related features based on image evidence.
         - Detect specific issues: countertop damage (cracks, chips, etching, stains, scratches), sink problems (falling in, broken, leaking), or structural wear.
         - Assess severity (Low, Moderate, Severe) from visual cues.
         - Identify material (e.g., Granite, Quartz, Marble, Stainless Steel) from texture, sheen, or patterns in images.
         - Determine color and patterns (e.g., Black Pearl with veins) from images.
         - Analyze edge profiles (e.g., bullnose, ogee) and additional features (e.g., sink cutout, backsplash) from images.
-        - Use customer needs or spoken input only as secondary context for dimensions, material, or scope if not clear in images.
+        - Use customer needs or spoken input only as secondary context if images are unclear.
         - Provide detailed reasoning, focusing on image-based observations, and recommend contacting Surprise Granite at ${SURPRISE_GRANITE_PHONE} for precise quotes or complex issues.
         - Respond in JSON with:
           - recommendation: e.g., "Repair" or "Replacement"
@@ -158,41 +168,60 @@ async function estimateProject(fileDataArray, customerNeeds) {
     ];
 
     let estimate;
-    if (openai) {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages,
-            max_tokens: 2000,
-            temperature: 0.7,
-            response_format: { type: "json_object" }
-        });
-        estimate = JSON.parse(response.choices[0].message.content);
-    } else {
+    try {
+        if (openai) {
+            const response = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages,
+                max_tokens: 2000,
+                temperature: 0.7,
+                response_format: { type: "json_object" }
+            });
+            estimate = JSON.parse(response.choices[0].message.content);
+        } else {
+            estimate = {
+                recommendation: keywords.scope === "repair" ? "Repair" : "Replacement",
+                material_type: keywords.material || "Granite",
+                color: "Not identified",
+                dimensions: `${keywords.dimensions || 25} Square Feet`,
+                condition: { damage_type: "No visible damage", severity: "None" },
+                edge_profile: keywords.edge || "Standard",
+                additional_features: keywords.features,
+                solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
+                reasoning: "No AI available, using defaults based on limited input"
+            };
+        }
+    } catch (err) {
+        console.error("OpenAI analysis failed:", err);
         estimate = {
-            recommendation: keywords.scope === "repair" ? "Repair" : "Replacement",
-            material_type: keywords.material || "Granite",
+            recommendation: "Replacement",
+            material_type: "Granite",
             color: "Not identified",
-            dimensions: `${keywords.dimensions || 25} Square Feet`,
-            condition: { damage_type: "No visible damage", severity: "None" },
-            edge_profile: keywords.edge || "Standard",
-            additional_features: keywords.features,
+            dimensions: "25 Square Feet",
+            condition: { damage_type: "Unknown", severity: "Unknown" },
+            edge_profile: "Standard",
+            additional_features: [],
             solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
-            reasoning: "No AI available, using defaults based on limited input"
+            reasoning: "Analysis failed due to server error, defaulting to basic estimate"
         };
     }
 
     if (appState.db) {
-        const imagesCollection = appState.db.collection("countertop_images");
-        const imageIds = await Promise.all(
-            fileDataArray.map(async (fileData) => {
-                const insertResult = await imagesCollection.insertOne({
-                    fileData: new Binary(Buffer.from(fileData.content, "base64")),
-                    metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
-                });
-                return insertResult.insertedId.toString();
-            })
-        );
-        estimate.imageIds = imageIds;
+        try {
+            const imagesCollection = appState.db.collection("countertop_images");
+            const imageIds = await Promise.all(
+                fileDataArray.map(async (fileData) => {
+                    const insertResult = await imagesCollection.insertOne({
+                        fileData: new Binary(Buffer.from(fileData.content, "base64")),
+                        metadata: { estimate, uploadDate: new Date(), likes: 0, dislikes: 0 }
+                    });
+                    return insertResult.insertedId.toString();
+                })
+            );
+            estimate.imageIds = imageIds;
+        } catch (err) {
+            console.error("MongoDB insert failed:", err);
+        }
     }
 
     estimate.feedback_prompt = `Rate this at ${BASE_URL}`;
@@ -226,7 +255,7 @@ function numberToWords(num) {
     if (num < 100) return `${tens[Math.floor(num / 10)]} ${units[num % 10]}`.trim();
     if (num < 1000) return `${units[Math.floor(num / 100)]} hundred ${numberToWords(num % 100)}`.trim();
     if (num < 1000000) return `${numberToWords(Math.floor(num / 1000))} thousand ${numberToWords(num % 1000)}`.trim();
-    return num.toString(); // Fallback for very large numbers
+    return num.toString();
 }
 
 async function generateTTS(estimate) {
@@ -234,12 +263,17 @@ async function generateTTS(estimate) {
     const costEstimate = enhanceCostEstimate(estimate);
     const lowWords = numberToWords(Math.floor(costEstimate.low)) + " dollars";
     const highWords = numberToWords(Math.floor(costEstimate.high)) + " dollars";
-    const text = `Based on my analysis, I confidently recommend ${estimate.recommendation} for your project. The material is ${estimate.material_type}, color ${estimate.color}, with dimensions of ${estimate.dimensions}. I’ve identified ${estimate.condition.damage_type} with ${estimate.condition.severity} severity. The edge profile is ${estimate.edge_profile}, and additional features include ${estimate.additional_features.join(", ") || "none"}. The estimated cost ranges from ${lowWords} to ${highWords}. For the best solution, ${estimate.solutions}. Please contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a precise quote.`;
-    const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-    const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
-    await fs.writeFile(filePath, audioBuffer);
-    return filePath;
+    const text = `Based on my detailed analysis, I confidently recommend ${estimate.recommendation} for your project. The material is ${estimate.material_type}, color ${estimate.color}, with dimensions of ${estimate.dimensions}. I’ve identified ${estimate.condition.damage_type} with ${estimate.condition.severity} severity. The edge profile is ${estimate.edge_profile}, and additional features include ${estimate.additional_features.join(", ") || "none"}. The estimated cost ranges from ${lowWords} to ${highWords}. For the best solution, ${estimate.solutions}. Please contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a precise quote.`;
+    try {
+        const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
+        const audioBuffer = Buffer.from(await response.arrayBuffer());
+        const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
+        await fs.writeFile(filePath, audioBuffer);
+        return filePath;
+    } catch (err) {
+        console.error("TTS generation failed:", err);
+        return null;
+    }
 }
 
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
@@ -259,12 +293,17 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
         const audioFilePath = await generateTTS(estimate);
 
         if (transporter && email !== "unknown@example.com") {
-            await transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: process.env.EMAIL_USER,
-                subject: `New Lead: ${name}`,
-                text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\nNeeds: ${customerNeeds}\nEstimate: ${JSON.stringify(estimate)}\nCost Range: $${costEstimate.low.toFixed(2)} - $${costEstimate.high.toFixed(2)}`
-            });
+            try {
+                await transporter.sendMail({
+                    from: process.env.EMAIL_USER,
+                    to: process.env.EMAIL_USER,
+                    subject: `New Lead: ${name}`,
+                    text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\nNeeds: ${customerNeeds}\nEstimate: ${JSON.stringify(estimate)}\nCost Range: $${costEstimate.low.toFixed(2)} - $${costEstimate.high.toFixed(2)}`
+                });
+                console.log("Lead email sent successfully");
+            } catch (err) {
+                console.error("Lead email failed:", err);
+            }
         }
 
         res.json({
@@ -286,7 +325,7 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
             dislikes: 0
         });
     } catch (err) {
-        console.error("Estimate failed:", err);
+        console.error("Estimate endpoint failed:", err);
         res.status(500).json({ error: "Server error", details: err.message });
     }
 });
@@ -321,10 +360,15 @@ app.post("/api/rating", async (req, res) => {
 app.post("/api/tts", async (req, res) => {
     const { text } = req.body;
     if (!openai || !text) return res.status(400).send("TTS unavailable or no text provided");
-    const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.send(audioBuffer);
+    try {
+        const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
+        const audioBuffer = Buffer.from(await response.arrayBuffer());
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.send(audioBuffer);
+    } catch (err) {
+        console.error("TTS endpoint failed:", err);
+        res.status(500).send("TTS generation failed");
+    }
 });
 
 function startServer() {
