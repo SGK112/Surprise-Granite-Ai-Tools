@@ -39,7 +39,7 @@ const upload = multer({
 // Middleware
 app.use(compression());
 app.use(cors({
-    origin: ["http://localhost:3000", "https://your-webflow-site.com"], // Replace with your Webflow domain
+    origin: ["http://localhost:3000", "https://www.surprisegranite.com"], // Updated CORS
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept"],
     credentials: true,
@@ -138,7 +138,8 @@ app.post("/api/stone/upload", upload.array("images", 9), async (req, res) => {
             })),
             uploadedBy: uploadedBy || "Anonymous",
             uploadDate: new Date(),
-            remnants: imageDataArray.length > 0
+            remnants: imageDataArray.length > 0,
+            likes: 0 // Initialize likes
         };
 
         const result = await stonesCollection.insertOne(stoneDoc);
@@ -174,7 +175,8 @@ app.get("/api/stone/search", async (req, res) => {
             imageCount: stone.images.length,
             hasRemnants: stone.remnants,
             uploadedBy: stone.uploadedBy,
-            uploadDate: stone.uploadDate
+            uploadDate: stone.uploadDate,
+            likes: stone.likes || 0
         }));
 
         res.status(200).json(results);
@@ -206,7 +208,8 @@ app.get("/api/stone/:id", async (req, res) => {
             })),
             uploadedBy: stone.uploadedBy,
             uploadDate: stone.uploadDate,
-            remnants: stone.remnants
+            remnants: stone.remnants,
+            likes: stone.likes || 0
         });
     } catch (err) {
         logError("Error in /api/stone/:id", err);
@@ -233,6 +236,29 @@ app.get("/api/stone/:id/thumbnail", async (req, res) => {
         res.status(err.status || 404).sendFile(path.join(__dirname, "placeholder.jpg"), err => {
             if (err) res.status(500).json({ error: "Failed to serve placeholder image" });
         });
+    }
+});
+
+// Like a Stone
+app.post("/api/stone/:id/like", async (req, res) => {
+    try {
+        await ensureMongoDBConnection();
+        if (!appState.db) throwError("Database not connected", 500);
+
+        const stonesCollection = appState.db.collection("stones");
+        const stone = await stonesCollection.findOne({ _id: new ObjectId(req.params.id) });
+        if (!stone) throwError("Stone not found", 404);
+
+        const newLikes = (stone.likes || 0) + 1;
+        await stonesCollection.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { likes: newLikes } }
+        );
+
+        res.status(200).json({ likes: newLikes });
+    } catch (err) {
+        logError("Error in /api/stone/:id/like", err);
+        res.status(err.status || 500).json({ error: err.message || "Server error" });
     }
 });
 
