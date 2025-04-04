@@ -16,14 +16,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Ensure temp directory exists
 const tempDir = path.join(__dirname, "temp");
 await fs.mkdir(tempDir, { recursive: true }).catch(err => console.error("Failed to create temp dir:", err));
 
-// Global Variables
 let appState = { db: null, mongoClient: null };
 
-// Multer Configuration for Stone Images
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 9 },
@@ -36,10 +33,22 @@ const upload = multer({
     }
 });
 
-// Middleware
 app.use(compression());
 app.use(cors({
-    origin: ["http://localhost:3000", "https://www.surprisegranite.com", "https://surprise-granite-connections-dev.onrender.com"],
+    origin: (origin, callback) => {
+        const allowedOrigins = [
+            "http://localhost:10000",
+            "http://localhost:3000",
+            "http://localhost:5500",
+            "http://127.0.0.1:5500",
+            "https://surprise-granite-connections-dev.onrender.com"
+        ];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept"],
     credentials: true,
@@ -49,21 +58,17 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
     message: "Too many requests. Please try again later."
 }));
-
-// Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, "public")));
 
-// Request Logging
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip} - Headers:`, req.headers);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} from ${req.ip}`);
     next();
 });
 
-// Helper Functions
 function throwError(message, status = 500) {
     const err = new Error(message);
     err.status = status;
@@ -102,7 +107,7 @@ async function ensureMongoDBConnection() {
 async function extractImageData(file) {
     try {
         const image = await Jimp.read(file.buffer);
-        image.resize(100, Jimp.AUTO); // Thumbnail size
+        image.resize(100, Jimp.AUTO);
         const dominantColor = image.getPixelColor(Math.floor(image.bitmap.width / 2), Math.floor(image.bitmap.height / 2));
         const { r, g, b } = Jimp.intToRGBA(dominantColor);
         return {
@@ -115,9 +120,6 @@ async function extractImageData(file) {
     }
 }
 
-// Routes
-
-// Upload Stone Data and Remnant Images
 app.post("/api/stone/upload", upload.array("images", 9), async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -142,7 +144,7 @@ app.post("/api/stone/upload", upload.array("images", 9), async (req, res) => {
             uploadedBy: uploadedBy || "Anonymous",
             uploadDate: new Date(),
             remnants: imageDataArray.length > 0,
-            likes: 0 // Initialize likes
+            likes: 0
         };
 
         const result = await stonesCollection.insertOne(stoneDoc);
@@ -156,7 +158,6 @@ app.post("/api/stone/upload", upload.array("images", 9), async (req, res) => {
     }
 });
 
-// Search Stones by Color or Type
 app.get("/api/stone/search", async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -189,7 +190,6 @@ app.get("/api/stone/search", async (req, res) => {
     }
 });
 
-// Get Stone Details by ID
 app.get("/api/stone/:id", async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -220,7 +220,6 @@ app.get("/api/stone/:id", async (req, res) => {
     }
 });
 
-// Get Stone Thumbnail by ID
 app.get("/api/stone/:id/thumbnail", async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -231,18 +230,18 @@ app.get("/api/stone/:id/thumbnail", async (req, res) => {
 
         if (!stone || !stone.images.length) throwError("Stone or image not found", 404);
 
+        res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
         res.setHeader("Content-Type", "image/jpeg");
-        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+        res.setHeader("Cache-Control", "public, max-age=86400");
         res.send(stone.images[0].data.buffer);
     } catch (err) {
         logError("Error in /api/stone/:id/thumbnail", err);
-        res.status(err.status || 404).sendFile(path.join(__dirname, "placeholder.jpg"), err => {
+        res.status(err.status || 404).sendFile(path.join(__dirname, "public", "placeholder.jpg"), err => {
             if (err) res.status(500).json({ error: "Failed to serve placeholder image" });
         });
     }
 });
 
-// Like a Stone
 app.post("/api/stone/:id/like", async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -265,7 +264,6 @@ app.post("/api/stone/:id/like", async (req, res) => {
     }
 });
 
-// Health Check
 app.get("/health", (req, res) => {
     res.status(200).json({
         uptime: process.uptime(),
@@ -274,8 +272,7 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Catch-all route to serve index.html for SPA
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'), (err) => {
         if (err) {
             logError("Error serving index.html", err);
@@ -284,7 +281,6 @@ app.get('*', (req, res) => {
     });
 });
 
-// Error Handling Middleware
 app.use((err, req, res, next) => {
     const status = err.status || 500;
     const message = err.message || "Unknown server error";
@@ -297,7 +293,6 @@ app.use((err, req, res, next) => {
     res.status(status).json({ error: message });
 });
 
-// Server Startup
 function startServer() {
     const server = app.listen(PORT, async () => {
         console.log(`Server running on port ${PORT}`);
@@ -306,28 +301,20 @@ function startServer() {
 
     const keepAlive = setInterval(() => {
         console.log(`[${new Date().toISOString()}] Server is alive`);
-        const used = process.memoryUsage();
-        console.log(`[${new Date().toISOString()}] Memory Usage: RSS=${(used.rss / 1024 / 1024).toFixed(2)}MB, HeapTotal=${(used.heapTotal / 1024 / 1024).toFixed(2)}MB, HeapUsed=${(used.heapUsed / 1024 / 1024).toFixed(2)}MB`);
     }, 30000);
 
     process.on("SIGTERM", async () => {
         console.log("Received SIGTERM, shutting down...");
         clearInterval(keepAlive);
         if (appState.mongoClient) await appState.mongoClient.close();
-        server.close(() => {
-            console.log("Server shut down gracefully due to SIGTERM");
-            process.exit(0);
-        });
+        server.close(() => process.exit(0));
     });
 
     process.on("SIGINT", async () => {
         console.log("Received SIGINT, shutting down...");
         clearInterval(keepAlive);
         if (appState.mongoClient) await appState.mongoClient.close();
-        server.close(() => {
-            console.log("Server shut down gracefully due to SIGINT");
-            process.exit(0);
-        });
+        server.close(() => process.exit(0));
     });
 
     process.on("uncaughtException", err => logError("Uncaught Exception", err));
