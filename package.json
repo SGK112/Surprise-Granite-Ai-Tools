@@ -1,10 +1,13 @@
 {
   "name": "stone-database",
   "version": "1.0.0",
+  "description": "A database for stone colors and remnants, accessible to fabricators, contractors, designers, homeowners, and cabinet makers.",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "deploy": "node server.js" // For Render deployment
   },
   "dependencies": {
     "compression": "^1.7.4",
@@ -17,7 +20,12 @@
     "mongodb": "^6.5.0",
     "multer": "^1.4.5-lts.1"
   },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "author": "Your Name",
+  "license": "MIT"
 }
