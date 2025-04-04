@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "deploy": "node server.js" 
+    "deploy": "node server.js"
   },
   "dependencies": {
     "compression": "^1.7.4",
