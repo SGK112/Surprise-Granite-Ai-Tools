@@ -87,22 +87,30 @@ async function estimateProject(fileDataArray, customerNeeds) {
     const keywords = {
         dimensions: needsLower.match(/(\d+\.?\d*)\s*(?:sq\s*ft|sft|square\s*feet)/i)?.[1],
         material: needsLower.match(/granite|quartz|marble/i)?.[0],
-        scope: needsLower.includes("repair") ? "repair" : "replacement"
+        scope: needsLower.includes("repair") ? "repair" : "replacement",
+        edge: needsLower.match(/bullnose|ogee|bevel/i)?.[0],
+        features: needsLower.match(/sink|backsplash|cutout/i)?.map(f => f.toLowerCase()) || []
     };
 
-    const prompt = `Analyze ${fileDataArray.length} images and customer needs ("${customerNeeds}"):
-        - Recommend "Repair" or "Replacement".
-        - Detect damage (cracks, stains, chips) and severity (Low, Moderate, Severe) from images.
-        - Suggest material and color.
-        - Use customer needs for dimensions or material.
+    const prompt = `You are CARI, an expert AI at Surprise Granite, analyzing countertops with high scrutiny as of April 04, 2025. Analyze ${fileDataArray.length} images and customer needs ("${customerNeeds}"):
+        - Recommend "Repair" or "Replacement" based on detailed damage assessment.
+        - Detect specific damage types (e.g., cracks, stains, chips, scratches, discoloration) and severity (Low, Moderate, Severe).
+        - Identify material (e.g., Granite, Quartz, Marble) based on texture, sheen, and patterns.
+        - Determine color and veining patterns (e.g., Black Pearl with white veins).
+        - Assess edge profiles (e.g., bullnose, ogee) if visible or specified.
+        - Evaluate wear patterns (e.g., surface wear, structural damage).
+        - Use customer needs for dimensions, material, or additional features (e.g., sink cutout).
+        - Provide a detailed reasoning for the recommendation, including image-based observations.
         - Respond in JSON with:
           - recommendation: "Repair" or "Replacement"
           - material_type: e.g., "Granite"
           - color: e.g., "Black Pearl"
           - dimensions: e.g., "25 Square Feet"
           - condition: { damage_type: e.g., "Cracks", severity: e.g., "Moderate" }
+          - edge_profile: e.g., "Bullnose"
+          - additional_features: array, e.g., ["sink cutout"]
           - solutions: e.g., "Seal cracks or contact ${SURPRISE_GRANITE_PHONE}"
-          - reasoning: Explain analysis
+          - reasoning: Detailed analysis of damage, material, and scope
     `;
 
     const messages = [
@@ -120,7 +128,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages,
-            max_tokens: 1000,
+            max_tokens: 1500,
             temperature: 0.7,
             response_format: { type: "json_object" }
         });
@@ -132,8 +140,10 @@ async function estimateProject(fileDataArray, customerNeeds) {
             color: "Not identified",
             dimensions: `${keywords.dimensions || 25} Square Feet`,
             condition: { damage_type: "No visible damage", severity: "None" },
+            edge_profile: keywords.edge || "Standard",
+            additional_features: keywords.features,
             solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
-            reasoning: "No AI available, using defaults"
+            reasoning: "No AI available, using defaults based on customer needs"
         };
     }
 
@@ -162,13 +172,19 @@ function enhanceCostEstimate(estimate) {
     const labor = laborData.find(l => l.type.includes(estimate.recommendation.toLowerCase())) || { rate_per_sqft: 15 };
     const materialCost = estimate.recommendation === "Repair" ? 0 : material.cost_per_sqft * sqFt;
     const laborCost = labor.rate_per_sqft * sqFt;
-    return { totalCost: materialCost + laborCost };
+    const additionalCost = (estimate.additional_features || []).length * 50; // $50 per feature (e.g., sink cutout)
+    const mid = materialCost + laborCost + additionalCost;
+    return {
+        low: mid * 0.8,  // -20%
+        mid,
+        high: mid * 1.2  // +20%
+    };
 }
 
 async function generateTTS(estimate) {
     if (!openai) return null;
     const costEstimate = enhanceCostEstimate(estimate);
-    const text = `Your recommendation: ${estimate.recommendation}. Material: ${estimate.material_type}. Color: ${estimate.color}. Dimensions: ${estimate.dimensions}. Condition: ${estimate.condition.damage_type}, ${estimate.condition.severity}. Cost: $${costEstimate.totalCost.toFixed(2)}. ${estimate.solutions}. ${estimate.consultation_prompt}`;
+    const text = `Your recommendation: ${estimate.recommendation}. Material: ${estimate.material_type}. Color: ${estimate.color}. Dimensions: ${estimate.dimensions}. Condition: ${estimate.condition.damage_type}, severity ${estimate.condition.severity}. Edge profile: ${estimate.edge_profile}. Additional features: ${estimate.additional_features.join(", ") || "none"}. Cost range: from $${costEstimate.low.toFixed(2)} to $${costEstimate.high.toFixed(2)}. Solutions: ${estimate.solutions}. ${estimate.consultation_prompt}`;
     const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
     const audioBuffer = Buffer.from(await response.arrayBuffer());
     const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
@@ -182,6 +198,7 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
     try {
         const customerNeeds = req.body.customer_needs || "";
         const name = req.body.name || "Unknown";
+        const phone = req.body.phone || "Not provided";
         const email = req.body.email || "unknown@example.com";
         const files = req.files || [];
         if (!files.length && !customerNeeds) return res.status(400).json({ error: "Upload files or provide needs" });
@@ -195,9 +212,9 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
         if (transporter && email !== "unknown@example.com") {
             await transporter.sendMail({
                 from: process.env.EMAIL_USER,
-                to: process.env.EMAIL_USER, // Send to yourself; adjust as needed
+                to: process.env.EMAIL_USER,
                 subject: `New Lead: ${name}`,
-                text: `Name: ${name}\nEmail: ${email}\nNeeds: ${customerNeeds}\nEstimate: ${JSON.stringify(estimate)}`
+                text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\nNeeds: ${customerNeeds}\nEstimate: ${JSON.stringify(estimate)}\nCost Range: $${costEstimate.low.toFixed(2)} - $${costEstimate.high.toFixed(2)}`
             });
         }
 
@@ -207,6 +224,8 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
             color: estimate.color,
             dimensions: estimate.dimensions,
             condition: estimate.condition,
+            edgeProfile: estimate.edge_profile,
+            additionalFeatures: estimate.additional_features,
             solutions: estimate.solutions,
             costEstimate,
             reasoning: estimate.reasoning,
@@ -238,7 +257,7 @@ app.post("/api/rating", async (req, res) => {
     try {
         await ensureMongoDBConnection();
         if (!appState.db) return res.status(500).json({ error: "Database not connected" });
-        const { imageId, rating } = req.body; // rating: "like" or "dislike"
+        const { imageId, rating } = req.body;
         const imagesCollection = appState.db.collection("countertop_images");
         const objectId = new ObjectId(imageId);
         const updateField = rating === "like" ? "metadata.likes" : "metadata.dislikes";
@@ -256,12 +275,10 @@ function startServer() {
         Promise.all([loadLaborData(), loadMaterialsData(), connectToMongoDB()]);
     });
 
-    // Keep-alive ping for Render
     setInterval(() => {
         console.log("Keep-alive ping");
-    }, 300000); // Every 5 minutes
+    }, 300000);
 
-    // Graceful shutdown
     process.on("SIGTERM", () => {
         console.log("SIGTERM received, shutting down...");
         if (appState.mongoClient) appState.mongoClient.close();
