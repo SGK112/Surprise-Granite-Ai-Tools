@@ -4,6 +4,7 @@ import multer from "multer";
 import cors from "cors";
 import { MongoClient, Binary, ObjectId } from "mongodb";
 import OpenAI from "openai";
+import nodemailer from "nodemailer";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -36,10 +37,14 @@ const upload = multer({
 });
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
 
 app.use(cors({ origin: "*" }));
 app.use(express.json());
-app.use(express.static("public")); // Serve static files from 'public' folder
+app.use(express.static("public"));
 
 async function loadLaborData() {
     laborData = [
@@ -146,7 +151,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
         estimate.imageIds = imageIds;
     }
 
-    estimate.feedback_prompt = `Rate this at ${BASE_URL}/feedback`;
+    estimate.feedback_prompt = `Rate this at ${BASE_URL}`;
     estimate.consultation_prompt = `Call ${SURPRISE_GRANITE_PHONE} for a free consultation`;
     return estimate;
 }
@@ -160,17 +165,41 @@ function enhanceCostEstimate(estimate) {
     return { totalCost: materialCost + laborCost };
 }
 
+async function generateTTS(estimate) {
+    if (!openai) return null;
+    const costEstimate = enhanceCostEstimate(estimate);
+    const text = `Your recommendation: ${estimate.recommendation}. Material: ${estimate.material_type}. Color: ${estimate.color}. Dimensions: ${estimate.dimensions}. Condition: ${estimate.condition.damage_type}, ${estimate.condition.severity}. Cost: $${costEstimate.totalCost.toFixed(2)}. ${estimate.solutions}. ${estimate.consultation_prompt}`;
+    const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
+    await fs.writeFile(filePath, audioBuffer);
+    return filePath;
+}
+
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
     try {
         const customerNeeds = req.body.customer_needs || "";
+        const name = req.body.name || "Unknown";
+        const email = req.body.email || "unknown@example.com";
         const files = req.files || [];
         if (!files.length && !customerNeeds) return res.status(400).json({ error: "Upload files or provide needs" });
 
         const fileDataArray = await Promise.all(files.map(extractFileContent));
         const estimate = await estimateProject(fileDataArray, customerNeeds);
         const costEstimate = enhanceCostEstimate(estimate);
+        const audioFilePath = await generateTTS(estimate);
+
+        // Lead capture
+        if (transporter && email !== "unknown@example.com") {
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: process.env.EMAIL_USER, // Send to yourself; adjust as needed
+                subject: `New Lead: ${name}`,
+                text: `Name: ${name}\nEmail: ${email}\nNeeds: ${customerNeeds}\nEstimate: ${JSON.stringify(estimate)}`
+            });
+        }
 
         res.json({
             recommendation: estimate.recommendation,
@@ -183,7 +212,10 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
             reasoning: estimate.reasoning,
             feedbackPrompt: estimate.feedback_prompt,
             consultationPrompt: estimate.consultation_prompt,
-            shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null
+            audioFilePath,
+            shareUrl: estimate.imageIds?.[0] ? `${req.protocol}://${req.get("host")}/api/get-countertop/${estimate.imageIds[0]}` : null,
+            likes: 0,
+            dislikes: 0
         });
     } catch (err) {
         console.error("Estimate failed:", err);
@@ -191,7 +223,53 @@ app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    Promise.all([loadLaborData(), loadMaterialsData(), connectToMongoDB()]);
+app.get("/api/audio/:filename", async (req, res) => {
+    const filePath = path.join(tempDir, req.params.filename);
+    try {
+        const audioBuffer = await fs.readFile(filePath);
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.send(audioBuffer);
+    } catch (err) {
+        res.status(404).send("Audio not found");
+    }
 });
+
+app.post("/api/rating", async (req, res) => {
+    try {
+        await ensureMongoDBConnection();
+        if (!appState.db) return res.status(500).json({ error: "Database not connected" });
+        const { imageId, rating } = req.body; // rating: "like" or "dislike"
+        const imagesCollection = appState.db.collection("countertop_images");
+        const objectId = new ObjectId(imageId);
+        const updateField = rating === "like" ? "metadata.likes" : "metadata.dislikes";
+        await imagesCollection.updateOne({ _id: objectId }, { $inc: { [updateField]: 1 } });
+        res.json({ message: `${rating} recorded` });
+    } catch (err) {
+        console.error("Rating failed:", err);
+        res.status(500).json({ error: "Rating failed" });
+    }
+});
+
+function startServer() {
+    const server = app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+        Promise.all([loadLaborData(), loadMaterialsData(), connectToMongoDB()]);
+    });
+
+    // Keep-alive ping for Render
+    setInterval(() => {
+        console.log("Keep-alive ping");
+    }, 300000); // Every 5 minutes
+
+    // Graceful shutdown
+    process.on("SIGTERM", () => {
+        console.log("SIGTERM received, shutting down...");
+        if (appState.mongoClient) appState.mongoClient.close();
+        server.close(() => {
+            console.log("Server closed");
+            process.exit(0);
+        });
+    });
+}
+
+startServer();
