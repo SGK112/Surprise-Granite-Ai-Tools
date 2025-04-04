@@ -39,7 +39,7 @@ const upload = multer({
 // Middleware
 app.use(compression());
 app.use(cors({
-    origin: ["http://localhost:3000", "https://www.surprisegranite.com"],
+    origin: ["http://localhost:3000", "https://www.surprisegranite.com", "https://surprise-granite-connections-dev.onrender.com"],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept"],
     credentials: true,
@@ -53,6 +53,9 @@ app.use(rateLimit({
     max: 100,
     message: "Too many requests. Please try again later."
 }));
+
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, "public")));
 
 // Request Logging
 app.use((req, res, next) => {
@@ -268,6 +271,16 @@ app.get("/health", (req, res) => {
         uptime: process.uptime(),
         mongoConnected: !!appState.db,
         timestamp: new Date().toISOString()
+    });
+});
+
+// Catch-all route to serve index.html for SPA
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'), (err) => {
+        if (err) {
+            logError("Error serving index.html", err);
+            res.status(500).json({ error: "Failed to load application" });
+        }
     });
 });
 
