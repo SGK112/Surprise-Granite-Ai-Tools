@@ -56,11 +56,22 @@ async function loadLaborData() {
 }
 
 async function loadMaterialsData() {
-    materialsData = [
-        { type: "Granite", color: "Generic", cost_per_sqft: 50 },
-        { type: "Quartz", color: "Generic", cost_per_sqft: 60 },
-        { type: "Sink", color: "Stainless Steel", cost_per_sqft: 20 }
-    ];
+    try {
+        const materialsJsonPath = path.join(__dirname, "data", "materials.json");
+        materialsData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8")).map(item => ({
+            type: item.Material,
+            color: item["Color Name"],
+            cost_per_sqft: item["Cost/SqFt"]
+        }));
+        console.log("Materials data loaded:", materialsData.length, "entries");
+    } catch (err) {
+        console.error("Failed to load materials.json:", err);
+        materialsData = [
+            { type: "Granite", color: "Generic", cost_per_sqft: 50 },
+            { type: "Quartz", color: "Generic", cost_per_sqft: 60 },
+            { type: "Sink", color: "Stainless Steel", cost_per_sqft: 20 }
+        ];
+    }
 }
 
 async function connectToMongoDB() {
@@ -112,16 +123,15 @@ async function estimateProject(fileDataArray, customerNeeds) {
     }
     const fullNeeds = `${customerNeeds} ${spokenText}`.trim();
 
-    const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and remodeling analysis as of April 04, 2025. Analyze ${fileDataArray.length} files (images or audio) and customer needs ("${fullNeeds}"):
-        - Recommend "Repair" or "Replacement" for countertops, sinks, or related features.
+    const prompt = `You are CARI, an expert AI at Surprise Granite, specializing in countertop and remodeling analysis as of April 04, 2025. Analyze ${fileDataArray.length} files (primarily images, with optional audio) and customer needs ("${fullNeeds}"), prioritizing image analysis over written or spoken input:
+        - Recommend "Repair" or "Replacement" for countertops, sinks, or related features based on image evidence.
         - Detect specific issues: countertop damage (cracks, chips, etching, stains, scratches), sink problems (falling in, broken, leaking), or structural wear.
-        - Assess severity (Low, Moderate, Severe).
-        - Identify material (e.g., Granite, Quartz, Marble, Stainless Steel) from texture, sheen, or audio description.
-        - Determine color and patterns (e.g., Black Pearl with veins).
-        - Analyze edge profiles (e.g., bullnose, ogee) and additional features (e.g., sink cutout, backsplash).
-        - Use customer needs or spoken input for dimensions, material, or scope.
-        - Provide detailed reasoning, including image/audio observations and recommendations.
-        - Always suggest contacting Surprise Granite at ${SURPRISE_GRANITE_PHONE} for precise quotes or complex issues.
+        - Assess severity (Low, Moderate, Severe) from visual cues.
+        - Identify material (e.g., Granite, Quartz, Marble, Stainless Steel) from texture, sheen, or patterns in images.
+        - Determine color and patterns (e.g., Black Pearl with veins) from images.
+        - Analyze edge profiles (e.g., bullnose, ogee) and additional features (e.g., sink cutout, backsplash) from images.
+        - Use customer needs or spoken input only as secondary context for dimensions, material, or scope if not clear in images.
+        - Provide detailed reasoning, focusing on image-based observations, and recommend contacting Surprise Granite at ${SURPRISE_GRANITE_PHONE} for precise quotes or complex issues.
         - Respond in JSON with:
           - recommendation: e.g., "Repair" or "Replacement"
           - material_type: e.g., "Granite"
@@ -131,7 +141,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
           - edge_profile: e.g., "Bullnose"
           - additional_features: array, e.g., ["sink cutout"]
           - solutions: e.g., "Seal cracks or contact ${SURPRISE_GRANITE_PHONE}"
-          - reasoning: Detailed analysis
+          - reasoning: Detailed image-based analysis
     `;
 
     const messages = [
@@ -167,7 +177,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
             edge_profile: keywords.edge || "Standard",
             additional_features: keywords.features,
             solutions: `Contact ${SURPRISE_GRANITE_PHONE} for evaluation`,
-            reasoning: "No AI available, using defaults based on customer needs or spoken input"
+            reasoning: "No AI available, using defaults based on limited input"
         };
     }
 
@@ -186,7 +196,7 @@ async function estimateProject(fileDataArray, customerNeeds) {
     }
 
     estimate.feedback_prompt = `Rate this at ${BASE_URL}`;
-    estimate.consultation_prompt = `Call ${SURPRISE_GRANITE_PHONE} for a free consultation`;
+    estimate.consultation_prompt = `Contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a detailed quote`;
     return estimate;
 }
 
@@ -205,10 +215,26 @@ function enhanceCostEstimate(estimate) {
     };
 }
 
+function numberToWords(num) {
+    const units = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+    const teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+    const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+    
+    if (num === 0) return "zero";
+    if (num < 10) return units[num];
+    if (num < 20) return teens[num - 10];
+    if (num < 100) return `${tens[Math.floor(num / 10)]} ${units[num % 10]}`.trim();
+    if (num < 1000) return `${units[Math.floor(num / 100)]} hundred ${numberToWords(num % 100)}`.trim();
+    if (num < 1000000) return `${numberToWords(Math.floor(num / 1000))} thousand ${numberToWords(num % 1000)}`.trim();
+    return num.toString(); // Fallback for very large numbers
+}
+
 async function generateTTS(estimate) {
     if (!openai) return null;
     const costEstimate = enhanceCostEstimate(estimate);
-    const text = `Your recommendation: ${estimate.recommendation}. Material: ${estimate.material_type}. Color: ${estimate.color}. Dimensions: ${estimate.dimensions}. Condition: ${estimate.condition.damage_type}, severity ${estimate.condition.severity}. Edge profile: ${estimate.edge_profile}. Additional features: ${estimate.additional_features.join(", ") || "none"}. Cost range: from $${costEstimate.low.toFixed(2)} to $${costEstimate.high.toFixed(2)}. Solutions: ${estimate.solutions}. ${estimate.consultation_prompt}`;
+    const lowWords = numberToWords(Math.floor(costEstimate.low)) + " dollars";
+    const highWords = numberToWords(Math.floor(costEstimate.high)) + " dollars";
+    const text = `Based on my analysis, I confidently recommend ${estimate.recommendation} for your project. The material is ${estimate.material_type}, color ${estimate.color}, with dimensions of ${estimate.dimensions}. I’ve identified ${estimate.condition.damage_type} with ${estimate.condition.severity} severity. The edge profile is ${estimate.edge_profile}, and additional features include ${estimate.additional_features.join(", ") || "none"}. The estimated cost ranges from ${lowWords} to ${highWords}. For the best solution, ${estimate.solutions}. Please contact Surprise Granite at ${SURPRISE_GRANITE_PHONE} for a precise quote.`;
     const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
     const audioBuffer = Buffer.from(await response.arrayBuffer());
     const filePath = path.join(tempDir, `tts-${Date.now()}.mp3`);
@@ -290,6 +316,15 @@ app.post("/api/rating", async (req, res) => {
         console.error("Rating failed:", err);
         res.status(500).json({ error: "Rating failed" });
     }
+});
+
+app.post("/api/tts", async (req, res) => {
+    const { text } = req.body;
+    if (!openai || !text) return res.status(400).send("TTS unavailable or no text provided");
+    const response = await openai.audio.speech.create({ model: "tts-1", voice: "alloy", input: text });
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.send(audioBuffer);
 });
 
 function startServer() {
