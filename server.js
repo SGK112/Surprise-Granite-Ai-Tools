@@ -22,7 +22,7 @@ fs.mkdir(tempDir, { recursive: true }).catch((err) => console.error("Failed to c
 
 let appState = { db: null, mongoClient: null };
 let laborData = [];
-let materialsData = [];
+let stoneProducts = [];
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -55,21 +55,45 @@ async function loadLaborData() {
     ];
 }
 
-async function loadMaterialsData() {
+async function loadStoneProducts() {
     try {
-        const materialsJsonPath = path.join(__dirname, "data", "materials.json");
-        materialsData = JSON.parse(await fs.readFile(materialsJsonPath, "utf8")).map(item => ({
-            type: item.Material,
-            color: item["Color Name"],
-            cost_per_sqft: item["Cost/SqFt"]
-        }));
-        console.log("Materials data loaded:", materialsData.length, "entries");
+        await ensureMongoDBConnection();
+        if (appState.db) {
+            const stoneCollection = appState.db.collection("stone_products");
+            stoneProducts = await stoneCollection.find({}).toArray();
+            if (stoneProducts.length === 0) {
+                const initialData = [
+                    { colorName: "Frost-N", vendorName: "Arizona Tile", thickness: "3cm", material: "Quartz", size: "126 x 63", totalSqFt: 55.13, costPerSqFt: 10.24, priceGroup: 2, tier: "Low Tier" },
+                    { colorName: "Frost-N", vendorName: "Arizona Tile", thickness: "3cm", material: "Quartz", size: "138 x 79", totalSqFt: 75.71, costPerSqFt: 10.24, priceGroup: 2, tier: "Low Tier" },
+                    { colorName: "Gemstone Beige-N", vendorName: "Arizona Tile", thickness: "1.5cm", material: "Quartz", size: "126 x 63", totalSqFt: 55.13, costPerSqFt: 6.05, priceGroup: 1, tier: "Low Tier" },
+                    { colorName: "Crema Caramel", vendorName: "MSI Surfaces", thickness: "2cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 8.8, priceGroup: 1, tier: "Low Tier" },
+                    { colorName: "Crema Caramel", vendorName: "MSI Surfaces", thickness: "3cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 10.3, priceGroup: 2, tier: "Low Tier" },
+                    { colorName: "Delicatus White", vendorName: "MSI Surfaces", thickness: "2cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 15.45, priceGroup: 2, tier: "Low Tier" },
+                    { colorName: "Delicatus White", vendorName: "MSI Surfaces", thickness: "3cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 21, priceGroup: 3, tier: "Low Tier" },
+                    { colorName: "Desert Beach", vendorName: "MSI Surfaces", thickness: "2cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 14.4, priceGroup: 2, tier: "Low Tier" },
+                    { colorName: "Desert Beach", vendorName: "MSI Surfaces", thickness: "3cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 20.4, priceGroup: 3, tier: "Low Tier" },
+                    { colorName: "Arcilla Red", vendorName: "Silestone by Cosentino", thickness: "2cm", material: "Quartz", size: "120 x 55", totalSqFt: 45, costPerSqFt: 39.24, priceGroup: 4, tier: "Mid Tier" },
+                    { colorName: "Arcilla Red", vendorName: "Silestone by Cosentino", thickness: "3cm", material: "Quartz", size: "120 x 55", totalSqFt: 45, costPerSqFt: 52.38, priceGroup: 6, tier: "High Tier" },
+                    { colorName: "Blanco Orion", vendorName: "Silestone by Cosentino", thickness: "2cm", material: "Quartz", size: "120 x 55", totalSqFt: 45, costPerSqFt: 35.67, priceGroup: 4, tier: "Mid Tier" },
+                    { colorName: "Blanco Orion", vendorName: "Silestone by Cosentino", thickness: "3cm", material: "Quartz", size: "120 x 55", totalSqFt: 45, costPerSqFt: 47.6, priceGroup: 5, tier: "High Tier" },
+                    { colorName: "Cala Blue", vendorName: "Silestone by Cosentino", thickness: "2cm", material: "Quartz", size: "120 x 55", totalSqFt: 45, costPerSqFt: 39.24, priceGroup: 4, tier: "Mid Tier" }
+                ];
+                await stoneCollection.insertMany(initialData);
+                stoneProducts = initialData;
+                console.log("Seeded initial stone products:", stoneProducts.length);
+            } else {
+                console.log("Loaded stone products from MongoDB:", stoneProducts.length);
+            }
+        } else {
+            stoneProducts = [
+                { colorName: "Generic", vendorName: "Unknown", thickness: "2cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 50, priceGroup: 1, tier: "Low Tier" }
+            ];
+            console.log("Loaded default stone products:", stoneProducts.length);
+        }
     } catch (err) {
-        console.error("Failed to load materials.json:", err);
-        materialsData = [
-            { type: "Granite", color: "Generic", cost_per_sqft: 50 },
-            { type: "Quartz", color: "Generic", cost_per_sqft: 60 },
-            { type: "Sink", color: "Stainless Steel", cost_per_sqft: 20 }
+        console.error("Failed to load stone products:", err);
+        stoneProducts = [
+            { colorName: "Generic", vendorName: "Unknown", thickness: "2cm", material: "Granite", size: "126 x 63", totalSqFt: 55, costPerSqFt: 50, priceGroup: 1, tier: "Low Tier" }
         ];
     }
 }
@@ -234,16 +258,20 @@ async function estimateProject(fileDataArray, customerNeeds) {
 
 function enhanceCostEstimate(estimate) {
     const sqFt = parseFloat(estimate.dimensions.match(/(\d+\.?\d*)/)?.[1] || 25);
-    const material = materialsData.find(m => m.type.toLowerCase() === estimate.material_type.toLowerCase()) || { cost_per_sqft: 50 };
+    const stone = stoneProducts.find(s => 
+        s.material.toLowerCase() === estimate.material_type.toLowerCase() && 
+        s.colorName.toLowerCase() === estimate.color.toLowerCase()
+    ) || { costPerSqFt: 50 };
     const labor = laborData.find(l => l.type.includes(estimate.recommendation.toLowerCase())) || { rate_per_sqft: 15 };
-    const materialCost = estimate.recommendation === "Repair" ? 0 : material.cost_per_sqft * sqFt;
+    const materialCost = estimate.recommendation === "Repair" ? 0 : stone.costPerSqFt * sqFt;
     const laborCost = labor.rate_per_sqft * sqFt;
     const additionalCost = (estimate.additional_features || []).length * 50;
     const mid = materialCost + laborCost + additionalCost;
     return {
         low: mid * 0.8,
         mid,
-        high: mid * 1.2
+        high: mid * 1.2,
+        selectedStone: stone
     };
 }
 
@@ -283,6 +311,40 @@ async function generateTTS(estimate) {
 app.get("/", (req, res) => {
     console.log("Serving index.html");
     res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/api/stone-products", (req, res) => {
+    res.json(stoneProducts);
+});
+
+app.post("/api/custom-stone", async (req, res) => {
+    try {
+        const customStone = {
+            colorName: req.body.colorName,
+            vendorName: req.body.vendorName,
+            thickness: req.body.thickness,
+            material: req.body.material,
+            size: req.body.size,
+            totalSqFt: parseFloat(req.body.totalSqFt),
+            costPerSqFt: parseFloat(req.body.costPerSqFt),
+            priceGroup: parseInt(req.body.priceGroup),
+            tier: req.body.tier,
+            isCustom: true
+        };
+        if (appState.db) {
+            const stoneCollection = appState.db.collection("stone_products");
+            await stoneCollection.insertOne(customStone);
+            stoneProducts.push(customStone);
+            console.log("Custom stone added to MongoDB:", customStone);
+        } else {
+            stoneProducts.push(customStone);
+            console.log("Custom stone added to memory:", customStone);
+        }
+        res.json({ message: "Custom stone added", data: customStone });
+    } catch (err) {
+        console.error("Failed to add custom stone:", err);
+        res.status(500).json({ error: "Failed to add custom stone", details: err.message });
+    }
 });
 
 app.post("/api/estimate", upload.array("files", 9), async (req, res) => {
@@ -383,7 +445,7 @@ app.post("/api/tts", async (req, res) => {
 function startServer() {
     const server = app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
-        Promise.all([loadLaborData(), loadMaterialsData(), connectToMongoDB()]);
+        Promise.all([loadLaborData(), loadStoneProducts(), connectToMongoDB()]);
     });
 
     setInterval(() => {
