@@ -1,70 +1,63 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background-color: #f8f9fa;
+/* Calc.css */
+.calculator {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
 }
 
-.container {
-  width: 90%;
-  max-width: 1200px;
-  margin: 30px auto;
-  background: #fff;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  border-radius: 6px;
+.calculator h2 {
+    margin-top: 0;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
+.stone-selection, .estimate-form, .custom-stone-form {
+    margin-bottom: 20px;
 }
 
-thead {
-  background-color: #e9ecef;
+.stone-selection select, .custom-stone-form input, .estimate-form textarea, .estimate-form input[type="file"] {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 8px;
+    box-sizing: border-box;
 }
 
-thead th {
-  font-weight: bold;
-  padding: 12px 8px;
-  text-align: left;
+.custom-stone-form {
+    display: none;
 }
 
-tbody td {
-  padding: 10px 8px;
-  border-top: 1px solid #dee2e6;
+.custom-stone-form input {
+    width: calc(100% - 16px);
 }
 
-tbody tr:nth-child(even) {
-  background-color: #f8f9fa;
-}
-
-.filter-form {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 15px;
-}
-
-.filter-form label {
-  margin-right: 6px;
-  font-weight: bold;
-}
-
-.filter-form select {
-  padding: 6px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.estimate-form textarea {
+    height: 100px;
+    resize: vertical;
 }
 
 button {
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 4px;
-  cursor: pointer;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
 }
 
-button:hover {
-  background-color: #0056b3;
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.estimate-result {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ccc;
+    background-color: #fff;
 }
