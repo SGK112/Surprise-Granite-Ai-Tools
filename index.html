@@ -3,734 +3,541 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CARI - Premium Design Quote</title>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <title>CARI: Countertop and Remodeling Intelligence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Block 1 CSS -->
     <style>
+        :root {
+            --primary-light: #0056d2;
+            --primary-dark: #66b0ff;
+            --gradient-light: linear-gradient(90deg, #0056d2, #00aaff);
+            --gradient-dark: linear-gradient(90deg, #66b0ff, #4d8cff);
+            --shadow-light: 0 4px 15px rgba(0, 0, 0, 0.15);
+            --shadow-dark: 0 4px 15px rgba(0, 0, 0, 0.3);
+            --accent: #8a8a8a;
+            --background-light: #f8f9fa;
+            --background-dark: #2a2a3e;
+            --text-light: #333;
+            --text-dark: #e0e0e0;
+        }
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
+            font-family: 'Inter', 'Arial', sans-serif;
             margin: 0;
-            padding: 20px;
-            font-family: 'SF Pro Display', sans-serif;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+            background: linear-gradient(135deg, #f0f4ff, #e6efff);
+            color: var(--text-light);
             min-height: 100vh;
-            line-height: 1.5;
-        }
-        #cari-app {
-            width: 90%;
-            max-width: 1000px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin: 20px auto;
-        }
-        header {
             display: flex;
-            align-items: center;
             justify-content: center;
-            gap: 16px;
-            margin-bottom: 20px;
+            align-items: flex-start;
         }
-        .logo {
-            width: 150px;
-            height: auto;
+        body.dark-mode {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: var(--text-dark);
         }
-        .title-container { text-align: left; }
-        header h1 { font-size: 2.5rem; font-weight: 700; margin: 0; }
-        .subtitle { font-size: 1rem; color: #666; margin: 0; }
-        .input-section { display: grid; gap: 20px; margin-bottom: 20px; }
-        .input-card {
-            padding: 20px;
-            background: rgba(245, 245, 245, 0.95);
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 20px auto;
+            text-align: center;
+            padding: 0 20px;
         }
-        #upload-area {
-            min-height: 200px;
+        .header {
+            padding: 40px 0 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
+            gap: 10px;
         }
-        #upload-area.drag-active { background: rgba(0, 122, 255, 0.1); }
-        .upload-placeholder i { font-size: 2rem; color: #007aff; margin-bottom: 10px; }
-        #upload-text { font-size: 1.1rem; margin: 0; }
-        .preview-container { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-        .preview-item { position: relative; }
-        .preview-image { max-width: 100px; max-height: 100px; }
-        .preview-item span { font-size: 0.8rem; color: #666; display: block; }
-        .preview-item .remove-btn {
+        .logo {
+            width: 50px;
+            height: 50px;
+            transition: transform 0.3s ease;
+        }
+        .logo:hover {
+            transform: scale(1.1);
+        }
+        .title {
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: var(--gradient-light);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 4s ease infinite;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .dark-mode .title {
+            background: none;
+            -webkit-text-fill-color: #fff;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .subtitle {
+            font-size: 1.5rem;
+            color: #666;
+            margin: 0;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+        .dark-mode .subtitle {
+            color: #ccc;
+        }
+        .theme-toggle {
             position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #ff3b30;
-            color: white;
+            top: 20px;
+            right: 40px;
+            background: none;
             border: none;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            font-size: 2rem;
             cursor: pointer;
+            color: var(--primary-light);
+            transition: color 0.3s, transform 0.3s;
         }
-        .progress-bar {
+        .dark-mode .theme-toggle {
+            color: var(--primary-dark);
+        }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 20px 0;
+        }
+        @media (min-width: 768px) {
+            .tool-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (min-width: 1024px) {
+            .tool-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+    <!-- Block 2B CSS -->
+    <style>
+        .tool-container {
             width: 100%;
-            height: 6px;
-            background: #f0f0f0;
-            border-radius: 3px;
-            margin-top: 10px;
-            overflow: hidden;
+            max-width: 600px;
+            margin: 20px auto;
         }
-        #progress-bar-fill { height: 100%; background: #007aff; width: 0; transition: width 0.3s ease; }
-        textarea.input-card {
-            border: none;
-            resize: vertical;
-            min-height: 100px;
-            border-radius: 10px;
-            padding: 10px;
+        .tool-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .dark-mode .tool-card {
+            background: rgba(34, 34, 34, 0.9);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+        }
+        .tool-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .dark-mode .tool-title {
+            color: #93c5fd;
+        }
+        .auth-prompt {
+            text-align: center;
+        }
+        .auth-prompt p {
+            font-size: 1.2rem;
+            color: #4b5563;
+            margin-bottom: 15px;
+        }
+        .dark-mode .auth-prompt p {
+            color: #d1d5db;
+        }
+        .auth-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-label {
             font-size: 1rem;
+            color: #4b5563;
+            margin-bottom: 5px;
+            text-align: left;
         }
-        textarea.input-card:focus { outline: none; box-shadow: 0 0 0 2px #007aff; }
-        .buttons { display: flex; gap: 10px; justify-content: center; }
-        .buttons button {
+        .dark-mode .form-label {
+            color: #d1d5db;
+        }
+        .form-control, .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #93c5fd;
+            border-radius: 10px;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.8);
+            transition: border-color 0.3s ease;
+        }
+        .dark-mode .form-control, .dark-mode .form-select {
+            background: rgba(34, 34, 34, 0.8);
+            border-color: #60a5fa;
+            color: #fff;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #1e3a8a;
+            outline: none;
+        }
+        .action-group, .auth-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .submit-border, .reset-border, .share-border {
             padding: 10px 20px;
+            border: 2px solid #1e3a8a;
             border-radius: 10px;
             font-size: 1rem;
             font-weight: 600;
+            color: #1e3a8a;
+            background: transparent;
             cursor: pointer;
-            background: #007aff;
-            color: white;
-            border: none;
+            transition: all 0.3s ease;
         }
-        #reset-btn { background: #ff3b30; }
-        #loading-spinner {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        .dark-mode .submit-border, .dark-mode .reset-border, .dark-mode .share-border {
+            border-color: #93c5fd;
+            color: #93c5fd;
         }
-        .spinner {
-            width: 30px;
-            height: 30px;
-            border: 3px solid #ccc;
-            border-top: 3px solid #007aff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
+        .submit-border:hover, .reset-border:hover, .share-border:hover {
+            background: rgba(30, 58, 138, 0.1);
+            transform: scale(1.05);
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #results {
-            display: none;
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 5px;
+        .dark-mode .submit-border:hover, .dark-mode .reset-border:hover, .dark-mode .share-border:hover {
+            background: rgba(147, 197, 253, 0.1);
+        }
+        .results {
             margin-top: 20px;
-        }
-        .result-card { margin-bottom: 20px; }
-        .result-card h2 { font-size: 1.5rem; margin-bottom: 10px; }
-        .result-card p { margin: 5px 0; }
-        .cost-ranges { display: flex; gap: 10px; justify-content: space-between; }
-        .cost-ranges p { flex: 1; text-align: center; padding: 5px; border-radius: 5px; }
-        #low-range { background: #34c759; color: white; }
-        #mid-range { background: #ff9500; color: white; }
-        #high-range { background: #ff3b30; color: white; }
-        .results-buttons { display: flex; gap: 10px; justify-content: center; }
-        .results-buttons button { padding: 8px 16px; background: #f0f0f0; color: #000; }
-        .contact-prompt { text-align: center; color: #007aff; font-weight: 600; margin-top: 10px; }
-        .popup {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            justify-content: center;
-            align-items: center;
-        }
-        .popup-content {
-            background: white;
-            padding: 20px;
+            padding: 15px;
+            border: 2px solid #93c5fd;
             border-radius: 10px;
-            max-width: 400px;
-            text-align: center;
+            background: rgba(243, 244, 246, 0.8);
         }
-        .lead-form { display: flex; flex-direction: column; gap: 10px; }
-        .lead-form input, .lead-form textarea {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        .dark-mode .results {
+            border-color: #60a5fa;
+            background: rgba(55, 65, 81, 0.8);
+        }
+        .results p {
             font-size: 1rem;
+            color: #4b5563;
+            margin: 8px 0;
         }
-        .lead-form textarea { min-height: 100px; resize: vertical; }
-        .lead-form button { background: #007aff; color: white; }
-        .close-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
+        .dark-mode .results p {
+            color: #d1d5db;
         }
-        .error {
+        .results span {
+            font-weight: 600;
+            color: #1e3a8a;
+        }
+        .dark-mode .results span {
+            color: #93c5fd;
+        }
+        .error-text {
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            text-align: center;
             display: none;
-            padding: 10px;
-            background: #ffebeb;
-            color: #ff3b30;
-            border-radius: 5px;
-            margin-top: 20px;
         }
-        footer { text-align: center; margin-top: 20px; font-size: 0.9rem; color: #666; }
-        .control-buttons { position: fixed; bottom: 10px; right: 10px; display: flex; gap: 10px; }
-        .control-btn {
-            background: #f0f0f0;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 1.2rem;
-            cursor: pointer;
+        .hidden {
+            display: none;
         }
     </style>
 </head>
-<body>
-    <main id="cari-app">
-        <header>
-            <img id="logo" src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" class="logo" alt="Surprise Granite Logo" />
-            <div class="title-container">
-                <h1>CARI</h1>
-                <p class="subtitle">Craft Your Perfect Space</p>
-            </div>
-        </header>
-        <section class="input-section">
-            <div id="upload-area" class="input-card" tabindex="0" role="button" aria-label="Upload or drop files">
-                <input type="file" id="file-input" accept="image/*,application/pdf,text/plain" multiple style="display: none;" aria-label="Upload up to 9 files (5MB each)" />
-                <div class="upload-placeholder">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <p id="upload-text">Drop up to 9 files (5MB each) or tap to upload</p>
+<body class="light-mode">
+    <div class="container">
+        <div class="header">
+            <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="CARI Logo" class="logo">
+            <h1 class="title">CARI</h1>
+            <p class="subtitle">AI-Powered Countertop and Remodeling Intelligence</p>
+            <button class="theme-toggle" aria-label="Toggle theme" onclick="toggleTheme()">
+                <i class="bi bi-moon" id="themeIcon"></i>
+            </button>
+        </div>
+        <div class="tool-grid" id="toolGrid">
+            <!-- Block 2A HTML -->
+            <div class="tool-container" id="estimator-tool">
+                <div class="tool-card">
+                    <h2 class="tool-title">Project Estimator</h2>
+                    <div id="auth-prompt" class="auth-prompt">
+                        <p>Please sign in to access the estimator.</p>
+                        <div class="auth-input-group">
+                            <input type="email" id="email" class="form-control" placeholder="Email" required>
+                            <input type="password" id="password" class="form-control" placeholder="Password" required>
+                        </div>
+                        <div class="auth-buttons">
+                            <div class="submit-border" id="signin-btn" onclick="signIn()">Sign In</div>
+                            <div class="submit-border" id="signup-btn" onclick="signUp()">Sign Up</div>
+                        </div>
+                    </div>
+                    <form id="estimator-form" class="hidden">
+                        <div class="slab-details">
+                            <h3>Slab Details</h3>
+                            <div class="form-group">
+                                <label for="material-type" class="form-label">Material</label>
+                                <select id="material-type" class="form-select" required>
+                                    <option value="" disabled selected>Select material</option>
+                                    <option value="granite">Granite</option>
+                                    <option value="quartz">Quartz</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="slab-name" class="form-label">Slab Name</label>
+                                <input type="text" id="slab-name" class="form-control" placeholder="e.g., Frost N polished 2cm" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="slab-sqft" class="form-label">Slab Total Sq Ft</label>
+                                <input type="number" id="slab-sqft" class="form-control" placeholder="e.g., 100" min="0" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="slab-cost-sqft" class="form-label">Slab Cost/Sq Ft ($)</label>
+                                <input type="number" id="slab-cost-sqft" class="form-control" placeholder="e.g., 20.00" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="countertops">
+                            <h3>Countertops</h3>
+                            <div class="form-group">
+                                <label for="client-sqft" class="form-label">Client Sq Ft</label>
+                                <input type="number" id="client-sqft" class="form-control" placeholder="e.g., 95" min="0" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="job-type" class="form-label">Job Type</label>
+                                <select id="job-type" class="form-select" required>
+                                    <option value="" disabled selected>Select job type</option>
+                                    <option value="fabrication-install">Fabrication and Install</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="action-group">
+                            <div class="submit-border" onclick="submitEstimate()">Submit Estimate</div>
+                            <div class="reset-border" onclick="resetEstimate()">Reset</div>
+                            <div class="share-border" onclick="shareEstimate()">Share</div>
+                        </div>
+                    </form>
+                    <div class="results hidden">
+                        <p><strong>Slab Cost:</strong> <span id="slabCost">$0.00</span></p>
+                        <p><strong>Total Slabs:</strong> <span id="totalSlabs">Recommended: 0 Calculated: 0</span></p>
+                        <p><strong>Material Price/Sq Ft:</strong> <span id="materialPrice">$0.00</span></p>
+                        <p><strong>Labor Price/Sq Ft:</strong> <span id="laborPrice">$0.00</span></p>
+                        <p><strong>Installed Price/Sq Ft:</strong> <span id="installedPrice">$0.00</span></p>
+                        <p><strong>Estimate Total:</strong> <span id="estimateTotal">$0.00</span></p>
+                        <p><strong>Profit Margin:</strong> <span id="profitMargin">0%</span></p>
+                        <p><strong>Profit Total:</strong> <span id="profitTotal">$0.00</span></p>
+                        <p class="error-text" id="errorMessage">Please enter valid data.</p>
+                    </div>
                 </div>
-                <div id="preview-container" class="preview-container"></div>
-                <div id="upload-progress" class="progress-bar" style="display: none;">
-                    <div id="progress-bar-fill"></div>
-                </div>
-            </div>
-            <textarea id="customer-needs" class="input-card" placeholder="Describe your vision (e.g., '560 sq ft granite countertop, bullnose edge, sink cutout')"></textarea>
-            <div class="buttons">
-                <button id="analyze-btn" aria-label="Get design quote"><i class="fas fa-magic"></i> Create Quote</button>
-                <button id="save-draft-btn" aria-label="Save draft"><i class="fas fa-save"></i> Save Draft</button>
-                <button id="reset-btn" aria-label="Reset inputs"><i class="fas fa-trash"></i> Reset</button>
-            </div>
-        </section>
-        <div id="lead-capture" class="popup" style="display: none;">
-            <div class="popup-content">
-                <h3>Your Premium Quote Awaits</h3>
-                <p>Enter your details for an exclusive design estimate — 10% off your first project!</p>
-                <div class="lead-form">
-                    <input type="text" id="lead-name" placeholder="Name" aria-label="Your Name" required>
-                    <input type="email" id="lead-email" placeholder="Email" aria-label="Your Email" required>
-                    <input type="tel" id="lead-phone" placeholder="Phone (optional)" aria-label="Your Phone">
-                    <button id="submit-lead-btn" aria-label="Submit lead info"><i class="fas fa-arrow-right"></i> Get Quote</button>
-                </div>
-                <button id="close-lead-btn" class="close-btn" aria-label="Close lead popup"><i class="fas fa-times"></i></button>
             </div>
         </div>
-        <div id="loading-spinner" class="loading-spinner" aria-hidden="true">
-            <div class="spinner"></div>
-            <p id="thinking-text">Crafting your design...</p>
-        </div>
-        <section id="results" class="results" role="region" aria-live="polite">
-            <div class="result-card">
-                <h2>Design Vision</h2>
-                <p><strong>Scope:</strong> <span id="project-scope">Awaiting analysis...</span></p>
-                <p><strong>Material:</strong> <span id="material-type">Awaiting analysis...</span></p>
-                <p><strong>Color & Pattern:</strong> <span id="color-pattern">Awaiting analysis...</span></p>
-                <p><strong>Edge Profile:</strong> <span id="edge-profile">-</span></p>
-                <p><strong>Dimensions:</strong> <span id="dimensions">Awaiting analysis...</span></p>
-                <p><strong>Condition:</strong> <span id="condition">-</span></p>
-                <p><strong>Solution:</strong> <span id="solutions">-</span></p>
-            </div>
-            <div class="result-card">
-                <h2>Premium Estimate</h2>
-                <div class="cost-ranges">
-                    <p><strong>Low:</strong> <span id="low-range">-</span></p>
-                    <p><strong>Mid:</strong> <span id="mid-range">-</span></p>
-                    <p><strong>High:</strong> <span id="high-range">-</span></p>
-                </div>
-                <p><strong>Total:</strong> <span id="total-cost">-</span></p>
-                <p><strong>Notes:</strong> <span id="reasoning">Awaiting analysis...</span></p>
-            </div>
-            <div class="results-buttons">
-                <button id="like-btn" aria-label="Like this quote"><i class="fas fa-heart"></i> <span id="like-count">0</span></button>
-                <button id="dislike-btn" aria-label="Dislike this quote"><i class="fas fa-thumbs-down"></i> <span id="dislike-count">0</span></button>
-                <button id="share-btn" aria-label="Share this quote"><i class="fas fa-share"></i> Share</button>
-                <button id="contact-btn" aria-label="Request detailed quote"><i class="fas fa-envelope"></i> Request Details</button>
-            </div>
-            <p class="contact-prompt">Call us at (602) 833-3189 for a free consultation!</p>
-        </section>
-        <div id="quote-popup" class="popup">
-            <div class="popup-content">
-                <h3>Request Your Detailed Quote</h3>
-                <p>Let’s finalize your vision with Surprise Granite</p>
-                <div class="lead-form">
-                    <input type="text" id="quote-name" placeholder="Name" aria-label="Your Name" required>
-                    <input type="email" id="quote-email" placeholder="Email" aria-label="Your Email" required>
-                    <input type="tel" id="quote-phone" placeholder="Phone (optional)" aria-label="Your Phone">
-                    <textarea id="quote-message" placeholder="Your Message" aria-label="Your Message" required></textarea>
-                    <button id="send-quote-btn" aria-label="Send quote request"><i class="fas fa-paper-plane"></i> Send</button>
-                </div>
-                <button id="close-quote-btn" class="close-btn" aria-label="Close quote popup"><i class="fas fa-times"></i></button>
-            </div>
-        </div>
-        <div id="error-message" class="error">
-            <p id="error-text"></p>
-        </div>
-        <footer>Powered by Surprise Granite © 2025</footer>
-    </main>
-    <div class="control-buttons">
-        <button id="light-mode-btn" class="control-btn" aria-label="Switch to light mode"><i class="fas fa-sun"></i></button>
-        <button id="dark-mode-btn" class="control-btn" aria-label="Switch to dark mode"><i class="fas fa-moon"></i></button>
-        <button id="mute-btn" class="control-btn" aria-label="Mute or unmute audio"><i class="fas fa-volume-up"></i></button>
     </div>
-
+    <!-- Block 2C JavaScript -->
     <script>
-        const BASE_URL = window.location.hostname === "localhost" ? "http://localhost:10000" : "https://surprise-granite-connections-dev.onrender.com";
-        const LIGHT_LOGO = "https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg";
-        const DARK_LOGO = "https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb28216fbb16b_Surprise%20Granite%20Transparent%20White%20Narrow.svg";
+        const SERVER_URL = 'http://localhost:10000';
+        let userToken = null;
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const elements = {
-                uploadArea: document.getElementById("upload-area"),
-                fileInput: document.getElementById("file-input"),
-                uploadText: document.getElementById("upload-text"),
-                previewContainer: document.getElementById("preview-container"),
-                uploadProgress: document.getElementById("upload-progress"),
-                progressBarFill: document.getElementById("progress-bar-fill"),
-                customerNeeds: document.getElementById("customer-needs"),
-                analyzeBtn: document.getElementById("analyze-btn"),
-                saveDraftBtn: document.getElementById("save-draft-btn"),
-                resetBtn: document.getElementById("reset-btn"),
-                loadingSpinner: document.getElementById("loading-spinner"),
-                thinkingText: document.getElementById("thinking-text"),
-                errorMessage: document.getElementById("error-message"),
-                errorText: document.getElementById("error-text"),
-                results: document.getElementById("results"),
-                projectScope: document.getElementById("project-scope"),
-                materialType: document.getElementById("material-type"),
-                colorPattern: document.getElementById("color-pattern"),
-                edgeProfile: document.getElementById("edge-profile"),
-                dimensions: document.getElementById("dimensions"),
-                condition: document.getElementById("condition"),
-                solutions: document.getElementById("solutions"),
-                totalCost: document.getElementById("total-cost"),
-                lowRange: document.getElementById("low-range"),
-                midRange: document.getElementById("mid-range"),
-                highRange: document.getElementById("high-range"),
-                reasoning: document.getElementById("reasoning"),
-                likeBtn: document.getElementById("like-btn"),
-                dislikeBtn: document.getElementById("dislike-btn"),
-                likeCount: document.getElementById("like-count"),
-                dislikeCount: document.getElementById("dislike-count"),
-                shareBtn: document.getElementById("share-btn"),
-                contactBtn: document.getElementById("contact-btn"),
-                leadCapture: document.getElementById("lead-capture"),
-                leadName: document.getElementById("lead-name"),
-                leadEmail: document.getElementById("lead-email"),
-                leadPhone: document.getElementById("lead-phone"),
-                submitLeadBtn: document.getElementById("submit-lead-btn"),
-                closeLeadBtn: document.getElementById("close-lead-btn"),
-                quotePopup: document.getElementById("quote-popup"),
-                quoteName: document.getElementById("quote-name"),
-                quoteEmail: document.getElementById("quote-email"),
-                quotePhone: document.getElementById("quote-phone"),
-                quoteMessage: document.getElementById("quote-message"),
-                sendQuoteBtn: document.getElementById("send-quote-btn"),
-                closeQuoteBtn: document.getElementById("close-quote-btn"),
-                muteBtn: document.getElementById("mute-btn"),
-                lightModeBtn: document.getElementById("light-mode-btn"),
-                darkModeBtn: document.getElementById("dark-mode-btn"),
-                logo: document.getElementById("logo")
+        function signIn() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            fetch(`${SERVER_URL}/api/signin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.token) {
+                    userToken = data.token;
+                    localStorage.setItem('userToken', userToken);
+                    document.getElementById('auth-prompt').classList.add('hidden');
+                    document.getElementById('estimator-form').classList.remove('hidden');
+                    document.getElementById('results').classList.remove('hidden');
+                } else {
+                    alert('Sign-in failed: ' + data.error);
+                }
+            })
+            .catch(err => alert('Sign-in error: ' + err.message));
+        }
+
+        function signUp() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            fetch(`${SERVER_URL}/api/signup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.token) {
+                    userToken = data.token;
+                    localStorage.setItem('userToken', userToken);
+                    document.getElementById('auth-prompt').classList.add('hidden');
+                    document.getElementById('estimator-form').classList.remove('hidden');
+                    document.getElementById('results').classList.remove('hidden');
+                    sendWelcomeEmail(email);
+                } else {
+                    alert('Sign-up failed: ' + data.error);
+                }
+            })
+            .catch(err => alert('Sign-up error: ' + err.message));
+        }
+
+        function sendWelcomeEmail(email) {
+            fetch(`${SERVER_URL}/api/send-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: email,
+                    subject: 'Welcome to Surprise Granite Estimator',
+                    text: 'Thank you for signing up! Use the Project Estimator to get started.',
+                    from: process.env.EMAIL_USER
+                })
+            })
+            .then(() => console.log('Welcome email sent'))
+            .catch(err => console.error('Email error:', err));
+        }
+
+        function submitEstimate() {
+            if (!userToken) {
+                alert('Please sign in to submit an estimate.');
+                return;
+            }
+            const formData = {
+                materialType: document.getElementById('material-type').value,
+                slabName: document.getElementById('slab-name').value,
+                slabSqFt: parseFloat(document.getElementById('slab-sqft').value),
+                slabCostPerSqFt: parseFloat(document.getElementById('slab-cost-sqft').value),
+                clientSqFt: parseFloat(document.getElementById('client-sqft').value),
+                jobType: document.getElementById('job-type').value
             };
 
-            let imageFiles = [];
-            let currentResult = null;
-            let audio = null;
-            let isMuted = false;
-
-            function setTheme(theme) {
-                document.documentElement.setAttribute("data-theme", theme);
-                localStorage.setItem("theme", theme);
-                elements.lightModeBtn.classList.toggle("active", theme === "light");
-                elements.darkModeBtn.classList.toggle("active", theme === "dark");
-                elements.logo.src = theme === "dark" ? DARK_LOGO : LIGHT_LOGO;
+            if (Object.values(formData).some(v => !v || (typeof v === 'number' && (isNaN(v) || v <= 0)))) {
+                document.getElementById('errorMessage').style.display = 'block';
+                return;
             }
 
-            const savedTheme = localStorage.getItem("theme") || "light";
-            setTheme(savedTheme);
-
-            elements.lightModeBtn.addEventListener("click", () => setTheme("light"));
-            elements.darkModeBtn.addEventListener("click", () => setTheme("dark"));
-
-            // Load draft if available
-            const draft = JSON.parse(localStorage.getItem("cari-draft") || "{}");
-            if (draft.customerNeeds) elements.customerNeeds.value = draft.customerNeeds;
-            if (draft.leadData) {
-                elements.leadName.value = draft.leadData.name || "";
-                elements.leadEmail.value = draft.leadData.email || "";
-                elements.leadPhone.value = draft.leadData.phone || "";
-            }
-
-            // File Upload Handling
-            elements.uploadArea.addEventListener("dragover", e => {
-                e.preventDefault();
-                elements.uploadArea.classList.add("drag-active");
-            });
-            elements.uploadArea.addEventListener("dragleave", e => {
-                e.preventDefault();
-                elements.uploadArea.classList.remove("drag-active");
-            });
-            elements.uploadArea.addEventListener("drop", e => {
-                e.preventDefault();
-                elements.uploadArea.classList.remove("drag-active");
-                handleFiles(e.dataTransfer.files);
-            });
-            elements.uploadArea.addEventListener("click", () => elements.fileInput.click());
-            elements.fileInput.addEventListener("change", e => handleFiles(e.target.files));
-
-            function handleFiles(files) {
-                const allowedTypes = ["image/jpeg", "image/png", "application/pdf", "text/plain"];
-                const newFiles = Array.from(files).filter(file => {
-                    if (!allowedTypes.includes(file.type)) {
-                        showError("Only images, PDFs, or text files allowed.");
-                        return false;
-                    }
-                    if (file.size > 5 * 1024 * 1024) {
-                        showError("Each file must be under 5MB.");
-                        return false;
-                    }
-                    return true;
+            fetch(`${SERVER_URL}/api/estimate`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    customer_needs: `${formData.materialType} ${formData.slabName} ${formData.clientSqFt} sq ft`,
+                    name: 'User',
+                    phone: '(602) 833-3189',
+                    email: localStorage.getItem('userEmail') || 'user@example.com'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                const costEstimate = data.costEstimate || {};
+                updateResults({
+                    slabCost: (formData.slabSqFt * formData.slabCostPerSqFt).toFixed(2),
+                    totalSlabs: `Recommended: ${Math.ceil(formData.clientSqFt / formData.slabSqFt)} Calculated: ${(formData.clientSqFt / formData.slabSqFt).toFixed(2)}`,
+                    materialPrice: (formData.slabCostPerSqFt * 3.77).toFixed(2),
+                    laborPrice: '45.00',
+                    installedPrice: (parseFloat(formData.slabCostPerSqFt * 3.77) + 45).toFixed(2),
+                    estimateTotal: costEstimate.mid ? costEstimate.mid.toFixed(2) : (formData.clientSqFt * (formData.slabCostPerSqFt * 3.77 + 45)).toFixed(2),
+                    profitMargin: ((costEstimate.mid - (formData.clientSqFt * formData.slabCostPerSqFt)) / costEstimate.mid * 100).toFixed(2) || '41.28',
+                    profitTotal: costEstimate.mid ? ((costEstimate.mid * 0.4128).toFixed(2)) : '0.00'
                 });
-                imageFiles = [...imageFiles, ...newFiles].slice(0, 9);
-                updatePreview();
+                document.getElementById('errorMessage').style.display = 'none';
+            })
+            .catch(err => {
+                document.getElementById('errorMessage').textContent = 'Error: ' + err.message;
+                document.getElementById('errorMessage').style.display = 'block';
+                resetResults();
+            });
+        }
+
+        function resetEstimate() {
+            document.getElementById('estimator-form').reset();
+            resetResults();
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function shareEstimate() {
+            const estimateTotal = document.getElementById('estimateTotal').textContent;
+            const text = `Estimate Total: ${estimateTotal}\nGenerated by Surprise Granite Estimator`;
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Project Estimate',
+                    text: text,
+                    url: window.location.href
+                }).catch(console.error);
+            } else {
+                alert('Share not supported. Estimate Total: ' + estimateTotal);
             }
+        }
 
-            function updatePreview() {
-                elements.previewContainer.innerHTML = "";
-                if (imageFiles.length === 0) {
-                    elements.uploadText.textContent = "Drop up to 9 files (5MB each) or tap to upload";
-                    elements.analyzeBtn.disabled = true;
-                } else {
-                    imageFiles.forEach((file, index) => {
-                        const div = document.createElement("div");
-                        div.classList.add("preview-item");
-                        if (file.type.startsWith("image/")) {
-                            const img = document.createElement("img");
-                            img.src = URL.createObjectURL(file);
-                            img.classList.add("preview-image");
-                            div.appendChild(img);
-                        }
-                        const name = document.createElement("span");
-                        name.textContent = file.name;
-                        div.appendChild(name);
-                        const removeBtn = document.createElement("button");
-                        removeBtn.textContent = "×";
-                        removeBtn.classList.add("remove-btn");
-                        removeBtn.onclick = () => {
-                            imageFiles.splice(index, 1);
-                            updatePreview();
-                        };
-                        div.appendChild(removeBtn);
-                        elements.previewContainer.appendChild(div);
-                    });
-                    elements.uploadText.textContent = `${imageFiles.length} file${imageFiles.length === 1 ? "" : "s"} selected`;
-                    elements.analyzeBtn.disabled = false;
-                }
-                clearResults();
-                clearError();
+        function updateResults(values) {
+            document.getElementById('slabCost').textContent = `$${values.slabCost}`;
+            document.getElementById('totalSlabs').textContent = values.totalSlabs;
+            document.getElementById('materialPrice').textContent = `$${values.materialPrice}`;
+            document.getElementById('laborPrice').textContent = `$${values.laborPrice}`;
+            document.getElementById('installedPrice').textContent = `$${values.installedPrice}`;
+            document.getElementById('estimateTotal').textContent = `$${values.estimateTotal}`;
+            document.getElementById('profitMargin').textContent = `${values.profitMargin}%`;
+            document.getElementById('profitTotal').textContent = `$${values.profitTotal}`;
+        }
+
+        function resetResults() {
+            updateResults({
+                slabCost: '0.00',
+                totalSlabs: 'Recommended: 0 Calculated: 0',
+                materialPrice: '0.00',
+                laborPrice: '0.00',
+                installedPrice: '0.00',
+                estimateTotal: '0.00',
+                profitMargin: '0',
+                profitTotal: '0.00'
+            });
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            if (body.classList.contains('light-mode')) {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+                themeIcon.classList.replace('bi-moon', 'bi-sun');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+                themeIcon.classList.replace('bi-sun', 'bi-moon');
+                localStorage.setItem('theme', 'light');
             }
+        }
 
-            elements.analyzeBtn.addEventListener("click", async () => {
-                if (imageFiles.length === 0) {
-                    showError("Please upload at least one file.");
-                    return;
-                }
-
-                elements.loadingSpinner.style.display = "flex";
-                elements.uploadProgress.style.display = "block";
-                elements.analyzeBtn.disabled = true;
-                elements.thinkingText.textContent = "Warming up server...";
-
-                // Pre-warm the backend
-                try {
-                    const warmResponse = await fetch(`${BASE_URL}/health`, { method: "GET", mode: "cors" });
-                    console.log("Server pre-warmed:", warmResponse.status, await warmResponse.json());
-                } catch (err) {
-                    console.warn("Pre-warm failed:", err.message);
-                }
-
-                elements.thinkingText.textContent = "CARI is analyzing your image...";
-
-                const formData = new FormData();
-                imageFiles.forEach(file => formData.append("files", file));
-                formData.append("customer_needs", elements.customerNeeds.value.trim());
-
-                async function fetchEstimate(attempt = 1, maxAttempts = 3) {
-                    console.log(`Attempt ${attempt}: Sending POST to ${BASE_URL}/api/contractor-estimate`);
-                    try {
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
-
-                        const response = await fetch(`${BASE_URL}/api/contractor-estimate`, {
-                            method: "POST",
-                            body: formData,
-                            signal: controller.signal,
-                            mode: "cors",
-                            headers: { "Accept": "application/json" },
-                            keepalive: true
-                        });
-
-                        clearTimeout(timeoutId);
-
-                        if (!response.ok) {
-                            const errorData = await response.json().catch(() => ({}));
-                            throw new Error(errorData.error || `HTTP error ${response.status}`);
-                        }
-
-                        const result = await response.json();
-                        console.log(`Attempt ${attempt}: Success - Response:`, result);
-                        return result;
-                    } catch (err) {
-                        console.error(`Attempt ${attempt} failed:`, err.message, err.stack);
-                        if (err.name === "AbortError") {
-                            throw new Error("Request timed out after 120 seconds");
-                        }
-                        if (attempt < maxAttempts) {
-                            console.log(`Retrying in 5 seconds... (Attempt ${attempt + 1}/${maxAttempts})`);
-                            await new Promise(resolve => setTimeout(resolve, 5000));
-                            return fetchEstimate(attempt + 1, maxAttempts);
-                        }
-                        throw new Error(`Fetch failed after ${maxAttempts} attempts: ${err.message}`);
-                    }
-                }
-
-                try {
-                    const result = await fetchEstimate();
-                    currentResult = result;
-                    audio = new Audio(`${BASE_URL}/api/audio/${encodeURIComponent(result.audioFilePath)}`);
-                    setupAudioControls();
-                    displayResults(result);
-                    elements.leadCapture.style.display = "flex";
-                } catch (err) {
-                    showError(`Failed to analyze image: ${err.message}. Check your connection or call (602) 833-3189.`);
-                    console.error("Full error details:", err);
-                } finally {
-                    elements.loadingSpinner.style.display = "none";
-                    elements.uploadProgress.style.display = "none";
-                    elements.progressBarFill.style.width = "0%";
-                    elements.analyzeBtn.disabled = false;
-                }
-            });
-
-            function setupAudioControls() {
-                console.log("Attempting to load audio from:", audio.src);
-                audio.preload = "metadata"; // Preload metadata to check validity
-                audio.addEventListener("loadedmetadata", () => {
-                    console.log("Audio metadata loaded, duration:", audio.duration);
-                    if (!isMuted) {
-                        audio.play().catch(err => {
-                            console.error("Audio play failed:", err.message);
-                            showError(`Audio playback failed: ${err.message}. Please try again or contact (602) 833-3189.`);
-                        });
-                    }
-                });
-                audio.addEventListener("error", (e) => {
-                    const errorCode = e.target.error.code;
-                    const errorMessages = {
-                        1: "Aborted",
-                        2: "Network Error",
-                        3: "Decoding Error",
-                        4: "Source Not Supported"
-                    };
-                    const errorMsg = `Failed to load audio narration. URL: ${audio.src}, Error: ${errorMessages[errorCode] || "Unknown error"} (Code: ${errorCode}). Retrying...`;
-                    showError(errorMsg);
-                    console.error(errorMsg);
-                    // Retry audio load after 2 seconds
-                    setTimeout(() => {
-                        console.log("Retrying audio load...");
-                        audio.src = `${BASE_URL}/api/audio/${encodeURIComponent(currentResult.audioFilePath)}`; // Reset source
-                        audio.load();
-                    }, 2000);
-                });
-                elements.muteBtn.addEventListener("click", () => {
-                    isMuted = !isMuted;
-                    audio.muted = isMuted;
-                    elements.muteBtn.innerHTML = `<i class="fas fa-volume-${isMuted ? "mute" : "up"}"></i>`;
-                });
-            }
-
-            elements.submitLeadBtn.addEventListener("click", async () => {
-                const leadData = {
-                    name: elements.leadName.value.trim(),
-                    email: elements.leadEmail.value.trim(),
-                    phone: elements.leadPhone.value.trim()
-                };
-                if (!leadData.name || !leadData.email || !/^\S+@\S+\.\S+$/.test(leadData.email)) {
-                    showError("Please provide a valid name and email.");
-                    return;
-                }
-
-                try {
-                    await sendLead(leadData);
-                    elements.leadCapture.style.display = "none";
-                    localStorage.removeItem("cari-draft");
-                    alert("Lead submitted successfully!");
-                } catch (err) {
-                    showError(`Failed to submit lead: ${err.message}`);
-                }
-            });
-
-            elements.closeLeadBtn.addEventListener("click", () => {
-                elements.leadCapture.style.display = "none";
-            });
-
-            elements.likeBtn.addEventListener("click", async () => {
-                if (!currentResult?.imageIds?.[0]) return;
-                try {
-                    const response = await fetch(`${BASE_URL}/api/like-countertop/${currentResult.imageIds[0]}`, { method: "POST" });
-                    const data = await response.json();
-                    elements.likeCount.textContent = data.likes;
-                } catch (err) {
-                    showError("Failed to like quote.");
-                }
-            });
-
-            elements.dislikeBtn.addEventListener("click", async () => {
-                if (!currentResult?.imageIds?.[0]) return;
-                try {
-                    const response = await fetch(`${BASE_URL}/api/dislike-countertop/${currentResult.imageIds[0]}`, { method: "POST" });
-                    const data = await response.json();
-                    elements.dislikeCount.textContent = data.dislikes;
-                } catch (err) {
-                    showError("Failed to dislike quote.");
-                }
-            });
-
-            elements.shareBtn.addEventListener("click", () => {
-                if (!currentResult?.shareUrl) return showError("No quote to share yet.");
-                navigator.clipboard.writeText(`My Surprise Granite quote: ${currentResult.shareUrl}`)
-                    .then(() => alert("Link copied to clipboard!"))
-                    .catch(() => showError("Failed to copy link."));
-            });
-
-            elements.contactBtn.addEventListener("click", () => {
-                if (!currentResult) return showError("Please get a quote first.");
-                elements.quotePopup.style.display = "flex";
-                elements.quoteName.value = elements.leadName.value;
-                elements.quoteEmail.value = elements.leadEmail.value;
-                elements.quotePhone.value = elements.leadPhone.value;
-                elements.quoteMessage.value = `Design Scope: ${currentResult.projectScope}\nMaterial: ${currentResult.materialType}, ${currentResult.colorAndPattern}\nEdge: ${currentResult.edgeProfile || "N/A"}\nTotal Cost: $${currentResult.costEstimate.totalCost.toFixed(2)}\nNotes: ${currentResult.reasoning}`;
-            });
-
-            elements.sendQuoteBtn.addEventListener("click", async () => {
-                const name = elements.quoteName.value.trim();
-                const email = elements.quoteEmail.value.trim();
-                const phone = elements.quotePhone.value.trim();
-                const message = elements.quoteMessage.value.trim();
-
-                if (!name || !email || !message) return showError("Please fill out all required fields.");
-
-                try {
-                    const response = await fetch(`${BASE_URL}/api/send-email`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name, email, phone, message, stone_type: currentResult.materialType, analysis_summary: JSON.stringify(currentResult) })
-                    });
-                    if (!response.ok) throw new Error((await response.json()).error || "Failed to send email");
-                    alert("Your detailed quote request has been sent!");
-                    elements.quotePopup.style.display = "none";
-                } catch (err) {
-                    showError(`Failed to send quote: ${err.message}`);
-                }
-            });
-
-            elements.closeQuoteBtn.addEventListener("click", () => elements.quotePopup.style.display = "none");
-
-            elements.saveDraftBtn.addEventListener("click", () => {
-                const draft = {
-                    customerNeeds: elements.customerNeeds.value,
-                    leadData: {
-                        name: elements.leadName.value,
-                        email: elements.leadEmail.value,
-                        phone: elements.leadPhone.value
-                    }
-                };
-                localStorage.setItem("cari-draft", JSON.stringify(draft));
-                alert("Draft saved!");
-            });
-
-            elements.resetBtn.addEventListener("click", () => {
-                imageFiles = [];
-                currentResult = null;
-                if (audio) audio.pause();
-                audio = null;
-                elements.fileInput.value = "";
-                elements.customerNeeds.value = "";
-                elements.leadName.value = "";
-                elements.leadEmail.value = "";
-                elements.leadPhone.value = "";
-                updatePreview();
-                clearResults();
-                clearError();
-                localStorage.removeItem("cari-draft");
-            });
-
-            function displayResults(result) {
-                elements.projectScope.textContent = result.projectScope || "Not specified";
-                elements.materialType.textContent = result.materialType || "Not specified";
-                elements.colorPattern.textContent = result.colorAndPattern || "Not identified";
-                elements.edgeProfile.textContent = result.edgeProfile || "Standard Edge";
-                elements.dimensions.textContent = result.dimensions || "Not specified";
-                elements.condition.textContent = result.condition ? `${result.condition.damage_type} (Severity: ${result.condition.severity})` : "No visible damage";
-                elements.solutions.textContent = result.solutions || "Contact Surprise Granite for evaluation";
-                const premiumTotal = result.costEstimate?.totalCost * 1.3 || 0;
-                elements.totalCost.textContent = `$${premiumTotal.toFixed(2)}`;
-                elements.lowRange.textContent = `$${(premiumTotal * 0.9).toFixed(2)}`;
-                elements.midRange.textContent = `$${premiumTotal.toFixed(2)}`;
-                elements.highRange.textContent = `$${(premiumTotal * 1.1).toFixed(2)}`;
-                elements.reasoning.textContent = result.reasoning || "No additional notes";
-                elements.likeCount.textContent = result.likes || 0;
-                elements.dislikeCount.textContent = result.dislikes || 0;
-                elements.results.style.display = "block";
-            }
-
-            async function sendLead(lead) {
-                const response = await fetch(`${BASE_URL}/api/send-email`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(lead)
-                });
-                if (!response.ok) throw new Error((await response.json()).error || "Failed to send lead");
-                console.log("Lead sent successfully");
-            }
-
-            function showError(message) {
-                elements.errorText.textContent = message;
-                elements.errorMessage.style.display = "block";
-                elements.results.style.display = "none";
-                elements.leadCapture.style.display = "none";
-            }
-
-            function clearError() {
-                elements.errorMessage.style.display = "none";
-            }
-
-            function clearResults() {
-                elements.results.style.display = "none";
+        document.addEventListener('DOMContentLoaded', () => {
+            userToken = localStorage.getItem('userToken');
+            if (userToken) {
+                document.getElementById('auth-prompt').classList.add('hidden');
+                document.getElementById('estimator-form').classList.remove('hidden');
+                document.getElementById('results').classList.remove('hidden');
             }
         });
     </script>
