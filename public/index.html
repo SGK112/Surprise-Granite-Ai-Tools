@@ -2,10 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Surprise Granite</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CARI - Surprise Granite Estimator</title>
+    <link rel="stylesheet" href="/Calc.css">
 </head>
 <body>
-    <h1>Welcome to Surprise Granite AI Tools</h1>
-    <p>Server is running!</p>
+    <div class="calculator">
+        <h2>Project Estimator</h2>
+        <div class="stone-selection">
+            <label for="stone-select">Select Stone:</label>
+            <select id="stone-select"></select>
+            <label>
+                <input type="checkbox" id="custom-stone-toggle"> Use Custom Stone
+            </label>
+        </div>
+        <div class="custom-stone-form" id="custom-stone-form">
+            <input id="custom-color" placeholder="Color Name" />
+            <input id="custom-vendor" placeholder="Vendor Name" />
+            <input id="custom-thickness" placeholder="Thickness (e.g., 3cm)" />
+            <input id="custom-material" placeholder="Material (e.g., Quartz)" />
+            <input id="custom-size" placeholder="Size (e.g., 126 x 63)" />
+            <input id="custom-sqft" placeholder="Total SqFt" />
+            <input id="custom-cost" placeholder="Cost/SqFt" />
+            <input id="custom-group" placeholder="Price Group" />
+            <input id="custom-tier" placeholder="Tier" />
+            <button id="custom-stone-submit">Add Custom Stone</button>
+        </div>
+        <div class="estimate-form">
+            <textarea id="customer-needs" placeholder="Describe your project needs (e.g., dimensions, material, repair/replacement)"></textarea>
+            <input type="file" id="file-input" multiple accept="image/jpeg,image/png,audio/wav" />
+            <button id="estimate-button">Get Estimate</button>
+        </div>
+        <div id="estimate-result"></div>
+    </div>
+    <script src="/Calc.js"></script>
 </body>
 </html>
