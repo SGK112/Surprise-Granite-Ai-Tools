@@ -1,11 +1,14 @@
-const express = require('express');
-const fs = require('fs').promises;
-const axios = require('axios');
+import express from 'express';
+import { promises as fs } from 'fs';
+import axios from 'axios';
+import cors from 'cors';
+
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors()); // Enable CORS for frontend requests
 
 let stoneProducts = [];
 let projects = [];
@@ -72,7 +75,8 @@ app.post('/api/estimate', async (req, res) => {
     }
 });
 
-app.listen(port, async () => {
+// Start server
+(async () => {
     await loadStoneProducts();
-    console.log(`Server running on port ${port}`);
-});
+    app.listen(port, () => console.log(`Server running on port ${port}`));
+})();
