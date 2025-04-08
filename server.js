@@ -1,103 +1,22 @@
-import "dotenv/config";
 import express from "express";
-import multer from "multer";
 import cors from "cors";
-import { MongoClient, Binary, ObjectId } from "mongodb";
+import { MongoClient } from "mongodb";
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import Jimp from "jimp";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 10000;
-const SURPRISE_GRANITE_PHONE = "(602) 833-3189";
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
-const tempDir = path.join(__dirname, "temp");
-fs.mkdir(tempDir, { recursive: true }).catch((err) => console.error("Failed to create temp dir:", err));
-
-let appState = { db: null, mongoClient: null };
-let laborData = [];
-let stoneProducts = [];
-
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024, files: 9 },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = ["image/jpeg", "image/png", "audio/wav"];
-        if (!allowedTypes.includes(file.mimetype)) {
-            return cb(new Error("Only JPEG, PNG, or WAV allowed"), false);
-        }
-        cb(null, true);
-    }
-});
-
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-});
-
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "https://surprisegranite.webflow.io" })); // Restrict to Webflow
 app.use(express.json());
-app.use(express.static("public"));
 
-async function loadLaborData() {
-    laborData = [
-        { type: "countertop_repair", rate_per_sqft: 15 },
-        { type: "countertop_replacement", rate_per_sqft: 20 },
-        { type: "sink_repair", rate_per_sqft: 10 },
-        { type: "sink_replacement", rate_per_sqft: 25 }
-    ];
-}
-
-async function loadStoneProducts() {
-    try {
-        await ensureMongoDBConnection();
-        if (appState.db) {
-            const stoneCollection = appState.db.collection("stone_products");
-            stoneProducts = await stoneCollection.find({}).toArray();
-            if (stoneProducts.length === 0) {
-                const materialsData = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
-                const initialData = materialsData.map(material => ({
-                    colorName: material["Color Name"],
-                    vendorName: material["Vendor Name"],
-                    thickness: material["Thickness"],
-                    material: material["Material"],
-                    size: material["size"],
-                    totalSqFt: material["Total/SqFt"],
-                    costPerSqFt: material["Cost/SqFt"],
-                    priceGroup: material["Price Group"],
-                    tier: material["Tier"]
-                }));
-                await stoneCollection.insertMany(initialData);
-                stoneProducts = initialData;
-                console.log("Seeded stone products from materials.json:", stoneProducts.length);
-            } else {
-                console.log("Loaded stone products from MongoDB:", stoneProducts.length);
-            }
-        }
-    } catch (err) {
-        console.error("Failed to load stone products:", err);
-        stoneProducts = [
-            { 
-                colorName: "Generic", 
-                vendorName: "Unknown", 
-                thickness: "2cm", 
-                material: "Granite", 
-                size: "126 x 63", 
-                totalSqFt: 55, 
-                costPerSqFt: 50, 
-                priceGroup: 1, 
-                tier: "Low Tier"
-            }
-        ];
-    }
-}
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let appState = { db: null, mongoClient: null };
+let countertops = [];
 
 async function connectToMongoDB() {
     if (!process.env.MONGODB_URI) return;
@@ -111,89 +30,74 @@ async function connectToMongoDB() {
     }
 }
 
-async function ensureMongoDBConnection() {
-    if (!appState.db && process.env.MONGODB_URI) await connectToMongoDB();
+async function loadCountertops() {
+    try {
+        await connectToMongoDB();
+        if (appState.db) {
+            const collection = appState.db.collection("countertops");
+            countertops = await collection.find({}).toArray();
+            if (countertops.length === 0) {
+                const materialsData = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
+                await collection.insertMany(materialsData);
+                countertops = materialsData;
+                console.log("Seeded countertops from materials.json:", countertops.length);
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load countertops:", err);
+        countertops = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
+    }
 }
 
-app.get("/api/stone-products", async (req, res) => {
+// Existing endpoint
+app.get("/api/get-countertops", async (req, res) => {
     try {
-        await ensureMongoDBConnection();
-        const imageCollection = appState.db.collection("countertop_images");
-        const images = await imageCollection.find({}).toArray();
-
-        const enrichedProducts = stoneProducts.map(product => {
-            const normalizedColorName = product.colorName.toLowerCase().replace(/\s+/g, '_');
-            const matchingImage = images.find(img => 
-                img.filename.toLowerCase().includes(normalizedColorName)
-            );
-            return {
-                colorName: product.colorName,
-                vendorName: product.vendorName,
-                material: product.material,
-                thickness: product.thickness,
-                size: product.size,
-                totalSqFt: product.totalSqFt,
-                costPerSqFt: product.costPerSqFt,
-                priceGroup: product.priceGroup,
-                tier: product.tier,
-                imageBase64: matchingImage ? matchingImage.imageBase64 : '',
-                analysis: matchingImage ? matchingImage.analysis : { stone_type: product.material, color_and_pattern: "Unknown", material_composition: "Unknown" }
-            };
-        });
-        res.json(enrichedProducts);
+        await loadCountertops();
+        res.json(countertops);
     } catch (err) {
-        console.error("Failed to fetch stone products with images:", err);
-        res.status(500).json({ error: "Failed to fetch stone products" });
+        console.error("Failed to fetch countertops:", err);
+        res.status(500).json({ error: "Failed to fetch countertops" });
     }
 });
 
-// New endpoint for generating estimates with waste and margin controls
+// New endpoint for estimate generation
 app.post("/api/generate-estimate", async (req, res) => {
     try {
-        await ensureMongoDBConnection();
-        const { 
-            projectName, 
-            stoneColor, 
-            totalSqFt, 
-            wastePercentage = 10, // Default 10% waste
-            materialMargin = 20,  // Default 20% margin
-            laborMargin = 25,     // Default 25% margin
-            laborType 
-        } = req.body;
+        await connectToMongoDB();
+        const { projectName, stoneColor, totalSqFt, wastePercentage = 10, materialMargin = 20, laborMargin = 25, laborType } = req.body;
 
-        // Validate inputs
         if (!projectName || !stoneColor || !totalSqFt || !laborType) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // Find stone product
-        const stone = stoneProducts.find(p => p.colorName.toLowerCase() === stoneColor.toLowerCase());
-        if (!stone) {
-            return res.status(404).json({ error: "Stone color not found" });
+        const countertop = countertops.find(c => (c.colorName || c.name)?.toLowerCase() === stoneColor.toLowerCase());
+        if (!countertop) {
+            return res.status(404).json({ error: "Countertop color not found" });
         }
 
-        // Find labor rate
-        const labor = laborData.find(l => l.type === laborType);
-        if (!labor) {
-            return res.status(404).json({ error: "Labor type not found" });
+        const laborRates = {
+            countertop_repair: 15,
+            countertop_replacement: 20,
+            sink_repair: 10,
+            sink_replacement: 25
+        };
+        const laborRate = laborRates[laborType];
+        if (!laborRate) {
+            return res.status(404).json({ error: "Invalid labor type" });
         }
 
-        // Calculate costs
         const wasteFactor = 1 + wastePercentage / 100;
-        const baseMaterialCost = stone.costPerSqFt * totalSqFt;
+        const baseMaterialCost = (countertop.costPerSqFt || 50) * totalSqFt;
         const materialCost = baseMaterialCost * wasteFactor * (1 + materialMargin / 100);
-        const laborCost = labor.rate_per_sqft * totalSqFt * (1 + laborMargin / 100);
+        const laborCost = laborRate * totalSqFt * (1 + laborMargin / 100);
         const totalCost = materialCost + laborCost;
 
-        // Generate professional estimate with OpenAI
         const prompt = `
             Write a professional countertop estimate for ${projectName} with Surprise Granite.
-            Stone: ${stone.colorName} (${stone.material}, ${stone.thickness}, Price Group ${stone.priceGroup}).
-            Total area: ${totalSqFt} sq ft.
-            Material cost: $${baseMaterialCost.toFixed(2)} base, adjusted to $${materialCost.toFixed(2)} with ${wastePercentage}% waste and ${materialMargin}% margin.
+            Stone: ${stoneColor}. Total area: ${totalSqFt} sq ft.
+            Material cost: $${materialCost.toFixed(2)} with ${wastePercentage}% waste and ${materialMargin}% margin.
             Labor (${laborType}): $${laborCost.toFixed(2)} with ${laborMargin}% margin.
             Total cost: $${totalCost.toFixed(2)}.
-            Contact: ${SURPRISE_GRANITE_PHONE}.
         `;
         const response = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
@@ -202,49 +106,22 @@ app.post("/api/generate-estimate", async (req, res) => {
         });
         const estimateText = response.choices[0].message.content;
 
-        // Save to MongoDB
-        const estimateCollection = appState.db.collection("estimates");
-        const estimate = {
-            projectName,
-            stoneColor: stone.colorName,
-            totalSqFt,
-            wastePercentage,
-            materialMargin,
-            laborMargin,
-            laborType,
-            materialCost,
-            laborCost,
-            totalCost,
-            estimateText,
-            createdAt: new Date()
-        };
-        await estimateCollection.insertOne(estimate);
+        if (appState.db) {
+            const estimateCollection = appState.db.collection("estimates");
+            await estimateCollection.insertOne({
+                projectName, stoneColor, totalSqFt, wastePercentage, materialMargin, laborMargin, laborType,
+                materialCost, laborCost, totalCost, estimateText, createdAt: new Date()
+            });
+        }
 
-        res.json({ totalCost, estimateText, materialCost, laborCost });
+        res.json({ totalCost, materialCost, laborCost, estimateText });
     } catch (err) {
         console.error("Failed to generate estimate:", err);
         res.status(500).json({ error: "Failed to generate estimate" });
     }
 });
 
-function startServer() {
-    const server = app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-        Promise.all([loadLaborData(), loadStoneProducts(), connectToMongoDB()]);
-    });
-
-    setInterval(() => {
-        console.log("Keep-alive ping");
-    }, 300000);
-
-    process.on("SIGTERM", () => {
-        console.log("SIGTERM received, shutting down...");
-        if (appState.mongoClient) appState.mongoClient.close();
-        server.close(() => {
-            console.log("Server closed");
-            process.exit(0);
-        });
-    });
-}
-
-startServer();
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    loadCountertops();
+});
