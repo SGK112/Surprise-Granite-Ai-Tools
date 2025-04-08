@@ -2,13 +2,17 @@ import express from 'express';
 import { promises as fs } from 'fs';
 import axios from 'axios';
 import cors from 'cors';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const app = express();
 const port = process.env.PORT || 10000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors()); // Enable CORS for frontend requests
+app.use(cors());
+app.use(express.static(join(__dirname, 'public'))); // Serve static files
 
 let stoneProducts = [];
 let projects = [];
@@ -55,6 +59,9 @@ app.delete('/api/project', (req, res) => {
 
 app.post('/api/estimate', async (req, res) => {
     const { customer_needs } = req.body;
+    if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
+    }
     try {
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
@@ -70,12 +77,15 @@ app.post('/api/estimate', async (req, res) => {
         };
         res.json(aiEstimate);
     } catch (error) {
-        console.error('OpenAI Error:', error);
+        console.error('OpenAI Error:', error.message);
         res.status(500).json({ error: 'Failed to generate estimate' });
     }
 });
 
-// Start server
+app.get('/', (req, res) => {
+    res.sendFile(join(__dirname, 'public', 'index.html'));
+});
+
 (async () => {
     await loadStoneProducts();
     app.listen(port, () => console.log(`Server running on port ${port}`));
