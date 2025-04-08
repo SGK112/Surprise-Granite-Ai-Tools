@@ -1,127 +1,68 @@
-import express from "express";
-import cors from "cors";
-import { MongoClient } from "mongodb";
-import OpenAI from "openai";
-import { promises as fs } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// server.js
+const express = require('express');
+const axios = require('axios'); // For OpenAI API calls
 const app = express();
-const PORT = process.env.PORT || 10000;
+const port = process.env.PORT || 3000;
 
-app.use(cors({ origin: "https://surprisegranite.webflow.io" })); // Restrict to Webflow
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-let appState = { db: null, mongoClient: null };
-let countertops = [];
+// Mock database (replace with actual database like MongoDB)
+let stoneProducts = [
+    { material: 'Granite', colorName: 'Frost-N', thickness: '3cm', vendorName: 'Arizona Tile', size: '126 x 63', costPerSqFt: 50, imageBase64: '' },
+    { material: 'Quartz', colorName: 'Calacatta', thickness: '2cm', vendorName: 'Caesarstone', size: '130 x 65', costPerSqFt: 60, imageBase64: '' }
+];
+let projects = [];
 
-async function connectToMongoDB() {
-    if (!process.env.MONGODB_URI) return;
-    try {
-        appState.mongoClient = new MongoClient(process.env.MONGODB_URI);
-        await appState.mongoClient.connect();
-        appState.db = appState.mongoClient.db("countertops");
-        console.log("Connected to MongoDB");
-    } catch (err) {
-        console.error("MongoDB connection failed:", err);
-    }
-}
-
-async function loadCountertops() {
-    try {
-        await connectToMongoDB();
-        if (appState.db) {
-            const collection = appState.db.collection("countertops");
-            countertops = await collection.find({}).toArray();
-            if (countertops.length === 0) {
-                const materialsData = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
-                await collection.insertMany(materialsData);
-                countertops = materialsData;
-                console.log("Seeded countertops from materials.json:", countertops.length);
-            }
-        }
-    } catch (err) {
-        console.error("Failed to load countertops:", err);
-        countertops = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
-    }
-}
-
-// Existing endpoint
-app.get("/api/get-countertops", async (req, res) => {
-    try {
-        await loadCountertops();
-        res.json(countertops);
-    } catch (err) {
-        console.error("Failed to fetch countertops:", err);
-        res.status(500).json({ error: "Failed to fetch countertops" });
-    }
+// API to get stone products
+app.get('/api/stone-products', (req, res) => {
+    res.json(stoneProducts);
 });
 
-// New endpoint for estimate generation
-app.post("/api/generate-estimate", async (req, res) => {
+// API to save and retrieve projects
+app.post('/api/project', (req, res) => {
+    projects = req.body.project || [];
+    res.status(201).json({ message: 'Project saved', projects });
+});
+
+app.get('/api/project', (req, res) => {
+    res.json({ project: projects });
+});
+
+app.delete('/api/project', (req, res) => {
+    projects = [];
+    res.status(204).send();
+});
+
+// OpenAI-powered estimate writer
+app.post('/api/estimate', async (req, res) => {
+    const { customer_needs } = req.body;
     try {
-        await connectToMongoDB();
-        const { projectName, stoneColor, totalSqFt, wastePercentage = 10, materialMargin = 20, laborMargin = 25, laborType } = req.body;
-
-        if (!projectName || !stoneColor || !totalSqFt || !laborType) {
-            return res.status(400).json({ error: "Missing required fields" });
-        }
-
-        const countertop = countertops.find(c => (c.colorName || c.name)?.toLowerCase() === stoneColor.toLowerCase());
-        if (!countertop) {
-            return res.status(404).json({ error: "Countertop color not found" });
-        }
-
-        const laborRates = {
-            countertop_repair: 15,
-            countertop_replacement: 20,
-            sink_repair: 10,
-            sink_replacement: 25
-        };
-        const laborRate = laborRates[laborType];
-        if (!laborRate) {
-            return res.status(404).json({ error: "Invalid labor type" });
-        }
-
-        const wasteFactor = 1 + wastePercentage / 100;
-        const baseMaterialCost = (countertop.costPerSqFt || 50) * totalSqFt;
-        const materialCost = baseMaterialCost * wasteFactor * (1 + materialMargin / 100);
-        const laborCost = laborRate * totalSqFt * (1 + laborMargin / 100);
-        const totalCost = materialCost + laborCost;
-
-        const prompt = `
-            Write a professional countertop estimate for ${projectName} with Surprise Granite.
-            Stone: ${stoneColor}. Total area: ${totalSqFt} sq ft.
-            Material cost: $${materialCost.toFixed(2)} with ${wastePercentage}% waste and ${materialMargin}% margin.
-            Labor (${laborType}): $${laborCost.toFixed(2)} with ${laborMargin}% margin.
-            Total cost: $${totalCost.toFixed(2)}.
-        `;
-        const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 300,
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-3.5-turbo',
+            messages: [{ role: 'user', content: `Generate an estimate based on: ${customer_needs}` }],
+            max_tokens: 500
+        }, {
+            headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
         });
-        const estimateText = response.choices[0].message.content;
 
-        if (appState.db) {
-            const estimateCollection = appState.db.collection("estimates");
-            await estimateCollection.insertOne({
-                projectName, stoneColor, totalSqFt, wastePercentage, materialMargin, laborMargin, laborType,
-                materialCost, laborCost, totalCost, estimateText, createdAt: new Date()
-            });
-        }
-
-        res.json({ totalCost, materialCost, laborCost, estimateText });
-    } catch (err) {
-        console.error("Failed to generate estimate:", err);
-        res.status(500).json({ error: "Failed to generate estimate" });
+        const aiEstimate = {
+            materialType: 'Granite', // Parse from response or customer_needs
+            color: 'Frost-N',
+            dimensions: '120 sq ft', // Example, parse from customer_needs
+            costEstimate: { low: 2000, mid: 2500, high: 3000 },
+            condition: { damage_type: 'None', severity: 'N/A' },
+            edgeProfile: 'Standard',
+            additionalFeatures: [],
+            recommendation: response.data.choices[0].message.content,
+            solutions: 'Contact us for installation details.',
+            consultationPrompt: 'Call (602) 833-3189'
+        };
+        res.json(aiEstimate);
+    } catch (error) {
+        console.error('OpenAI Error:', error);
+        res.status(500).json({ error: 'Failed to generate estimate' });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    loadCountertops();
-});
+app.listen(port, () => console.log(`Server running on port ${port}`));
