@@ -62,7 +62,6 @@ async function loadStoneProducts() {
             const stoneCollection = appState.db.collection("stone_products");
             stoneProducts = await stoneCollection.find({}).toArray();
             if (stoneProducts.length === 0) {
-                // Load from materials.json if collection is empty
                 const materialsData = JSON.parse(await fs.readFile(path.join(__dirname, "materials.json"), "utf8"));
                 const initialData = materialsData.map(material => ({
                     colorName: material["Color Name"],
@@ -116,7 +115,6 @@ async function ensureMongoDBConnection() {
     if (!appState.db && process.env.MONGODB_URI) await connectToMongoDB();
 }
 
-// Updated endpoint to merge stone products with images
 app.get("/api/stone-products", async (req, res) => {
     try {
         await ensureMongoDBConnection();
@@ -149,7 +147,85 @@ app.get("/api/stone-products", async (req, res) => {
     }
 });
 
-// ... (Rest of server.js unchanged: extractFileContent, estimateProject, enhanceCostEstimate, etc.)
+// New endpoint for generating estimates with waste and margin controls
+app.post("/api/generate-estimate", async (req, res) => {
+    try {
+        await ensureMongoDBConnection();
+        const { 
+            projectName, 
+            stoneColor, 
+            totalSqFt, 
+            wastePercentage = 10, // Default 10% waste
+            materialMargin = 20,  // Default 20% margin
+            laborMargin = 25,     // Default 25% margin
+            laborType 
+        } = req.body;
+
+        // Validate inputs
+        if (!projectName || !stoneColor || !totalSqFt || !laborType) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        // Find stone product
+        const stone = stoneProducts.find(p => p.colorName.toLowerCase() === stoneColor.toLowerCase());
+        if (!stone) {
+            return res.status(404).json({ error: "Stone color not found" });
+        }
+
+        // Find labor rate
+        const labor = laborData.find(l => l.type === laborType);
+        if (!labor) {
+            return res.status(404).json({ error: "Labor type not found" });
+        }
+
+        // Calculate costs
+        const wasteFactor = 1 + wastePercentage / 100;
+        const baseMaterialCost = stone.costPerSqFt * totalSqFt;
+        const materialCost = baseMaterialCost * wasteFactor * (1 + materialMargin / 100);
+        const laborCost = labor.rate_per_sqft * totalSqFt * (1 + laborMargin / 100);
+        const totalCost = materialCost + laborCost;
+
+        // Generate professional estimate with OpenAI
+        const prompt = `
+            Write a professional countertop estimate for ${projectName} with Surprise Granite.
+            Stone: ${stone.colorName} (${stone.material}, ${stone.thickness}, Price Group ${stone.priceGroup}).
+            Total area: ${totalSqFt} sq ft.
+            Material cost: $${baseMaterialCost.toFixed(2)} base, adjusted to $${materialCost.toFixed(2)} with ${wastePercentage}% waste and ${materialMargin}% margin.
+            Labor (${laborType}): $${laborCost.toFixed(2)} with ${laborMargin}% margin.
+            Total cost: $${totalCost.toFixed(2)}.
+            Contact: ${SURPRISE_GRANITE_PHONE}.
+        `;
+        const response = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 300,
+        });
+        const estimateText = response.choices[0].message.content;
+
+        // Save to MongoDB
+        const estimateCollection = appState.db.collection("estimates");
+        const estimate = {
+            projectName,
+            stoneColor: stone.colorName,
+            totalSqFt,
+            wastePercentage,
+            materialMargin,
+            laborMargin,
+            laborType,
+            materialCost,
+            laborCost,
+            totalCost,
+            estimateText,
+            createdAt: new Date()
+        };
+        await estimateCollection.insertOne(estimate);
+
+        res.json({ totalCost, estimateText, materialCost, laborCost });
+    } catch (err) {
+        console.error("Failed to generate estimate:", err);
+        res.status(500).json({ error: "Failed to generate estimate" });
+    }
+});
 
 function startServer() {
     const server = app.listen(PORT, () => {
