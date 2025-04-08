@@ -1,14 +1,12 @@
-// server.js
 const express = require('express');
-const fs = require('fs').promises; // For reading JSON file
-const axios = require('axios'); // For OpenAI API calls
+const fs = require('fs').promises;
+const axios = require('axios');
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Load stone products from materials.json
 let stoneProducts = [];
 let projects = [];
 
@@ -19,11 +17,13 @@ async function loadStoneProducts() {
         console.log('Stone products loaded successfully');
     } catch (error) {
         console.error('Failed to load materials.json:', error);
-        stoneProducts = []; // Fallback to empty array
+        stoneProducts = [
+            { "Color Name": "Frost-N", "Vendor Name": "Arizona Tile", "Thickness": "3cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 10.24 },
+            { "Color Name": "Gemstone Beige-N", "Vendor Name": "Arizona Tile", "Thickness": "2cm", "Material": "Quartz", "size": "126 x 63", "Total/SqFt": 55.13, "Cost/SqFt": 7.9 }
+        ];
     }
 }
 
-// API to get stone products
 app.get('/api/stone-products', (req, res) => {
     res.json(stoneProducts.map(product => ({
         material: product.Material,
@@ -32,14 +32,10 @@ app.get('/api/stone-products', (req, res) => {
         vendorName: product["Vendor Name"],
         size: product.size,
         costPerSqFt: product["Cost/SqFt"],
-        totalSqFt: product["Total/SqFt"],
-        priceGroup: product["Price Group"],
-        tier: product.Tier,
-        imageBase64: '' // Add if you have images
+        totalSqFt: product["Total/SqFt"]
     })));
 });
 
-// API to save and retrieve projects
 app.post('/api/project', (req, res) => {
     projects = req.body.project || [];
     res.status(201).json({ message: 'Project saved', projects });
@@ -54,7 +50,6 @@ app.delete('/api/project', (req, res) => {
     res.status(204).send();
 });
 
-// OpenAI-powered estimate writer
 app.post('/api/estimate', async (req, res) => {
     const { customer_needs } = req.body;
     try {
@@ -67,16 +62,8 @@ app.post('/api/estimate', async (req, res) => {
         });
 
         const aiEstimate = {
-            materialType: 'Quartz', // Parse from customer_needs if dynamic
-            color: 'Frost-N',
-            dimensions: '55.13 sq ft', // Example, parse from customer_needs
             costEstimate: { low: 2000, mid: 2500, high: 3000 },
-            condition: { damage_type: 'None', severity: 'N/A' },
-            edgeProfile: 'Standard',
-            additionalFeatures: [],
-            recommendation: response.data.choices[0].message.content,
-            solutions: 'Contact us for installation details.',
-            consultationPrompt: 'Call (602) 833-3189'
+            recommendation: response.data.choices[0].message.content
         };
         res.json(aiEstimate);
     } catch (error) {
@@ -85,7 +72,6 @@ app.post('/api/estimate', async (req, res) => {
     }
 });
 
-// Start server and load data
 app.listen(port, async () => {
     await loadStoneProducts();
     console.log(`Server running on port ${port}`);
