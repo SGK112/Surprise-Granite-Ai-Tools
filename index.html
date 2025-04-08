@@ -3,543 +3,434 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CARI: Countertop and Remodeling Intelligence</title>
+    <title>Surprise Granite Estimator</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <!-- Block 1 CSS -->
     <style>
         :root {
-            --primary-light: #0056d2;
-            --primary-dark: #66b0ff;
-            --gradient-light: linear-gradient(90deg, #0056d2, #00aaff);
-            --gradient-dark: linear-gradient(90deg, #66b0ff, #4d8cff);
-            --shadow-light: 0 4px 15px rgba(0, 0, 0, 0.15);
-            --shadow-dark: 0 4px 15px rgba(0, 0, 0, 0.3);
-            --accent: #8a8a8a;
-            --background-light: #f8f9fa;
-            --background-dark: #2a2a3e;
-            --text-light: #333;
-            --text-dark: #e0e0e0;
+            --primary-dark: #1e40af;
+            --gradient-dark: linear-gradient(135deg, #1e40af, #3b82f6);
+            --shadow-dark: 0 8px 24px rgba(0,0,0,0.5);
+            --background-dark: #0f172a;
+            --text-dark: #e5e7eb;
+            --vibrant-glow: #3b82f6;
+            --input-bg-dark: #334155;
+            --input-border: #60a5fa;
+            --primary-light: #2563eb;
+            --background-light: #f9fafb;
+            --text-light: #1f2937;
+            --shadow-light: 0 6px 18px rgba(0,0,0,0.15);
+            --highlight: #fbbf24;
+            --error-color: #ef4444;
+            --success-color: #10b981;
         }
-        body {
-            font-family: 'Inter', 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
-            transition: background-color 0.3s, color 0.3s;
-            background: linear-gradient(135deg, #f0f4ff, #e6efff);
-            color: var(--text-light);
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--background-dark); 
+            color: var(--text-dark); 
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            line-height: 1.6;
         }
-        body.dark-mode {
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            color: var(--text-dark);
-        }
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 20px auto;
+        body.light-mode { background: var(--background-light); color: var(--text-light); }
+        .hero {
+            padding: 60px 30px;
             text-align: center;
-            padding: 0 20px;
+            background: var(--gradient-dark);
+            animation: fadeIn 1s ease-in;
         }
-        .header {
-            padding: 40px 0 20px;
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(-20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .hero img { width: 120px; margin-bottom: 20px; }
+        .hero h1 { font-size: 2.5rem; color: #fff; margin-bottom: 10px; }
+        .hero p { font-size: 1.2rem; color: #e5e7eb; max-width: 600px; margin: 0 auto; }
+        .navbar { 
+            display: none;
+        }
+        .nav-toggle { 
+            display: none;
+        }
+        .tool-menu {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            width: 60px;
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-dark);
+            z-index: 1000;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
-        }
-        .logo {
-            width: 50px;
-            height: 50px;
             transition: transform 0.3s ease;
         }
-        .logo:hover {
-            transform: scale(1.1);
-        }
-        .title {
-            font-size: 3.5rem;
-            font-weight: 900;
-            background: var(--gradient-light);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientShift 4s ease infinite;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .dark-mode .title {
-            background: none;
-            -webkit-text-fill-color: #fff;
-            color: #fff;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .subtitle {
+        body.light-mode .tool-menu { background: #fff; box-shadow: var(--shadow-light); }
+        .tool-menu-item {
             font-size: 1.5rem;
-            color: #666;
-            margin: 0;
-            font-weight: 400;
-            letter-spacing: 0.5px;
-        }
-        .dark-mode .subtitle {
-            color: #ccc;
-        }
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 40px;
-            background: none;
-            border: none;
-            font-size: 2rem;
+            color: #9ca3af;
+            padding: 15px;
             cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tool-menu-item:hover, .tool-menu-item.active {
+            color: var(--vibrant-glow);
+            transform: scale(1.2);
+        }
+        body.light-mode .tool-menu-item:hover, body.light-mode .tool-menu-item.active {
             color: var(--primary-light);
-            transition: color 0.3s, transform 0.3s;
         }
-        .dark-mode .theme-toggle {
-            color: var(--primary-dark);
+        .main-content { 
+            padding: 80px 30px 30px; 
+            width: 100%; 
+            max-width: 1400px; 
+            margin: 0 auto;
         }
-        .tool-grid {
-            display: grid;
-            grid-template-columns: 1fr;
+        .tool-card { 
+            background: #1e293b; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: var(--shadow-dark); 
+            margin-bottom: 30px; 
+            display: none;
+            transition: opacity 0.3s ease;
+        }
+        .tool-card.active { display: block; opacity: 1; }
+        body.light-mode .tool-card { background: #fff; box-shadow: var(--shadow-light); }
+        h2 { font-size: 2rem; color: var(--vibrant-glow); margin-bottom: 25px; font-weight: 600; }
+        body.light-mode h2 { color: var(--primary-light); }
+        h3 { font-size: 1.3rem; color: var(--text-dark); margin-bottom: 15px; }
+        body.light-mode h3 { color: var(--text-light); }
+        .form-section { 
+            background: var(--input-bg-dark); 
+            padding: 20px; 
+            border-radius: 10px; 
+            margin-bottom: 25px;
+        }
+        body.light-mode .form-section { background: #fff; }
+        .form-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
             gap: 20px;
-            padding: 20px 0;
         }
-        @media (min-width: 768px) {
-            .tool-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .form-group { position: relative; display: flex; flex-direction: column; }
+        .form-label { 
+            font-size: 1rem; 
+            color: #d1d5db; 
+            margin-bottom: 8px; 
+            font-weight: 500;
         }
-        @media (min-width: 1024px) {
-            .tool-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-    </style>
-    <!-- Block 2B CSS -->
-    <style>
-        .tool-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 20px auto;
-        }
-        .tool-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        .dark-mode .tool-card {
-            background: rgba(34, 34, 34, 0.9);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        }
-        .tool-card:hover {
-            transform: translateY(-5px);
-        }
-        .tool-title {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #1e3a8a;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .dark-mode .tool-title {
-            color: #93c5fd;
-        }
-        .auth-prompt {
-            text-align: center;
-        }
-        .auth-prompt p {
-            font-size: 1.2rem;
-            color: #4b5563;
-            margin-bottom: 15px;
-        }
-        .dark-mode .auth-prompt p {
-            color: #d1d5db;
-        }
-        .auth-input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-label {
+        body.light-mode .form-label { color: #4b5563; }
+        .form-control, .form-select { 
+            padding: 12px 15px; 
+            border: 2px solid var(--input-border); 
+            border-radius: 8px; 
+            background: var(--input-bg-dark); 
+            color: var(--text-dark); 
+            width: 100%; 
             font-size: 1rem;
-            color: #4b5563;
-            margin-bottom: 5px;
-            text-align: left;
-        }
-        .dark-mode .form-label {
-            color: #d1d5db;
-        }
-        .form-control, .form-select {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #93c5fd;
-            border-radius: 10px;
-            font-size: 1rem;
-            background: rgba(255, 255, 255, 0.8);
-            transition: border-color 0.3s ease;
-        }
-        .dark-mode .form-control, .dark-mode .form-select {
-            background: rgba(34, 34, 34, 0.8);
-            border-color: #60a5fa;
-            color: #fff;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #1e3a8a;
-            outline: none;
-        }
-        .action-group, .auth-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin: 20px 0;
-            flex-wrap: wrap;
-        }
-        .submit-border, .reset-border, .share-border {
-            padding: 10px 20px;
-            border: 2px solid #1e3a8a;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            color: #1e3a8a;
-            background: transparent;
-            cursor: pointer;
             transition: all 0.3s ease;
         }
-        .dark-mode .submit-border, .dark-mode .reset-border, .dark-mode .share-border {
-            border-color: #93c5fd;
-            color: #93c5fd;
+        body.light-mode .form-control, body.light-mode .form-select { 
+            background: #fff; 
+            color: var(--text-light); 
         }
-        .submit-border:hover, .reset-border:hover, .share-border:hover {
-            background: rgba(30, 58, 138, 0.1);
-            transform: scale(1.05);
+        .form-control:focus, .form-select:focus { 
+            border-color: var(--vibrant-glow); 
+            box-shadow: 0 0 8px rgba(59,130,246,0.5); 
+            outline: none;
         }
-        .dark-mode .submit-border:hover, .dark-mode .reset-border:hover, .dark-mode .share-border:hover {
-            background: rgba(147, 197, 253, 0.1);
-        }
-        .results {
-            margin-top: 20px;
-            padding: 15px;
-            border: 2px solid #93c5fd;
-            border-radius: 10px;
-            background: rgba(243, 244, 246, 0.8);
-        }
-        .dark-mode .results {
-            border-color: #60a5fa;
-            background: rgba(55, 65, 81, 0.8);
-        }
-        .results p {
-            font-size: 1rem;
-            color: #4b5563;
-            margin: 8px 0;
-        }
-        .dark-mode .results p {
-            color: #d1d5db;
-        }
-        .results span {
-            font-weight: 600;
-            color: #1e3a8a;
-        }
-        .dark-mode .results span {
-            color: #93c5fd;
-        }
-        .error-text {
-            color: #dc2626;
-            font-size: 0.9rem;
-            margin-top: 10px;
-            text-align: center;
+        .form-control.error { border-color: var(--error-color); }
+        .error-message { 
+            color: var(--error-color); 
+            font-size: 0.9rem; 
+            margin-top: 5px; 
             display: none;
         }
-        .hidden {
-            display: none;
+        .form-group.error .error-message { display: block; }
+        .btn-group { margin-top: 20px; display: flex; gap: 10px; }
+        .btn { 
+            padding: 10px 20px; 
+            background: var(--vibrant-glow); 
+            color: #fff; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: background 0.3s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.secondary { background: #6b7280; }
+        .btn.secondary:hover { background: #4b5563; }
+        .results { 
+            background: var(--input-bg-dark); 
+            padding: 20px; 
+            border-radius: 10px; 
+            margin-top: 25px; 
+            font-size: 1.1rem;
+        }
+        body.light-mode .results { background: #fff; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { 
+            padding: 10px 20px; 
+            background: #374151; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: background 0.3s;
+        }
+        .tab.active { background: var(--vibrant-glow); }
+        .tab:hover { background: #4b5563; }
+        .tips { 
+            background: #1e293b; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+            font-size: 0.95rem;
+        }
+        body.light-mode .tips { background: #e5e7eb; }
+        .dynamic-sections { margin-top: 20px; }
+        .section-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            cursor: pointer;
+        }
+        .section-header h4 { font-size: 1.2rem; color: var(--vibrant-glow); }
+        body.light-mode .section-header h4 { color: var(--primary-light); }
+        .section-content { display: none; }
+        .section-content.active { display: block; }
+        .quote-image { 
+            max-width: 200px; 
+            border-radius: 8px; 
+            margin-top: 15px; 
+            box-shadow: var(--shadow-dark); 
+        }
+        body.light-mode .quote-image { box-shadow: var(--shadow-light); }
+        .loading { color: var(--highlight); font-style: italic; }
+        @media (max-width: 768px) {
+            .tool-menu { display: none; }
+            .navbar { 
+                display: block; 
+                width: 100%; 
+                height: 100vh; 
+                background: #1e293b; 
+                padding: 15px; 
+                box-shadow: var(--shadow-dark); 
+                position: fixed; 
+                top: 0; 
+                left: -100%; 
+                transition: left 0.3s ease;
+                z-index: 1000;
+            }
+            .navbar.open { left: 0; }
+            .navbar .close-btn { 
+                font-size: 1.8rem; 
+                color: var(--vibrant-glow); 
+                cursor: pointer; 
+                text-align: right; 
+                margin-bottom: 20px;
+                transition: color 0.3s;
+            }
+            .navbar .close-btn:hover { color: var(--highlight); }
+            .nav-item { 
+                font-size: 1.1rem; 
+                color: #9ca3af; 
+                padding: 12px; 
+                cursor: pointer; 
+                transition: all 0.3s; 
+                display: flex; 
+                align-items: center;
+            }
+            .nav-item:hover, .nav-item.active { 
+                color: var(--vibrant-glow); 
+                background: #374151; 
+                border-radius: 6px; 
+            }
+            .nav-toggle { 
+                display: block; 
+                position: fixed; 
+                top: 20px; 
+                left: 20px; 
+                font-size: 1.8rem; 
+                color: var(--vibrant-glow); 
+                cursor: pointer; 
+                z-index: 1100;
+                transition: opacity 0.3s;
+            }
+            .navbar.open ~ .nav-toggle { opacity: 0; pointer-events: none; }
+            .main-content { padding: 60px 20px 20px; }
+            .form-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-<body class="light-mode">
-    <div class="container">
-        <div class="header">
-            <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="CARI Logo" class="logo">
-            <h1 class="title">CARI</h1>
-            <p class="subtitle">AI-Powered Countertop and Remodeling Intelligence</p>
-            <button class="theme-toggle" aria-label="Toggle theme" onclick="toggleTheme()">
-                <i class="bi bi-moon" id="themeIcon"></i>
-            </button>
-        </div>
-        <div class="tool-grid" id="toolGrid">
-            <!-- Block 2A HTML -->
-            <div class="tool-container" id="estimator-tool">
-                <div class="tool-card">
-                    <h2 class="tool-title">Project Estimator</h2>
-                    <div id="auth-prompt" class="auth-prompt">
-                        <p>Please sign in to access the estimator.</p>
-                        <div class="auth-input-group">
-                            <input type="email" id="email" class="form-control" placeholder="Email" required>
-                            <input type="password" id="password" class="form-control" placeholder="Password" required>
-                        </div>
-                        <div class="auth-buttons">
-                            <div class="submit-border" id="signin-btn" onclick="signIn()">Sign In</div>
-                            <div class="submit-border" id="signup-btn" onclick="signUp()">Sign Up</div>
-                        </div>
+<body>
+    <header class="hero">
+        <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo">
+        <h1>Surprise Granite Estimator</h1>
+        <p>Precision estimating for countertop, tile, and cabinet projects.</p>
+    </header>
+    <i class="bi bi-list nav-toggle" onclick="toggleNav()"></i>
+    <nav class="navbar">
+        <i class="bi bi-x close-btn" onclick="toggleNav()"></i>
+        <div class="nav-item active" onclick="showTool('countertops')"><i class="bi bi-symmetry-vertical"></i> Countertops</div>
+        <div class="nav-item" onclick="showTool('tile')"><i class="bi bi-grid"></i> Tile</div>
+        <div class="nav-item" onclick="showTool('cabinets')"><i class="bi bi-box"></i> Cabinets</div>
+        <div class="nav-item" onclick="showTool('settings')"><i class="bi bi-gear"></i> Settings</div>
+        <div class="nav-item" onclick="showTool('project')"><i class="bi bi-folder"></i> Project Estimate</div>
+        <div class="nav-item" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill" id="themeToggle"></i> Toggle Theme</div>
+    </nav>
+    <div class="tool-menu">
+        <i class="bi bi-symmetry-vertical tool-menu-item active" onclick="showTool('countertops')" title="Countertops"></i>
+        <i class="bi bi-grid tool-menu-item" onclick="showTool('tile')" title="Tile"></i>
+        <i class="bi bi-box tool-menu-item" onclick="showTool('cabinets')" title="Cabinets"></i>
+        <i class="bi bi-gear tool-menu-item" onclick="showTool('settings')" title="Settings"></i>
+        <i class="bi bi-folder tool-menu-item" onclick="showTool('project')" title="Project Estimate"></i>
+        <i class="bi bi-moon-stars-fill tool-menu-item" id="themeToggleMenu" onclick="toggleTheme()" title="Toggle Theme"></i>
+    </div>
+    <main class="main-content">
+        <!-- Countertops Estimator -->
+        <div class="tool-card active" id="countertops-tool">
+            <h2>Countertops Estimator</h2>
+            <div class="tabs">
+                <div class="tab active" onclick="toggleTab('customer')">Customer View</div>
+                <div class="tab" onclick="toggleTab('user')">User View</div>
+            </div>
+            <form id="countertops-form" class="form-section">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Project Type</label>
+                        <select id="countertops-type" class="form-select" onchange="updateCountertopForm()">
+                            <option value="perimeter">Perimeter Countertops</option>
+                            <option value="island">Kitchen Island</option>
+                            <option value="vanity">Bathroom Vanity</option>
+                            <option value="shower">Shower Walls</option>
+                        </select>
                     </div>
-                    <form id="estimator-form" class="hidden">
-                        <div class="slab-details">
-                            <h3>Slab Details</h3>
-                            <div class="form-group">
-                                <label for="material-type" class="form-label">Material</label>
-                                <select id="material-type" class="form-select" required>
-                                    <option value="" disabled selected>Select material</option>
-                                    <option value="granite">Granite</option>
-                                    <option value="quartz">Quartz</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="slab-name" class="form-label">Slab Name</label>
-                                <input type="text" id="slab-name" class="form-control" placeholder="e.g., Frost N polished 2cm" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="slab-sqft" class="form-label">Slab Total Sq Ft</label>
-                                <input type="number" id="slab-sqft" class="form-control" placeholder="e.g., 100" min="0" step="0.1" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="slab-cost-sqft" class="form-label">Slab Cost/Sq Ft ($)</label>
-                                <input type="number" id="slab-cost-sqft" class="form-control" placeholder="e.g., 20.00" min="0" step="0.01" required>
-                            </div>
-                        </div>
-                        <div class="countertops">
-                            <h3>Countertops</h3>
-                            <div class="form-group">
-                                <label for="client-sqft" class="form-label">Client Sq Ft</label>
-                                <input type="number" id="client-sqft" class="form-control" placeholder="e.g., 95" min="0" step="0.1" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="job-type" class="form-label">Job Type</label>
-                                <select id="job-type" class="form-select" required>
-                                    <option value="" disabled selected>Select job type</option>
-                                    <option value="fabrication-install">Fabrication and Install</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="action-group">
-                            <div class="submit-border" onclick="submitEstimate()">Submit Estimate</div>
-                            <div class="reset-border" onclick="resetEstimate()">Reset</div>
-                            <div class="share-border" onclick="shareEstimate()">Share</div>
-                        </div>
-                    </form>
-                    <div class="results hidden">
-                        <p><strong>Slab Cost:</strong> <span id="slabCost">$0.00</span></p>
-                        <p><strong>Total Slabs:</strong> <span id="totalSlabs">Recommended: 0 Calculated: 0</span></p>
-                        <p><strong>Material Price/Sq Ft:</strong> <span id="materialPrice">$0.00</span></p>
-                        <p><strong>Labor Price/Sq Ft:</strong> <span id="laborPrice">$0.00</span></p>
-                        <p><strong>Installed Price/Sq Ft:</strong> <span id="installedPrice">$0.00</span></p>
-                        <p><strong>Estimate Total:</strong> <span id="estimateTotal">$0.00</span></p>
-                        <p><strong>Profit Margin:</strong> <span id="profitMargin">0%</span></p>
-                        <p><strong>Profit Total:</strong> <span id="profitTotal">$0.00</span></p>
-                        <p class="error-text" id="errorMessage">Please enter valid data.</p>
+                    <div class="form-group">
+                        <label class="form-label">Material Type</label>
+                        <select id="countertops-material" class="form-select" onchange="fetchStoneProducts()">
+                            <option value="Granite">Granite</option>
+                            <option value="Quartz">Quartz</option>
+                            <option value="Quartzite">Quartzite</option>
+                            <option value="Dekton">Dekton</option>
+                            <option value="Marble">Marble</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Slab Name</label>
+                        <select id="countertops-slab-name" class="form-select" onchange="updateSlabDetails()"></select>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    <!-- Block 2C JavaScript -->
-    <script>
-        const SERVER_URL = 'https://surprise-granite-connections-dev.onrender.com';
-        let userToken = null;
-
-        function signIn() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            fetch(`${SERVER_URL}/api/signin`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.token) {
-                    userToken = data.token;
-                    localStorage.setItem('userToken', userToken);
-                    document.getElementById('auth-prompt').classList.add('hidden');
-                    document.getElementById('estimator-form').classList.remove('hidden');
-                    document.getElementById('results').classList.remove('hidden');
-                } else {
-                    alert('Sign-in failed: ' + data.error);
-                }
-            })
-            .catch(err => alert('Sign-in error: ' + err.message));
-        }
-
-        function signUp() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            fetch(`${SERVER_URL}/api/signup`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.token) {
-                    userToken = data.token;
-                    localStorage.setItem('userToken', userToken);
-                    document.getElementById('auth-prompt').classList.add('hidden');
-                    document.getElementById('estimator-form').classList.remove('hidden');
-                    document.getElementById('results').classList.remove('hidden');
-                    sendWelcomeEmail(email);
-                } else {
-                    alert('Sign-up failed: ' + data.error);
-                }
-            })
-            .catch(err => alert('Sign-up error: ' + err.message));
-        }
-
-        function sendWelcomeEmail(email) {
-            fetch(`${SERVER_URL}/api/send-email`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: email,
-                    subject: 'Welcome to Surprise Granite Estimator',
-                    text: 'Thank you for signing up! Use the Project Estimator to get started.',
-                    from: process.env.EMAIL_USER
-                })
-            })
-            .then(() => console.log('Welcome email sent'))
-            .catch(err => console.error('Email error:', err));
-        }
-
-        function submitEstimate() {
-            if (!userToken) {
-                alert('Please sign in to submit an estimate.');
-                return;
-            }
-            const formData = {
-                materialType: document.getElementById('material-type').value,
-                slabName: document.getElementById('slab-name').value,
-                slabSqFt: parseFloat(document.getElementById('slab-sqft').value),
-                slabCostPerSqFt: parseFloat(document.getElementById('slab-cost-sqft').value),
-                clientSqFt: parseFloat(document.getElementById('client-sqft').value),
-                jobType: document.getElementById('job-type').value
-            };
-
-            if (Object.values(formData).some(v => !v || (typeof v === 'number' && (isNaN(v) || v <= 0)))) {
-                document.getElementById('errorMessage').style.display = 'block';
-                return;
-            }
-
-            fetch(`${SERVER_URL}/api/estimate`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`
-                },
-                body: JSON.stringify({
-                    customer_needs: `${formData.materialType} ${formData.slabName} ${formData.clientSqFt} sq ft`,
-                    name: 'User',
-                    phone: '(602) 833-3189',
-                    email: localStorage.getItem('userEmail') || 'user@example.com'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                const costEstimate = data.costEstimate || {};
-                updateResults({
-                    slabCost: (formData.slabSqFt * formData.slabCostPerSqFt).toFixed(2),
-                    totalSlabs: `Recommended: ${Math.ceil(formData.clientSqFt / formData.slabSqFt)} Calculated: ${(formData.clientSqFt / formData.slabSqFt).toFixed(2)}`,
-                    materialPrice: (formData.slabCostPerSqFt * 3.77).toFixed(2),
-                    laborPrice: '45.00',
-                    installedPrice: (parseFloat(formData.slabCostPerSqFt * 3.77) + 45).toFixed(2),
-                    estimateTotal: costEstimate.mid ? costEstimate.mid.toFixed(2) : (formData.clientSqFt * (formData.slabCostPerSqFt * 3.77 + 45)).toFixed(2),
-                    profitMargin: ((costEstimate.mid - (formData.clientSqFt * formData.slabCostPerSqFt)) / costEstimate.mid * 100).toFixed(2) || '41.28',
-                    profitTotal: costEstimate.mid ? ((costEstimate.mid * 0.4128).toFixed(2)) : '0.00'
-                });
-                document.getElementById('errorMessage').style.display = 'none';
-            })
-            .catch(err => {
-                document.getElementById('errorMessage').textContent = 'Error: ' + err.message;
-                document.getElementById('errorMessage').style.display = 'block';
-                resetResults();
-            });
-        }
-
-        function resetEstimate() {
-            document.getElementById('estimator-form').reset();
-            resetResults();
-            document.getElementById('errorMessage').style.display = 'none';
-        }
-
-        function shareEstimate() {
-            const estimateTotal = document.getElementById('estimateTotal').textContent;
-            const text = `Estimate Total: ${estimateTotal}\nGenerated by Surprise Granite Estimator`;
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Project Estimate',
-                    text: text,
-                    url: window.location.href
-                }).catch(console.error);
-            } else {
-                alert('Share not supported. Estimate Total: ' + estimateTotal);
-            }
-        }
-
-        function updateResults(values) {
-            document.getElementById('slabCost').textContent = `$${values.slabCost}`;
-            document.getElementById('totalSlabs').textContent = values.totalSlabs;
-            document.getElementById('materialPrice').textContent = `$${values.materialPrice}`;
-            document.getElementById('laborPrice').textContent = `$${values.laborPrice}`;
-            document.getElementById('installedPrice').textContent = `$${values.installedPrice}`;
-            document.getElementById('estimateTotal').textContent = `$${values.estimateTotal}`;
-            document.getElementById('profitMargin').textContent = `${values.profitMargin}%`;
-            document.getElementById('profitTotal').textContent = `$${values.profitTotal}`;
-        }
-
-        function resetResults() {
-            updateResults({
-                slabCost: '0.00',
-                totalSlabs: 'Recommended: 0 Calculated: 0',
-                materialPrice: '0.00',
-                laborPrice: '0.00',
-                installedPrice: '0.00',
-                estimateTotal: '0.00',
-                profitMargin: '0',
-                profitTotal: '0.00'
-            });
-        }
-
-        function toggleTheme() {
-            const body = document.body;
-            const themeIcon = document.getElementById('themeIcon');
-            if (body.classList.contains('light-mode')) {
-                body.classList.remove('light-mode');
-                body.classList.add('dark-mode');
-                themeIcon.classList.replace('bi-moon', 'bi-sun');
-                localStorage.setItem('theme', 'dark');
-            } else {
-                body.classList.remove('dark-mode');
-                body.classList.add('light-mode');
-                themeIcon.classList.replace('bi-sun', 'bi-moon');
-                localStorage.setItem('theme', 'light');
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            userToken = localStorage.getItem('userToken');
-            if (userToken) {
-                document.getElementById('auth-prompt').classList.add('hidden');
-                document.getElementById('estimator-form').classList.remove('hidden');
-                document.getElementById('results').classList.remove('hidden');
-            }
-        });
-    </script>
-</body>
-</html>
+                <div class="dynamic-sections" id="countertops-sections">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h4>Slab Dimensions</h4>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="section-content active">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Slab Length (in)</label>
+                                <input type="number" id="countertops-slab-length" class="form-control" min="0" step="0.1" value="126" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid length.</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Slab Width (in)</label>
+                                <input type="number" id="countertops-slab-width" class="form-control" min="0" step="0.1" value="63" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid width.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h4>Countertop Dimensions</h4>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="section-content active">
+                        <div class="form-grid" id="countertops-dimensions">
+                            <div class="form-group">
+                                <label class="form-label">Length (in)</label>
+                                <input type="number" id="countertops-length" class="form-control" min="0" step="0.1" value="120" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid length.</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Width (in)</label>
+                                <input type="number" id="countertops-width" class="form-control" min="0" step="0.1" value="60" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid width.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h4>Additional Features</h4>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Backsplash Length (in)</label>
+                                <input type="number" id="countertops-backsplash-length" class="form-control" min="0" step="0.1" value="0" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid length.</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Backsplash Height (in)</label>
+                                <input type="number" id="countertops-backsplash-height" class="form-control" min="0" step="0.1" value="4" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid height.</span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Edge Profile</label>
+                                <select id="countertops-edge" class="form-select" onchange="calculateCountertops()">
+                                    <option value="Standard">Standard</option>
+                                    <option value="Bullnose">Bullnose</option>
+                                    <option value="Ogee">Ogee</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sink Cutouts</label>
+                                <input type="number" id="countertops-sink-cutouts" class="form-control" min="0" step="1" value="0" oninput="calculateCountertops()">
+                                <span class="error-message">Enter a valid number.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h4>Scope of Work</h4>
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Room Type</label>
+                                <select id="countertops-room" class="form-select" onchange="calculateCountertops()">
+                                    <option value="Kitchen">Kitchen</option>
+                                    <option value="Bathroom">Bathroom</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Demo Needed</label>
+                                <select id="countertops-demo" class="form-select" onchange="calculateCountertops()">
+                                    <option value="No">No</option>
+                                    <option value="Yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Plumbing Disconnect</label>
+                                <select id="countertops-plumbing-disconnect" class="form-select" onchange="calculateCountertops()">
+                                    <option value="No">No</option>
+                                    <option value="Yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Plumbing Reconnect</label>
+                                <select id="countertops-plumbing-reconnect" class="form-select" onchange="calculateCountertops()">
+                                    <option value="No">No</option>
+                                    <option value="Yes">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn secondary" onclick="clearForm('countertops')">Clear</button>
+                    <button type="button" class="btn" onclick="saveToProject('countertops')">Save to Project</button>
+                    <button type="button" class="btn" onclick="generateWorkOrder()">Generate Work Order</button>
+                    <button type="button" class="btn" onclick="submitToAI()">Get AI Estimate</button>
+                </div
