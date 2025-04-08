@@ -433,4 +433,530 @@
                     <button type="button" class="btn" onclick="saveToProject('countertops')">Save to Project</button>
                     <button type="button" class="btn" onclick="generateWorkOrder()">Generate Work Order</button>
                     <button type="button" class="btn" onclick="submitToAI()">Get AI Estimate</button>
-                </div
+                </div>
+            </form>
+            <div class="tips">
+                <h3>Measuring Tips</h3>
+                <p>- Measure all edges accurately, accounting for overhangs (typically 1-1.5").</p>
+                <p>- For islands, include all sides; for shower walls, measure height and width of each wall.</p>
+                <p>- Add 10-15% waste for cuts and errors, more for complex layouts.</p>
+                <p>- Note sink locations and edge preferences for precise quotes.</p>
+            </div>
+            <div class="results" id="countertops-results-customer" style="display: block;"></div>
+            <div class="results" id="countertops-results-user" style="display: none;"></div>
+        </div>
+
+        <!-- Tile Estimator (Omitted for brevity) -->
+        <div class="tool-card" id="tile-tool">
+            <h2>Tile Estimator</h2>
+            <!-- Existing Tile Form -->
+        </div>
+
+        <!-- Cabinets Estimator (Omitted for brevity) -->
+        <div class="tool-card" id="cabinets-tool">
+            <h2>Cabinets Estimator</h2>
+            <!-- Existing Cabinets Form -->
+        </div>
+
+        <!-- Settings -->
+        <div class="tool-card" id="settings-tool">
+            <h2>Settings & Configuration</h2>
+            <form id="settings-form" class="form-section">
+                <h3>Global Settings</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Profit Margin (%)</label>
+                        <input type="number" id="profit-margin" min="0" step="1" value="45" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Labor Rate ($/sq ft)</label>
+                        <input type="number" id="labor-rate" min="0" step="0.01" value="85" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Demo Rate ($/sq ft)</label>
+                        <input type="number" id="demo-rate" min="0" step="0.01" value="10" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Waste Factor (%)</label>
+                        <input type="number" id="waste-factor" min="0" step="1" value="15" class="form-control">
+                    </div>
+                </div>
+                <button type="button" class="btn" onclick="saveSettings()">Save Settings</button>
+            </form>
+        </div>
+
+        <!-- Project Estimate -->
+        <div class="tool-card" id="project-tool">
+            <h2>Total Project Estimate</h2>
+            <div class="results" id="project-results"></div>
+            <div class="btn-group">
+                <button class="btn secondary" onclick="clearProject()">Clear Project</button>
+                <button class="btn" onclick="downloadProject()">Download Project</button>
+            </div>
+        </div>
+    </main>
+    <script>
+        const BASE_URL = 'https://surprise-granite-connections-dev.onrender.com';
+        const Storage = {
+            get(key, defaultValue) { return JSON.parse(localStorage.getItem(key)) || defaultValue; },
+            set(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+        };
+
+        function formatCurrency(amount) {
+            return Number(amount).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        }
+
+        function toggleNav() {
+            document.querySelector('.navbar').classList.toggle('open');
+        }
+
+        function showTool(toolId) {
+            document.querySelectorAll('.tool-card').forEach(card => {
+                card.style.opacity = '0';
+                card.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-item, .tool-menu-item').forEach(item => item.classList.remove('active'));
+            const activeCard = document.getElementById(`${toolId}-tool`);
+            activeCard.classList.add('active');
+            setTimeout(() => activeCard.style.opacity = '1', 50);
+            document.querySelector(`[onclick="showTool('${toolId}')"]`).classList.add('active');
+            document.querySelector(`.tool-menu-item[onclick="showTool('${toolId}')"]`).classList.add('active');
+            if (toolId === 'project') updateProjectEstimate();
+            if (toolId === 'countertops') fetchStoneProducts();
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const icons = [document.getElementById('themeToggle'), document.getElementById('themeToggleMenu')];
+            icons.forEach(icon => {
+                icon.classList.toggle('bi-moon-stars-fill');
+                icon.classList.toggle('bi-sun-fill');
+            });
+            Storage.set('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+        }
+
+        function validateInput(input) {
+            const value = parseFloat(input.value);
+            const group = input.parentElement;
+            if (isNaN(value) || value < 0) {
+                group.classList.add('error');
+                input.classList.add('error');
+                return false;
+            }
+            group.classList.remove('error');
+            input.classList.remove('error');
+            return true;
+        }
+
+        function toggleTab(view) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`[onclick="toggleTab('${view}')"]`).classList.add('active');
+            document.getElementById('countertops-results-customer').style.display = view === 'customer' ? 'block' : 'none';
+            document.getElementById('countertops-results-user').style.display = view === 'user' ? 'block' : 'none';
+            calculateCountertops();
+        }
+
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            content.classList.toggle('active');
+            const icon = header.querySelector('i');
+            icon.classList.toggle('bi-chevron-down');
+            icon.classList.toggle('bi-chevron-up');
+        }
+
+        async function fetchStoneProducts() {
+            const material = document.getElementById('countertops-material').value;
+            try {
+                const response = await fetch(`${BASE_URL}/api/stone-products`);
+                const products = await response.json();
+                const filteredProducts = products.filter(p => p.material === material);
+                const slabSelect = document.getElementById('countertops-slab-name');
+                slabSelect.innerHTML = filteredProducts.map(p => `<option value="${p.colorName}">${p.colorName} (${p.thickness}, ${p.vendorName})</option>`).join('');
+                updateSlabDetails();
+            } catch (err) {
+                console.error('Failed to fetch stone products:', err);
+                document.getElementById('countertops-slab-name').innerHTML = '<option value="Frost-N">Frost-N (3cm, Arizona Tile)</option>';
+            }
+            calculateCountertops();
+        }
+
+        function updateSlabDetails() {
+            const slabName = document.getElementById('countertops-slab-name').value;
+            fetch(`${BASE_URL}/api/stone-products`)
+                .then(res => res.json())
+                .then(products => {
+                    const slab = products.find(p => p.colorName === slabName && p.material === document.getElementById('countertops-material').value);
+                    if (slab) {
+                        document.getElementById('countertops-slab-length').value = slab.size.split(' x ')[0];
+                        document.getElementById('countertops-slab-width').value = slab.size.split(' x ')[1];
+                    }
+                    calculateCountertops();
+                });
+        }
+
+        function updateCountertopForm() {
+            const type = document.getElementById('countertops-type').value;
+            const dimensions = document.getElementById('countertops-dimensions');
+            dimensions.innerHTML = '';
+            if (type === 'perimeter' || type === 'island' || type === 'vanity') {
+                dimensions.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Length (in)</label>
+                        <input type="number" id="countertops-length" class="form-control" min="0" step="0.1" value="120" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid length.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Width (in)</label>
+                        <input type="number" id="countertops-width" class="form-control" min="0" step="0.1" value="60" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid width.</span>
+                    </div>
+                `;
+            } else if (type === 'shower') {
+                dimensions.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Wall 1 Height (in)</label>
+                        <input type="number" id="countertops-wall1-height" class="form-control" min="0" step="0.1" value="80" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid height.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Wall 1 Width (in)</label>
+                        <input type="number" id="countertops-wall1-width" class="form-control" min="0" step="0.1" value="36" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid width.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Wall 2 Height (in)</label>
+                        <input type="number" id="countertops-wall2-height" class="form-control" min="0" step="0.1" value="80" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid height.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Wall 2 Width (in)</label>
+                        <input type="number" id="countertops-wall2-width" class="form-control" min="0" step="0.1" value="36" oninput="calculateCountertops()">
+                        <span class="error-message">Enter a valid width.</span>
+                    </div>
+                `;
+            }
+            calculateCountertops();
+        }
+
+        function loadSettings() {
+            document.getElementById('profit-margin').value = Storage.get('profit-margin', 45);
+            document.getElementById('labor-rate').value = Storage.get('labor-rate', 85);
+            document.getElementById('demo-rate').value = Storage.get('demo-rate', 10);
+            document.getElementById('waste-factor').value = Storage.get('waste-factor', 15);
+        }
+
+        function saveSettings() {
+            const inputs = ['profit-margin', 'labor-rate', 'demo-rate', 'waste-factor'];
+            let valid = true;
+            inputs.forEach(id => {
+                if (!validateInput(document.getElementById(id))) valid = false;
+            });
+            if (!valid) return;
+            inputs.forEach(id => Storage.set(id, document.getElementById(id).value));
+            calculateCountertops();
+        }
+
+        async function calculateCountertops() {
+            const type = document.getElementById('countertops-type').value;
+            const inputs = type === 'shower' ? 
+                ['countertops-slab-length', 'countertops-slab-width', 'countertops-wall1-height', 'countertops-wall1-width', 'countertops-wall2-height', 'countertops-wall2-width', 'countertops-backsplash-length', 'countertops-backsplash-height', 'countertops-sink-cutouts'] :
+                ['countertops-slab-length', 'countertops-slab-width', 'countertops-length', 'countertops-width', 'countertops-backsplash-length', 'countertops-backsplash-height', 'countertops-sink-cutouts'];
+            let valid = true;
+            inputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input && !validateInput(input)) valid = false;
+            });
+            if (!valid) {
+                document.getElementById('countertops-results-customer').innerHTML = '<p>Please correct the errors above.</p>';
+                document.getElementById('countertops-results-user').innerHTML = '<p>Please correct the errors above.</p>';
+                return;
+            }
+
+            const material = document.getElementById('countertops-material').value;
+            const slabName = document.getElementById('countertops-slab-name').value;
+            const slabLength = parseFloat(document.getElementById('countertops-slab-length').value) || 0;
+            const slabWidth = parseFloat(document.getElementById('countertops-slab-width').value) || 0;
+            const backsplashLength = parseFloat(document.getElementById('countertops-backsplash-length').value) || 0;
+            const backsplashHeight = parseFloat(document.getElementById('countertops-backsplash-height').value) || 0;
+            const edge = document.getElementById('countertops-edge').value;
+            const sinkCutouts = parseInt(document.getElementById('countertops-sink-cutouts').value) || 0;
+            const room = document.getElementById('countertops-room').value;
+            const demo = document.getElementById('countertops-demo').value === 'Yes';
+            const plumbingDisconnect = document.getElementById('countertops-plumbing-disconnect').value === 'Yes';
+            const plumbingReconnect = document.getElementById('countertops-plumbing-reconnect').value === 'Yes';
+
+            let countertopSqFt = 0;
+            if (type === 'shower') {
+                const wall1Height = parseFloat(document.getElementById('countertops-wall1-height').value) || 0;
+                const wall1Width = parseFloat(document.getElementById('countertops-wall1-width').value) || 0;
+                const wall2Height = parseFloat(document.getElementById('countertops-wall2-height').value) || 0;
+                const wall2Width = parseFloat(document.getElementById('countertops-wall2-width').value) || 0;
+                countertopSqFt = ((wall1Height * wall1Width) + (wall2Height * wall2Width)) / 144;
+            } else {
+                const length = parseFloat(document.getElementById('countertops-length').value) || 0;
+                const width = parseFloat(document.getElementById('countertops-width').value) || 0;
+                countertopSqFt = (length * width) / 144;
+            }
+
+            const profitMargin = parseFloat(Storage.get('profit-margin', 45)) / 100;
+            const laborRate = parseFloat(Storage.get('labor-rate', 85));
+            const demoRate = parseFloat(Storage.get('demo-rate', 10));
+            const wasteFactor = parseFloat(Storage.get('waste-factor', 15)) / 100;
+
+            const products = await (await fetch(`${BASE_URL}/api/stone-products`)).json();
+            const slabData = products.find(p => p.colorName === slabName && p.material === material) || {};
+            const materialCostPerSqFt = slabData.costPerSqFt || 50;
+            const vendorName = slabData.vendorName || 'Unknown';
+            const thickness = slabData.thickness || '2cm';
+            const colorAndPattern = slabData.analysis?.color_and_pattern || 'Unknown';
+            const imageBase64 = slabData.imageBase64 || '';
+            const edgeCosts = { 'Standard': 0, 'Bullnose': 5, 'Ogee': 10 };
+
+            const slabTotalSqFt = (slabLength * slabWidth) / 144;
+            const backsplashSqFt = (backsplashLength * backsplashHeight) / 144;
+            const totalClientSqFt = countertopSqFt + backsplashSqFt;
+            const totalSqFtWithWaste = totalClientSqFt * (1 + wasteFactor);
+            const calculatedSlabs = slabTotalSqFt > 0 ? totalSqFtWithWaste / slabTotalSqFt : 0;
+            const recommendedSlabs = Math.ceil(calculatedSlabs);
+
+            const materialCost = totalSqFtWithWaste * materialCostPerSqFt;
+            const laborCost = totalClientSqFt * laborRate;
+            const demoCost = demo ? totalClientSqFt * demoRate : 0;
+            const edgeCost = totalClientSqFt * edgeCosts[edge];
+            const sinkCost = sinkCutouts * 100;
+            const plumbingCost = (plumbingDisconnect ? 50 : 0) + (plumbingReconnect ? 50 : 0);
+            const estimateTotal = (materialCost + laborCost + demoCost + edgeCost + sinkCost + plumbingCost) * (1 + profitMargin);
+            const totalPricePerSqFt = totalClientSqFt > 0 ? estimateTotal / totalClientSqFt : 0;
+            const timeEstimate = totalClientSqFt / 125;
+
+            const customerHTML = `
+                <p><strong>Project:</strong> ${type.charAt(0).toUpperCase() + type.slice(1)}</p>
+                <p><strong>Material:</strong> ${slabName} (${material}, ${thickness})</p>
+                <p><strong>Vendor:</strong> ${vendorName}</p>
+                <p><strong>Color & Pattern:</strong> ${colorAndPattern}</p>
+                <p><strong>Total Area:</strong> ${totalClientSqFt.toFixed(2)} sq ft</p>
+                <p><strong>Estimate Total:</strong> ${formatCurrency(estimateTotal)}</p>
+                <p><strong>Time Estimate:</strong> ${timeEstimate.toFixed(1)} days</p>
+                <p><strong>Contact:</strong> Call (602) 833-3189 for a detailed quote</p>
+                ${imageBase64 ? `<img src="data:image/jpeg;base64,${imageBase64}" alt="${slabName}" class="quote-image">` : ''}
+            `;
+            const userHTML = `
+                <p><strong>Project:</strong> ${type.charAt(0).toUpperCase() + type.slice(1)}</p>
+                <p><strong>Slab:</strong> ${slabName} (${material}, ${thickness})</p>
+                <p><strong>Vendor:</strong> ${vendorName}</p>
+                <p><strong>Color & Pattern:</strong> ${colorAndPattern}</p>
+                <p><strong>Slab Sq Ft:</strong> ${slabTotalSqFt.toFixed(2)}</p>
+                <p><strong>Client Sq Ft:</strong> ${totalClientSqFt.toFixed(2)}</p>
+                <p><strong>Total Sq Ft (with ${wasteFactor * 100}% waste):</strong> ${totalSqFtWithWaste.toFixed(2)}</p>
+                <p><strong>Slabs Needed:</strong> ${recommendedSlabs}</p>
+                <p><strong>Material Cost:</strong> ${formatCurrency(materialCost)}</p>
+                <p><strong>Labor Cost:</strong> ${formatCurrency(laborCost)}</p>
+                <p><strong>Demo Cost:</strong> ${formatCurrency(demoCost)}</p>
+                <p><strong>Edge Cost (${edge}):</strong> ${formatCurrency(edgeCost)}</p>
+                <p><strong>Sink Cutouts (${sinkCutouts}):</strong> ${formatCurrency(sinkCost)}</p>
+                <p><strong>Plumbing Cost:</strong> ${formatCurrency(plumbingCost)}</p>
+                <p><strong>Total Price/Sq Ft:</strong> ${formatCurrency(totalPricePerSqFt)}</p>
+                <p><strong>Estimate Total:</strong> ${formatCurrency(estimateTotal)}</p>
+                <p><strong>Profit:</strong> ${formatCurrency(estimateTotal * profitMargin)}</p>
+                <p><strong>Time Estimate:</strong> ${timeEstimate.toFixed(1)} days</p>
+                <p><strong>SOW:</strong> Room: ${room}, Demo: ${demo ? 'Yes' : 'No'}, Plumbing: ${plumbingDisconnect || plumbingReconnect ? 'Yes' : 'No'}</p>
+                ${imageBase64 ? `<img src="data:image/jpeg;base64,${imageBase64}" alt="${slabName}" class="quote-image">` : ''}
+            `;
+            document.getElementById('countertops-results-customer').innerHTML = customerHTML;
+            document.getElementById('countertops-results-user').innerHTML = userHTML;
+
+            return { 
+                type: 'Countertops', 
+                projectType: type, 
+                material, 
+                slabName,
+                vendorName,
+                thickness,
+                colorAndPattern,
+                imageBase64,
+                estimateTotal, 
+                profit: estimateTotal * profitMargin, 
+                clientSqFt: totalClientSqFt, 
+                timeEstimate, 
+                room, 
+                demo, 
+                plumbingDisconnect, 
+                plumbingReconnect,
+                workOrder: { slabName, totalSqFtWithWaste, recommendedSlabs, edge, sinkCutouts }
+            };
+        }
+
+        async function submitToAI() {
+            const result = await calculateCountertops();
+            if (!result) return;
+
+            document.getElementById('countertops-results-customer').innerHTML = '<p class="loading">Generating AI estimate...</p>';
+            document.getElementById('countertops-results-user').innerHTML = '<p class="loading">Generating AI estimate...</p>';
+
+            const formData = new FormData();
+            formData.append('customer_needs', `Install ${result.projectType} with ${result.material} (${result.slabName}), ${result.clientSqFt.toFixed(2)} sq ft, edge: ${result.workOrder.edge}, sink cutouts: ${result.workOrder.sinkCutouts}, room: ${result.room}, demo: ${result.demo}, plumbing: ${result.plumbingDisconnect || result.plumbingReconnect}, vendor: ${result.vendorName}, color: ${result.colorAndPattern}`);
+            formData.append('name', 'Customer');
+            formData.append('phone', '(602) 833-3189');
+            formData.append('email', 'customer@example.com');
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/estimate`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const aiEstimate = await response.json();
+                const costRange = aiEstimate.costEstimate;
+
+                const customerHTML = `
+                    <p><strong>Project:</strong> ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}</p>
+                    <p><strong>Material:</strong> ${aiEstimate.materialType} (${aiEstimate.color})</p>
+                    <p><strong>Vendor:</strong> ${result.vendorName}</p>
+                    <p><strong>Color & Pattern:</strong> ${result.colorAndPattern}</p>
+                    <p><strong>Total Area:</strong> ${aiEstimate.dimensions}</p>
+                    <p><strong>Cost Range:</strong> ${formatCurrency(costRange.low)} - ${formatCurrency(costRange.high)}</p>
+                    <p><strong>Recommendation:</strong> ${aiEstimate.recommendation}</p>
+                    <p><strong>Solutions:</strong> ${aiEstimate.solutions}</p>
+                    <p><strong>Contact:</strong> ${aiEstimate.consultationPrompt}</p>
+                    ${result.imageBase64 ? `<img src="data:image/jpeg;base64,${result.imageBase64}" alt="${result.slabName}" class="quote-image">` : ''}
+                `;
+                const userHTML = `
+                    <p><strong>Project:</strong> ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}</p>
+                    <p><strong>Material:</strong> ${aiEstimate.materialType} (${aiEstimate.color})</p>
+                    <p><strong>Vendor:</strong> ${result.vendorName}</p>
+                    <p><strong>Color & Pattern:</strong> ${result.colorAndPattern}</p>
+                    <p><strong>Dimensions:</strong> ${aiEstimate.dimensions}</p>
+                    <p><strong>Cost Estimate:</strong> Low: ${formatCurrency(costRange.low)}, Mid: ${formatCurrency(costRange.mid)}, High: ${formatCurrency(costRange.high)}</p>
+                    <p><strong>Condition:</strong> ${aiEstimate.condition.damage_type} (${aiEstimate.condition.severity})</p>
+                    <p><strong>Edge Profile:</strong> ${aiEstimate.edgeProfile}</p>
+                    <p><strong>Features:</strong> ${aiEstimate.additionalFeatures.join(', ') || 'None'}</p>
+                    <p><strong>Reasoning:</strong> ${aiEstimate.reasoning}</p>
+                    <p><strong>Solutions:</strong> ${aiEstimate.solutions}</p>
+                    ${result.imageBase64 ? `<img src="data:image/jpeg;base64,${result.imageBase64}" alt="${result.slabName}" class="quote-image">` : ''}
+                `;
+                document.getElementById('countertops-results-customer').innerHTML = customerHTML;
+                document.getElementById('countertops-results-user').innerHTML = userHTML;
+
+                if (aiEstimate.audioFilePath) {
+                    const audio = new Audio(`${BASE_URL}/api/audio/${aiEstimate.audioFilePath.split('/').pop()}`);
+                    audio.play();
+                }
+            } catch (err) {
+                console.error('AI estimate failed:', err);
+                document.getElementById('countertops-results-customer').innerHTML = '<p>Error generating AI estimate. Please try again.</p>';
+                document.getElementById('countertops-results-user').innerHTML = '<p>Error generating AI estimate. Please try again.</p>';
+            }
+        }
+
+        function clearForm(tool) {
+            document.getElementById(`${tool}-form`).reset();
+            if (tool === 'countertops') {
+                document.getElementById('countertops-slab-length').value = 126;
+                document.getElementById('countertops-slab-width').value = 63;
+                document.getElementById('countertops-length').value = 120;
+                document.getElementById('countertops-width').value = 60;
+                document.getElementById('countertops-backsplash-length').value = 0;
+                document.getElementById('countertops-backsplash-height').value = 4;
+                fetchStoneProducts();
+                updateCountertopForm();
+            }
+        }
+
+        function saveToProject(tool) {
+            let result = calculateCountertops();
+            if (!result || !result.estimateTotal) return;
+            let project = Storage.get('project', []);
+            project.push(result);
+            Storage.set('project', project);
+            updateProjectEstimate();
+        }
+
+        function generateWorkOrder() {
+            const result = calculateCountertops();
+            if (!result) return;
+            const workOrderText = `
+                Work Order - Surprise Granite
+                Date: ${new Date().toLocaleDateString()}
+                Project Type: ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}
+                Material: ${result.workOrder.slabName} (${result.material}, ${result.thickness})
+                Vendor: ${result.vendorName}
+                Total Sq Ft (with waste): ${result.workOrder.totalSqFtWithWaste.toFixed(2)}
+                Slabs Required: ${result.workOrder.recommendedSlabs}
+                Edge Profile: ${result.workOrder.edge}
+                Sink Cutouts: ${result.workOrder.sinkCutouts}
+                Room: ${result.room}
+                Demo: ${result.demo ? 'Yes' : 'No'}
+                Plumbing Disconnect: ${result.plumbingDisconnect ? 'Yes' : 'No'}
+                Plumbing Reconnect: ${result.plumbingReconnect ? 'Yes' : 'No'}
+                Total Cost: ${formatCurrency(result.estimateTotal)}
+                Time Estimate: ${result.timeEstimate.toFixed(1)} days
+            `;
+            const blob = new Blob([workOrderText], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `WorkOrder_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function updateProjectEstimate() {
+            const project = Storage.get('project', []);
+            if (!project.length) {
+                document.getElementById('project-results').innerHTML = '<p>No estimates saved yet.</p>';
+                return;
+            }
+            const totalCost = project.reduce((sum, e) => sum + e.estimateTotal, 0);
+            const totalProfit = project.reduce((sum, e) => sum + e.profit, 0);
+            const totalTime = project.reduce((sum, e) => sum + e.timeEstimate, 0);
+            const html = project.map((e, i) => `
+                <p><strong>${e.type} ${i + 1}:</strong> ${e.projectType} - ${e.material} - ${e.clientSqFt.toFixed(2)} sq ft</p>
+                <p><strong>Subtotal:</strong> ${formatCurrency(e.estimateTotal)}</p>
+                <p><strong>Profit:</strong> ${formatCurrency(e.profit)}</p>
+                <p><strong>Time:</strong> ${e.timeEstimate.toFixed(1)} days</p>
+            `).join('<hr>') + `
+                <hr>
+                <p><strong>Total Project Cost:</strong> ${formatCurrency(totalCost)}</p>
+                <p><strong>Total Project Profit:</strong> ${formatCurrency(totalProfit)}</p>
+                <p><strong>Total Time Estimate:</strong> ${totalTime.toFixed(1)} days</p>
+            `;
+            document.getElementById('project-results').innerHTML = html;
+        }
+
+        function clearProject() {
+            Storage.set('project', []);
+            updateProjectEstimate();
+        }
+
+        function downloadProject() {
+            const project = Storage.get('project', []);
+            if (!project.length) return;
+            const totalCost = project.reduce((sum, e) => sum + e.estimateTotal, 0);
+            const totalProfit = project.reduce((sum, e) => sum + e.profit, 0);
+            const totalTime = project.reduce((sum, e) => sum + e.timeEstimate, 0);
+            const text = project.map((e, i) => `
+                ${e.type} ${i + 1}: ${e.projectType}
+                Material: ${e.material}
+                Area: ${e.clientSqFt.toFixed(2)} sq ft
+                Subtotal: ${formatCurrency(e.estimateTotal)}
+                Profit: ${formatCurrency(e.profit)}
+                Time: ${e.timeEstimate.toFixed(1)} days
+            `).join('\n\n') + `\n\nTotal Cost: ${formatCurrency(totalCost)}\nTotal Profit: ${formatCurrency(totalProfit)}\nTotal Time: ${totalTime.toFixed(1)} days`;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Project_Estimate_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Storage.get('theme', 'dark') === 'light') toggleTheme();
+            loadSettings();
+            fetchStoneProducts();
+            updateCountertopForm();
+            calculateCountertops();
+        });
+    </script>
+</body>
+</html>
