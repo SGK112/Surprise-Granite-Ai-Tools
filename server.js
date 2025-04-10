@@ -6,21 +6,30 @@ import multer from 'multer';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { Low } from 'lowdb';
-import { JSONFile } from 'lowdb/node';
+import { MongoClient } from 'mongodb';
 
-// Load environment variables
 dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = process.env.PORT || 10000;
 
-// Configure lowdb for JSON-based storage
-const adapter = new JSONFile(join(__dirname, 'db.json'));
-const db = new Low(adapter);
-await db.read();
-db.data ||= { estimates: [] };
+// MongoDB Connection
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri);
+
+let db;
+async function connectToMongoDB() {
+    try {
+        await client.connect();
+        db = client.db('surprise_granite');
+        console.log('Connected to MongoDB');
+    } catch (error) {
+        console.error('MongoDB connection error:', error);
+        process.exit(1);
+    }
+}
+connectToMongoDB();
 
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
@@ -71,15 +80,15 @@ app.post('/api/v1/estimate', upload.array('files', 10), async (req, res) => {
             });
             responseData.recommendation = response.data.choices[0].message.content;
 
-            // Store estimate in db
-            db.data.estimates.push({
+            // Store estimate in MongoDB
+            const estimate = {
                 id: responseData.id,
                 customer_needs,
                 recommendation: responseData.recommendation,
                 files: files.map(f => ({ filename: f.filename, originalname: f.originalname })),
                 timestamp: new Date().toISOString()
-            });
-            await db.write();
+            };
+            await db.collection('estimates').insertOne(estimate);
         }
 
         // Send email with recommendation
@@ -110,17 +119,26 @@ app.post('/api/v1/estimate', upload.array('files', 10), async (req, res) => {
 });
 
 // GET /api/v1/estimates - Retrieve all stored estimates
-app.get('/api/v1/estimates', (req, res) => {
-    res.status(200).json(db.data.estimates);
+app.get('/api/v1/estimates', async (req, res) => {
+    try {
+        const estimates = await db.collection('estimates').find().toArray();
+        res.status(200).json(estimates);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve estimates', details: error.message });
+    }
 });
 
 // GET /api/v1/estimate/:id - Retrieve a specific estimate by ID
-app.get('/api/v1/estimate/:id', (req, res) => {
-    const estimate = db.data.estimates.find(e => e.id === req.params.id);
-    if (!estimate) {
-        return res.status(404).json({ error: 'Estimate not found' });
+app.get('/api/v1/estimate/:id', async (req, res) => {
+    try {
+        const estimate = await db.collection('estimates').findOne({ id: req.params.id });
+        if (!estimate) {
+            return res.status(404).json({ error: 'Estimate not found' });
+        }
+        res.status(200).json(estimate);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve estimate', details: error.message });
     }
-    res.status(200).json(estimate);
 });
 
 // Serve frontend
