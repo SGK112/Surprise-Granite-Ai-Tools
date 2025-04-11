@@ -1,14 +1,13 @@
 {
-    "name": "surprise-granite-estimator",
-    "version": "1.0.0",
-    "description": "A countertop estimator backend with OpenAI-powered estimate generation, MongoDB storage, and email functionality",
-    "main": "server.js",
-    "type": "module",
-    "scripts": {
-        "start": "node server.js",
-        "dev": "nodemon server.js"
-    },
-     "dependencies": {
+  "name": "surprise-granite-estimator",
+  "version": "1.0.0",
+  "description": "A countertop estimator backend with OpenAI-powered estimate generation, MongoDB storage, Firebase OAuth, and email functionality",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
     "axios": "^1.7.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -18,16 +17,14 @@
     "mongoose": "^8.7.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.15"
-    },
-    "devDependencies": {
-        "nodemon": "^3.0.1"
-    },
-    "engines": {
-        "node": ">=18.0.0"
-    },
-    "author": "Your Name",
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/yourusername/surprise-granite-estimator.git"
-    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/surprise-granite-estimator.git"
+  }
+}
