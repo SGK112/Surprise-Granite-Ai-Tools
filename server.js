@@ -103,13 +103,17 @@ app.get('/api/optimize-image/:publicId', (req, res) => {
 });
 
 // MongoDB Connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => logger.info('Connected to MongoDB'))
-  .catch((error) => {
-    logger.error(`MongoDB connection error: ${error.message}`);
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully');
+  try {
+    await mongoose.connection.close(); // No callback, returns a promise
+    console.log('MongoDB connection closed');
+    process.exit(0);
+  } catch (err) {
+    console.error('Error closing MongoDB connection:', err);
     process.exit(1);
-  });
+  }
+});
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
