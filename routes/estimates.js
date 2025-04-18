@@ -1,4 +1,3 @@
-// routes/estimates.js
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { analyzeImagesAndGenerateEstimate } from '../services/openai.js';
@@ -25,7 +24,15 @@ router.post('/', authenticate, upload.array('images', 10), async (req, res) => {
   const images = req.files;
 
   try {
-    // Validate formData
+    // Validate inputs
+    if (!type || !formData) {
+      return res.status(400).json({ error: 'Type and formData are required' });
+    }
+    if (!images || images.length === 0) {
+      return res.status(400).json({ error: 'At least one image is required' });
+    }
+
+    // Parse formData
     let parsedFormData;
     try {
       parsedFormData = JSON.parse(formData);
