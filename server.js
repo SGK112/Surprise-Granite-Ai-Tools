@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import authRoutes from './routes/auth.js';
 import estimateRoutes from './routes/estimates.js';
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
 
 dotenv.config();
 
@@ -28,6 +30,46 @@ const port = process.env.PORT || 10000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+
+// Configure Multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Cloudinary upload endpoint
+app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    const result = await cloudinary.uploader.upload_stream({
+      public_id: `slabs/${Date.now()}_${req.file.originalname}`,
+      folder: 'surprise_granite'
+    }, (error, result) => {
+      if (error) throw error;
+      res.json({ url: result.secure_url, public_id: result.public_id });
+    }).end(req.file.buffer);
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Cloudinary optimize endpoint
+app.get('/api/optimize-image/:publicId', (req, res) => {
+  try {
+    const optimizedUrl = cloudinary.url(req.params.publicId, {
+      fetch_format: 'auto',
+      quality: 'auto'
+    });
+    res.json({ url: optimizedUrl });
+  } catch (error) {
+    console.error('Error optimizing image:', error);
+    res.status(500).json({ error: 'Failed to optimize image' });
+  }
+});
 
 // MongoDB Connection
 mongoose
