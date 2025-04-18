@@ -1,31 +1,102 @@
-// routes/auth.js
+// routes/estimates.js
 import express from 'express';
-import admin from 'firebase-admin';
+import { analyzeImagesAndGenerateEstimate } from '../services/openai.js';
+import Estimate from '../models/Estimate.js';
+import Project from '../models/Project.js';
+import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for Cloudinary
 
-// Sync endpoint to verify Firebase token and process user data
-router.post('/sync', async (req, res) => {
+// Temporary middleware placeholder (replace with actual auth later)
+const tempAuthenticate = (req, res, next) => {
+  req.user = { id: 'test-user' }; // Mock user for testing
+  next();
+};
+
+// Create a new project and estimate
+router.post('/', tempAuthenticate, upload.array('images', 10), async (req, res) => {
+  const { type, formData } = req.body;
+  const images = req.files;
+
   try {
-    const token = req.headers.authorization?.split('Bearer ')[1];
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
+    // Validate formData
+    let parsedFormData;
+    try {
+      parsedFormData = JSON.parse(formData);
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid formData format' });
     }
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    const { email, name } = req.body;
-    // Optional: Save user data to MongoDB (uncomment and adjust if you have a User model)
-    /*
-    await UserModel.findOneAndUpdate(
-      { uid: decodedToken.uid },
-      { email, name },
-      { upsert: true }
+
+    // Upload images to Cloudinary
+    const uploadedImages = await Promise.all(
+      images.map(async (file) => {
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(
+              {
+                public_id: `slabs/${Date.now()}_${file.originalname}`,
+                folder: 'surprise_granite',
+              },
+              (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+              }
+            )
+            .end(file.buffer);
+        });
+        return { url: result.secure_url, public_id: result.public_id };
+      })
     );
-    */
-    res.status(200).json({ message: 'Sync successful', uid: decodedToken.uid });
+
+    // Save project
+    const project = new Project({
+      userId: req.user.id,
+      type,
+      formData: parsedFormData,
+      images: uploadedImages,
+    });
+    await project.save();
+
+    // Generate estimate
+    const estimateDetails = await analyzeImagesAndGenerateEstimate(project, uploadedImages);
+    const estimate = new Estimate({
+      userId: req.user.id,
+      projectId: project._id,
+      customerNeeds: formData,
+      estimateDetails,
+    });
+    await estimate.save();
+
+    res.status(201).json({ project, estimate });
   } catch (error) {
-    console.error('Token verification error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+    console.error('Error creating estimate:', error);
+    res.status(500).json({ error: 'Failed to create estimate', details: error.message });
   }
 });
 
-export default router; // Default export
+// Get all estimates for a user
+router.get('/', tempAuthenticate, async (req, res) => {
+  try {
+    const estimates = await Estimate.find({ userId: req.user.id }).populate('projectId');
+    res.status(200).json(estimates);
+  } catch (error) {
+    console.error('Error retrieving estimates:', error);
+    res.status(500).json({ error: 'Failed to retrieve estimates', details: error.message });
+  }
+});
+
+// Get a specific estimate
+router.get('/:id', tempAuthenticate, async (req, res) => {
+  try {
+    const estimate = await Estimate.findOne({ _id: req.params.id, userId: req.user.id }).populate('projectId');
+    if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
+    res.status(200).json(estimate);
+  } catch (error) {
+    console.error('Error retrieving estimate:', error);
+    res.status(500).json({ error: 'Failed to retrieve estimate', details: error.message });
+  }
+});
+
+export default router;
