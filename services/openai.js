@@ -1,61 +1,61 @@
+// services/openai.js
 import OpenAI from 'openai';
-import fs from 'fs';
-import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const analyzeImagesAndGenerateEstimate = async (project, images) => {
+export async function analyzeImagesAndGenerateEstimate(project, images) {
   try {
-    const imageData = images.map((image) => ({
-      path: path.resolve(image.path),
-      originalname: image.originalname,
-    }));
+    // Mock estimate for testing if OpenAI key is unavailable
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('OPENAI_API_KEY missing, using mock estimate');
+      return {
+        materialCost: 1000,
+        laborCost: 500,
+        additionalServices: 250,
+        total: 1000 * 3.25 + 26 + 500 + 250, // Apply pricing formula
+      };
+    }
 
-    // Prepare prompt for OpenAI
     const prompt = `
-      You are an expert contractor analyzing a ${project.type} remodeling project.
-      Based on the provided images and customer needs: ${JSON.stringify(project.formData)},
-      generate a detailed estimate including:
-      - Itemized costs (materials, labor, etc.)
-      - Total estimated cost
-      - Estimated timeline
-      - Any assumptions or recommendations
-      Return the response in a structured JSON format.
+      You are an expert in granite countertop estimation for Surprise Granite.
+      Analyze the provided images and project details to generate a detailed estimate.
+      Project Type: ${project.type}
+      Customer Needs: ${JSON.stringify(project.formData)}
+      Image URLs: ${images.map((img) => img.url).join(', ')}
+      Apply the following pricing:
+      - Material cost: Base cost * 3.25 + $26 for installed pricing
+      - Pro setup: $250
+      - Additional services: Cost * 1.65, minimum $250
+      Provide a JSON object with materialCost, laborCost, additionalServices, and total.
     `;
 
-    // Convert images to base64 for OpenAI API
-    const imageInputs = imageData.map((img) => ({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: 'image/jpeg',
-        data: fs.readFileSync(img.path).toString('base64'),
-      },
-    }));
-
-    // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-vision-preview',
+      model: 'gpt-4o', // Use gpt-4o or gpt-4-vision-preview if available
       messages: [
         {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            ...imageInputs,
+            ...images.map((img) => ({
+              type: 'image_url',
+              image_url: { url: img.url },
+            })),
           ],
         },
       ],
+      max_tokens: 500,
+      response_format: { type: 'json_object' },
     });
 
-    const estimateDetails = response.choices[0].message.content;
-
-    // Clean up uploaded images
-    imageData.forEach((img) => fs.unlinkSync(img.path));
-
+    const estimateDetails = JSON.parse(response.choices[0].message.content);
     return estimateDetails;
   } catch (error) {
-    throw new Error(`OpenAI API error: ${error.message}`);
+    console.error('OpenAI API error:', error.message);
+    throw new Error('Failed to generate estimate');
   }
-};
+}
