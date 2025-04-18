@@ -1,4 +1,3 @@
-// services/openai.js
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
@@ -10,14 +9,14 @@ const openai = new OpenAI({
 
 export async function analyzeImagesAndGenerateEstimate(project, images) {
   try {
-    // Mock estimate for testing if OpenAI key is unavailable
+    // Mock estimate if OpenAI key is unavailable
     if (!process.env.OPENAI_API_KEY) {
       console.warn('OPENAI_API_KEY missing, using mock estimate');
       return {
         materialCost: 1000,
         laborCost: 500,
         additionalServices: 250,
-        total: 1000 * 3.25 + 26 + 500 + 250, // Apply pricing formula
+        total: 1000 * 3.25 + 26 + 500 + 250,
       };
     }
 
@@ -35,7 +34,7 @@ export async function analyzeImagesAndGenerateEstimate(project, images) {
     `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o', // Use gpt-4o or gpt-4-vision-preview if available
+      model: 'gpt-4o',
       messages: [
         {
           role: 'user',
