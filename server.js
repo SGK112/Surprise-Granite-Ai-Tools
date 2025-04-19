@@ -195,12 +195,16 @@ app.use((err, req, res, next) => {
 app.listen(port, () => logger.info(`Server running on port ${port}`));
 
 // Handle process termination
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down gracefully');
-  mongoose.connection.close(() => {
+  try {
+    await mongoose.connection.close();
     logger.info('MongoDB connection closed');
     process.exit(0);
-  });
+  } catch (err) {
+    logger.error(`Error closing MongoDB connection: ${err.message}`);
+    process.exit(1);
+  }
 });
 
 process.on('uncaughtException', (err) => {
