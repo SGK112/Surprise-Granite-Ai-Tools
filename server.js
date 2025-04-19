@@ -8,9 +8,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import path from 'path';
 import winston from 'winston';
-import fetch from 'node-fetch';
-import Papa from 'papaparse';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises'; // For reading materials.json
 
 dotenv.config();
 
@@ -46,7 +45,7 @@ requiredEnv.forEach((key) => {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'https://your-site.webflow.io' })); // Update with your Webflow domain
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Configure Multer for file uploads
@@ -109,47 +108,45 @@ app.get('/api/optimize-image/:publicId', (req, res) => {
   }
 });
 
-// API endpoint to fetch materials data from Google Sheets
+// API endpoint to fetch materials data from materials.json
 app.get('/api/materials', async (req, res) => {
   try {
-    const response = await fetch(
-      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
-      {
-        headers: { Accept: 'text/csv' },
-      }
-    );
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    const materialsPath = path.join(__dirname, 'Surprise-Granite-Ai-Tools', 'data', 'materials.json');
+    let materialsData;
+
+    try {
+      const fileContent = await fs.readFile(materialsPath, 'utf-8');
+      materialsData = JSON.parse(fileContent);
+    } catch (error) {
+      logger.error(`Failed to read or parse materials.json: ${error.message}`);
+      throw new Error('Unable to load materials data');
     }
-    const text = await response.text();
-    if (!text.trim()) {
-      throw new Error('Empty CSV data');
-    }
-    const parsed = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      transform: (value) => value.trim(),
-    });
-    if (parsed.errors.length) {
-      logger.warn('CSV parsing errors:', parsed.errors);
-    }
-    const materialsData = parsed.data
-      .map((item) => ({
-        colorName: item['Color Name'] || '',
-        vendorName: item['Vendor Name'] || '',
-        thickness: item.Thickness || '',
-        material: item.Material || '',
-        size: item.size || '',
-        totalSqFt: parseFloat(item['Total/SqFt']) || 60,
-        costSqFt: parseFloat(item['Cost/SqFt']) || 0,
-        priceGroup: item['Price Group'] || '',
-        tier: item.Tier || '',
-      }))
-      .filter((item) => item.colorName && item.material && item.vendorName);
-    if (materialsData.length === 0) {
+
+    if (!Array.isArray(materialsData) || materialsData.length === 0) {
       throw new Error('No valid materials data');
     }
-    res.json(materialsData);
+
+    // Validate and normalize data
+    const normalizedData = materialsData
+      .map((item) => ({
+        colorName: item.colorName || '',
+        vendorName: item.vendorName || '',
+        thickness: item.thickness || '',
+        material: item.material || '',
+        size: item.size || '',
+        totalSqFt: parseFloat(item.totalSqFt) || 60,
+        costSqFt: parseFloat(item.costSqFt) || 0,
+        priceGroup: item.priceGroup || '',
+        tier: item.tier || '',
+      }))
+      .filter((item) => item.colorName && item.material && item.vendorName);
+
+    if (normalizedData.length === 0) {
+      throw new Error('No valid materials data after filtering');
+    }
+
+    logger.info('Materials fetched successfully from materials.json');
+    res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch materials data', details: error.message });
