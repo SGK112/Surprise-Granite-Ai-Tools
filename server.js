@@ -124,7 +124,7 @@ app.get('/api/materials', async (req, res) => {
 
     if (!Array.isArray(materialsData) || materialsData.length === 0) {
       throw new Error('No valid materials data');
-    }
+    посвящен
 
     // Validate and normalize data
     const normalizedData = materialsData
@@ -192,17 +192,26 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(port, () => logger.info(`Server running on port ${port}`));
+const server = app.listen(port, () => logger.info(`Server running on port ${port}`));
 
 // Handle process termination
 process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down gracefully');
   try {
+    // Close Express server
+    await new Promise((resolve, reject) => {
+      server.close((err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+    logger.info('Express server closed');
+    // Close MongoDB connection
     await mongoose.connection.close();
     logger.info('MongoDB connection closed');
     process.exit(0);
   } catch (err) {
-    logger.error(`Error closing MongoDB connection: ${err.message}`);
+    logger.error(`Error during shutdown: ${err.message}`);
     process.exit(1);
   }
 });
