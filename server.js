@@ -9,11 +9,11 @@ import multer from 'multer';
 import path from 'path';
 import winston from 'winston';
 import { fileURLToPath } from 'url';
-import fs from 'fs/promises';
+import axios from 'axios';
+import { parse } from 'csv-parse';
 
 dotenv.config();
 
-// Logger setup
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
@@ -27,14 +27,12 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const app = express();
-const port = process.env.PORT || 10000;
+const port = process.env.PORT || 3000;
 
-// Resolve __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Validate environment variables
-const requiredEnv = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'MONGODB_URI'];
+const requiredEnv = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'MONGODB_URI', 'PUBLISHED_CSV_MATERIALS'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
@@ -42,13 +40,11 @@ requiredEnv.forEach((key) => {
   }
 });
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'https://your-site.webflow.io' }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure Multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
@@ -57,17 +53,15 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Cloudinary upload endpoint
 app.post('/api/upload-image', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
@@ -94,7 +88,6 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
   }
 });
 
-// Cloudinary optimize endpoint
 app.get('/api/optimize-image/:publicId', (req, res) => {
   try {
     const optimizedUrl = cloudinary.url(req.params.publicId, {
@@ -108,44 +101,39 @@ app.get('/api/optimize-image/:publicId', (req, res) => {
   }
 });
 
-// API endpoint to fetch materials data from materials.json
 app.get('/api/materials', async (req, res) => {
   try {
-    const materialsPath = path.join(__dirname, 'Surprise-Granite-Ai-Tools', 'data', 'materials.json');
-    let materialsData;
-
-    try {
-      const fileContent = await fs.readFile(materialsPath, 'utf-8');
-      materialsData = JSON.parse(fileContent);
-    } catch (error) {
-      logger.error(`Failed to read or parse materials.json: ${error.message}`);
-      throw new Error('Unable to load materials data');
-    }
+    logger.info(`Fetching materials from: ${process.env.PUBLISHED_CSV_MATERIALS}`);
+    const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
+    const materialsData = await new Promise((resolve, reject) => {
+      const records = [];
+      parse(response.data, { columns: true, skip_empty_lines: true })
+        .on('data', (record) => records.push(record))
+        .on('end', () => resolve(records))
+        .on('error', (error) => reject(error));
+    });
 
     if (!Array.isArray(materialsData) || materialsData.length === 0) {
       throw new Error('No valid materials data');
     }
 
-    // Validate and normalize data
-    const normalizedData = materialsData
-      .map((item) => ({
-        colorName: item.colorName || '',
-        vendorName: item.vendorName || '',
-        thickness: item.thickness || '',
-        material: item.material || '',
-        size: item.size || '',
-        totalSqFt: parseFloat(item.totalSqFt) || 60,
-        costSqFt: parseFloat(item.costSqFt) || 0,
-        priceGroup: item.priceGroup || '',
-        tier: item.tier || '',
-      }))
-      .filter((item) => item.colorName && item.material && item.vendorName);
+    const normalizedData = materialsData.map((item) => ({
+      colorName: item['Color Name'] || '',
+      vendorName: item['Vendor Name'] || '',
+      thickness: item['Thickness'] || '',
+      material: item['Material'] || '',
+      size: item['size'] || '',
+      totalSqFt: parseFloat(item['Total/SqFt']) || 0,
+      costSqFt: parseFloat(item['Cost/SqFt']) || 0,
+      priceGroup: item['Price Group'] || '',
+      tier: item['Tier'] || '',
+    })).filter((item) => item.colorName && item.material && item.vendorName);
 
     if (normalizedData.length === 0) {
       throw new Error('No valid materials data after filtering');
     }
 
-    logger.info('Materials fetched successfully from materials.json');
+    logger.info(`Materials fetched successfully: ${normalizedData.length} items`);
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
@@ -153,7 +141,36 @@ app.get('/api/materials', async (req, res) => {
   }
 });
 
-// MongoDB Connection
+app.get('/api/labor', async (req, res) => {
+  try {
+    const csvUrl = process.env.PUBLISHED_CSV_LABOR || process.env.PUBLISHED_CSV_MATERIALS; // Fallback to materials if labor not set
+    logger.info(`Fetching labor from: ${csvUrl}`);
+    const response = await axios.get(csvUrl);
+    const laborData = await new Promise((resolve, reject) => {
+      const records = [];
+      parse(response.data, { columns: true, skip_empty_lines: true })
+        .on('data', (record) => records.push(record))
+        .on('end', () => resolve(records))
+        .on('error', (error) => reject(error));
+    });
+
+    if (!Array.isArray(laborData) || laborData.length === 0) {
+      throw new Error('No valid labor data');
+    }
+
+    const normalizedData = laborData.map((item) => ({
+      task: item['Task'] || '',
+      cost: parseFloat(item['Cost']) || 0,
+    })).filter((item) => item.task);
+
+    logger.info(`Labor data fetched successfully: ${normalizedData.length} items`);
+    res.json(normalizedData);
+  } catch (error) {
+    logger.error(`Labor fetch error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch labor data', details: error.message });
+  }
+});
+
 mongoose
   .connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -165,40 +182,32 @@ mongoose
     process.exit(1);
   });
 
-// Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/estimates', estimateRoutes);
 
-// Health check for Render
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
-// Serve index.html for all other routes (client-side routing)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Handle 404 errors
 app.use((req, res) => {
   logger.warn(`404: Route not found - ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   logger.error(`Server error on ${req.method} ${req.url}: ${err.stack}`);
   res.status(500).json({ error: 'Internal server error', details: err.message });
 });
 
-// Start server
 const server = app.listen(port, () => logger.info(`Server running on port ${port}`));
 
-// Handle process termination
 process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down gracefully');
   try {
-    // Close Express server
     await new Promise((resolve, reject) => {
       server.close((err) => {
         if (err) return reject(err);
@@ -206,7 +215,6 @@ process.on('SIGTERM', async () => {
       });
     });
     logger.info('Express server closed');
-    // Close MongoDB connection
     await mongoose.connection.close();
     logger.info('MongoDB connection closed');
     process.exit(0);
