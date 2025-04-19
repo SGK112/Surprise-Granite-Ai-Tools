@@ -1,962 +1,521 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Surprise Granite Estimator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary-dark: #1e40af;
-            --gradient-dark: linear-gradient(135deg, #1e40af, #3b82f6);
-            --shadow-dark: 0 8px 24px rgba(0,0,0,0.5);
-            --background-dark: #0f172a;
-            --text-dark: #e5e7eb;
-            --vibrant-glow: #3b82f6;
-            --input-bg-dark: #334155;
-            --input-border: #60a5fa;
-            --primary-light: #2563eb;
-            --background-light: #f9fafb;
-            --text-light: #1f2937;
-            --shadow-light: 0 6px 18px rgba(0,0,0,0.15);
-            --highlight: #fbbf24;
-            --error-color: #ef4444;
-            --success-color: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: var(--background-dark); 
-            color: var(--text-dark); 
-            min-height: 100vh;
-            line-height: 1.6;
-        }
-        body.light-mode { background: var(--background-light); color: var(--text-light); }
-        .hero {
-            padding: 60px 30px;
-            text-align: center;
-            background: var(--gradient-dark);
-            animation: fadeIn 1s ease-in;
-        }
-        @keyframes fadeIn {
-            0% { opacity: 0; transform: translateY(-20px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-        .hero img { width: 120px; margin-bottom: 20px; }
-        .hero h1 { font-size: 2.5rem; color: #fff; margin-bottom: 10px; }
-        .hero p { font-size: 1.2rem; color: #e5e7eb; max-width: 600px; margin: 0 auto; }
-        .navbar { 
-            display: none;
-        }
-        .nav-toggle { 
-            display: none;
-        }
-        .tool-menu {
-            position: fixed;
-            top: 100px;
-            left: 20px;
-            width: 60px;
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: var(--shadow-dark);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: transform 0.3s ease;
-        }
-        body.light-mode .tool-menu { background: #fff; box-shadow: var(--shadow-light); }
-        .tool-menu-item {
-            font-size: 1.5rem;
-            color: #9ca3af;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .tool-menu-item:hover, .tool-menu-item.active {
-            color: var(--vibrant-glow);
-            transform: scale(1.2);
-        }
-        body.light-mode .tool-menu-item:hover, body.light-mode .tool-menu-item.active {
-            color: var(--primary-light);
-        }
-        .main-content { 
-            padding: 80px 30px 30px; 
-            width: 100%; 
-            max-width: 1400px; 
-            margin: 0 auto;
-        }
-        .tool-card { 
-            background: #1e293b; 
-            padding: 30px; 
-            border-radius: 12px; 
-            box-shadow: var(--shadow-dark); 
-            margin-bottom: 30px; 
-            display: none;
-            transition: opacity 0.3s ease;
-        }
-        .tool-card.active { display: block; opacity: 1; }
-        body.light-mode .tool-card { background: #fff; box-shadow: var(--shadow-light); }
-        h2 { font-size: 2rem; color: var(--vibrant-glow); margin-bottom: 25px; font-weight: 600; }
-        body.light-mode h2 { color: var(--primary-light); }
-        h3 { font-size: 1.3rem; color: var(--text-dark); margin-bottom: 15px; }
-        body.light-mode h3 { color: var(--text-light); }
-        .form-section { 
-            background: var(--input-bg-dark); 
-            padding: 20px; 
-            border-radius: 10px; 
-            margin-bottom: 25px;
-        }
-        body.light-mode .form-section { background: #fff; }
-        .form-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px;
-        }
-        .form-group { position: relative; display: flex; flex-direction: column; }
-        .form-label { 
-            font-size: 1rem; 
-            color: #d1d5db; 
-            margin-bottom: 8px; 
-            font-weight: 500;
-        }
-        body.light-mode .form-label { color: #4b5563; }
-        .form-control, .form-select { 
-            padding: 12px 15px; 
-            border: 2px solid var(--input-border); 
-            border-radius: 8px; 
-            background: var(--input-bg-dark); 
-            color: var(--text-dark); 
-            width: 100%; 
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        body.light-mode .form-control, body.light-mode .form-select { 
-            background: #fff; 
-            color: var(--text-light); 
-        }
-        .form-control:focus, .form-select:focus { 
-            border-color: var(--vibrant-glow); 
-            box-shadow: 0 0 8px rgba(59,130,246,0.5); 
-            outline: none;
-        }
-        .form-control.error { border-color: var(--error-color); }
-        .error-message { 
-            color: var(--error-color); 
-            font-size: 0.9rem; 
-            margin-top: 5px; 
-            display: none;
-        }
-        .form-group.error .error-message { display: block; }
-        .btn-group { margin-top: 20px; display: flex; gap: 10px; }
-        .btn { 
-            padding: 10px 20px; 
-            background: var(--vibrant-glow); 
-            color: #fff; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            transition: background 0.3s;
-        }
-        .btn:hover { background: #2563eb; }
-        .btn.secondary { background: #6b7280; }
-        .btn.secondary:hover { background: #4b5563; }
-        .results { 
-            background: var(--input-bg-dark); 
-            padding: 20px; 
-            border-radius: 10px; 
-            margin-top: 25px; 
-            font-size: 1.1rem;
-        }
-        body.light-mode .results { background: #fff; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab { 
-            padding: 10px 20px; 
-            background: #374151; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            transition: background 0.3s;
-        }
-        .tab.active { background: var(--vibrant-glow); }
-        .tab:hover { background: #4b5563; }
-        .tips { 
-            background: #1e293b; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-top: 20px; 
-            font-size: 0.95rem;
-        }
-        body.light-mode .tips { background: #e5e7eb; }
-        .dynamic-sections { margin-top: 20px; }
-        .section-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 15px; 
-            cursor: pointer;
-        }
-        .section-header h4 { font-size: 1.2rem; color: var(--vibrant-glow); }
-        body.light-mode .section-header h4 { color: var(--primary-light); }
-        .section-content { display: none; }
-        .section-content.active { display: block; }
-        .quote-image { 
-            max-width: 200px; 
-            border-radius: 8px; 
-            margin-top: 15px; 
-            box-shadow: var(--shadow-dark); 
-        }
-        body.light-mode .quote-image { box-shadow: var(--shadow-light); }
-        .loading { color: var(--highlight); font-style: italic; }
-        @media (max-width: 768px) {
-            .tool-menu { display: none; }
-            .navbar { 
-                display: block; 
-                width: 100%; 
-                height: 100vh; 
-                background: #1e293b; 
-                padding: 15px; 
-                box-shadow: var(--shadow-dark); 
-                position: fixed; 
-                top: 0; 
-                left: -100%; 
-                transition: left 0.3s ease;
-                z-index: 1000;
-            }
-            .navbar.open { left: 0; }
-            .navbar .close-btn { 
-                font-size: 1.8rem; 
-                color: var(--vibrant-glow); 
-                cursor: pointer; 
-                text-align: right; 
-                margin-bottom: 20px;
-                transition: color 0.3s;
-            }
-            .navbar .close-btn:hover { color: var(--highlight); }
-            .nav-item { 
-                font-size: 1.1rem; 
-                color: #9ca3af; 
-                padding: 12px; 
-                cursor: pointer; 
-                transition: all 0.3s; 
-                display: flex; 
-                align-items: center;
-            }
-            .nav-item:hover, .nav-item.active { 
-                color: var(--vibrant-glow); 
-                background: #374151; 
-                border-radius: 6px; 
-            }
-            .nav-toggle { 
-                display: block; 
-                position: fixed; 
-                top: 20px; 
-                left: 20px; 
-                font-size: 1.8rem; 
-                color: var(--vibrant-glow); 
-                cursor: pointer; 
-                z-index: 1100;
-                transition: opacity 0.3s;
-            }
-            .navbar.open ~ .nav-toggle { opacity: 0; pointer-events: none; }
-            .main-content { padding: 60px 20px 20px; }
-            .form-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-    <header class="hero">
-        <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo">
-        <h1>Surprise Granite Estimator</h1>
-        <p>Precision estimating for countertop, tile, and cabinet projects.</p>
-    </header>
-    <i class="bi bi-list nav-toggle" onclick="toggleNav()"></i>
-    <nav class="navbar">
-        <i class="bi bi-x close-btn" onclick="toggleNav()"></i>
-        <div class="nav-item active" onclick="showTool('countertops')"><i class="bi bi-symmetry-vertical"></i> Countertops</div>
-        <div class="nav-item" onclick="showTool('tile')"><i class="bi bi-grid"></i> Tile</div>
-        <div class="nav-item" onclick="showTool('cabinets')"><i class="bi bi-box"></i> Cabinets</div>
-        <div class="nav-item" onclick="showTool('settings')"><i class="bi bi-gear"></i> Settings</div>
-        <div class="nav-item" onclick="showTool('project')"><i class="bi bi-folder"></i> Project Estimate</div>
-        <div class="nav-item" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill" id="themeToggle"></i> Toggle Theme</div>
-    </nav>
-    <div class="tool-menu">
-        <i class="bi bi-symmetry-vertical tool-menu-item active" onclick="showTool('countertops')" title="Countertops"></i>
-        <i class="bi bi-grid tool-menu-item" onclick="showTool('tile')" title="Tile"></i>
-        <i class="bi bi-box tool-menu-item" onclick="showTool('cabinets')" title="Cabinets"></i>
-        <i class="bi bi-gear tool-menu-item" onclick="showTool('settings')" title="Settings"></i>
-        <i class="bi bi-folder tool-menu-item" onclick="showTool('project')" title="Project Estimate"></i>
-        <i class="bi bi-moon-stars-fill tool-menu-item" id="themeToggleMenu" onclick="toggleTheme()" title="Toggle Theme"></i>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Surprise Granite Countertop Configurator</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="wrapper">
+      <header id="header" class="card">
+        <img
+          id="logo"
+          src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg"
+          class="logo"
+          alt="Surprise Granite Logo"
+        />
+        <h1 class="page-title">Countertop Configurator</h1>
+      </header>
+
+      <main id="app">
+        <aside class="sidebar">
+          <h2>Guides & Tips</h2>
+          <div class="guide-content">
+            <h3>Measurement Guide</h3>
+            <p>Measure length & width in inches. Divide by 144 for sq ft.</p>
+            <p>Add 1-1.5" overhangs for edges over cabinets.</p>
+            <p>Backsplash: Measure linear ft; 4" height = 0.33 sq ft per ln ft.</p>
+            <p>Waste Factor: Add 20% for cuts; 25% for islands.</p>
+            <h3>Fabrication Tips</h3>
+            <p>Choose slabs larger than your total sq ft.</p>
+            <p>Eased edges are cost-effective.</p>
+            <p>Minimize seams by planning layout carefully.</p>
+            <p>Contact Surprise Granite for assistance!</p>
+          </div>
+        </aside>
+
+        <div class="form-container">
+          <section class="card">
+            <h2>Your Details</h2>
+            <p>Get started for as little as $250 with our professional setup!</p>
+            <form id="lead-form">
+              <div class="input-group">
+                <label for="lead-name">Name <span class="required">*</span></label>
+                <input
+                  type="text"
+                  id="lead-name"
+                  placeholder="e.g., John Doe"
+                  aria-label="Name"
+                  required
+                />
+              </div>
+              <div class="input-group">
+                <label for="lead-email">Email <span class="required">*</span></label>
+                <input
+                  type="email"
+                  id="lead-email"
+                  placeholder="e.g., john@example.com"
+                  aria-label="Email"
+                  required
+                />
+              </div>
+              <div class="input-group">
+                <label for="lead-phone">Phone</label>
+                <input
+                  type="tel"
+                  id="lead-phone"
+                  placeholder="e.g., 555-123-4567"
+                  aria-label="Phone"
+                />
+              </div>
+              <div class="input-group">
+                <label for="lead-address">Address</label>
+                <input
+                  type="text"
+                  id="lead-address"
+                  placeholder="e.g., 123 Main St"
+                  aria-label="Address"
+                />
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Choose Your Configuration</h2>
+            <form id="config-form">
+              <div class="input-group">
+                <label for="room-type">Room Type</label>
+                <select id="room-type" aria-label="Room Type">
+                  <option value="kitchen">Kitchen</option>
+                  <option value="bathroom">Bathroom</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label for="config-type">Configuration Type</label>
+                <select id="config-type" aria-label="Configuration Type">
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Manual Configuration</label>
+                <button
+                  type="button"
+                  id="toggle-manual-config"
+                  class="btn-secondary"
+                >
+                  Configure Manually
+                </button>
+              </div>
+              <div id="manual-config-group" style="display: none">
+                <p class="running-total">
+                  Total Countertop Sq Ft: <span id="running-sqft">0.0</span>
+                </p>
+                <div id="countertop-sections"></div>
+                <div class="add-section-container">
+                  <button
+                    type="button"
+                    id="add-section"
+                    class="btn-secondary"
+                  >
+                    Add Countertop Section
+                  </button>
+                  <button
+                    type="button"
+                    id="total-sqft-btn"
+                    class="btn-primary"
+                  >
+                    Calculate Total Sq Ft
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Slab Details</h2>
+            <form id="slab-form">
+              <div class="input-group">
+                <label for="slab-input-mode">Input Mode</label>
+                <select id="slab-input-mode" aria-label="Slab Input Mode">
+                  <option value="search">Search Price Sheet</option>
+                  <option value="manual">Manual Input</option>
+                </select>
+              </div>
+              <div class="input-group search-mode">
+                <label for="material-search">Search Material</label>
+                <input
+                  type="text"
+                  id="material-search"
+                  placeholder="e.g., Granite, Frost"
+                  list="material-options"
+                  aria-label="Material Search"
+                />
+                <datalist id="material-options"></datalist>
+              </div>
+              <div class="slab-grid">
+                <div class="input-group">
+                  <label for="material">Material</label>
+                  <select id="material" aria-label="Material" class="search-mode">
+                    <option value="">Select Material</option>
+                  </select>
+                  <input
+                    type="text"
+                    id="material-manual"
+                    placeholder="e.g., Granite"
+                    aria-label="Material Manual"
+                    class="manual-mode"
+                    style="display: none"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-vendor">Vendor</label>
+                  <select id="slab-vendor" aria-label="Vendor" class="search-mode">
+                    <option value="">Select Vendor</option>
+                  </select>
+                  <input
+                    type="text"
+                    id="slab-vendor-manual"
+                    placeholder="e.g., MSI"
+                    aria-label="Vendor Manual"
+                    class="manual-mode"
+                    style="display: none"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-thickness">Thickness</label>
+                  <select id="slab-thickness" aria-label="Thickness" class="search-mode">
+                    <option value="">Select Thickness</option>
+                  </select>
+                  <input
+                    type="text"
+                    id="slab-thickness-manual"
+                    placeholder="e.g., 2cm"
+                    aria-label="Thickness Manual"
+                    class="manual-mode"
+                    style="display: none"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-name">Color Name</label>
+                  <input
+                    type="text"
+                    id="slab-name"
+                    placeholder="e.g., Frost-N"
+                    aria-label="Color Name"
+                    class="search-mode"
+                    readonly
+                  />
+                  <input
+                    type="text"
+                    id="slab-name-manual"
+                    placeholder="e.g., Frost-N"
+                    aria-label="Color Name Manual"
+                    class="manual-mode"
+                    style="display: none"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-size">Size (LxW)</label>
+                  <input
+                    type="text"
+                    id="slab-size"
+                    placeholder="e.g., 126x63"
+                    aria-label="Slab Size"
+                    readonly
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-sqft">Slab Sq Ft</label>
+                  <input
+                    type="number"
+                    id="slab-sqft"
+                    min="0"
+                    step="0.1"
+                    value="60"
+                    aria-label="Slab Square Feet"
+                    readonly
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-cost-sqft">Cost/Sq Ft ($)</label>
+                  <input
+                    type="number"
+                    id="slab-cost-sqft"
+                    min="0"
+                    step="0.01"
+                    value="19"
+                    aria-label="Cost per Square Foot"
+                    readonly
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-price-group">Price Group</label>
+                  <input
+                    type="text"
+                    id="slab-price-group"
+                    placeholder="e.g., 2"
+                    aria-label="Price Group"
+                    readonly
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="slab-tier">Tier</label>
+                  <input
+                    type="text"
+                    id="slab-tier"
+                    placeholder="e.g., Low Tier"
+                    aria-label="Tier"
+                    readonly
+                  />
+                </div>
+              </div>
+              <p class="calculated-field">
+                Slab Cost: <span id="slab-cost">$0.00</span>
+              </p>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Countertop Options</h2>
+            <form id="countertop-form">
+              <div class="input-group">
+                <label for="waste-factor">Waste Factor (%)</label>
+                <input
+                  type="number"
+                  id="waste-factor"
+                  value="20"
+                  min="0"
+                  step="1"
+                  aria-label="Waste Factor"
+                  readonly
+                />
+              </div>
+              <div class="input-group">
+                <label for="backsplash">Backsplash Height</label>
+                <select id="backsplash" aria-label="Backsplash">
+                  <option value="None">None</option>
+                  <option value="4in">4 inches</option>
+                  <option value="6in">6 inches</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+              <div
+                class="input-group"
+                id="backsplash-linear-ft-group"
+                style="display: none"
+              >
+                <label for="backsplash-linear-ft">Backsplash Linear Ft</label>
+                <input
+                  type="number"
+                  id="backsplash-linear-ft"
+                  min="0"
+                  step="0.1"
+                  value="0"
+                  aria-label="Backsplash Linear Feet"
+                />
+              </div>
+              <div
+                class="input-group"
+                id="custom-backsplash-group"
+                style="display: none"
+              >
+                <label for="custom-backsplash">Custom Backsplash Height (in)</label>
+                <input
+                  type="number"
+                  id="custom-backsplash"
+                  min="0"
+                  step="0.1"
+                  value="0"
+                  aria-label="Custom Backsplash Height"
+                />
+              </div>
+              <div class="input-group">
+                <label for="edge-detail">Edge Detail</label>
+                <select id="edge-detail" aria-label="Edge Detail">
+                  <option value="None">None</option>
+                  <option value="Eased">Eased (Free)</option>
+                  <option value="Bullnose">Bullnose ($10/ln ft)</option>
+                  <option value="Ogee">Ogee ($20/ln ft)</option>
+                </select>
+              </div>
+              <div
+                class="input-group"
+                id="edge-linear-ft-group"
+                style="display: none"
+              >
+                <label for="edge-linear-ft">Edge Linear Ft</label>
+                <input
+                  type="number"
+                  id="edge-linear-ft"
+                  min="0"
+                  step="0.1"
+                  value="0"
+                  aria-label="Edge Linear Feet"
+                />
+              </div>
+              <div class="input-group">
+                <label for="demo-required">Demolition Required ($10/sq ft)</label>
+                <select id="demo-required" aria-label="Demolition Required">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label for="sink-cutouts">Sink Cutouts ($100/ea)</label>
+                <input
+                  type="number"
+                  id="sink-cutouts"
+                  value="0"
+                  min="0"
+                  step="1"
+                  aria-label="Sink Cutouts"
+                />
+              </div>
+              <div class="input-group">
+                <label for="cooktop-cutout">Cooktop Cutout ($150)</label>
+                <select id="cooktop-cutout" aria-label="Cooktop Cutout">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label for="plumbing-options">Plumbing Options</label>
+                <select id="plumbing-options" aria-label="Plumbing Options">
+                  <option value="None">None</option>
+                  <option value="KitchenStandard">Kitchen: Standard Install ($350)</option>
+                  <option value="KitchenBasket">Kitchen: Basket Strain/Garbage Disposal Flange ($50)</option>
+                  <option value="KitchenROReconnect">Kitchen: R/O Reconnect ($175)</option>
+                  <option value="KitchenRONew">Kitchen: R/O New Install ($375)</option>
+                  <option value="KitchenAngleStop">Kitchen: Angle Stop ($75/ea)</option>
+                  <option value="KitchenIcemaker">Kitchen: Icemaker Box ($350)</option>
+                  <option value="BathroomFaucet">Bathroom: Faucet Install ($200)</option>
+                  <option value="BathroomAngleStop">Bathroom: Angle Stop ($75/ea)</option>
+                  <option value="LaundrySink">Laundry: Sink ($150)</option>
+                  <option value="LaundryAngleStop">Laundry: Angle Stop ($75/ea)</option>
+                  <option value="ComboKitchenBath">Combo: Kitchen Standard + Bathroom Faucet ($550)</option>
+                </select>
+              </div>
+              <div class="input-group" id="angle-stops-group" style="display: none">
+                <label for="angle-stops-count">Number of Angle Stops</label>
+                <input
+                  type="number"
+                  id="angle-stops-count"
+                  min="0"
+                  step="1"
+                  value="0"
+                  aria-label="Number of Angle Stops"
+                />
+              </div>
+              <div class="input-group">
+                <label for="job-type">Job Type</label>
+                <select id="job-type" aria-label="Job Type">
+                  <option value="Fabrication and Install">Fabrication and Install</option>
+                  <option value="Material Only">Material Only</option>
+                  <option value="Fabrication Only">Fabrication Only</option>
+                  <option value="Install Only">Install Only</option>
+                </select>
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Estimate Summary</h2>
+            <div id="estimate-summary">
+              <p class="calculated-field">
+                Total Sq Ft: <span id="client-sqft-display">0.0</span>
+              </p>
+              <p class="calculated-field">
+                Total Slabs Needed: <span id="total-slabs">0</span>
+                (<span id="slabs-recommended">0</span>,
+                <span id="slabs-calculated">0.00</span>)
+              </p>
+              <p class="calculated-field">
+                Installed Price/Sq Ft: <span id="installed-price-sqft">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Material Cost: <span id="material-cost">$0.00</span> (<span
+                  id="material-rate"
+                  >$0.00</span
+                >/sq ft)
+              </p>
+              <p class="calculated-field">
+                Labor Cost: <span id="labor-cost">$0.00</span> (<span
+                  id="labor-rate"
+                  >$0.00</span
+                >/sq ft)
+              </p>
+              <p class="calculated-field">
+                Edge Detail Cost: <span id="edge-cost">$0.00</span> (<span
+                  id="edge-rate"
+                  >$0.00</span
+                >/ln ft)
+              </p>
+              <p class="calculated-field">
+                Backsplash Cost: <span id="backsplash-cost">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Additional Services Cost: <span id="services-cost">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Plumbing Cost: <span id="plumbing-cost">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Professional Setup Fee: <span id="setup-fee">$250.00</span>
+              </p>
+              <p class="calculated-field">
+                Subtotal: <span id="subtotal">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Profit Margin: <span id="profit-margin">35%</span>
+              </p>
+              <p class="calculated-field">
+                Profit Total: <span id="profit-total">$0.00</span>
+              </p>
+              <p class="calculated-field">
+                Estimate Total: <span id="estimate-total">$0.00</span>
+              </p>
+            </div>
+            <div class="action-buttons">
+              <button id="clear-btn" class="btn-secondary" aria-label="Clear form">
+                Clear
+              </button>
+              <button id="save-btn" class="btn-secondary" aria-label="Save estimate">
+                Save
+              </button>
+              <button id="update-btn" class="btn-primary" aria-label="Update estimate">
+                Update Estimate
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <div id="error-message" class="error" style="display: none">
+        <p id="error-text"></p>
+      </div>
+      <div id="success-message" class="success" style="display: none">
+        <p id="success-text"></p>
+      </div>
+
+      <div class="control-buttons">
+        <button id="light-mode-btn" class="control-btn" aria-label="Light mode">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </button>
+        <button id="dark-mode-btn" class="control-btn" aria-label="Dark mode">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
     </div>
-    <main class="main-content">
-        <!-- Countertops Estimator -->
-        <div class="tool-card active" id="countertops-tool">
-            <h2>Countertops Estimator</h2>
-            <div class="tabs">
-                <div class="tab active" onclick="toggleTab('customer')">Customer View</div>
-                <div class="tab" onclick="toggleTab('user')">User View</div>
-            </div>
-            <form id="countertops-form" class="form-section">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Project Type</label>
-                        <select id="countertops-type" class="form-select" onchange="updateCountertopForm()">
-                            <option value="perimeter">Perimeter Countertops</option>
-                            <option value="island">Kitchen Island</option>
-                            <option value="vanity">Bathroom Vanity</option>
-                            <option value="shower">Shower Walls</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Material Type</label>
-                        <select id="countertops-material" class="form-select" onchange="fetchStoneProducts()">
-                            <option value="Granite">Granite</option>
-                            <option value="Quartz">Quartz</option>
-                            <option value="Quartzite">Quartzite</option>
-                            <option value="Dekton">Dekton</option>
-                            <option value="Marble">Marble</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Slab Name</label>
-                        <select id="countertops-slab-name" class="form-select" onchange="updateSlabDetails()"></select>
-                    </div>
-                </div>
-                <div class="dynamic-sections" id="countertops-sections">
-                    <div class="section-header" onclick="toggleSection(this)">
-                        <h4>Slab Dimensions</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label">Slab Length (in)</label>
-                                <input type="number" id="countertops-slab-length" class="form-control" min="0" step="0.1" value="126" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid length.</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Slab Width (in)</label>
-                                <input type="number" id="countertops-slab-width" class="form-control" min="0" step="0.1" value="63" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid width.</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="section-header" onclick="toggleSection(this)">
-                        <h4>Countertop Dimensions</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active">
-                        <div class="form-grid" id="countertops-dimensions">
-                            <div class="form-group">
-                                <label class="form-label">Length (in)</label>
-                                <input type="number" id="countertops-length" class="form-control" min="0" step="0.1" value="120" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid length.</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Width (in)</label>
-                                <input type="number" id="countertops-width" class="form-control" min="0" step="0.1" value="60" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid width.</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="section-header" onclick="toggleSection(this)">
-                        <h4>Additional Features</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label">Backsplash Length (in)</label>
-                                <input type="number" id="countertops-backsplash-length" class="form-control" min="0" step="0.1" value="0" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid length.</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Backsplash Height (in)</label>
-                                <input type="number" id="countertops-backsplash-height" class="form-control" min="0" step="0.1" value="4" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid height.</span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Edge Profile</label>
-                                <select id="countertops-edge" class="form-select" onchange="calculateCountertops()">
-                                    <option value="Standard">Standard</option>
-                                    <option value="Bullnose">Bullnose</option>
-                                    <option value="Ogee">Ogee</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Sink Cutouts</label>
-                                <input type="number" id="countertops-sink-cutouts" class="form-control" min="0" step="1" value="0" oninput="calculateCountertops()">
-                                <span class="error-message">Enter a valid number.</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="section-header" onclick="toggleSection(this)">
-                        <h4>Scope of Work</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label">Room Type</label>
-                                <select id="countertops-room" class="form-select" onchange="calculateCountertops()">
-                                    <option value="Kitchen">Kitchen</option>
-                                    <option value="Bathroom">Bathroom</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Demo Needed</label>
-                                <select id="countertops-demo" class="form-select" onchange="calculateCountertops()">
-                                    <option value="No">No</option>
-                                    <option value="Yes">Yes</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Plumbing Disconnect</label>
-                                <select id="countertops-plumbing-disconnect" class="form-select" onchange="calculateCountertops()">
-                                    <option value="No">No</option>
-                                    <option value="Yes">Yes</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Plumbing Reconnect</label>
-                                <select id="countertops-plumbing-reconnect" class="form-select" onchange="calculateCountertops()">
-                                    <option value="No">No</option>
-                                    <option value="Yes">Yes</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <button type="button" class="btn secondary" onclick="clearForm('countertops')">Clear</button>
-                    <button type="button" class="btn" onclick="saveToProject('countertops')">Save to Project</button>
-                    <button type="button" class="btn" onclick="generateWorkOrder()">Generate Work Order</button>
-                    <button type="button" class="btn" onclick="submitToAI()">Get AI Estimate</button>
-                </div>
-            </form>
-            <div class="tips">
-                <h3>Measuring Tips</h3>
-                <p>- Measure all edges accurately, accounting for overhangs (typically 1-1.5").</p>
-                <p>- For islands, include all sides; for shower walls, measure height and width of each wall.</p>
-                <p>- Add 10-15% waste for cuts and errors, more for complex layouts.</p>
-                <p>- Note sink locations and edge preferences for precise quotes.</p>
-            </div>
-            <div class="results" id="countertops-results-customer" style="display: block;"></div>
-            <div class="results" id="countertops-results-user" style="display: none;"></div>
-        </div>
-
-        <!-- Tile Estimator (Omitted for brevity) -->
-        <div class="tool-card" id="tile-tool">
-            <h2>Tile Estimator</h2>
-            <!-- Existing Tile Form -->
-        </div>
-
-        <!-- Cabinets Estimator (Omitted for brevity) -->
-        <div class="tool-card" id="cabinets-tool">
-            <h2>Cabinets Estimator</h2>
-            <!-- Existing Cabinets Form -->
-        </div>
-
-        <!-- Settings -->
-        <div class="tool-card" id="settings-tool">
-            <h2>Settings & Configuration</h2>
-            <form id="settings-form" class="form-section">
-                <h3>Global Settings</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Profit Margin (%)</label>
-                        <input type="number" id="profit-margin" min="0" step="1" value="45" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Labor Rate ($/sq ft)</label>
-                        <input type="number" id="labor-rate" min="0" step="0.01" value="85" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Demo Rate ($/sq ft)</label>
-                        <input type="number" id="demo-rate" min="0" step="0.01" value="10" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Waste Factor (%)</label>
-                        <input type="number" id="waste-factor" min="0" step="1" value="15" class="form-control">
-                    </div>
-                </div>
-                <button type="button" class="btn" onclick="saveSettings()">Save Settings</button>
-            </form>
-        </div>
-
-        <!-- Project Estimate -->
-        <div class="tool-card" id="project-tool">
-            <h2>Total Project Estimate</h2>
-            <div class="results" id="project-results"></div>
-            <div class="btn-group">
-                <button class="btn secondary" onclick="clearProject()">Clear Project</button>
-                <button class="btn" onclick="downloadProject()">Download Project</button>
-            </div>
-        </div>
-    </main>
-    <script>
-        const BASE_URL = 'https://surprise-granite-connections-dev.onrender.com';
-        const Storage = {
-            get(key, defaultValue) { return JSON.parse(localStorage.getItem(key)) || defaultValue; },
-            set(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-        };
-
-        function formatCurrency(amount) {
-            return Number(amount).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-        }
-
-        function toggleNav() {
-            document.querySelector('.navbar').classList.toggle('open');
-        }
-
-        function showTool(toolId) {
-            document.querySelectorAll('.tool-card').forEach(card => {
-                card.style.opacity = '0';
-                card.classList.remove('active');
-            });
-            document.querySelectorAll('.nav-item, .tool-menu-item').forEach(item => item.classList.remove('active'));
-            const activeCard = document.getElementById(`${toolId}-tool`);
-            activeCard.classList.add('active');
-            setTimeout(() => activeCard.style.opacity = '1', 50);
-            document.querySelector(`[onclick="showTool('${toolId}')"]`).classList.add('active');
-            document.querySelector(`.tool-menu-item[onclick="showTool('${toolId}')"]`).classList.add('active');
-            if (toolId === 'project') updateProjectEstimate();
-            if (toolId === 'countertops') fetchStoneProducts();
-        }
-
-        function toggleTheme() {
-            document.body.classList.toggle('light-mode');
-            const icons = [document.getElementById('themeToggle'), document.getElementById('themeToggleMenu')];
-            icons.forEach(icon => {
-                icon.classList.toggle('bi-moon-stars-fill');
-                icon.classList.toggle('bi-sun-fill');
-            });
-            Storage.set('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
-        }
-
-        function validateInput(input) {
-            const value = parseFloat(input.value);
-            const group = input.parentElement;
-            if (isNaN(value) || value < 0) {
-                group.classList.add('error');
-                input.classList.add('error');
-                return false;
-            }
-            group.classList.remove('error');
-            input.classList.remove('error');
-            return true;
-        }
-
-        function toggleTab(view) {
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelector(`[onclick="toggleTab('${view}')"]`).classList.add('active');
-            document.getElementById('countertops-results-customer').style.display = view === 'customer' ? 'block' : 'none';
-            document.getElementById('countertops-results-user').style.display = view === 'user' ? 'block' : 'none';
-            calculateCountertops();
-        }
-
-        function toggleSection(header) {
-            const content = header.nextElementSibling;
-            content.classList.toggle('active');
-            const icon = header.querySelector('i');
-            icon.classList.toggle('bi-chevron-down');
-            icon.classList.toggle('bi-chevron-up');
-        }
-
-        async function fetchStoneProducts() {
-            const material = document.getElementById('countertops-material').value;
-            try {
-                const response = await fetch(`${BASE_URL}/api/stone-products`);
-                const products = await response.json();
-                const filteredProducts = products.filter(p => p.material === material);
-                const slabSelect = document.getElementById('countertops-slab-name');
-                slabSelect.innerHTML = filteredProducts.map(p => `<option value="${p.colorName}">${p.colorName} (${p.thickness}, ${p.vendorName})</option>`).join('');
-                updateSlabDetails();
-            } catch (err) {
-                console.error('Failed to fetch stone products:', err);
-                document.getElementById('countertops-slab-name').innerHTML = '<option value="Frost-N">Frost-N (3cm, Arizona Tile)</option>';
-            }
-            calculateCountertops();
-        }
-
-        function updateSlabDetails() {
-            const slabName = document.getElementById('countertops-slab-name').value;
-            fetch(`${BASE_URL}/api/stone-products`)
-                .then(res => res.json())
-                .then(products => {
-                    const slab = products.find(p => p.colorName === slabName && p.material === document.getElementById('countertops-material').value);
-                    if (slab) {
-                        document.getElementById('countertops-slab-length').value = slab.size.split(' x ')[0];
-                        document.getElementById('countertops-slab-width').value = slab.size.split(' x ')[1];
-                    }
-                    calculateCountertops();
-                });
-        }
-
-        function updateCountertopForm() {
-            const type = document.getElementById('countertops-type').value;
-            const dimensions = document.getElementById('countertops-dimensions');
-            dimensions.innerHTML = '';
-            if (type === 'perimeter' || type === 'island' || type === 'vanity') {
-                dimensions.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Length (in)</label>
-                        <input type="number" id="countertops-length" class="form-control" min="0" step="0.1" value="120" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid length.</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Width (in)</label>
-                        <input type="number" id="countertops-width" class="form-control" min="0" step="0.1" value="60" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid width.</span>
-                    </div>
-                `;
-            } else if (type === 'shower') {
-                dimensions.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Wall 1 Height (in)</label>
-                        <input type="number" id="countertops-wall1-height" class="form-control" min="0" step="0.1" value="80" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid height.</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Wall 1 Width (in)</label>
-                        <input type="number" id="countertops-wall1-width" class="form-control" min="0" step="0.1" value="36" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid width.</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Wall 2 Height (in)</label>
-                        <input type="number" id="countertops-wall2-height" class="form-control" min="0" step="0.1" value="80" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid height.</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Wall 2 Width (in)</label>
-                        <input type="number" id="countertops-wall2-width" class="form-control" min="0" step="0.1" value="36" oninput="calculateCountertops()">
-                        <span class="error-message">Enter a valid width.</span>
-                    </div>
-                `;
-            }
-            calculateCountertops();
-        }
-
-        function loadSettings() {
-            document.getElementById('profit-margin').value = Storage.get('profit-margin', 45);
-            document.getElementById('labor-rate').value = Storage.get('labor-rate', 85);
-            document.getElementById('demo-rate').value = Storage.get('demo-rate', 10);
-            document.getElementById('waste-factor').value = Storage.get('waste-factor', 15);
-        }
-
-        function saveSettings() {
-            const inputs = ['profit-margin', 'labor-rate', 'demo-rate', 'waste-factor'];
-            let valid = true;
-            inputs.forEach(id => {
-                if (!validateInput(document.getElementById(id))) valid = false;
-            });
-            if (!valid) return;
-            inputs.forEach(id => Storage.set(id, document.getElementById(id).value));
-            calculateCountertops();
-        }
-
-        async function calculateCountertops() {
-            const type = document.getElementById('countertops-type').value;
-            const inputs = type === 'shower' ? 
-                ['countertops-slab-length', 'countertops-slab-width', 'countertops-wall1-height', 'countertops-wall1-width', 'countertops-wall2-height', 'countertops-wall2-width', 'countertops-backsplash-length', 'countertops-backsplash-height', 'countertops-sink-cutouts'] :
-                ['countertops-slab-length', 'countertops-slab-width', 'countertops-length', 'countertops-width', 'countertops-backsplash-length', 'countertops-backsplash-height', 'countertops-sink-cutouts'];
-            let valid = true;
-            inputs.forEach(id => {
-                const input = document.getElementById(id);
-                if (input && !validateInput(input)) valid = false;
-            });
-            if (!valid) {
-                document.getElementById('countertops-results-customer').innerHTML = '<p>Please correct the errors above.</p>';
-                document.getElementById('countertops-results-user').innerHTML = '<p>Please correct the errors above.</p>';
-                return;
-            }
-
-            const material = document.getElementById('countertops-material').value;
-            const slabName = document.getElementById('countertops-slab-name').value;
-            const slabLength = parseFloat(document.getElementById('countertops-slab-length').value) || 0;
-            const slabWidth = parseFloat(document.getElementById('countertops-slab-width').value) || 0;
-            const backsplashLength = parseFloat(document.getElementById('countertops-backsplash-length').value) || 0;
-            const backsplashHeight = parseFloat(document.getElementById('countertops-backsplash-height').value) || 0;
-            const edge = document.getElementById('countertops-edge').value;
-            const sinkCutouts = parseInt(document.getElementById('countertops-sink-cutouts').value) || 0;
-            const room = document.getElementById('countertops-room').value;
-            const demo = document.getElementById('countertops-demo').value === 'Yes';
-            const plumbingDisconnect = document.getElementById('countertops-plumbing-disconnect').value === 'Yes';
-            const plumbingReconnect = document.getElementById('countertops-plumbing-reconnect').value === 'Yes';
-
-            let countertopSqFt = 0;
-            if (type === 'shower') {
-                const wall1Height = parseFloat(document.getElementById('countertops-wall1-height').value) || 0;
-                const wall1Width = parseFloat(document.getElementById('countertops-wall1-width').value) || 0;
-                const wall2Height = parseFloat(document.getElementById('countertops-wall2-height').value) || 0;
-                const wall2Width = parseFloat(document.getElementById('countertops-wall2-width').value) || 0;
-                countertopSqFt = ((wall1Height * wall1Width) + (wall2Height * wall2Width)) / 144;
-            } else {
-                const length = parseFloat(document.getElementById('countertops-length').value) || 0;
-                const width = parseFloat(document.getElementById('countertops-width').value) || 0;
-                countertopSqFt = (length * width) / 144;
-            }
-
-            const profitMargin = parseFloat(Storage.get('profit-margin', 45)) / 100;
-            const laborRate = parseFloat(Storage.get('labor-rate', 85));
-            const demoRate = parseFloat(Storage.get('demo-rate', 10));
-            const wasteFactor = parseFloat(Storage.get('waste-factor', 15)) / 100;
-
-            const products = await (await fetch(`${BASE_URL}/api/stone-products`)).json();
-            const slabData = products.find(p => p.colorName === slabName && p.material === material) || {};
-            const materialCostPerSqFt = slabData.costPerSqFt || 50;
-            const vendorName = slabData.vendorName || 'Unknown';
-            const thickness = slabData.thickness || '2cm';
-            const colorAndPattern = slabData.analysis?.color_and_pattern || 'Unknown';
-            const imageBase64 = slabData.imageBase64 || '';
-            const edgeCosts = { 'Standard': 0, 'Bullnose': 5, 'Ogee': 10 };
-
-            const slabTotalSqFt = (slabLength * slabWidth) / 144;
-            const backsplashSqFt = (backsplashLength * backsplashHeight) / 144;
-            const totalClientSqFt = countertopSqFt + backsplashSqFt;
-            const totalSqFtWithWaste = totalClientSqFt * (1 + wasteFactor);
-            const calculatedSlabs = slabTotalSqFt > 0 ? totalSqFtWithWaste / slabTotalSqFt : 0;
-            const recommendedSlabs = Math.ceil(calculatedSlabs);
-
-            const materialCost = totalSqFtWithWaste * materialCostPerSqFt;
-            const laborCost = totalClientSqFt * laborRate;
-            const demoCost = demo ? totalClientSqFt * demoRate : 0;
-            const edgeCost = totalClientSqFt * edgeCosts[edge];
-            const sinkCost = sinkCutouts * 100;
-            const plumbingCost = (plumbingDisconnect ? 50 : 0) + (plumbingReconnect ? 50 : 0);
-            const estimateTotal = (materialCost + laborCost + demoCost + edgeCost + sinkCost + plumbingCost) * (1 + profitMargin);
-            const totalPricePerSqFt = totalClientSqFt > 0 ? estimateTotal / totalClientSqFt : 0;
-            const timeEstimate = totalClientSqFt / 125;
-
-            const customerHTML = `
-                <p><strong>Project:</strong> ${type.charAt(0).toUpperCase() + type.slice(1)}</p>
-                <p><strong>Material:</strong> ${slabName} (${material}, ${thickness})</p>
-                <p><strong>Vendor:</strong> ${vendorName}</p>
-                <p><strong>Color & Pattern:</strong> ${colorAndPattern}</p>
-                <p><strong>Total Area:</strong> ${totalClientSqFt.toFixed(2)} sq ft</p>
-                <p><strong>Estimate Total:</strong> ${formatCurrency(estimateTotal)}</p>
-                <p><strong>Time Estimate:</strong> ${timeEstimate.toFixed(1)} days</p>
-                <p><strong>Contact:</strong> Call (602) 833-3189 for a detailed quote</p>
-                ${imageBase64 ? `<img src="data:image/jpeg;base64,${imageBase64}" alt="${slabName}" class="quote-image">` : ''}
-            `;
-            const userHTML = `
-                <p><strong>Project:</strong> ${type.charAt(0).toUpperCase() + type.slice(1)}</p>
-                <p><strong>Slab:</strong> ${slabName} (${material}, ${thickness})</p>
-                <p><strong>Vendor:</strong> ${vendorName}</p>
-                <p><strong>Color & Pattern:</strong> ${colorAndPattern}</p>
-                <p><strong>Slab Sq Ft:</strong> ${slabTotalSqFt.toFixed(2)}</p>
-                <p><strong>Client Sq Ft:</strong> ${totalClientSqFt.toFixed(2)}</p>
-                <p><strong>Total Sq Ft (with ${wasteFactor * 100}% waste):</strong> ${totalSqFtWithWaste.toFixed(2)}</p>
-                <p><strong>Slabs Needed:</strong> ${recommendedSlabs}</p>
-                <p><strong>Material Cost:</strong> ${formatCurrency(materialCost)}</p>
-                <p><strong>Labor Cost:</strong> ${formatCurrency(laborCost)}</p>
-                <p><strong>Demo Cost:</strong> ${formatCurrency(demoCost)}</p>
-                <p><strong>Edge Cost (${edge}):</strong> ${formatCurrency(edgeCost)}</p>
-                <p><strong>Sink Cutouts (${sinkCutouts}):</strong> ${formatCurrency(sinkCost)}</p>
-                <p><strong>Plumbing Cost:</strong> ${formatCurrency(plumbingCost)}</p>
-                <p><strong>Total Price/Sq Ft:</strong> ${formatCurrency(totalPricePerSqFt)}</p>
-                <p><strong>Estimate Total:</strong> ${formatCurrency(estimateTotal)}</p>
-                <p><strong>Profit:</strong> ${formatCurrency(estimateTotal * profitMargin)}</p>
-                <p><strong>Time Estimate:</strong> ${timeEstimate.toFixed(1)} days</p>
-                <p><strong>SOW:</strong> Room: ${room}, Demo: ${demo ? 'Yes' : 'No'}, Plumbing: ${plumbingDisconnect || plumbingReconnect ? 'Yes' : 'No'}</p>
-                ${imageBase64 ? `<img src="data:image/jpeg;base64,${imageBase64}" alt="${slabName}" class="quote-image">` : ''}
-            `;
-            document.getElementById('countertops-results-customer').innerHTML = customerHTML;
-            document.getElementById('countertops-results-user').innerHTML = userHTML;
-
-            return { 
-                type: 'Countertops', 
-                projectType: type, 
-                material, 
-                slabName,
-                vendorName,
-                thickness,
-                colorAndPattern,
-                imageBase64,
-                estimateTotal, 
-                profit: estimateTotal * profitMargin, 
-                clientSqFt: totalClientSqFt, 
-                timeEstimate, 
-                room, 
-                demo, 
-                plumbingDisconnect, 
-                plumbingReconnect,
-                workOrder: { slabName, totalSqFtWithWaste, recommendedSlabs, edge, sinkCutouts }
-            };
-        }
-
-        async function submitToAI() {
-            const result = await calculateCountertops();
-            if (!result) return;
-
-            document.getElementById('countertops-results-customer').innerHTML = '<p class="loading">Generating AI estimate...</p>';
-            document.getElementById('countertops-results-user').innerHTML = '<p class="loading">Generating AI estimate...</p>';
-
-            const formData = new FormData();
-            formData.append('customer_needs', `Install ${result.projectType} with ${result.material} (${result.slabName}), ${result.clientSqFt.toFixed(2)} sq ft, edge: ${result.workOrder.edge}, sink cutouts: ${result.workOrder.sinkCutouts}, room: ${result.room}, demo: ${result.demo}, plumbing: ${result.plumbingDisconnect || result.plumbingReconnect}, vendor: ${result.vendorName}, color: ${result.colorAndPattern}`);
-            formData.append('name', 'Customer');
-            formData.append('phone', '(602) 833-3189');
-            formData.append('email', 'customer@example.com');
-
-            try {
-                const response = await fetch(`${BASE_URL}/api/estimate`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const aiEstimate = await response.json();
-                const costRange = aiEstimate.costEstimate;
-
-                const customerHTML = `
-                    <p><strong>Project:</strong> ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}</p>
-                    <p><strong>Material:</strong> ${aiEstimate.materialType} (${aiEstimate.color})</p>
-                    <p><strong>Vendor:</strong> ${result.vendorName}</p>
-                    <p><strong>Color & Pattern:</strong> ${result.colorAndPattern}</p>
-                    <p><strong>Total Area:</strong> ${aiEstimate.dimensions}</p>
-                    <p><strong>Cost Range:</strong> ${formatCurrency(costRange.low)} - ${formatCurrency(costRange.high)}</p>
-                    <p><strong>Recommendation:</strong> ${aiEstimate.recommendation}</p>
-                    <p><strong>Solutions:</strong> ${aiEstimate.solutions}</p>
-                    <p><strong>Contact:</strong> ${aiEstimate.consultationPrompt}</p>
-                    ${result.imageBase64 ? `<img src="data:image/jpeg;base64,${result.imageBase64}" alt="${result.slabName}" class="quote-image">` : ''}
-                `;
-                const userHTML = `
-                    <p><strong>Project:</strong> ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}</p>
-                    <p><strong>Material:</strong> ${aiEstimate.materialType} (${aiEstimate.color})</p>
-                    <p><strong>Vendor:</strong> ${result.vendorName}</p>
-                    <p><strong>Color & Pattern:</strong> ${result.colorAndPattern}</p>
-                    <p><strong>Dimensions:</strong> ${aiEstimate.dimensions}</p>
-                    <p><strong>Cost Estimate:</strong> Low: ${formatCurrency(costRange.low)}, Mid: ${formatCurrency(costRange.mid)}, High: ${formatCurrency(costRange.high)}</p>
-                    <p><strong>Condition:</strong> ${aiEstimate.condition.damage_type} (${aiEstimate.condition.severity})</p>
-                    <p><strong>Edge Profile:</strong> ${aiEstimate.edgeProfile}</p>
-                    <p><strong>Features:</strong> ${aiEstimate.additionalFeatures.join(', ') || 'None'}</p>
-                    <p><strong>Reasoning:</strong> ${aiEstimate.reasoning}</p>
-                    <p><strong>Solutions:</strong> ${aiEstimate.solutions}</p>
-                    ${result.imageBase64 ? `<img src="data:image/jpeg;base64,${result.imageBase64}" alt="${result.slabName}" class="quote-image">` : ''}
-                `;
-                document.getElementById('countertops-results-customer').innerHTML = customerHTML;
-                document.getElementById('countertops-results-user').innerHTML = userHTML;
-
-                if (aiEstimate.audioFilePath) {
-                    const audio = new Audio(`${BASE_URL}/api/audio/${aiEstimate.audioFilePath.split('/').pop()}`);
-                    audio.play();
-                }
-            } catch (err) {
-                console.error('AI estimate failed:', err);
-                document.getElementById('countertops-results-customer').innerHTML = '<p>Error generating AI estimate. Please try again.</p>';
-                document.getElementById('countertops-results-user').innerHTML = '<p>Error generating AI estimate. Please try again.</p>';
-            }
-        }
-
-        function clearForm(tool) {
-            document.getElementById(`${tool}-form`).reset();
-            if (tool === 'countertops') {
-                document.getElementById('countertops-slab-length').value = 126;
-                document.getElementById('countertops-slab-width').value = 63;
-                document.getElementById('countertops-length').value = 120;
-                document.getElementById('countertops-width').value = 60;
-                document.getElementById('countertops-backsplash-length').value = 0;
-                document.getElementById('countertops-backsplash-height').value = 4;
-                fetchStoneProducts();
-                updateCountertopForm();
-            }
-        }
-
-        function saveToProject(tool) {
-            let result = calculateCountertops();
-            if (!result || !result.estimateTotal) return;
-            let project = Storage.get('project', []);
-            project.push(result);
-            Storage.set('project', project);
-            updateProjectEstimate();
-        }
-
-        function generateWorkOrder() {
-            const result = calculateCountertops();
-            if (!result) return;
-            const workOrderText = `
-                Work Order - Surprise Granite
-                Date: ${new Date().toLocaleDateString()}
-                Project Type: ${result.projectType.charAt(0).toUpperCase() + result.projectType.slice(1)}
-                Material: ${result.workOrder.slabName} (${result.material}, ${result.thickness})
-                Vendor: ${result.vendorName}
-                Total Sq Ft (with waste): ${result.workOrder.totalSqFtWithWaste.toFixed(2)}
-                Slabs Required: ${result.workOrder.recommendedSlabs}
-                Edge Profile: ${result.workOrder.edge}
-                Sink Cutouts: ${result.workOrder.sinkCutouts}
-                Room: ${result.room}
-                Demo: ${result.demo ? 'Yes' : 'No'}
-                Plumbing Disconnect: ${result.plumbingDisconnect ? 'Yes' : 'No'}
-                Plumbing Reconnect: ${result.plumbingReconnect ? 'Yes' : 'No'}
-                Total Cost: ${formatCurrency(result.estimateTotal)}
-                Time Estimate: ${result.timeEstimate.toFixed(1)} days
-            `;
-            const blob = new Blob([workOrderText], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `WorkOrder_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        function updateProjectEstimate() {
-            const project = Storage.get('project', []);
-            if (!project.length) {
-                document.getElementById('project-results').innerHTML = '<p>No estimates saved yet.</p>';
-                return;
-            }
-            const totalCost = project.reduce((sum, e) => sum + e.estimateTotal, 0);
-            const totalProfit = project.reduce((sum, e) => sum + e.profit, 0);
-            const totalTime = project.reduce((sum, e) => sum + e.timeEstimate, 0);
-            const html = project.map((e, i) => `
-                <p><strong>${e.type} ${i + 1}:</strong> ${e.projectType} - ${e.material} - ${e.clientSqFt.toFixed(2)} sq ft</p>
-                <p><strong>Subtotal:</strong> ${formatCurrency(e.estimateTotal)}</p>
-                <p><strong>Profit:</strong> ${formatCurrency(e.profit)}</p>
-                <p><strong>Time:</strong> ${e.timeEstimate.toFixed(1)} days</p>
-            `).join('<hr>') + `
-                <hr>
-                <p><strong>Total Project Cost:</strong> ${formatCurrency(totalCost)}</p>
-                <p><strong>Total Project Profit:</strong> ${formatCurrency(totalProfit)}</p>
-                <p><strong>Total Time Estimate:</strong> ${totalTime.toFixed(1)} days</p>
-            `;
-            document.getElementById('project-results').innerHTML = html;
-        }
-
-        function clearProject() {
-            Storage.set('project', []);
-            updateProjectEstimate();
-        }
-
-        function downloadProject() {
-            const project = Storage.get('project', []);
-            if (!project.length) return;
-            const totalCost = project.reduce((sum, e) => sum + e.estimateTotal, 0);
-            const totalProfit = project.reduce((sum, e) => sum + e.profit, 0);
-            const totalTime = project.reduce((sum, e) => sum + e.timeEstimate, 0);
-            const text = project.map((e, i) => `
-                ${e.type} ${i + 1}: ${e.projectType}
-                Material: ${e.material}
-                Area: ${e.clientSqFt.toFixed(2)} sq ft
-                Subtotal: ${formatCurrency(e.estimateTotal)}
-                Profit: ${formatCurrency(e.profit)}
-                Time: ${e.timeEstimate.toFixed(1)} days
-            `).join('\n\n') + `\n\nTotal Cost: ${formatCurrency(totalCost)}\nTotal Profit: ${formatCurrency(totalProfit)}\nTotal Time: ${totalTime.toFixed(1)} days`;
-            const blob = new Blob([text], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Project_Estimate_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            if (Storage.get('theme', 'dark') === 'light') toggleTheme();
-            loadSettings();
-            fetchStoneProducts();
-            updateCountertopForm();
-            calculateCountertops();
-        });
-    </script>
-</body>
+    <script src="/script.js"></script>
+  </body>
 </html>
