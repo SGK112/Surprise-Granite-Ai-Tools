@@ -124,7 +124,7 @@ app.get('/api/materials', async (req, res) => {
 
     if (!Array.isArray(materialsData) || materialsData.length === 0) {
       throw new Error('No valid materials data');
-    посвящен
+    }
 
     // Validate and normalize data
     const normalizedData = materialsData
