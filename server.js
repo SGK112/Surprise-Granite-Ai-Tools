@@ -8,6 +8,9 @@ import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import path from 'path';
 import winston from 'winston';
+import fetch from 'node-fetch';
+import Papa from 'papaparse';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -27,6 +30,10 @@ if (process.env.NODE_ENV !== 'production') {
 const app = express();
 const port = process.env.PORT || 10000;
 
+// Resolve __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Validate environment variables
 const requiredEnv = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'MONGODB_URI'];
 requiredEnv.forEach((key) => {
@@ -40,7 +47,7 @@ requiredEnv.forEach((key) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.static(path.join(path.dirname(import.meta.url.replace('file://', '')), 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Configure Multer for file uploads
 const upload = multer({
@@ -102,18 +109,64 @@ app.get('/api/optimize-image/:publicId', (req, res) => {
   }
 });
 
-// MongoDB Connection
-process.on('SIGTERM', async () => {
-  console.log('Shutting down gracefully');
+// API endpoint to fetch materials data from Google Sheets
+app.get('/api/materials', async (req, res) => {
   try {
-    await mongoose.connection.close(); // No callback, returns a promise
-    console.log('MongoDB connection closed');
-    process.exit(0);
-  } catch (err) {
-    console.error('Error closing MongoDB connection:', err);
-    process.exit(1);
+    const response = await fetch(
+      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
+      {
+        headers: { Accept: 'text/csv' },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const text = await response.text();
+    if (!text.trim()) {
+      throw new Error('Empty CSV data');
+    }
+    const parsed = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: true,
+      transform: (value) => value.trim(),
+    });
+    if (parsed.errors.length) {
+      logger.warn('CSV parsing errors:', parsed.errors);
+    }
+    const materialsData = parsed.data
+      .map((item) => ({
+        colorName: item['Color Name'] || '',
+        vendorName: item['Vendor Name'] || '',
+        thickness: item.Thickness || '',
+        material: item.Material || '',
+        size: item.size || '',
+        totalSqFt: parseFloat(item['Total/SqFt']) || 60,
+        costSqFt: parseFloat(item['Cost/SqFt']) || 0,
+        priceGroup: item['Price Group'] || '',
+        tier: item.Tier || '',
+      }))
+      .filter((item) => item.colorName && item.material && item.vendorName);
+    if (materialsData.length === 0) {
+      throw new Error('No valid materials data');
+    }
+    res.json(materialsData);
+  } catch (error) {
+    logger.error(`Materials fetch error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch materials data', details: error.message });
   }
 });
+
+// MongoDB Connection
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => logger.info('MongoDB connected'))
+  .catch((err) => {
+    logger.error(`MongoDB connection error: ${err.message}`);
+    process.exit(1);
+  });
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
@@ -122,6 +175,11 @@ app.use('/api/v1/estimates', estimateRoutes);
 // Health check for Render
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
+});
+
+// Serve index.html for all other routes (client-side routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Handle 404 errors
