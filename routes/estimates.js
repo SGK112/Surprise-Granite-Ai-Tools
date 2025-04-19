@@ -1,113 +1,79 @@
-import express from 'express';
-import { authenticate } from '../middleware/auth.js';
-import { analyzeImagesAndGenerateEstimate } from '../services/openai.js';
-import Estimate from '../models/Estimate.js';
-import Project from '../models/Project.js';
-import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
+import { Router } from 'express';
+import OpenAI from 'openai';
+import nodemailer from 'nodemailer';
+import winston from 'winston';
 
-const router = express.Router();
-const upload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Only images are allowed'));
-    }
-    cb(null, true);
-  },
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+const router = Router();
+
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Create a new project and estimate
-router.post('/', authenticate, upload.array('images', 10), async (req, res) => {
-  const { type, formData } = req.body;
-  const images = req.files;
+// Nodemailer transport
+const transport = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
+// Generate estimate with OpenAI
+router.post('/generate-estimate', async (req, res) => {
   try {
-    // Validate inputs
-    if (!type || !formData) {
-      return res.status(400).json({ error: 'Type and formData are required' });
-    }
-    if (!images || images.length === 0) {
-      return res.status(400).json({ error: 'At least one image is required' });
+    const { name, email, length, width, materialCost, materialName, jobType, additionalServices, totalCost } = req.body;
+    if (!name || !email || !length || !width || !materialCost || !materialName || !totalCost) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Parse formData
-    let parsedFormData;
-    try {
-      parsedFormData = JSON.parse(formData);
-    } catch (error) {
-      return res.status(400).json({ error: 'Invalid formData format' });
-    }
+    const sqft = (length * width) / 144;
+    const prompt = `
+      You are a professional estimator for Surprise Granite, a countertop installation company. Generate a formal estimate letter for a customer named ${name} with email ${email}. The estimate should include:
+      - A polite greeting and introduction.
+      - Details of the countertop configuration: ${length}" x ${width}" (${sqft.toFixed(2)} sq ft), material ${materialName} at $${materialCost.toFixed(2)}/sq ft.
+      - Job type: ${jobType === 'standard' ? 'Standard Installation' : 'Pro Setup ($250)'}.
+      - Additional services: ${additionalServices ? 'Yes ($' + Math.max(sqft * materialCost * 1.65, 250).toFixed(2) + ')' : 'No'}.
+      - Total cost: $${totalCost.toFixed(2)}.
+      - A professional closing with contact info (Surprise Granite, info@surprisegranite.com, 555-123-4567).
+      Use a formal, friendly tone and format the letter as plain text.
+    `;
 
-    // Upload images to Cloudinary
-    const uploadedImages = await Promise.all(
-      images.map(async (file) => {
-        const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader
-            .upload_stream(
-              {
-                public_id: `slabs/${Date.now()}_${file.originalname}`,
-                folder: 'surprise_granite',
-              },
-              (error, result) => {
-                if (error) return reject(error);
-                resolve(result);
-              }
-            )
-            .end(file.buffer);
-        });
-        return { url: result.secure_url, public_id: result.public_id };
-      })
-    );
-
-    // Save project
-    const project = new Project({
-      userId: req.user.id,
-      type,
-      formData: parsedFormData,
-      images: uploadedImages,
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 500
     });
-    await project.save();
 
-    // Generate estimate
-    const estimateDetails = await analyzeImagesAndGenerateEstimate(project, uploadedImages);
-    const estimate = new Estimate({
-      userId: req.user.id,
-      projectId: project._id,
-      customerNeeds: formData,
-      estimateDetails,
-    });
-    await estimate.save();
-
-    res.status(201).json({ project, estimate });
-  } catch (error) {
-    console.error('Error creating estimate:', error);
-    res.status(500).json({ error: 'Failed to create estimate', details: error.message });
+    const estimateText = response.choices[0].message.content.trim();
+    winston.info('Estimate generated for ' + email);
+    res.status(200).json({ text: estimateText });
+  } catch (err) {
+    winston.error('Generate estimate error:', err);
+    res.status(500).json({ error: 'Failed to generate estimate', details: err.message });
   }
 });
 
-// Get all estimates for a user
-router.get('/', authenticate, async (req, res) => {
+// Send estimate
+router.post('/send-estimate', async (req, res) => {
   try {
-    const estimates = await Estimate.find({ userId: req.user.id }).populate('projectId');
-    res.status(200).json(estimates);
-  } catch (error) {
-    console.error('Error retrieving estimates:', error);
-    res.status(500).json({ error: 'Failed to retrieve estimates', details: error.message });
+    const { email, estimate } = req.body;
+    if (!email || !estimate?.text) {
+      return res.status(400).json({ error: 'Email and estimate text are required' });
+    }
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Your Surprise Granite Countertop Estimate',
+      text: estimate.text
+    };
+    await transport.sendMail(mailOptions);
+    winston.info(`Estimate sent to ${email}`);
+    res.status(200).json({ message: 'Estimate sent successfully' });
+  } catch (err) {
+    winston.error('Send estimate error:', err);
+    res.status(500).json({ error: 'Failed to send estimate', details: err.message });
   }
 });
 
-// Get a specific estimate
-router.get('/:id', authenticate, async (req, res) => {
-  try {
-    const estimate = await Estimate.findOne({ _id: req.params.id, userId: req.user.id }).populate('projectId');
-    if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
-    res.status(200).json(estimate);
-  } catch (error) {
-    console.error('Error retrieving estimate:', error);
-    res.status(500).json({ error: 'Failed to retrieve estimate', details: error.message });
-  }
-});
-
-export default router;
+export { router as estimateRoutes };
