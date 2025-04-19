@@ -143,7 +143,7 @@ app.get('/api/materials', async (req, res) => {
 
 app.get('/api/labor', async (req, res) => {
   try {
-    const csvUrl = process.env.PUBLISHED_CSV_LABOR || process.env.PUBLISHED_CSV_MATERIALS; // Fallback to materials if labor not set
+    const csvUrl = process.env.PUBLISHED_CSV_LABOR || process.env.PUBLISHED_CSV_MATERIALS;
     logger.info(`Fetching labor from: ${csvUrl}`);
     const response = await axios.get(csvUrl);
     const laborData = await new Promise((resolve, reject) => {
