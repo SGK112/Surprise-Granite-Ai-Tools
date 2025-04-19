@@ -7,7 +7,7 @@ const router = Router();
 
 // Initialize OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Nodemailer transport
@@ -15,8 +15,8 @@ const transport = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 // Generate estimate with OpenAI
@@ -42,7 +42,7 @@ router.post('/generate-estimate', async (req, res) => {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 500
+      max_tokens: 500,
     });
 
     const estimateText = response.choices[0].message.content.trim();
@@ -65,7 +65,7 @@ router.post('/send-estimate', async (req, res) => {
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Your Surprise Granite Countertop Estimate',
-      text: estimate.text
+      text: estimate.text,
     };
     await transport.sendMail(mailOptions);
     winston.info(`Estimate sent to ${email}`);
@@ -76,4 +76,5 @@ router.post('/send-estimate', async (req, res) => {
   }
 });
 
-export { router as estimateRoutes };
+// Change named export to default export
+export default router;
