@@ -1,18 +1,22 @@
-# Minimal Dockerfile for Node.js
+# Use Node.js 20 Alpine as the base image
 FROM node:20-alpine
 
-# Create app directory
+# Set working directory
 WORKDIR /app
 
-# Copy package files and install
+# Copy root package files and install all dependencies
 COPY package.json package-lock.json* ./
-RUN npm install --production
+RUN npm install
 
-# Copy remaining files
+# Copy client directory and build React app
+COPY client ./client
+RUN npm run build
+
+# Copy remaining server files
 COPY . .
 
-# Expose port 5000 (or your preferred port)
-EXPOSE 5000
+# Expose port (Render uses 10000, not 5000 as in your Dockerfile)
+EXPOSE 10000
 
-# Start command
+# Start the server
 CMD ["npm", "start"]
