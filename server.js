@@ -11,6 +11,9 @@ import axios from 'axios';
 import { parse } from 'csv-parse';
 import nodemailer from 'nodemailer';
 
+// Set Mongoose strictQuery option
+mongoose.set('strictQuery', true);
+
 // Load environment variables
 dotenv.config();
 
@@ -124,7 +127,7 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     res.json({ url: result.secure_url, public_id: result.public_id });
   } catch (error) {
     logger.error(`Upload error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to upload image', details: error.message });
+  res.status(500).json({ error: 'Failed to upload image', details: error.message });
   }
 });
 
