@@ -1,336 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Surprise Granite Estimator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="/index.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Surprise Granite Project Estimator</title>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-    <header class="hero">
-        <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" loading="lazy">
-        <h1>Surprise Granite Estimator</h1>
-        <p>Precision Quotes for Your Projects</p>
-    </header>
+  <div class="container">
+    <h1>Surprise Granite Project Estimator</h1>
+    <div id="message" class="message"></div>
 
-    <button class="nav-toggle" id="nav-toggle" aria-label="Toggle Navigation">
-        <div class="menu-icon">
-            <span></span>
-            <span></span>
-            <span></span>
+    <!-- Project Estimator -->
+    <section class="section">
+      <h2>Countertop & Remodeling Estimator</h2>
+      <form id="estimator-form" class="form">
+        <div class="form-group">
+          <label for="client-name">Client Name</label>
+          <input type="text" id="client-name" name="clientName" required />
         </div>
-    </button>
-
-    <nav class="navbar" id="navbar" role="navigation" aria-label="Main Navigation">
-        <button class="close-btn" id="close-nav" aria-label="Close Navigation">
-            <i class="bi bi-arrow-left"></i>
-        </button>
-        <div class="nav-item active" data-tool="estimator" aria-label="Estimator Tool">
-            <i class="bi bi-symmetry-vertical"></i> Estimator
+        <div class="form-group">
+          <label for="client-email">Client Email</label>
+          <input type="email" id="client-email" name="clientEmail" required />
         </div>
-        <div class="nav-item" data-tool="calculator" aria-label="Calculator">
-            <i class="bi bi-calculator"></i> Calculator
+        <div class="form-group">
+          <label for="material">Material</label>
+          <select id="material" name="material" required>
+            <option value="">Select Material</option>
+          </select>
         </div>
-        <div class="nav-item" id="theme-toggle-nav" aria-label="Toggle Theme">
-            <i class="bi bi-moon-stars-fill" id="themeToggle"></i> Theme
+        <div class="form-group">
+          <label for="slab-name">Slab Name</label>
+          <input type="text" id="slab-name" name="slabName" />
         </div>
-    </nav>
+        <div class="form-group">
+          <label for="slab-length">Slab Length (in)</label>
+          <input type="number" id="slab-length" name="slabLength" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="slab-width">Slab Width (in)</label>
+          <input type="number" id="slab-width" name="slabWidth" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="slab-cost-sqft">Cost per Sq Ft ($)</label>
+          <input type="number" id="slab-cost-sqft" name="slabCostSqft" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="client-sqft">Countertop Sq Ft</label>
+          <input type="number" id="client-sqft" name="clientSqft" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="quantity">Quantity (Slabs)</label>
+          <input type="number" id="quantity" name="quantity" value="1" required />
+        </div>
+        <div class="form-group">
+          <label for="waste-factor">Waste Factor (%)</label>
+          <input type="number" id="waste-factor" name="wasteFactor" value="20" required />
+        </div>
+        <div class="form-group">
+          <label for="edge-type">Edge Type</label>
+          <select id="edge-type" name="edgeType">
+            <option value="standard">Standard ($10/linear ft)</option>
+            <option value="bullnose">Bullnose ($15/linear ft)</option>
+            <option value="waterfall">Waterfall ($25/linear ft)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="backsplash">Backsplash</label>
+          <select id="backsplash" name="backsplash">
+            <option value="none">None</option>
+            <option value="4">4" ($10/linear ft)</option>
+            <option value="6">6" ($12/linear ft)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div id="custom-backsplash" class="form-group hidden">
+          <label for="backsplash-height">Custom Backsplash Height (in)</label>
+          <input type="number" id="backsplash-height" name="backsplashHeight" step="0.01" />
+          <label for="backsplash-linear-ft">Linear Feet</label>
+          <input type="number" id="backsplash-linear-ft" name="backsplashLinearFt" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="demo">Demolition</label>
+          <select id="demo" name="demo">
+            <option value="none">None</option>
+            <option value="standard">Standard ($5/sqft)</option>
+            <option value="complex">Complex ($8/sqft)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="plumbing">Plumbing Reconnect</label>
+          <input type="checkbox" id="plumbing" name="plumbing" value="900" />
+          <span>$900</span>
+        </div>
+        <div class="form-group">
+          <label for="labor-rate">Labor Rate ($/hr)</label>
+          <input type="number" id="labor-rate" name="laborRate" value="50" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="labor-hours">Labor Hours</label>
+          <input type="number" id="labor-hours" name="laborHours" value="10" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label for="misc-costs">Miscellaneous Costs ($)</label>
+          <input type="number" id="misc-costs" name="miscCosts" value="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="pricing-system">Pricing System</label>
+          <select id="pricing-system" name="pricingSystem">
+            <option value="cost-plus">Cost-Plus (35% margin)</option>
+            <option value="competitive">Competitive (3.25x + $26/sqft)</option>
+            <option value="tiered">Tiered Margins</option>
+          </select>
+        </div>
+        <div class="cost-display">
+          <p>Material Cost: $<span id="material-cost">0.00</span></p>
+          <p>Labor Cost: $<span id="labor-cost">0.00</span></p>
+          <p>Demo/Plumbing Cost: $<span id="demo-plumbing-cost">0.00</span></p>
+          <p>Misc Cost: $<span id="misc-cost">0.00</span></p>
+          <p>Bid Price: $<span id="bid-price">0.00</span></p>
+          <p>Retail Range: $<span id="retail-range">0.00</span></p>
+          <p>Profit Margin: <span id="profit-margin">0.00</span>%</p>
+        </div>
+        <button type="submit" class="button">Submit Estimate</button>
+      </form>
+    </section>
 
-    <main class="main-content">
-        <section class="tool-card active" id="estimator-tool" aria-labelledby="estimator-title">
-            <div class="toggle-container">
-                <span class="toggle-label">Basic</span>
-                <label class="toggle-switch" aria-label="Switch between Basic and Pro Mode">
-                    <input type="checkbox" id="version-toggle">
-                    <span class="slider"></span>
-                </label>
-                <span class="toggle-label">Pro</span>
-            </div>
-            <h2 id="estimator-title">Project Estimator</h2>
-            <form id="estimator-form" class="form-section">
-                <div class="dynamic-sections" id="estimator-sections">
-                    <div class="section-header" data-section="project-info" aria-expanded="true" aria-controls="project-info">
-                        <h4>Project Information</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active" id="project-info">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label" for="client-name">Client Name</label>
-                                <input type="text" id="client-name" class="form-control" placeholder="e.g. John Doe" aria-describedby="client-name-error">
-                                <span class="error-message" id="client-name-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="client-email">Client Email</label>
-                                <input type="email" id="client-email" class="form-control" placeholder="e.g. john.doe@example.com" aria-describedby="client-email-error">
-                                <span class="error-message" id="client-email-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="project-address">Project Address</label>
-                                <input type="text" id="project-address" class="form-control" placeholder="e.g. 123 Main St" aria-describedby="project-address-error">
-                                <span class="error-message" id="project-address-error"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-header" data-section="countertops-info" aria-expanded="true" aria-controls="countertops-info">
-                        <h4>Countertops</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active" id="countertops-info">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label" for="material">Material Type</label>
-                                <select id="material" class="form-select" aria-describedby="material-error">
-                                    <option value="CT-002">Granite ($60/sqft)</option>
-                                    <option value="CT-001">Quartz ($50/sqft)</option>
-                                    <option value="CT-003">Marble ($70/sqft)</option>
-                                    <option value="CT-004">Porcelain/Dekton ($90/sqft)</option>
-                                    <option value="SlabOnly">Slab Only (Cost + Delivery)</option>
-                                </select>
-                                <span class="error-message" id="material-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="slab-name">Slab Name</label>
-                                <input type="text" id="slab-name" class="form-control" placeholder="e.g. White Carrara" aria-describedby="slab-name-error">
-                                <span class="error-message" id="slab-name-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="slab-total-length">Slab Length (in)</label>
-                                <input type="number" id="slab-total-length" class="form-control" min="0" step="0.1" aria-describedby="slab-total-length-error">
-                                <span class="error-message" id="slab-total-length-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="slab-total-width">Slab Width (in)</label>
-                                <input type="number" id="slab-total-width" class="form-control" min="0" step="0.1" aria-describedby="slab-total-width-error">
-                                <span class="error-message" id="slab-total-width-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="slab-total-sqft">Slab Total Sq Ft</label>
-                                <input type="number" id="slab-total-sqft" class="form-control" min="0" step="0.01" placeholder="Auto-calculated" aria-describedby="slab-total-sqft-error">
-                                <span class="error-message" id="slab-total-sqft-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="slab-cost-per-sqft">Slab Cost per Sq Ft</label>
-                                <input type="number" id="slab-cost-per-sqft" class="form-control" min="0" step="0.01" aria-describedby="slab-cost-per-sqft-error">
-                                <span class="error-message" id="slab-cost-per-sqft-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="client-sqft">Client Total Sq Ft</label>
-                                <input type="number" id="client-sqft" class="form-control" min="0" step="0.01" aria-describedby="client-sqft-error">
-                                <span class="error-message" id="client-sqft-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="edge-type">Edge Type</label>
-                                <select id="edge-type" class="form-select" aria-describedby="edge-type-error">
-                                    <option value="None">None ($0/sqft)</option>
-                                    <option value="CT-011">Ogee/Chiseled ($30/lf)</option>
-                                    <option value="CT-016">Waterfall ($40/lf)</option>
-                                </select>
-                                <span class="error-message" id="edge-type-error"></span>
-                            </div>
-                            <div class="form-group" id="waterfall-group" style="display: none;">
-                                <label class="form-label" for="waterfall-sqft">Waterfall Sq Ft</label>
-                                <input type="number" id="waterfall-sqft" class="form-control" min="0" step="0.01" aria-describedby="waterfall-sqft-error">
-                                <span class="error-message" id="waterfall-sqft-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="backsplash-height">Backsplash</label>
-                                <select id="backsplash-height" class="form-select" aria-describedby="backsplash-height-error">
-                                    <option value="None">None ($0/sqft)</option>
-                                    <option value="CT-027">Custom Backsplash ($55/sqft)</option>
-                                </select>
-                                <span class="error-message" id="backsplash-height-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="backsplash-linear-in">Backsplash Linear In</label>
-                                <input type="number" id="backsplash-linear-in" class="form-control" min="0" step="0.1" aria-describedby="backsplash-linear-in-error">
-                                <span class="error-message" id="backsplash-linear-in-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="demo-type">Demo Type</label>
-                                <select id="demo-type" class="form-select" aria-describedby="demo-type-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="CT-028">Countertop Removal ($350/job)</option>
-                                </select>
-                                <span class="error-message" id="demo-type-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="plumbing-type">Plumbing Reconnect</label>
-                                <select id="plumbing-type" class="form-select" aria-describedby="plumbing-type-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="PL-007">Bathroom Sink ($275)</option>
-                                    <option value="PL-008">Kitchen Sink ($600)</option>
-                                </select>
-                                <span class="error-message" id="plumbing-type-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="cooktop-cutout">Cooktop Cutout</label>
-                                <select id="cooktop-cutout" class="form-select" aria-describedby="cooktop-cutout-error">
-                                    <option value="No">No ($0)</option>
-                                    <option value="CT-009">Yes ($150)</option>
-                                </select>
-                                <span class="error-message" id="cooktop-cutout-error"></span>
-                            </div>
-                            <div class="form-group" id="delivery-group" style="display: none;">
-                                <label class="form-label" for="delivery">Delivery</label>
-                                <select id="delivery" class="form-select" aria-describedby="delivery-error">
-                                    <option value="No">No ($0)</option>
-                                    <option value="Yes">Yes ($150)</option>
-                                </select>
-                                <span class="error-message" id="delivery-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="sink-cutout">Sink Cutout</label>
-                                <select id="sink-cutout" class="form-select" aria-describedby="sink-cutout-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="CT-007">Undermount ($200)</option>
-                                    <option value="CT-008">Farmhouse ($250)</option>
-                                </select>
-                                <span class="error-message" id="sink-cutout-error"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-header" data-section="cabinets-info" aria-expanded="true" aria-controls="cabinets-info">
-                        <h4>Cabinets</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active" id="cabinets-info">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label" for="cabinet-style">Cabinet Type</label>
-                                <select id="cabinet-style" class="form-select" aria-describedby="cabinet-style-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="CB-001">Kitchen Cabinet ($80/ea)</option>
-                                    <option value="CB-003">Custom Cabinet ($3500/job)</option>
-                                </select>
-                                <span class="error-message" id="cabinet-style-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="cabinet-quantity">Quantity</label>
-                                <input type="number" id="cabinet-quantity" class="form-control" min="0" step="1" aria-describedby="cabinet-quantity-error">
-                                <span class="error-message" id="cabinet-quantity-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="cabinet-finish">Finish</label>
-                                <select id="cabinet-finish" class="form-select" aria-describedby="cabinet-finish-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="PT-005">Cabinet Painting ($1200/job)</option>
-                                </select>
-                                <span class="error-message" id="cabinet-finish-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="cabinet-hardware">Hardware</label>
-                                <select id="cabinet-hardware" class="form-select" aria-describedby="cabinet-hardware-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="CB-031">Pulls/Handles ($12/unit)</option>
-                                </select>
-                                <span class="error-message" id="cabinet-hardware-error"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-header" data-section="tile-showers-info" aria-expanded="true" aria-controls="tile-showers-info">
-                        <h4>Tile Showers</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active" id="tile-showers-info">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label" for="tile-type">Tile Type</label>
-                                <select id="tile-type" class="form-select" aria-describedby="tile-type-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="SH-001">Shower Tile Wall ($45/sqft)</option>
-                                    <option value="SH-002">Shower Floor Tile ($40/sqft)</option>
-                                </select>
-                                <span class="error-message" id="tile-type-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="shower-sqft">Shower Sq Ft</label>
-                                <input type="number" id="shower-sqft" class="form-control" min="0" step="0.01" aria-describedby="shower-sqft-error">
-                                <span class="error-message" id="shower-sqft-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="shower-demo">Demolition</label>
-                                <select id="shower-demo" class="form-select" aria-describedby="shower-demo-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="TL-012">Tile Removal ($5/sqft)</option>
-                                </select>
-                                <span class="error-message" id="shower-demo-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="shower-fixtures">Fixtures</label>
-                                <select id="shower-fixtures" class="form-select" aria-describedby="shower-fixtures-error">
-                                    <option value="None">None ($0)</option>
-                                    <option value="PL-009">Shower Valve ($600)</option>
-                                    <option value="SH-015">Rain Shower Head ($550)</option>
-                                </select>
-                                <span class="error-message" id="shower-fixtures-error"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-header" data-section="ai-analyzer" aria-expanded="true" aria-controls="ai-analyzer">
-                        <h4>AI Project Analyzer</h4>
-                        <i class="bi bi-chevron-down"></i>
-                    </div>
-                    <div class="section-content active" id="ai-analyzer">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label" for="ai-files">Upload Photos/PDF (up to 9)</label>
-                                <input type="file" id="ai-files" class="form-control" accept="image/*,application/pdf" multiple aria-describedby="ai-files-error">
-                                <span class="error-message" id="ai-files-error"></span>
-                            </div>
-                            <div class="form-group">
-                                <button type="button" class="btn" id="analyze-ai">Analyze with AI</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="btn-group">
-                        <button type="button" class="btn secondary" id="clear-form">Clear</button>
-                        <button type="button" class="btn" id="save-quote">Save Quote</button>
-                        <button type="button" class="btn" id="load-quote">Load Quote</button>
-                        <button type="button" class="btn" id="email-quote">Email Quote</button>
-                        <button type="button" class="btn" id="download-pdf">Download PDF</button>
-                    </div>
-                </div>
-            </form>
-            <div class="results" id="estimator-results" aria-live="polite">
-                <div id="countertops-results"></div>
-                <div id="cabinets-results"></div>
-                <div id="tile-showers-results"></div>
-                <div id="ai-results"></div>
-                <div id="total-results"></div>
-                <button class="btn share-btn" id="like-quote">Like</button>
-                <button class="btn share-btn" id="share-quote">Share</button>
-            </div>
-        </section>
-
-        <section class="tool-card" id="calculator-tool" aria-labelledby="calculator-title">
-            <h2 id="calculator-title">Area Calculator</h2>
-            <div class="calculator">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label" for="calc-length">Length (in)</label>
-                        <input type="number" id="calc-length" class="form-control" min="0" step="0.1" aria-describedby="calc-length-error">
-                        <span class="error-message" id="calc-length-error"></span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="calc-width">Width (in)</label>
-                        <input type="number" id="calc-width" class="form-control" min="0" step="0.1" aria-describedby="calc-width-error">
-                        <span class="error-message" id="calc-width-error"></span>
-                    </div>
-                </div>
-                <button type="button" class="btn" id="calc-area" style="margin-top: 1rem;">Calculate</button>
-                <div id="calc-results" style="margin-top: 1rem;" aria-live="polite"></div>
-            </div>
-        </section>
-    </main>
-
-    <script src="/index.js"></script>
+    <!-- Slab Lookup -->
+    <section class="section">
+      <h2>Slab Lookup</h2>
+      <div class="search-bar">
+        <input type="text" id="slab-search" placeholder="Search by material or color (e.g., Granite, Black)" />
+        <button id="slab-search-button">Search</button>
+      </div>
+      <div id="slab-results" class="grid"></div>
+      <a href="eguide.html" class="link">View Slab Ordering Guide</a>
+    </section>
+  </div>
+  <script src="js/script.js"></script>
 </body>
 </html>
