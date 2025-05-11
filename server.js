@@ -120,6 +120,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
+// Root Route
+app.get('/', (req, res) => {
+  res.status(200).json({ message: 'Surprise Granite AI Tools API' });
+});
+
 // Error Handling Middleware
 app.use((req, res) => {
   logger.warn(`404: Route not found - ${req.method} ${req.url}`);
@@ -133,10 +138,7 @@ app.use((err, req, res, next) => {
 
 // Connect to MongoDB
 mongoose
-  .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
+  .connect(process.env.MONGODB_URI)
   .then(() => logger.info('MongoDB connected'))
   .catch((err) => {
     logger.error(`MongoDB connection error: ${err.message}`);
