@@ -24,7 +24,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Initialize Express app
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
 // Validate required environment variables
 const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS'];
@@ -67,7 +67,7 @@ app.get('/api/materials', async (req, res) => {
     let materials = await Material.find({}).lean();
     
     if (!materials || materials.length === 0) {
-      logger.warn('No materials found in MongoDB, falling back to CSV');
+      logger.warn('No materials found in MongoDB, attempting CSV fallback');
       const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
       const materialsData = await new Promise((resolve, reject) => {
         const records = [];
@@ -78,7 +78,8 @@ app.get('/api/materials', async (req, res) => {
       });
 
       if (!Array.isArray(materialsData) || materialsData.length === 0) {
-        throw new Error('No valid materials data in CSV');
+        logger.error('No valid materials data in CSV');
+        return res.status(404).json({ error: 'No materials found in MongoDB or CSV' });
       }
 
       materials = materialsData.map((item) => ({
@@ -107,7 +108,8 @@ app.get('/api/materials', async (req, res) => {
     })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
 
     if (normalizedData.length === 0) {
-      throw new Error('No valid materials data after filtering');
+      logger.error('No valid materials data after filtering');
+      return res.status(404).json({ error: 'No valid materials data available' });
     }
 
     logger.info(`Materials fetched successfully: ${normalizedData.length} items`);
@@ -121,25 +123,33 @@ app.get('/api/materials', async (req, res) => {
 // Serve Material Image
 app.get('/api/materials/:id/image', async (req, res) => {
   try {
+    logger.info(`Fetching image for material ID: ${req.params.id}`);
     const material = await Material.findById(req.params.id).select('imageData metadata.mimeType');
-    if (!material || !material.imageData) {
-      return res.status(404).json({ error: 'Image not found' });
+    if (!material) {
+      logger.warn(`Material not found for ID: ${req.params.id}`);
+      return res.status(404).json({ error: 'Material not found' });
+    }
+    if (!material.imageData) {
+      logger.warn(`No image data for material ID: ${req.params.id}`);
+      return res.status(404).json({ error: 'Image data not found' });
     }
     res.set('Content-Type', material.metadata.mimeType || 'image/jpeg');
     res.send(material.imageData);
   } catch (error) {
-    logger.error(`Image fetch error: ${error.message}`);
+    logger.error(`Image fetch error for ID ${req.params.id}: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch image', details: error.message });
   }
 });
 
 // Health Check
 app.get('/health', (req, res) => {
+  logger.info('Health check requested');
   res.status(200).json({ status: 'OK' });
 });
 
 // Root Route
 app.get('/', (req, res) => {
+  logger.info('Root route requested');
   res.status(200).json({ message: 'Surprise Granite AI Tools API' });
 });
 
