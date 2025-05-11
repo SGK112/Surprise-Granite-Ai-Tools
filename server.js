@@ -3,8 +3,6 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import winston from 'winston';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import axios from 'axios';
 import { parse } from 'csv-parse';
 
@@ -28,10 +26,6 @@ if (process.env.NODE_ENV !== 'production') {
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Resolve __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Validate required environment variables
 const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS'];
 requiredEnv.forEach((key) => {
@@ -43,7 +37,11 @@ requiredEnv.forEach((key) => {
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'https://surprisegranite.webflow.io' }));
+app.use(cors({ 
+  origin: process.env.CORS_ORIGIN || 'https://surprisegranite.webflow.io',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 
 // MongoDB Schema for Materials
 const materialSchema = new mongoose.Schema({
