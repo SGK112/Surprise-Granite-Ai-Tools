@@ -7,8 +7,6 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
-import axios from 'axios';
-import { parse } from 'csv-parse';
 import nodemailer from 'nodemailer';
 
 // Set Mongoose strictQuery option
@@ -39,8 +37,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Validate required environment variables
-const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'EMAIL_USER', 'EMAIL_PASS'];
-const optionalEnv = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'CORS_ORIGIN', 'BASE_URL', 'EMAIL_SUBJECT', 'PUBLISHED_CSV_LABOR'];
+const requiredEnv = ['MONGODB_URI', 'EMAIL_USER', 'EMAIL_PASS'];
+const optionalEnv = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'CORS_ORIGIN', 'BASE_URL', 'EMAIL_SUBJECT'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
@@ -51,7 +49,7 @@ requiredEnv.forEach((key) => {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'https://surprisegranite.webflow.io' }));
 app.use(express.static(path.join(__dirname, 'client', 'dist'))); // Serve React build
 
 // Configure Multer for image uploads (optional)
@@ -63,7 +61,7 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
 // Configure Cloudinary (optional)
@@ -77,12 +75,26 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
 
 // Configure Nodemailer for email notifications
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Adjust if using another email service
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
 });
+
+// MongoDB Schema for Materials
+const materialSchema = new mongoose.Schema({
+  colorName: { type: String, required: true },
+  vendorName: { type: String, required: true },
+  thickness: { type: String, required: true },
+  material: { type: String, required: true },
+  costSqFt: { type: Number, required: true },
+  availableSqFt: { type: Number, default: 0 },
+  imageUrl: { type: String, default: 'https://via.placeholder.com/50' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Material = mongoose.model('Material', materialSchema);
 
 // MongoDB Schema for Estimates
 const estimateSchema = new mongoose.Schema({
@@ -110,6 +122,9 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No image provided' });
     }
+    if (!cloudinary.config().cloud_name) {
+      return res.status(500).json({ error: 'Cloudinary not configured' });
+    }
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
@@ -127,13 +142,16 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     res.json({ url: result.secure_url, public_id: result.public_id });
   } catch (error) {
     logger.error(`Upload error: ${error.message}`);
-  res.status(500).json({ error: 'Failed to upload image', details: error.message });
+    res.status(500).json({ error: 'Failed to upload image', details: error.message });
   }
 });
 
 // Optimize Image Endpoint (optional)
 app.get('/api/optimize-image/:publicId', (req, res) => {
   try {
+    if (!cloudinary.config().cloud_name) {
+      return res.status(500).json({ error: 'Cloudinary not configured' });
+    }
     const optimizedUrl = cloudinary.url(req.params.publicId, {
       fetch_format: 'auto',
       quality: 'auto'
@@ -145,75 +163,28 @@ app.get('/api/optimize-image/:publicId', (req, res) => {
   }
 });
 
-// Fetch Materials from CSV
+// Fetch Materials from MongoDB
 app.get('/api/materials', async (req, res) => {
   try {
-    logger.info(`Fetching materials from: ${process.env.PUBLISHED_CSV_MATERIALS}`);
-    const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
-    const materialsData = await new Promise((resolve, reject) => {
-      const records = [];
-      parse(response.data, { columns: true, skip_empty_lines: true })
-        .on('data', (record) => records.push(record))
-        .on('end', () => resolve(records))
-        .on('error', (error) => reject(error));
-    });
-
-    if (!Array.isArray(materialsData) || materialsData.length === 0) {
-      throw new Error('No valid materials data');
+    logger.info('Fetching materials from MongoDB');
+    const materials = await Material.find().lean();
+    if (!materials || materials.length === 0) {
+      throw new Error('No materials found in database');
     }
-
-    const normalizedData = materialsData.map((item) => ({
-      colorName: item['Color Name'] || '',
-      vendorName: item['Vendor Name'] || '',
-      thickness: item['Thickness'] || '',
-      material: item['Material'] || '',
-      size: item['size'] || '',
-      totalSqFt: parseFloat(item['Total/SqFt']) || 0,
-      costSqFt: parseFloat(item['Cost/SqFt']) || 0,
-      priceGroup: item['Price Group'] || '',
-      tier: item['Tier'] || ''
-    })).filter((item) => item.colorName && item.material && item.vendorName);
-
-    if (normalizedData.length === 0) {
-      throw new Error('No valid materials data after filtering');
-    }
-
+    const normalizedData = materials.map((item) => ({
+      colorName: item.colorName,
+      vendorName: item.vendorName,
+      thickness: item.thickness,
+      material: item.material,
+      costSqFt: item.costSqFt,
+      availableSqFt: item.availableSqFt,
+      imageUrl: item.imageUrl
+    }));
     logger.info(`Materials fetched successfully: ${normalizedData.length} items`);
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch materials data', details: error.message });
-  }
-});
-
-// Fetch Labor from CSV (optional)
-app.get('/api/labor', async (req, res) => {
-  try {
-    const csvUrl = process.env.PUBLISHED_CSV_LABOR || process.env.PUBLISHED_CSV_MATERIALS;
-    logger.info(`Fetching labor from: ${csvUrl}`);
-    const response = await axios.get(csvUrl);
-    const laborData = await new Promise((resolve, reject) => {
-      const records = [];
-      parse(response.data, { columns: true, skip_empty_lines: true })
-        .on('data', (record) => records.push(record))
-        .on('end', () => resolve(records))
-        .on('error', (error) => reject(error));
-    });
-
-    if (!Array.isArray(laborData) || laborData.length === 0) {
-      throw new Error('No valid labor data');
-    }
-
-    const normalizedData = laborData.map((item) => ({
-      task: item['Task'] || '',
-      cost: parseFloat(item['Cost']) || 0
-    })).filter((item) => item.task);
-
-    logger.info(`Labor data fetched successfully: ${normalizedData.length} items`);
-    res.json(normalizedData);
-  } catch (error) {
-    logger.error(`Labor fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch labor data', details: error.message });
   }
 });
 
@@ -264,7 +235,7 @@ app.post('/api/estimates', async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      cc: process.env.EMAIL_USER, // Send a copy to yourself
+      cc: process.env.EMAIL_USER,
       subject: process.env.EMAIL_SUBJECT || 'Your Countertop Estimate from Surprise Granite',
       text: `
         Dear ${name},
