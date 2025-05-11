@@ -52,6 +52,9 @@ const materialSchema = new mongoose.Schema({
   costSqFt: { type: Number, required: true },
   availableSqFt: { type: Number, default: 0 },
   imageUrl: { type: String, default: 'https://via.placeholder.com/50' },
+  imageData: { type: Buffer, default: null },
+  imageHash: { type: String, default: null },
+  metadata: { type: Object, default: {} },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -100,7 +103,7 @@ app.get('/api/materials', async (req, res) => {
       material: item.material,
       costSqFt: item.costSqFt,
       availableSqFt: item.availableSqFt,
-      imageUrl: item.imageUrl
+      imageUrl: item.imageData ? `/api/materials/${item._id}/image` : item.imageUrl
     })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
 
     if (normalizedData.length === 0) {
@@ -112,6 +115,21 @@ app.get('/api/materials', async (req, res) => {
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch materials data', details: error.message });
+  }
+});
+
+// Serve Material Image
+app.get('/api/materials/:id/image', async (req, res) => {
+  try {
+    const material = await Material.findById(req.params.id).select('imageData metadata.mimeType');
+    if (!material || !material.imageData) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+    res.set('Content-Type', material.metadata.mimeType || 'image/jpeg');
+    res.send(material.imageData);
+  } catch (error) {
+    logger.error(`Image fetch error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch image', details: error.message });
   }
 });
 
