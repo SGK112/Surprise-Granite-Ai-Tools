@@ -66,6 +66,27 @@ let conversationHistory = [];
 // Cache for material context
 let cachedMaterialContext = null;
 
+// Calculate finished pricing
+const calculateFinishedPrice = (material, cost) => {
+  const materialType = material.toLowerCase();
+  let additionalCost = 0;
+  if (['granite', 'quartz'].includes(materialType)) {
+    additionalCost = 25;
+  } else if (['quartzite', 'marble'].includes(materialType)) {
+    additionalCost = 35;
+  } else if (['dekton', 'porcelain'].includes(materialType)) {
+    additionalCost = 45;
+  } else {
+    additionalCost = 25; // Default for unknown materials
+  }
+  // Apply markup: cost * 3.25 + additional cost
+  const basePrice = cost * 3.25 + additionalCost;
+  // Apply waste factor (default 10%, range 5%-15%)
+  const wasteFactor = 0.10; // Adjust dynamically if user specifies complexity
+  const finalPrice = basePrice * (1 + wasteFactor);
+  return finalPrice.toFixed(2); // Round to 2 decimal places
+};
+
 // Chatbot Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
@@ -87,16 +108,17 @@ app.post('/api/chat', async (req, res) => {
       const limitedMaterials = vendors.flatMap(vendor => 
         materials.filter(m => m.vendorName === vendor).slice(0, 3) // 3 materials per vendor
       ).slice(0, 30); // Max 30 materials total
-      cachedMaterialContext = limitedMaterials.map(m => 
-        `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Cost/SqFt: $${m.costSqFt}, Available: ${m.availableSqFt} SqFt`
-      ).join('\n');
+      cachedMaterialContext = limitedMaterials.map(m => {
+        const finalPrice = calculateFinishedPrice(m.material, m.costSqFt);
+        return `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Finished Price: $${finalPrice}/SqFt (includes 10% waste), Available: ${m.availableSqFt} SqFt`;
+      }).join('\n');
       logger.info(`Cached material context with ${limitedMaterials.length} materials`);
     }
 
     // Branded system message
     const systemMessage = {
       role: 'system',
-      content: `You are the Surprise Granite Assistant, an expert representative of Surprise Granite, a leading provider of premium granite, marble, and other materials for countertops and home projects. Your tone is professional, friendly, and enthusiastic about helping customers find the perfect material. Use the following material data to answer questions accurately:\n${cachedMaterialContext}\nAlways reference Surprise Granite, provide concise and relevant answers, and encourage users to contact us for a personalized quote or visit our showroom at Surprise Granite. Avoid generic AI responses and focus on our diverse range of materials from multiple vendors. If a specific vendor or material is mentioned, prioritize that in your response.`
+      content: `You are the Surprise Granite Assistant, an expert representative of Surprise Granite, a leading provider of premium granite, marble, quartz, quartzite, dekton, and porcelain for countertops and home projects. Your tone is professional, friendly, and enthusiastic. Use the following material data to answer questions accurately, including finished prices (markup: cost * 3.25 + $25 for granite/quartz, $35 for quartzite/marble, $45 for dekton/porcelain, plus 10% waste):\n${cachedMaterialContext}\nAlways reference Surprise Granite, provide concise answers with prices in $XX.XX/SqFt format, and encourage users to contact us for a personalized quote or visit our showroom. Avoid generic AI responses and focus on our materials from multiple vendors. If a specific vendor or material is mentioned, prioritize that.`
     };
 
     // Add user message to history
@@ -184,6 +206,7 @@ app.get('/api/materials', async (req, res) => {
       thickness: item.thickness,
       material: item.material,
       costSqFt: item.costSqFt,
+      finishedPrice: calculateFinishedPrice(item.material, item.costSqFt),
       availableSqFt: item.availableSqFt,
       imageUrl: item.imageData ? `/api/materials/${item._id}/image` : item.imageUrl
     })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
