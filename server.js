@@ -28,7 +28,7 @@ const port = process.env.PORT || 10000;
 
 // Validate required environment variables
 const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY'];
-requiredEnv.forEach((key) => {
+requiredEnv/forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
     process.exit(1);
@@ -67,16 +67,20 @@ let conversationHistory = [];
 app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
+    logger.info(`Chat request received: ${message}`);
     if (!message) {
       logger.warn('No message provided in chat request');
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    logger.info(`Received chat message: ${message}`);
-
     // Fetch materials for context
+    logger.info('Fetching materials for chat context');
     const materials = await Material.find({}).lean();
-    const materialContext = materials.map(m => 
+    logger.info(`Fetched ${materials.length} materials`);
+
+    // Limit material context to avoid token overflow (e.g., top 50 materials)
+    const limitedMaterials = materials.slice(0, 50);
+    const materialContext = limitedMaterials.map(m => 
       `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Cost/SqFt: $${m.costSqFt}, Available: ${m.availableSqFt} SqFt`
     ).join('\n');
 
@@ -95,6 +99,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     // Call OpenAI API
+    logger.info('Sending request to OpenAI API');
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -117,7 +122,12 @@ app.post('/api/chat', async (req, res) => {
     logger.info(`Chatbot response: ${botResponse}`);
     res.json({ message: botResponse });
   } catch (error) {
-    logger.error(`Chat error: ${error.response ? error.response.data : error.message}`);
+    logger.error('Chat endpoint error:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response ? error.response.data : null,
+      code: error.code
+    });
     res.status(500).json({ error: 'Failed to process chat request', details: error.message });
   }
 });
