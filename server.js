@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import axios from 'axios';
 import { parse } from 'csv-parse';
+import fs from 'fs/promises';
+import Shopify from 'shopify-api-node';
 
 // Load environment variables
 dotenv.config();
@@ -27,7 +29,7 @@ const app = express();
 const port = process.env.PORT || 10000;
 
 // Validate required environment variables
-const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY'];
+const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY', 'SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_STORE_DOMAIN'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
@@ -63,29 +65,70 @@ const Material = mongoose.model('Material', materialSchema);
 // Store conversation history for chatbot
 let conversationHistory = [];
 
-// Cache for material context
+// Cache for material and service context
 let cachedMaterialContext = null;
+let cachedServiceContext = null;
+
+// Shopify API setup
+const shopify = new Shopify({
+  shopName: process.env.SHOPIFY_STORE_DOMAIN,
+  apiKey: process.env.SHOPIFY_API_KEY,
+  password: process.env.SHOPIFY_API_SECRET
+});
+
+// Location and hours
+const locationHours = {
+  address: '11560 N Dysart Rd. Suite 112, Surprise, AZ 85379',
+  hours: {
+    Monday: '9:00 AM - 5:00 PM',
+    Tuesday: '9:00 AM - 5:00 PM',
+    Wednesday: '9:00 AM - 5:00 PM',
+    Thursday: '9:00 AM - 5:00 PM',
+    Friday: '9:00 AM - 5:00 PM',
+    Saturday: '10:00 AM - 2:00 PM',
+    Sunday: 'Closed'
+  }
+};
+
+// Guardrails: Content filtering
+const harmfulPatterns = [
+  /\b(hate|insult|offensive|profane|toxic)\b/i,
+  /\b(medical|legal|financial)\s+advice\b/i,
+  /prompt\s+injection|jailbreak/i,
+  /\b(pii|personal\s+information)\b/i
+];
+
+function validateInput(message) {
+  for (const pattern of harmfulPatterns) {
+    if (pattern.test(message)) {
+      return { valid: false, reason: 'Input contains restricted content' };
+    }
+  }
+  return { valid: true };
+}
 
 // Calculate finished pricing
-const calculateFinishedPrice = (material, cost) => {
-  const materialType = material.toLowerCase();
-  let additionalCost = 0;
-  if (['granite', 'quartz'].includes(materialType)) {
-    additionalCost = 25;
-  } else if (['quartzite', 'marble'].includes(materialType)) {
+function calculateFinishedPrice(material, costSqFt) {
+  let additionalCost = 25; // Default for granite/quartz
+  if (['quartzite', 'marble'].includes(material.toLowerCase())) {
     additionalCost = 35;
-  } else if (['dekton', 'porcelain'].includes(materialType)) {
+  } else if (['dekton', 'porcelain'].includes(material.toLowerCase())) {
     additionalCost = 45;
-  } else {
-    additionalCost = 25; // Default for unknown materials
   }
-  // Apply markup: cost * 3.25 + additional cost
-  const basePrice = cost * 3.25 + additionalCost;
-  // Apply waste factor (default 10%, range 5%-15%)
-  const wasteFactor = 0.10; // Adjust dynamically if user specifies complexity
-  const finalPrice = basePrice * (1 + wasteFactor);
-  return finalPrice.toFixed(2); // Round to 2 decimal places
-};
+  const basePrice = costSqFt * 3.25 + additionalCost;
+  return basePrice;
+}
+
+// Apply waste factor
+function applyWasteFactor(price, message) {
+  let wasteFactor = 0.10; // Default 10%
+  if (message.toLowerCase().includes('complex') || message.toLowerCase().includes('intricate')) {
+    wasteFactor = 0.15; // 15% for complex layouts
+  } else if (message.toLowerCase().includes('simple') || message.toLowerCase().includes('basic')) {
+    wasteFactor = 0.05; // 5% for simple layouts
+  }
+  return price * (1 + wasteFactor);
+}
 
 // Chatbot Endpoint
 app.post('/api/chat', async (req, res) => {
@@ -97,28 +140,85 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
+    // Apply guardrails
+    const validation = validateInput(message);
+    if (!validation.valid) {
+      logger.warn(`Invalid input: ${validation.reason}`);
+      return res.status(400).json({ error: 'Sorry, your message contains restricted content. Please rephrase.' });
+    }
+
     // Fetch or use cached material context
     logger.info('Preparing material context');
     if (!cachedMaterialContext) {
       const materials = await Material.find({}).lean();
       logger.info(`Fetched ${materials.length} materials`);
-      // Group by vendor to ensure all vendors are represented
       const vendors = [...new Set(materials.map(m => m.vendorName))];
       logger.info(`Found ${vendors.length} unique vendors: ${vendors.join(', ')}`);
       const limitedMaterials = vendors.flatMap(vendor => 
-        materials.filter(m => m.vendorName === vendor).slice(0, 3) // 3 materials per vendor
-      ).slice(0, 30); // Max 30 materials total
+        materials.filter(m => m.vendorName === vendor).slice(0, 3)
+      ).slice(0, 30);
       cachedMaterialContext = limitedMaterials.map(m => {
-        const finalPrice = calculateFinishedPrice(m.material, m.costSqFt);
-        return `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Finished Price: $${finalPrice}/SqFt (includes 10% waste), Available: ${m.availableSqFt} SqFt`;
+        const finishedPrice = calculateFinishedPrice(m.material, m.costSqFt);
+        const finalPrice = applyWasteFactor(finishedPrice, message).toFixed(2);
+        return `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Finished Price/SqFt: $${finalPrice}, Available: ${m.availableSqFt} SqFt`;
       }).join('\n');
       logger.info(`Cached material context with ${limitedMaterials.length} materials`);
+    }
+
+    // Fetch or use cached service context
+    if (!cachedServiceContext) {
+      try {
+        const laborData = await fs.readFile('data/labor.json', 'utf8');
+        const services = JSON.parse(laborData);
+        cachedServiceContext = services.map(s => 
+          `Service: ${s.service}, Description: ${s.description}, Price: $${s.price}`
+        ).join('\n');
+        logger.info('Cached service context from labor.json');
+      } catch (error) {
+        logger.error(`Failed to load labor.json: ${error.message}`);
+        cachedServiceContext = 'No service data available.';
+      }
+    }
+
+    // Fetch Shopify product data
+    let shopifyContext = '';
+    try {
+      const products = await shopify.product.list({ limit: 10 });
+      shopifyContext = products.map(p => 
+        `Product: ${p.title}, Price: $${p.variants[0].price}, Inventory: ${p.variants[0].inventory_quantity}`
+      ).join('\n');
+      logger.info('Fetched Shopify product data');
+    } catch (error) {
+      logger.error(`Shopify API error: ${error.message}`);
+      shopifyContext = 'No Shopify product data available.';
     }
 
     // Branded system message
     const systemMessage = {
       role: 'system',
-      content: `You are the Surprise Granite Assistant, an expert representative of Surprise Granite, a leading provider of premium granite, marble, quartz, quartzite, dekton, and porcelain for countertops and home projects. Your tone is professional, friendly, and enthusiastic. Use the following material data to answer questions accurately, including finished prices (markup: cost * 3.25 + $25 for granite/quartz, $35 for quartzite/marble, $45 for dekton/porcelain, plus 10% waste):\n${cachedMaterialContext}\nAlways reference Surprise Granite, provide concise answers with prices in $XX.XX/SqFt format, and encourage users to contact us (602) 833-3189 or info@surprisegranite.com for a personalized quote or visit our showroom located at 11560 n dysart rd. Surprise Az, 85379. Avoid generic AI responses and focus on our materials from multiple vendors. If a specific vendor or material is mentioned, prioritize that.`
+      content: `You are the Surprise Granite Assistant, an expert representative of Surprise Granite, a premier provider of high-quality granite, marble, and other materials for countertops and home projects. Your primary goals are lead generation and exceptional customer service. Use a professional, friendly, and enthusiastic tone to engage users, answer questions accurately, and drive interest in our products and services.
+
+Available Data:
+- Materials (finished prices include markup and 5-15% waste factor):\n${cachedMaterialContext}
+- Services:\n${cachedServiceContext}
+- Shopify Products:\n${shopifyContext}
+- Location: ${locationHours.address}
+- Hours: Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, Sun Closed
+
+Guidelines:
+- Always reference Surprise Granite and highlight our premium offerings.
+- For pricing questions, provide finished prices, note the waste factor (5-15% based on layout), and suggest contacting us for a precise quote.
+- Encourage users to visit our showroom at ${locationHours.address}, request a quote, or share contact info (e.g., email) for follow-up.
+- Handle customer service queries (e.g., hours, services, product availability) promptly and accurately.
+- Offer to connect users with our team for complex questions or to schedule a consultation.
+- Avoid medical, legal, or financial advice, and redirect off-topic questions to Surprise Granite’s services or products.
+- Keep responses concise (2-3 sentences) and actionable, ending with a call to action (e.g., “Visit our showroom!” or “Request a quote today!”).
+- If a user provides an email or expresses interest, acknowledge it and suggest a follow-up (e.g., “Thanks for sharing! We’ll contact you with a quote.”).
+
+Example Responses:
+- Pricing: “At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!”
+- Hours: “We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!”
+- Lead: “Interested in granite? Share your email, and we’ll send a personalized quote or schedule a showroom visit!”`
     };
 
     // Add user message to history
@@ -134,10 +234,10 @@ app.post('/api/chat', async (req, res) => {
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: 'gpt-3.5-turbo', // Fallback to gpt-3.5-turbo
+        model: 'gpt-3.5-turbo', // Switch to 'gpt-4' if accessible
         messages: [systemMessage, ...conversationHistory],
         max_tokens: 100,
-        temperature: 0.7,
+        temperature: 0.5, // Lower for consistency
       },
       {
         headers: {
@@ -148,6 +248,13 @@ app.post('/api/chat', async (req, res) => {
     );
 
     const botResponse = response.data.choices[0].message.content;
+    // Validate output
+    const outputValidation = validateInput(botResponse);
+    if (!outputValidation.valid) {
+      logger.warn(`Invalid output: ${outputValidation.reason}`);
+      return res.status(500).json({ error: 'Sorry, the response contains restricted content. Please try again.' });
+    }
+
     conversationHistory.push({ role: 'assistant', content: botResponse });
 
     logger.info(`Chatbot response: ${botResponse}`);
@@ -206,7 +313,7 @@ app.get('/api/materials', async (req, res) => {
       thickness: item.thickness,
       material: item.material,
       costSqFt: item.costSqFt,
-      finishedPrice: calculateFinishedPrice(item.material, item.costSqFt),
+      finishedPrice: applyWasteFactor(calculateFinishedPrice(item.material, item.costSqFt), '').toFixed(2),
       availableSqFt: item.availableSqFt,
       imageUrl: item.imageData ? `/api/materials/${item._id}/image` : item.imageUrl
     })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
