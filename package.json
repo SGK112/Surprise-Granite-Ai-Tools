@@ -13,6 +13,7 @@
     "dotenv": "^16.3.1",
     "winston": "^3.11.0",
     "axios": "^1.6.0",
-    "csv-parse": "^5.5.0"
+    "csv-parse": "^5.5.0",
+    "shopify-api-node": "^3.12.0"
   }
 }
