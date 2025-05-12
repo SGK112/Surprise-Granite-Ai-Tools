@@ -28,7 +28,7 @@ const port = process.env.PORT || 10000;
 
 // Validate required environment variables
 const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY'];
-requiredEnv/forEach((key) => {
+requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
     process.exit(1);
@@ -63,6 +63,9 @@ const Material = mongoose.model('Material', materialSchema);
 // Store conversation history for chatbot
 let conversationHistory = [];
 
+// Cache for material context
+let cachedMaterialContext = null;
+
 // Chatbot Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
@@ -73,21 +76,22 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Fetch materials for context
-    logger.info('Fetching materials for chat context');
-    const materials = await Material.find({}).lean();
-    logger.info(`Fetched ${materials.length} materials`);
-
-    // Limit material context to avoid token overflow (e.g., top 50 materials)
-    const limitedMaterials = materials.slice(0, 50);
-    const materialContext = limitedMaterials.map(m => 
-      `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Cost/SqFt: $${m.costSqFt}, Available: ${m.availableSqFt} SqFt`
-    ).join('\n');
+    // Fetch or use cached material context
+    logger.info('Preparing material context');
+    if (!cachedMaterialContext) {
+      const materials = await Material.find({}).lean();
+      logger.info(`Fetched ${materials.length} materials`);
+      const limitedMaterials = materials.slice(0, 50); // Limit to 50 to avoid token issues
+      cachedMaterialContext = limitedMaterials.map(m => 
+        `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Cost/SqFt: $${m.costSqFt}, Available: ${m.availableSqFt} SqFt`
+      ).join('\n');
+      logger.info('Material context cached');
+    }
 
     // Add system message for context
     const systemMessage = {
       role: 'system',
-      content: `You are a helpful assistant for Surprise Granite, a company that provides granite and other materials. Use the following material data to answer questions:\n${materialContext}\nProvide concise and accurate answers about materials, costs, or availability.`
+      content: `You are a helpful assistant for Surprise Granite, a company that provides granite and other materials. Use the following material data to answer questions:\n${cachedMaterialContext}\nProvide concise and accurate answers about materials, costs, or availability.`
     };
 
     // Add user message to history
