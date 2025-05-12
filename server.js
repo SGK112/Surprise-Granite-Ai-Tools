@@ -27,7 +27,7 @@ const app = express();
 const port = process.env.PORT || 10000;
 
 // Validate required environment variables
-const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS'];
+const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
@@ -59,6 +59,68 @@ const materialSchema = new mongoose.Schema({
 });
 
 const Material = mongoose.model('Material', materialSchema);
+
+// Store conversation history for chatbot
+let conversationHistory = [];
+
+// Chatbot Endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      logger.warn('No message provided in chat request');
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    logger.info(`Received chat message: ${message}`);
+
+    // Fetch materials for context
+    const materials = await Material.find({}).lean();
+    const materialContext = materials.map(m => 
+      `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Cost/SqFt: $${m.costSqFt}, Available: ${m.availableSqFt} SqFt`
+    ).join('\n');
+
+    // Add system message for context
+    const systemMessage = {
+      role: 'system',
+      content: `You are a helpful assistant for Surprise Granite, a company that provides granite and other materials. Use the following material data to answer questions:\n${materialContext}\nProvide concise and accurate answers about materials, costs, or availability.`
+    };
+
+    // Add user message to history
+    conversationHistory.push({ role: 'user', content: message });
+
+    // Limit history to avoid excessive token usage
+    if (conversationHistory.length > 10) {
+      conversationHistory = conversationHistory.slice(-10);
+    }
+
+    // Call OpenAI API
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4',
+        messages: [systemMessage, ...conversationHistory],
+        max_tokens: 150,
+        temperature: 0.7,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const botResponse = response.data.choices[0].message.content;
+    conversationHistory.push({ role: 'assistant', content: botResponse });
+
+    logger.info(`Chatbot response: ${botResponse}`);
+    res.json({ message: botResponse });
+  } catch (error) {
+    logger.error(`Chat error: ${error.response ? error.response.data : error.message}`);
+    res.status(500).json({ error: 'Failed to process chat request', details: error.message });
+  }
+});
 
 // Fetch Materials from MongoDB with CSV fallback
 app.get('/api/materials', async (req, res) => {
