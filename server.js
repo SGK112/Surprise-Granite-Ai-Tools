@@ -218,13 +218,17 @@ app.post('/api/chat', async (req, res) => {
       try {
         const laborData = await fs.readFile('data/labor.json', 'utf8');
         const services = JSON.parse(laborData);
+        if (!Array.isArray(services) || services.length === 0) {
+          throw new Error('labor.json is empty or invalid');
+        }
         cachedServiceContext = services.map(s => 
           `Service: ${s.service}, Description: ${s.description}, Price: $${s.price}`
         ).join('\n');
         logger.info('Cached service context from labor.json');
       } catch (error) {
         logger.error(`Failed to load labor.json: ${error.message}`);
-        cachedServiceContext = 'No service data available.';
+        cachedServiceContext = 'No service data available. Please contact Surprise Granite for service inquiries.';
+        return res.status(500).json({ error: 'Service data unavailable. Please try again later.' });
       }
     }
 
@@ -248,13 +252,14 @@ app.post('/api/chat', async (req, res) => {
 
 Available Data:
 - Materials (finished prices include markup and 5-15% waste factor):\n${cachedMaterialContext}
-- Services:\n${cachedServiceContext}
+- Services (use this data for all service-related queries):\n${cachedServiceContext}
 - Shopify Products:\n${shopifyContext}
 - Location: ${locationHours.address}
 - Hours: Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, Sun Closed
 
 Guidelines:
-- Always reference Surprise Granite and highlight our premium offerings.
+- Always reference Surprise Granite and highlight our premium offerings, including our full range of services.
+- For service-related queries, list all services from the provided data with their descriptions and prices, and avoid stating that we only offer material supply.
 - For pricing questions, provide finished prices, note the waste factor (5-15% based on layout), and suggest contacting us for a precise quote.
 - Encourage users to visit our showroom at ${locationHours.address}, request a quote, or share contact info (e.g., email) for follow-up.
 - Handle customer service queries (e.g., hours, services, product availability) promptly and accurately.
@@ -267,6 +272,7 @@ Guidelines:
 - If a user provides an email or expresses interest, acknowledge it and suggest a follow-up (e.g., "Thanks for sharing! We’ll contact you with a quote.").
 
 Example Responses:
+- Services: "Surprise Granite offers services like Countertop Installation ($100) and Custom Fabrication ($150). Contact us to discuss your project!"
 - Pricing: "At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!"
 - Hours: "We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!"
 - Lead: "Planning a kitchen remodel? Our granite options are perfect! Share your email for a personalized quote or visit our showroom."
@@ -288,7 +294,7 @@ Example Responses:
       {
         model: 'gpt-3.5-turbo',
         messages: [systemMessage, ...conversationHistory],
-        max_tokens: 100,
+        max_tokens: 150, // Increased for detailed service responses
         temperature: 0.5,
       },
       {
