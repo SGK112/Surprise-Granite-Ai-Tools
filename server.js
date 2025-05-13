@@ -9,6 +9,8 @@ import fs from 'fs/promises';
 import Shopify from 'shopify-api-node';
 import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import Jimp from 'jimp';
 
 // Load environment variables
 dotenv.config();
@@ -57,6 +59,19 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 
+// Multer setup for image uploads
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images are allowed'), false);
+    }
+  }
+});
+
 // MongoDB Schema for Materials
 const materialSchema = new mongoose.Schema({
   colorName: { type: String, required: true },
@@ -73,6 +88,16 @@ const materialSchema = new mongoose.Schema({
 });
 
 const Material = mongoose.model('Material', materialSchema);
+
+// MongoDB Schema for Countertop Images
+const countertopImageSchema = new mongoose.Schema({
+  filename: String,
+  imageBase64: String,
+  imageHash: String,
+  analysis: Object,
+  createdAt: { type: Date, default: Date.now }
+});
+const CountertopImage = mongoose.model('CountertopImage', countertopImageSchema);
 
 // MongoDB Schema for Chat Analytics
 const chatLogSchema = new mongoose.Schema({
@@ -163,6 +188,106 @@ function detectIntent(message) {
   if (lowerMessage.includes('image') || lowerMessage.includes('show')) return 'image';
   return 'general';
 }
+
+// Image Analysis Endpoint
+app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
+  try {
+    logger.info('Received image upload for analysis');
+    if (!req.file) {
+      logger.warn('No image file provided');
+      return res.status(400).json({ error: 'Image file is required' });
+    }
+
+    // Read and process image with Jimp
+    const image = await Jimp.read(req.file.path);
+    const imageHash = image.hash(); // Generate perceptual hash
+
+    // Compare with stored images in countertop_images
+    const storedImages = await CountertopImage.find({}).lean();
+    let bestMatch = null;
+    let minDistance = Infinity;
+
+    for (const storedImage of storedImages) {
+      if (storedImage.imageHash) {
+        const distance = Jimp.distance(image, await Jimp.read(Buffer.from(storedImage.imageBase64, 'base64')));
+        if (distance < minDistance && distance < 0.2) { // Threshold for similarity
+          minDistance = distance;
+          bestMatch = storedImage;
+        }
+      }
+    }
+
+    let responseMessage = '';
+    if (bestMatch) {
+      // Find matching material in materials collection
+      const material = await Material.findOne({ colorName: bestMatch.analysis?.colorName }).lean();
+      if (material) {
+        const finishedPrice = applyWasteFactor(calculateFinishedPrice(material.material, material.costSqFt), '').toFixed(2);
+        responseMessage = `The uploaded image closely matches ${material.colorName} (${material.material}) from ${material.vendorName}. Finished price: $${finishedPrice}/SqFt. Visit our showroom at ${locationHours.address} to see it in person!`;
+      } else {
+        responseMessage = `The uploaded image resembles a material similar to ${bestMatch.analysis?.colorName}. Contact us for a detailed quote or visit our showroom at ${locationHours.address}!`;
+      }
+    } else {
+      // Use OpenAI vision for fallback analysis
+      const base64Image = (await fs.readFile(req.file.path)).toString('base64');
+      const visionResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4-vision-preview',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Analyze this countertop image and suggest a material type (e.g., granite, quartz) and possible color.' },
+                { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+              ]
+            }
+          ],
+          max_tokens: 100
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const analysis = visionResponse.data.choices[0].message.content;
+      responseMessage = `Based on the image, it appears to be a ${analysis}. Please visit our showroom at ${locationHours.address} to explore similar materials or contact us for a custom quote!`;
+
+      // Save to countertop_images
+      await CountertopImage.create({
+        filename: req.file.originalname,
+        imageBase64: base64Image,
+        imageHash: imageHash,
+        analysis: { description: analysis }
+      });
+    }
+
+    // Clean up uploaded file
+    await fs.unlink(req.file.path);
+
+    // Cache and log response
+    const cacheKey = `image-analysis:${imageHash}`;
+    await redis.set(cacheKey, responseMessage, 'EX', 3600);
+    await ChatLog.create({
+      message: 'Image upload',
+      response: responseMessage,
+      userIp: req.ip,
+      intent: 'image'
+    });
+
+    logger.info(`Image analysis response: ${responseMessage}`);
+    res.json({ message: responseMessage });
+  } catch (error) {
+    logger.error(`Image analysis error: ${error.message}`);
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+    res.status(500).json({ error: 'Failed to analyze image', details: error.message });
+  }
+});
 
 // Chatbot Endpoint
 app.post('/api/chat', async (req, res) => {
@@ -261,6 +386,7 @@ Guidelines:
 - Always reference Surprise Granite and highlight our premium offerings, including our full range of services.
 - For service-related queries, list all services from the provided data with their descriptions and prices, and avoid stating that we only offer material supply.
 - For pricing questions, provide finished prices, note the waste factor (5-15% based on layout), and suggest contacting us for a precise quote.
+- Encourage users to upload images for material matching or project analysis by mentioning the image upload feature.
 - Encourage users to visit our showroom at ${locationHours.address}, request a quote, or share contact info (e.g., email) for follow-up.
 - Handle customer service queries (e.g., hours, services, product availability) promptly and accurately.
 - Offer personalized recommendations based on user input (e.g., suggest granite for kitchens, marble for bathrooms, or budget-friendly options).
@@ -276,7 +402,7 @@ Example Responses:
 - Pricing: "At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!"
 - Hours: "We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!"
 - Lead: "Planning a kitchen remodel? Our granite options are perfect! Share your email for a personalized quote or visit our showroom."
-- Image: "Calacatta Laza Gold is a stunning quartzite with gold veining. Visit our showroom at ${locationHours.address} to see a sample!"`
+- Image: "Upload a photo of your countertop using the attachment button, and we’ll match it to our materials!"`
     };
 
     // Add user message to history
@@ -294,7 +420,7 @@ Example Responses:
       {
         model: 'gpt-3.5-turbo',
         messages: [systemMessage, ...conversationHistory],
-        max_tokens: 150, // Increased for detailed service responses
+        max_tokens: 150,
         temperature: 0.5,
       },
       {
