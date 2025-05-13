@@ -80,7 +80,7 @@ const chatLogSchema = new mongoose.Schema({
   response: String,
   timestamp: { type: Date, default: Date.now },
   userIp: String,
-  intent: String // e.g., 'pricing', 'quote', 'hours'
+  intent: String
 });
 const ChatLog = mongoose.model('ChatLog', chatLogSchema);
 
@@ -160,6 +160,7 @@ function detectIntent(message) {
   if (lowerMessage.includes('hour') || lowerMessage.includes('open')) return 'hours';
   if (lowerMessage.includes('service')) return 'services';
   if (lowerMessage.includes('product') || lowerMessage.includes('store')) return 'products';
+  if (lowerMessage.includes('image') || lowerMessage.includes('show')) return 'image';
   return 'general';
 }
 
@@ -243,7 +244,7 @@ app.post('/api/chat', async (req, res) => {
     // Branded system message
     const systemMessage = {
       role: 'system',
-      content: `You are the Surprise Granite Assistant, a highly knowledgeable and engaging representative of Surprise Granite, a premier provider of high-quality granite, marble, and other materials for countertops and home projects. Your primary goals are to generate leads and provide exceptional customer service. Use a professional, friendly, and enthusiastic tone to engage users, answer questions accurately, and drive interest in our products and services.
+      content: `You are the Surprise Granite Assistant, a highly knowledgeable and engaging representative of Surprise Granite, a premier provider of high-quality granite, marble, and other materials for countertops and home projects. Your primary goals are lead generation and exceptional customer service. Use a professional, friendly, and enthusiastic tone to engage users, answer questions accurately, and drive interest in our products and services.
 
 Available Data:
 - Materials (finished prices include markup and 5-15% waste factor):\n${cachedMaterialContext}
@@ -259,6 +260,7 @@ Guidelines:
 - Handle customer service queries (e.g., hours, services, product availability) promptly and accurately.
 - Offer personalized recommendations based on user input (e.g., suggest granite for kitchens, marble for bathrooms, or budget-friendly options).
 - If users mention a project (e.g., kitchen, bathroom), recommend relevant materials/services and invite them for a consultation.
+- For image requests, describe the material and suggest visiting the showroom to view samples, as images are not directly displayable.
 - Allow users to add Shopify products to their cart by providing a product ID (e.g., "Add Product ID: X to your cart at our Shopify store!").
 - Avoid medical, legal, or financial advice, and redirect off-topic questions to Surprise Granite’s services or products.
 - Keep responses concise (2-3 sentences) and actionable, ending with a call to action (e.g., "Visit our showroom!" or "Request a quote today!").
@@ -268,7 +270,7 @@ Example Responses:
 - Pricing: "At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!"
 - Hours: "We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!"
 - Lead: "Planning a kitchen remodel? Our granite options are perfect! Share your email for a personalized quote or visit our showroom."
-- Product: "Our Shopify store offers [Product] for $X.XX (ID: Y). Add it to your cart or visit us to see it in person!"`
+- Image: "Calacatta Laza Gold is a stunning quartzite with gold veining. Visit our showroom at ${locationHours.address} to see a sample!"`
     };
 
     // Add user message to history
@@ -284,7 +286,7 @@ Example Responses:
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: 'gpt-3.5-turbo', // Switch to 'gpt-4' if accessible
+        model: 'gpt-3.5-turbo',
         messages: [systemMessage, ...conversationHistory],
         max_tokens: 100,
         temperature: 0.5,
@@ -306,7 +308,7 @@ Example Responses:
     }
 
     // Cache response
-    await redis.set(cacheKey, botResponse, 'EX', 3600); // Cache for 1 hour
+    await redis.set(cacheKey, botResponse, 'EX', 3600);
     // Log interaction
     await ChatLog.create({
       message,
@@ -330,12 +332,11 @@ Example Responses:
   }
 });
 
-// Add to Shopify cart (example endpoint)
+// Add to Shopify cart (placeholder)
 app.post('/api/cart/add', async (req, res) => {
   try {
     const { variantId, quantity } = req.body;
     logger.info(`Adding to cart: variantId=${variantId}, quantity=${quantity}`);
-    // Note: Shopify Admin API doesn't directly support cart actions; use Storefront API or redirect to store
     res.json({ message: `Add Product ID: ${variantId} to your cart at our Shopify store!` });
   } catch (error) {
     logger.error(`Cart add error: ${error.message}`);
@@ -343,11 +344,16 @@ app.post('/api/cart/add', async (req, res) => {
   }
 });
 
-// Fetch Materials from MongoDB with CSV fallback
+// Fetch Materials from MongoDB with name query support
 app.get('/api/materials', async (req, res) => {
   try {
     logger.info('Fetching materials from MongoDB');
-    let materials = await Material.find({}).lean();
+    const { name } = req.query;
+    let query = {};
+    if (name) {
+      query.colorName = { $regex: name, $options: 'i' };
+    }
+    let materials = await Material.find(query).lean();
     
     if (!materials || materials.length === 0) {
       logger.warn('No materials found in MongoDB, attempting CSV fallback');
@@ -377,7 +383,7 @@ app.get('/api/materials', async (req, res) => {
 
       await Material.deleteMany({});
       await Material.insertMany(materials);
-      logger.info(`Saved ${materials.length} materials from CSV to MongoDB`);
+      materials = await Material.find(query).lean();
     }
 
     const normalizedData = materials.map((item) => ({
