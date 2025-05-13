@@ -14,6 +14,8 @@
     "winston": "^3.11.0",
     "axios": "^1.6.0",
     "csv-parse": "^5.5.0",
-    "shopify-api-node": "^3.12.0"
+    "shopify-api-node": "^3.12.0",
+    "ioredis": "^5.3.2",
+    "express-rate-limit": "^7.1.0"
   }
 }
