@@ -7,6 +7,8 @@ import axios from 'axios';
 import { parse } from 'csv-parse';
 import fs from 'fs/promises';
 import Shopify from 'shopify-api-node';
+import Redis from 'ioredis';
+import rateLimit from 'express-rate-limit';
 
 // Load environment variables
 dotenv.config();
@@ -29,13 +31,23 @@ const app = express();
 const port = process.env.PORT || 10000;
 
 // Validate required environment variables
-const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY', 'SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_STORE_DOMAIN'];
+const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'OPENAI_API_KEY', 'SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_STORE_DOMAIN', 'REDIS_URL'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
     process.exit(1);
   }
 });
+
+// Redis setup for caching
+const redis = new Redis(process.env.REDIS_URL);
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests
+});
+app.use(limiter);
 
 // Middleware
 app.use(express.json());
@@ -61,6 +73,16 @@ const materialSchema = new mongoose.Schema({
 });
 
 const Material = mongoose.model('Material', materialSchema);
+
+// MongoDB Schema for Chat Analytics
+const chatLogSchema = new mongoose.Schema({
+  message: String,
+  response: String,
+  timestamp: { type: Date, default: Date.now },
+  userIp: String,
+  intent: String // e.g., 'pricing', 'quote', 'hours'
+});
+const ChatLog = mongoose.model('ChatLog', chatLogSchema);
 
 // Store conversation history for chatbot
 let conversationHistory = [];
@@ -130,6 +152,17 @@ function applyWasteFactor(price, message) {
   return price * (1 + wasteFactor);
 }
 
+// Detect user intent for analytics
+function detectIntent(message) {
+  const lowerMessage = message.toLowerCase();
+  if (lowerMessage.includes('price') || lowerMessage.includes('cost')) return 'pricing';
+  if (lowerMessage.includes('quote') || lowerMessage.includes('interested')) return 'quote';
+  if (lowerMessage.includes('hour') || lowerMessage.includes('open')) return 'hours';
+  if (lowerMessage.includes('service')) return 'services';
+  if (lowerMessage.includes('product') || lowerMessage.includes('store')) return 'products';
+  return 'general';
+}
+
 // Chatbot Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
@@ -147,6 +180,20 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Sorry, your message contains restricted content. Please rephrase.' });
     }
 
+    // Check Redis cache
+    const cacheKey = `chat:${message.toLowerCase().trim()}`;
+    const cachedResponse = await redis.get(cacheKey);
+    if (cachedResponse) {
+      logger.info('Serving response from cache');
+      await ChatLog.create({
+        message,
+        response: cachedResponse,
+        userIp: req.ip,
+        intent: detectIntent(message)
+      });
+      return res.json({ message: cachedResponse });
+    }
+
     // Fetch or use cached material context
     logger.info('Preparing material context');
     if (!cachedMaterialContext) {
@@ -160,7 +207,7 @@ app.post('/api/chat', async (req, res) => {
       cachedMaterialContext = limitedMaterials.map(m => {
         const finishedPrice = calculateFinishedPrice(m.material, m.costSqFt);
         const finalPrice = applyWasteFactor(finishedPrice, message).toFixed(2);
-        return `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Finished Price/SqFt: $${finalPrice}, Available: ${m.availableSqFt} SqFt`;
+        return `Color: ${m.colorName}, Vendor: ${m.vendorName}, Material: ${m.material}, Thickness: ${m.thickness}, Finished Price/SqFt: $${finalPrice}, Available: ${m.availableSqFt} SqFt, Image: ${m.imageUrl}`;
       }).join('\n');
       logger.info(`Cached material context with ${limitedMaterials.length} materials`);
     }
@@ -185,7 +232,7 @@ app.post('/api/chat', async (req, res) => {
     try {
       const products = await shopify.product.list({ limit: 10 });
       shopifyContext = products.map(p => 
-        `Product: ${p.title}, Price: $${p.variants[0].price}, Inventory: ${p.variants[0].inventory_quantity}`
+        `Product: ${p.title}, Price: $${p.variants[0].price}, Inventory: ${p.variants[0].inventory_quantity}, ID: ${p.variants[0].id}`
       ).join('\n');
       logger.info('Fetched Shopify product data');
     } catch (error) {
@@ -196,7 +243,7 @@ app.post('/api/chat', async (req, res) => {
     // Branded system message
     const systemMessage = {
       role: 'system',
-      content: `You are the Surprise Granite Assistant, an expert representative of Surprise Granite, a premier provider of high-quality granite, marble, and other materials for countertops and home projects. Your primary goals are lead generation and exceptional customer service. Use a professional, friendly, and enthusiastic tone to engage users, answer questions accurately, and drive interest in our products and services.
+      content: `You are the Surprise Granite Assistant, a highly knowledgeable and engaging representative of Surprise Granite, a premier provider of high-quality granite, marble, and other materials for countertops and home projects. Your primary goals are to generate leads and provide exceptional customer service. Use a professional, friendly, and enthusiastic tone to engage users, answer questions accurately, and drive interest in our products and services.
 
 Available Data:
 - Materials (finished prices include markup and 5-15% waste factor):\n${cachedMaterialContext}
@@ -210,15 +257,18 @@ Guidelines:
 - For pricing questions, provide finished prices, note the waste factor (5-15% based on layout), and suggest contacting us for a precise quote.
 - Encourage users to visit our showroom at ${locationHours.address}, request a quote, or share contact info (e.g., email) for follow-up.
 - Handle customer service queries (e.g., hours, services, product availability) promptly and accurately.
-- Offer to connect users with our team for complex questions or to schedule a consultation.
+- Offer personalized recommendations based on user input (e.g., suggest granite for kitchens, marble for bathrooms, or budget-friendly options).
+- If users mention a project (e.g., kitchen, bathroom), recommend relevant materials/services and invite them for a consultation.
+- Allow users to add Shopify products to their cart by providing a product ID (e.g., "Add Product ID: X to your cart at our Shopify store!").
 - Avoid medical, legal, or financial advice, and redirect off-topic questions to Surprise Granite’s services or products.
-- Keep responses concise (2-3 sentences) and actionable, ending with a call to action (e.g., “Visit our showroom!” or “Request a quote today!”).
-- If a user provides an email or expresses interest, acknowledge it and suggest a follow-up (e.g., “Thanks for sharing! We’ll contact you with a quote.”).
+- Keep responses concise (2-3 sentences) and actionable, ending with a call to action (e.g., "Visit our showroom!" or "Request a quote today!").
+- If a user provides an email or expresses interest, acknowledge it and suggest a follow-up (e.g., "Thanks for sharing! We’ll contact you with a quote.").
 
 Example Responses:
-- Pricing: “At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!”
-- Hours: “We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!”
-- Lead: “Interested in granite? Share your email, and we’ll send a personalized quote or schedule a showroom visit!”`
+- Pricing: "At Surprise Granite, our Black Granite from [Vendor] has a finished price of $X.XX/SqFt (includes 10% waste factor). Contact us for a custom quote!"
+- Hours: "We’re open Mon-Fri 9:00 AM-5:00 PM, Sat 10:00 AM-2:00 PM, closed Sun. Visit us at ${locationHours.address}!"
+- Lead: "Planning a kitchen remodel? Our granite options are perfect! Share your email for a personalized quote or visit our showroom."
+- Product: "Our Shopify store offers [Product] for $X.XX (ID: Y). Add it to your cart or visit us to see it in person!"`
     };
 
     // Add user message to history
@@ -237,7 +287,7 @@ Example Responses:
         model: 'gpt-3.5-turbo', // Switch to 'gpt-4' if accessible
         messages: [systemMessage, ...conversationHistory],
         max_tokens: 100,
-        temperature: 0.5, // Lower for consistency
+        temperature: 0.5,
       },
       {
         headers: {
@@ -255,6 +305,16 @@ Example Responses:
       return res.status(500).json({ error: 'Sorry, the response contains restricted content. Please try again.' });
     }
 
+    // Cache response
+    await redis.set(cacheKey, botResponse, 'EX', 3600); // Cache for 1 hour
+    // Log interaction
+    await ChatLog.create({
+      message,
+      response: botResponse,
+      userIp: req.ip,
+      intent: detectIntent(message)
+    });
+
     conversationHistory.push({ role: 'assistant', content: botResponse });
 
     logger.info(`Chatbot response: ${botResponse}`);
@@ -267,6 +327,19 @@ Example Responses:
       code: error.code
     });
     res.status(500).json({ error: 'Failed to process chat request', details: error.message });
+  }
+});
+
+// Add to Shopify cart (example endpoint)
+app.post('/api/cart/add', async (req, res) => {
+  try {
+    const { variantId, quantity } = req.body;
+    logger.info(`Adding to cart: variantId=${variantId}, quantity=${quantity}`);
+    // Note: Shopify Admin API doesn't directly support cart actions; use Storefront API or redirect to store
+    res.json({ message: `Add Product ID: ${variantId} to your cart at our Shopify store!` });
+  } catch (error) {
+    logger.error(`Cart add error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to add to cart', details: error.message });
   }
 });
 
