@@ -66,10 +66,21 @@ const upload = multer({
 // Middleware
 app.use(express.json());
 app.use(cors({ 
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['https://surprisegranite.webflow.io', 'http://localhost:3000'],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
+  origin: process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',') 
+    : [
+        'https://surprisegranite.webflow.io',
+        'http://localhost:3000',
+        'https://artifacts.grokusercontent.com'
+      ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Content-Length'],
+  credentials: false
 }));
+app.use((req, res, next) => {
+  logger.info(`Request origin: ${req.headers.origin}`);
+  next();
+});
 
 // MongoDB Schemas
 const materialSchema = new mongoose.Schema({
@@ -113,17 +124,16 @@ const businessInfo = {
 
 // Calculate finished pricing
 function calculateFinishedPrice(material, costSqFt) {
-  let additionalCost = 25; // Default for granite/quartz
+  let additionalCost = 25;
   if (['quartzite', 'marble'].includes(material.toLowerCase())) {
     additionalCost = 35;
   } else if (['dekton', 'porcelain'].includes(material.toLowerCase())) {
     additionalCost = 45;
   }
-  const basePrice = costSqFt * 3.25 + additionalCost;
-  return basePrice;
+  return (costSqFt * 3.25 + additionalCost).toFixed(2);
 }
 
-// Fetch Materials from MongoDB
+// Fetch Materials
 app.get('/api/materials', async (req, res) => {
   try {
     const cacheKey = 'materials:data';
@@ -164,26 +174,28 @@ app.get('/api/materials', async (req, res) => {
       materials = await Material.find(query).lean();
     }
 
-    const normalizedData = materials.map((item) => ({
-      colorName: item.colorName,
-      vendorName: item.vendorName,
-      thickness: item.thickness,
-      material: item.material,
-      costSqFt: item.costSqFt,
-      finishedPrice: calculateFinishedPrice(item.material, item.costSqFt).toFixed(2),
-      availableSqFt: item.availableSqFt,
-      imageUrl: item.imageUrl
-    })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
+    const normalizedData = materials
+      .map((item) => ({
+        colorName: item.colorName,
+        vendorName: item.vendorName,
+        thickness: item.thickness,
+        material: item.material,
+        costSqFt: item.costSqFt,
+        finishedPrice: calculateFinishedPrice(item.material, item.costSqFt),
+        availableSqFt: item.availableSqFt,
+        imageUrl: item.imageUrl
+      }))
+      .filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
 
     await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch materials data' });
+    res.status(500).json({ error: 'Failed to fetch materials' });
   }
 });
 
-// Fetch Labor Costs from MongoDB
+// Fetch Labor Costs
 app.get('/api/labor', async (req, res) => {
   try {
     const cacheKey = 'labor:data';
@@ -216,13 +228,15 @@ app.get('/api/labor', async (req, res) => {
       laborCosts = await Labor.find({}).lean();
     }
 
-    const normalizedData = laborCosts.map((item) => ({
-      code: item.code,
-      service: item.service,
-      unit: item.unit,
-      price: item.price,
-      description: item.description
-    })).filter((item) => item.code && item.service && item.unit && item.price >= 0);
+    const normalizedData = laborCosts
+      .map((item) => ({
+        code: item.code,
+        service: item.service,
+        unit: item.unit,
+        price: item.price,
+        description: item.description
+      }))
+      .filter((item) => item.code && item.service && item.unit && item.price >= 0);
 
     await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
     res.json(normalizedData);
@@ -232,64 +246,58 @@ app.get('/api/labor', async (req, res) => {
   }
 });
 
-// Chat Endpoint with Image Analysis
+// Chat Endpoint
 app.post('/api/chat', upload.single('image'), async (req, res) => {
   try {
     const { message } = req.body;
     const image = req.file;
     let responseMessage = '';
 
-    // Handle image upload
     if (image) {
       const jimpImage = await Jimp.read(image.buffer);
       const { width, height } = jimpImage.bitmap;
-      const dominantColor = jimpImage.getPixelColor(0, 0); // Simplified; use histogram for real apps
+      const dominantColor = jimpImage.getPixelColor(0, 0);
       const rgba = Jimp.intToRGBA(dominantColor);
 
-      // Basic interior design suggestion
       const materials = await Material.find({ material: 'Granite' }).lean();
       const suggestedMaterial = materials[Math.floor(Math.random() * materials.length)] || { colorName: 'Classic Granite' };
-      const analysis = `Uploaded image (${width}x${height}px, dominant color RGB(${rgba.r}, ${rgba.g}, ${rgba.b})). For this space, consider ${suggestedMaterial.colorName} granite for a modern, durable look. Want a quote? Share your email!`;
+      const analysis = `Image (${width}x${height}px, dominant color RGB(${rgba.r}, ${rgba.g}, ${rgba.b})). Try ${suggestedMaterial.colorName} granite for a modern look. Share your email for a quote!`;
 
-      // Save lead with image analysis
       if (message && message.includes('@')) {
         await Lead.create({ email: message, message, imageAnalysis: analysis });
       }
-
       responseMessage = analysis;
     } else if (!message) {
       return res.status(400).json({ error: 'Message or image required' });
     } else {
       const lowerMessage = message.toLowerCase();
-
-      // Intent matching
       if (lowerMessage.includes('granite options')) {
         const materials = await Material.find({ material: 'Granite' }).lean();
         responseMessage = materials.length > 0
-          ? `We offer granites like ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a room photo for design tips!`
-          : 'No granite options available. Contact us at ${businessInfo.contact}.';
+          ? `Granites: ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a photo for design tips!`
+          : 'No granite options. Email ${businessInfo.contact}.';
       } else if (lowerMessage.includes('pricing') || lowerMessage.includes('how much')) {
         const materials = await Material.find({ material: 'Granite' }).lean();
         const avgPrice = materials.length > 0
-          ? materials.reduce((sum, m) => sum + calculateFinishedPrice(m.material, m.costSqFt), 0) / materials.length
+          ? materials.reduce((sum, m) => sum + parseFloat(calculateFinishedPrice(m.material, m.costSqFt)), 0) / materials.length
           : 0;
         responseMessage = avgPrice
-          ? `Granite averages $${avgPrice.toFixed(2)}/sq.ft. (finished). Share project details for a quote!`
-          : 'Pricing unavailable. Email us at ${businessInfo.contact}.';
+          ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote!`
+          : 'Pricing unavailable. Email ${businessInfo.contact}.';
       } else if (lowerMessage.includes('services')) {
         const labor = await Labor.find({}).lean();
         responseMessage = labor.length > 0
-          ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo to discuss your project!`
-          : 'Service details unavailable. Contact ${businessInfo.contact}.';
+          ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo for project ideas!`
+          : 'Services unavailable. Email ${businessInfo.contact}.';
       } else if (lowerMessage.includes('quote') || lowerMessage.includes('interested')) {
-        responseMessage = 'Share your email and project details for a personalized quote!';
+        responseMessage = 'Share your email and project details for a quote!';
       } else if (lowerMessage.includes('location') || lowerMessage.includes('hours')) {
-        responseMessage = `We’re located at ${businessInfo.location}. Hours: ${businessInfo.hours}. Visit us or ask for a quote!`;
+        responseMessage = `Location: ${businessInfo.location}. Hours: ${businessInfo.hours}. Visit or request a quote!`;
       } else if (lowerMessage.includes('@')) {
         await Lead.create({ email: message, message });
-        responseMessage = `Thanks for sharing your email! We’ll send a quote soon. Upload a project photo to discuss further.`;
+        responseMessage = `Email saved! We’ll send a quote. Upload a photo for more ideas.`;
       } else {
-        responseMessage = 'Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo for design ideas!';
+        responseMessage = 'Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo!';
       }
     }
 
@@ -310,14 +318,14 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'Surprise Granite API' });
 });
 
-// Error Handling Middleware
+// Error Handling
 app.use((req, res) => {
-  logger.warn(`404: Route not found - ${req.method} ${req.url}`);
+  logger.warn(`404: ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Route not found' });
 });
 
 app.use((err, req, res, next) => {
-  logger.error(`Server error on ${req.method} ${req.url}: ${err.stack}`);
+  logger.error(`Server error: ${err.stack}`);
   res.status(500).json({ error: 'Internal server error' });
 });
 
