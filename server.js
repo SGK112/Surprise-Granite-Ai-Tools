@@ -95,7 +95,7 @@ app.use((req, res, next) => {
 
 // Favicon redirect
 app.get('/favicon.ico', (req, res) => {
-  res.redirect('https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg');
+  res.redirect(301, 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg');
 });
 
 // MongoDB Schemas
@@ -334,12 +334,13 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'Surprise Granite API' });
 });
 
-// Error Handling
-app.use((req, res) => {
-  logger.warn(`404: ${req.method} ${req.url}`);
-  res.status(404).json({ error: 'Route not found' });
+// Catch-all for undefined GET routes
+app.get('*', (req, res) => {
+  logger.warn(`404 GET: ${req.url} from origin: ${req.headers.origin}`);
+  res.status(404).json({ error: `Resource not found: ${req.url}` });
 });
 
+// Error Handling
 app.use((err, req, res, next) => {
   logger.error(`Server error: ${err.stack}`);
   res.status(500).json({ error: `Internal server error: ${err.message}` });
