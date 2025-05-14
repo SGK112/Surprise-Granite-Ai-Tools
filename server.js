@@ -71,15 +71,23 @@ app.use(cors({
     : [
         'https://surprisegranite.webflow.io',
         'http://localhost:3000',
-        'https://artifacts.grokusercontent.com'
+        'https://artifacts.grokusercontent.com',
+        'https://grok.com' // Added for broader testing compatibility
       ],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Content-Length'],
-  credentials: false
+  credentials: false,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 app.use((req, res, next) => {
-  logger.info(`Request origin: ${req.headers.origin}`);
+  logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin}`);
   next();
+});
+
+// Favicon redirect
+app.get('/favicon.ico', (req, res) => {
+  res.redirect('https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg');
 });
 
 // MongoDB Schemas
