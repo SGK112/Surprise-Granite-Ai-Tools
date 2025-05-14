@@ -40,7 +40,7 @@ requiredEnv.forEach((key) => {
 });
 
 // Redis setup for caching
-const redis = new Redis(process.env.REDIS_URL);
+const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
 
 // Rate limiting
 const limiter = rateLimit({
@@ -66,14 +66,22 @@ const upload = multer({
 // Middleware
 app.use(express.json());
 app.use(cors({ 
-  origin: process.env.CORS_ORIGIN 
-    ? process.env.CORS_ORIGIN.split(',') 
-    : [
-        'https://surprisegranite.webflow.io',
-        'http://localhost:3000',
-        'https://artifacts.grokusercontent.com',
-        'https://grok.com' // Added for broader testing compatibility
-      ],
+  origin: (origin, callback) => {
+    const allowedOrigins = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',') 
+      : [
+          'https://surprisegranite.webflow.io',
+          'http://localhost:3000',
+          'https://artifacts.grokusercontent.com',
+          'https://grok.com'
+        ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked for origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Content-Length'],
   credentials: false,
@@ -81,7 +89,7 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 app.use((req, res, next) => {
-  logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin}`);
+  logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin} with headers: ${JSON.stringify(req.headers)}`);
   next();
 });
 
@@ -283,7 +291,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         const materials = await Material.find({ material: 'Granite' }).lean();
         responseMessage = materials.length > 0
           ? `Granites: ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a photo for design tips!`
-          : 'No granite options. Email ${businessInfo.contact}.';
+          : `No granite options. Email ${businessInfo.contact}.`;
       } else if (lowerMessage.includes('pricing') || lowerMessage.includes('how much')) {
         const materials = await Material.find({ material: 'Granite' }).lean();
         const avgPrice = materials.length > 0
@@ -291,12 +299,12 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
           : 0;
         responseMessage = avgPrice
           ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote!`
-          : 'Pricing unavailable. Email ${businessInfo.contact}.';
+          : `Pricing unavailable. Email ${businessInfo.contact}.`;
       } else if (lowerMessage.includes('services')) {
         const labor = await Labor.find({}).lean();
         responseMessage = labor.length > 0
           ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo for project ideas!`
-          : 'Services unavailable. Email ${businessInfo.contact}.';
+          : `Services unavailable. Email ${businessInfo.contact}.`;
       } else if (lowerMessage.includes('quote') || lowerMessage.includes('interested')) {
         responseMessage = 'Share your email and project details for a quote!';
       } else if (lowerMessage.includes('location') || lowerMessage.includes('hours')) {
@@ -305,14 +313,14 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         await Lead.create({ email: message, message });
         responseMessage = `Email saved! We’ll send a quote. Upload a photo for more ideas.`;
       } else {
-        responseMessage = 'Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo!';
+        responseMessage = `Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo!`;
       }
     }
 
     res.json({ message: responseMessage });
   } catch (error) {
     logger.error(`Chat error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to process request' });
+    res.status(500).json({ error: `Failed to process request: ${error.message}` });
   }
 });
 
@@ -334,12 +342,12 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   logger.error(`Server error: ${err.stack}`);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: `Internal server error: ${err.message}` });
 });
 
 // Connect to MongoDB
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
   .then(() => logger.info('MongoDB connected'))
   .catch((err) => {
     logger.error(`MongoDB connection error: ${err.message}`);
