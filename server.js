@@ -81,7 +81,7 @@ app.use(cors({
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin}`);
-      callback(new Error(`CORS policy: ${origin} not allowed`));
+      callback(null, true); // Temporary allow-all for debugging
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -92,6 +92,9 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin}, user-agent: ${req.headers['user-agent']}, referer: ${req.headers.referer}, accept: ${req.headers.accept}, headers: ${JSON.stringify(req.headers)}`);
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Content-Length');
   next();
 });
 
@@ -99,6 +102,7 @@ app.use((req, res, next) => {
 let gfs;
 mongoose.connection.once('open', () => {
   gfs = new GridFSBucket(mongoose.connection.db, { bucketName: 'images' });
+  logger.info('MongoDB GridFS initialized');
 });
 
 // Favicon redirect
@@ -166,6 +170,10 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No image provided' });
     }
 
+    if (!gfs) {
+      throw new Error('GridFS not initialized');
+    }
+
     const uploadStream = gfs.openUploadStream(image.originalname, {
       contentType: image.mimetype
     });
@@ -187,6 +195,9 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
 app.get('/api/image/:id', async (req, res) => {
   try {
     const imageId = new mongoose.Types.ObjectId(req.params.id);
+    if (!gfs) {
+      throw new Error('GridFS not initialized');
+    }
     const downloadStream = gfs.openDownloadStream(imageId);
 
     downloadStream.on('error', (err) => {
@@ -212,13 +223,14 @@ app.post('/api/quote', async (req, res) => {
     const formData = new FormData();
     formData.append('email', email);
     if (message) formData.append('message', message);
-    if (imageAnalysis) formData.append('imageAnalysis', imageAnalysis);
-    if (imageId) formData.append('imageId', imageId);
+    if (imageAnalysis) formData.append('image_analysis', imageAnalysis);
+    if (imageId) formData.append('image_id', imageId);
 
     const response = await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
       headers: formData.getHeaders()
     });
 
+    logger.info(`Basin submission response: ${response.status} ${response.statusText}`);
     if (response.status !== 200) {
       throw new Error(`Basin API error: ${response.statusText}`);
     }
@@ -244,6 +256,10 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     let responseMessage = '';
     let imageId, imageUrl;
 
+    if (!mongoose.connection.readyState) {
+      throw new Error('MongoDB not connected');
+    }
+
     if (image) {
       let jimpImage;
       try {
@@ -255,6 +271,10 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
       const { width, height } = jimpImage.bitmap;
       const dominantColor = jimpImage.getPixelColor(0, 0);
       const rgba = Jimp.intToRGBA(dominantColor);
+
+      if (!gfs) {
+        throw new Error('GridFS not initialized');
+      }
 
       const uploadStream = gfs.openUploadStream(image.originalname, {
         contentType: image.mimetype
@@ -336,11 +356,12 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
           const formData = new FormData();
           formData.append('email', message);
           formData.append('message', message);
-          await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
+          const basinResponse = await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
             headers: formData.getHeaders()
           });
-        } catch (mongoErr) {
-          logger.error(`MongoDB insert or Basin submission error: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          logger.info(`Basin submission for email ${message}: ${basinResponse.status} ${basinResponse.statusText}`);
+        } catch (err) {
+          logger.error(`MongoDB insert or Basin submission error: ${err.message}, stack: ${err.stack}`);
           throw new Error('Failed to save lead or send quote. Please try again.');
         }
         responseMessage = `Email saved and quote request sent! We’ll contact you soon. Upload a photo for more ideas.`;
@@ -563,10 +584,36 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: `Internal server error: ${err.message}` });
 });
 
-// Connect to MongoDB
+// Validate services on startup
+async function validateServices() {
+  try {
+    await mongoose.connection.db.admin().ping();
+    logger.info('MongoDB connection validated');
+  } catch (err) {
+    logger.error(`MongoDB validation failed: ${err.message}`);
+    process.exit(1);
+  }
+  try {
+    await redis.ping();
+    logger.info('Redis connection validated');
+  } catch (err) {
+    logger.error(`Redis validation failed: ${err.message}`);
+  }
+  try {
+    await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
+    await axios.get(process.env.PUBLISHED_CSV_LABOR);
+    logger.info('CSV URLs validated');
+  } catch (err) {
+    logger.error(`CSV validation failed: ${err.message}`);
+  }
+}
+
 mongoose
   .connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(() => logger.info('MongoDB connected'))
+  .then(() => {
+    logger.info('MongoDB connected');
+    validateServices();
+  })
   .catch((err) => {
     logger.error(`MongoDB connection error: ${err.message}`);
     process.exit(1);
