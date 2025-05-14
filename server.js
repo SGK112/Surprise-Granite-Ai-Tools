@@ -7,6 +7,8 @@ import axios from 'axios';
 import { parse } from 'csv-parse';
 import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import Jimp from 'jimp';
 
 // Load environment variables
 dotenv.config();
@@ -47,6 +49,20 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Multer setup for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('Only JPEG and PNG images are allowed'));
+    }
+    cb(null, true);
+  }
+});
+
 // Middleware
 app.use(express.json());
 app.use(cors({ 
@@ -55,7 +71,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 
-// MongoDB Schema for Materials
+// MongoDB Schemas
 const materialSchema = new mongoose.Schema({
   colorName: { type: String, required: true },
   vendorName: { type: String, required: true },
@@ -66,10 +82,9 @@ const materialSchema = new mongoose.Schema({
   imageUrl: { type: String, default: 'https://via.placeholder.com/50' },
   createdAt: { type: Date, default: Date.now }
 });
-
+materialSchema.index({ colorName: 1, material: 1 });
 const Material = mongoose.model('Material', materialSchema);
 
-// MongoDB Schema for Labor Costs
 const laborSchema = new mongoose.Schema({
   code: { type: String, required: true },
   service: { type: String, required: true },
@@ -78,8 +93,23 @@ const laborSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
-
+laborSchema.index({ service: 1 });
 const Labor = mongoose.model('Labor', laborSchema);
+
+const leadSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  message: { type: String },
+  imageAnalysis: { type: String },
+  createdAt: { type: Date, default: Date.now }
+});
+const Lead = mongoose.model('Lead', leadSchema);
+
+// Business Info
+const businessInfo = {
+  location: 'Surprise, AZ 85374',
+  hours: 'Mon-Fri: 8 AM - 5 PM, Sat: 9 AM - 2 PM, Sun: Closed',
+  contact: 'support@surprisegranite.com'
+};
 
 // Calculate finished pricing
 function calculateFinishedPrice(material, costSqFt) {
@@ -93,14 +123,12 @@ function calculateFinishedPrice(material, costSqFt) {
   return basePrice;
 }
 
-// Fetch Materials from MongoDB with name query support
+// Fetch Materials from MongoDB
 app.get('/api/materials', async (req, res) => {
   try {
-    logger.info('Fetching materials from MongoDB');
     const cacheKey = 'materials:data';
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
-      logger.info('Serving materials from Redis cache');
       return res.json(JSON.parse(cachedData));
     }
 
@@ -112,7 +140,6 @@ app.get('/api/materials', async (req, res) => {
     let materials = await Material.find(query).lean();
 
     if (!materials || materials.length === 0) {
-      logger.warn('No materials found in MongoDB, attempting CSV fallback');
       const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
       const materialsData = await new Promise((resolve, reject) => {
         const records = [];
@@ -121,11 +148,6 @@ app.get('/api/materials', async (req, res) => {
           .on('end', () => resolve(records))
           .on('error', (error) => reject(error));
       });
-
-      if (!Array.isArray(materialsData) || materialsData.length === 0) {
-        logger.error('No valid materials data in CSV');
-        return res.status(404).json({ error: 'No materials found in MongoDB or CSV' });
-      }
 
       materials = materialsData.map((item) => ({
         colorName: item['Color Name'] || 'Unknown',
@@ -153,34 +175,25 @@ app.get('/api/materials', async (req, res) => {
       imageUrl: item.imageUrl
     })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
 
-    if (normalizedData.length === 0) {
-      logger.error('No valid materials data after filtering');
-      return res.status(404).json({ error: 'No valid materials data available' });
-    }
-
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600); // Cache for 1 hour
-    logger.info(`Materials fetched successfully: ${normalizedData.length} items`);
+    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch materials data', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch materials data' });
   }
 });
 
-// Fetch Labor Costs from MongoDB with CSV fallback
+// Fetch Labor Costs from MongoDB
 app.get('/api/labor', async (req, res) => {
   try {
-    logger.info('Fetching labor costs');
     const cacheKey = 'labor:data';
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
-      logger.info('Serving labor costs from Redis cache');
       return res.json(JSON.parse(cachedData));
     }
 
     let laborCosts = await Labor.find({}).lean();
     if (!laborCosts || laborCosts.length === 0) {
-      logger.warn('No labor costs found in MongoDB, attempting CSV fallback');
       const response = await axios.get(process.env.PUBLISHED_CSV_LABOR);
       const laborData = await new Promise((resolve, reject) => {
         const records = [];
@@ -189,11 +202,6 @@ app.get('/api/labor', async (req, res) => {
           .on('end', () => resolve(records))
           .on('error', (error) => reject(error));
       });
-
-      if (!Array.isArray(laborData) || laborData.length === 0) {
-        logger.error('No valid labor data in CSV');
-        return res.status(404).json({ error: 'No labor costs found in MongoDB or CSV' });
-      }
 
       laborCosts = laborData.map((item) => ({
         code: item['Code'] || 'Unknown',
@@ -216,29 +224,89 @@ app.get('/api/labor', async (req, res) => {
       description: item.description
     })).filter((item) => item.code && item.service && item.unit && item.price >= 0);
 
-    if (normalizedData.length === 0) {
-      logger.error('No valid labor data after filtering');
-      return res.status(404).json({ error: 'No valid labor data available' });
-    }
-
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600); // Cache for 1 hour
-    logger.info(`Labor costs fetched successfully: ${normalizedData.length} items`);
+    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Labor costs fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch labor costs', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch labor costs' });
+  }
+});
+
+// Chat Endpoint with Image Analysis
+app.post('/api/chat', upload.single('image'), async (req, res) => {
+  try {
+    const { message } = req.body;
+    const image = req.file;
+    let responseMessage = '';
+
+    // Handle image upload
+    if (image) {
+      const jimpImage = await Jimp.read(image.buffer);
+      const { width, height } = jimpImage.bitmap;
+      const dominantColor = jimpImage.getPixelColor(0, 0); // Simplified; use histogram for real apps
+      const rgba = Jimp.intToRGBA(dominantColor);
+
+      // Basic interior design suggestion
+      const materials = await Material.find({ material: 'Granite' }).lean();
+      const suggestedMaterial = materials[Math.floor(Math.random() * materials.length)] || { colorName: 'Classic Granite' };
+      const analysis = `Uploaded image (${width}x${height}px, dominant color RGB(${rgba.r}, ${rgba.g}, ${rgba.b})). For this space, consider ${suggestedMaterial.colorName} granite for a modern, durable look. Want a quote? Share your email!`;
+
+      // Save lead with image analysis
+      if (message && message.includes('@')) {
+        await Lead.create({ email: message, message, imageAnalysis: analysis });
+      }
+
+      responseMessage = analysis;
+    } else if (!message) {
+      return res.status(400).json({ error: 'Message or image required' });
+    } else {
+      const lowerMessage = message.toLowerCase();
+
+      // Intent matching
+      if (lowerMessage.includes('granite options')) {
+        const materials = await Material.find({ material: 'Granite' }).lean();
+        responseMessage = materials.length > 0
+          ? `We offer granites like ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a room photo for design tips!`
+          : 'No granite options available. Contact us at ${businessInfo.contact}.';
+      } else if (lowerMessage.includes('pricing') || lowerMessage.includes('how much')) {
+        const materials = await Material.find({ material: 'Granite' }).lean();
+        const avgPrice = materials.length > 0
+          ? materials.reduce((sum, m) => sum + calculateFinishedPrice(m.material, m.costSqFt), 0) / materials.length
+          : 0;
+        responseMessage = avgPrice
+          ? `Granite averages $${avgPrice.toFixed(2)}/sq.ft. (finished). Share project details for a quote!`
+          : 'Pricing unavailable. Email us at ${businessInfo.contact}.';
+      } else if (lowerMessage.includes('services')) {
+        const labor = await Labor.find({}).lean();
+        responseMessage = labor.length > 0
+          ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo to discuss your project!`
+          : 'Service details unavailable. Contact ${businessInfo.contact}.';
+      } else if (lowerMessage.includes('quote') || lowerMessage.includes('interested')) {
+        responseMessage = 'Share your email and project details for a personalized quote!';
+      } else if (lowerMessage.includes('location') || lowerMessage.includes('hours')) {
+        responseMessage = `We’re located at ${businessInfo.location}. Hours: ${businessInfo.hours}. Visit us or ask for a quote!`;
+      } else if (lowerMessage.includes('@')) {
+        await Lead.create({ email: message, message });
+        responseMessage = `Thanks for sharing your email! We’ll send a quote soon. Upload a project photo to discuss further.`;
+      } else {
+        responseMessage = 'Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo for design ideas!';
+      }
+    }
+
+    res.json({ message: responseMessage });
+  } catch (error) {
+    logger.error(`Chat error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to process request' });
   }
 });
 
 // Health Check
 app.get('/health', (req, res) => {
-  logger.info('Health check requested');
   res.status(200).json({ status: 'OK' });
 });
 
 // Root Route
 app.get('/', (req, res) => {
-  logger.info('Root route requested');
   res.status(200).json({ message: 'Surprise Granite API' });
 });
 
@@ -250,7 +318,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   logger.error(`Server error on ${req.method} ${req.url}: ${err.stack}`);
-  res.status(500).json({ error: 'Internal server error', details: err.message });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Connect to MongoDB
