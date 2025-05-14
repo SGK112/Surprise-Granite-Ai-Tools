@@ -41,14 +41,12 @@ const requiredEnv = [
   'PUBLISHED_CSV_MATERIALS',
   'PUBLISHED_CSV_LABOR',
   'REDIS_URL',
-  'OPENAI_API_KEY',
-  'SHOPIFY_API_KEY',
-  'SHOPIFY_API_SECRET',
-  'SHOPIFY_STORE_DOMAIN'
+  'OPENAI_API_KEY'
 ];
+const optionalEnv = ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_STORE_DOMAIN'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
-    logger.error(`Missing environment variable: ${key}`);
+    logger.error(`Missing required environment variable: ${key}`);
     process.exit(1);
   }
 });
@@ -77,24 +75,19 @@ const upload = multer({
 });
 
 // Security and middleware
-app.use(helmet()); // Security headers
+app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',')
-      : [
-          'https://surprisegranite.webflow.io',
-          'http://localhost:3000',
-          'https://artifacts.grokusercontent.com',
-          'https://grok.com'
-        ];
+      : ['https://surprisegranite.webflow.io', 'http://localhost:3000'];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin}`);
-      callback(null, true); // Allow for debugging
+      callback(new Error('Not allowed by CORS'));
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -164,15 +157,24 @@ const businessInfo = {
   location: '11560 N Dysart Rd. Suite 112, Surprise, AZ 85379',
   hours: 'Mon-Fri: 9:00 AM - 5:00 PM, Sat: 10:00 AM - 2:00 PM, Sun: Closed',
   contact: 'support@surprisegranite.com',
-  website: 'https://surprisegranite.webflow.io'
+  website: 'https://surprisegranite.webflow.io',
+  process: 'Our process starts with a consultation to understand your needs, followed by material selection from our premium granite, marble, quartz, quartzite, Dekton, or porcelain offerings. We provide detailed estimates, including material costs with a 3.25x markup plus $25-$45 based on material type and a 5-15% waste factor. Our expert team handles precise fabrication and professional installation, ensuring a seamless experience.'
 };
 
-// Shopify API setup
-const shopify = new Shopify({
-  shopName: process.env.SHOPIFY_STORE_DOMAIN,
-  apiKey: process.env.SHOPIFY_API_KEY,
-  password: process.env.SHOPIFY_API_SECRET
-});
+// Shopify API setup (optional)
+let shopify;
+if (process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET && process.env.SHOPIFY_STORE_DOMAIN) {
+  try {
+    shopify = new Shopify({
+      shopName: process.env.SHOPIFY_STORE_DOMAIN,
+      apiKey: process.env.SHOPIFY_API_KEY,
+      password: process.env.SHOPIFY_API_SECRET
+    });
+    logger.info('Shopify API initialized');
+  } catch (err) {
+    logger.error(`Failed to initialize Shopify: ${err.message}`);
+  }
+}
 
 // Guardrails: Content filtering
 const harmfulPatterns = [
@@ -209,9 +211,9 @@ function calculateFinishedPrice(material, costSqFt) {
 // Apply waste factor
 function applyWasteFactor(price, message) {
   let wasteFactor = 0.10; // Default 10%
-  if (message.toLowerCase().includes('complex') || message.toLowerCase().includes('intricate')) {
+  if (message && (message.toLowerCase().includes('complex') || message.toLowerCase().includes('intricate'))) {
     wasteFactor = 0.15; // 15% for complex layouts
-  } else if (message.toLowerCase().includes('simple') || message.toLowerCase().includes('basic')) {
+  } else if (message && (message.toLowerCase().includes('simple') || message.toLowerCase().includes('basic'))) {
     wasteFactor = 0.05; // 5% for simple layouts
   }
   return parseFloat((price * (1 + wasteFactor)).toFixed(2));
@@ -223,7 +225,7 @@ function estimateServiceCost(message, laborData) {
   let total = 0;
   const matchedServices = [];
   services.forEach(service => {
-    if (message.toLowerCase().includes(service)) {
+    if (message && message.toLowerCase().includes(service)) {
       const labor = laborData.find(l => l.service.toLowerCase().includes(service));
       if (labor) {
         total += labor.price;
@@ -315,15 +317,16 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     }
 
     // Shopify product data
-    let shopifyContext = '';
-    try {
-      const products = await shopify.product.list({ limit: 5 });
-      shopifyContext = products.map(p => 
-        `Product: ${p.title}, Price: $${p.variants[0].price}, Inventory: ${p.variants[0].inventory_quantity}`
-      ).join('\n');
-    } catch (error) {
-      logger.error(`Shopify API error: ${error.message}`);
-      shopifyContext = 'No Shopify product data available.';
+    let shopifyContext = 'No Shopify product data available.';
+    if (shopify) {
+      try {
+        const products = await shopify.product.list({ limit: 5 });
+        shopifyContext = products.map(p => 
+          `Product: ${p.title}, Price: $${p.variants[0].price}, Inventory: ${p.variants[0].inventory_quantity}`
+        ).join('\n');
+      } catch (error) {
+        logger.error(`Shopify API error: ${error.message}`);
+      }
     }
 
     // Service context from labor.json
@@ -411,6 +414,7 @@ Available Data:
 - Hours: ${businessInfo.hours}
 - Contact: ${businessInfo.contact}
 - Website: ${businessInfo.website}
+- Process: ${businessInfo.process}
 
 Guidelines:
 - Always reference Surprise Granite and highlight our premium materials and services.
@@ -449,260 +453,284 @@ Example Responses:
     const openaiResponse = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: 'gpt-4', // Use gpt-4 if accessible, else gpt-3.5-turbo
+        model: 'gpt-3.5-turbo', // Fallback to gpt-3.5-turbo
         messages,
         max_tokens: 150,
         temperature: 0.5
       },
       {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       }
-    );
-    let botResponse = openaiResponse.data.choices[0].message.content;
-
-    // Sanitize output
-    botResponse = sanitizeHtml(botResponse, {
-      allowedTags: [],
-      allowedAttributes: {}
-    });
-
-    // Validate output
-    const outputValidation = validateInput(botResponse);
-    if (!outputValidation.valid) {
-      logger.warn(`Invalid output: ${outputValidation.reason}`);
-      botResponse = 'Sorry, I couldn’t generate a valid response. Please try again or contact support@surprisegranite.com.';
     }
+  );
+  let botResponse = openaiResponse.data.choices[0].message.content;
 
-    // Store lead if email or interest detected
-    if (message && (message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/) || message.toLowerCase().includes('quote'))) {
-      const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-      const projectDetails = estimateServiceCost(message, laborData);
-      await Lead.create({
-        email: emailMatch ? emailMatch[0] : 'unknown@example.com',
-        name: req.body.name || 'Unknown',
-        phone: req.body.phone || '',
-        message,
-        imageAnalysis,
-        imageId,
-        projectDetails
-      });
-      // Send to Basin
-      const formData = new FormData();
-      formData.append('email', emailMatch ? emailMatch[0] : 'unknown@example.com');
-      formData.append('message', message);
-      formData.append('name', req.body.name || 'Unknown');
-      if (imageId) formData.append('image_id', imageId.toString());
-      if (projectDetails.details.length) formData.append('project_details', projectDetails.details.join('; '));
-      await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
-        headers: formData.getHeaders()
-      });
-    }
+  // Sanitize output
+  botResponse = sanitizeHtml(botResponse, {
+    allowedTags: [],
+    allowedAttributes: {}
+  });
 
-    conversationHistory.push({ role: 'assistant', content: botResponse });
-    if (conversationHistory.length > 10) {
-      conversationHistory = conversationHistory.slice(-10);
-    }
-
-    res.json({ message: botResponse, imageId, imageUrl });
-  } catch (error) {
-    logger.error(`Chat error: ${error.message}`);
-    res.status(500).json({ error: `Failed to process request: ${error.message}` });
+  // Validate output
+  const outputValidation = validateInput(botResponse);
+  if (!outputValidation.valid) {
+    logger.warn(`Invalid output: ${outputValidation.reason}`);
+    botResponse = 'Sorry, I couldn’t generate a valid response. Please try again or contact support@surprisegranite.com.';
   }
+
+  // Store lead if email or interest detected
+  if (message && (message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/) || message.toLowerCase().includes('quote'))) {
+    const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    const projectDetails = estimateServiceCost(message, laborData);
+    await Lead.create({
+      email: emailMatch ? emailMatch[0] : 'unknown@example.com',
+      name: req.body.name || 'Unknown',
+      phone: req.body.phone || '',
+      message,
+      imageAnalysis,
+      imageId,
+      projectDetails
+    });
+    // Send to Basin
+    const formData = new FormData();
+    formData.append('email', emailMatch ? emailMatch[0] : 'unknown@example.com');
+    formData.append('message', message);
+    formData.append('name', req.body.name || 'Unknown');
+    if (imageId) formData.append('image_id', imageId.toString());
+    if (projectDetails.details.length) formData.append('project_details', projectDetails.details.join('; '));
+    await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
+      headers: formData.getHeaders()
+    });
+  }
+
+  conversationHistory.push({ role: 'assistant', content: botResponse });
+  if (conversationHistory.length > 10) {
+    conversationHistory = conversationHistory.slice(-10);
+  }
+
+  res.json({ message: botResponse, imageId, imageUrl });
+} catch (error) {
+  logger.error(`Chat error: ${error.message}`);
+  res.status(500).json({ error: `Failed to process request: ${error.message}` });
+}
 });
 
 // Fetch Materials
 app.get('/api/materials', async (req, res) => {
-  try {
-    const cacheKey = 'materials:data';
-    const cachedData = await redis.get(cacheKey);
-    if (cachedData) {
-      return res.json(JSON.parse(cachedData));
-    }
-
-    const { name } = req.query;
-    let query = {};
-    if (name) {
-      query.colorName = { $regex: name, $options: 'i' };
-    }
-    const materials = await Material.find(query).lean();
-
-    if (!materials.length) {
-      const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
-      const materialsData = await new Promise((resolve, reject) => {
-        const records = [];
-        parse(response.data, { columns: true, skip_empty_lines: true })
-          .on('data', (record) => records.push(record))
-          .on('end', () => resolve(records))
-          .on('error', (error) => reject(error));
-      });
-
-      const newMaterials = materialsData.map((item) => ({
-        colorName: item['Color Name'] || 'Unknown',
-        vendorName: item['Vendor Name'] || 'Unknown',
-        thickness: item['Thickness'] || 'Unknown',
-        material: item['Material'] || 'Unknown',
-        costSqFt: parseFloat(item['Cost/SqFt']) || 0,
-        availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-        imageUrl: item['ImageUrl'] || 'https://via.placeholder.com/50'
-      }));
-
-      await Material.deleteMany({});
-      await Material.insertMany(newMaterials);
-      materials = await Material.find(query).lean();
-    }
-
-    const normalizedData = materials.map((item) => ({
-      colorName: item.colorName,
-      vendorName: item.vendorName,
-      thickness: item.thickness,
-      material: item.material,
-      costSqFt: item.costSqFt,
-      finishedPrice: calculateFinishedPrice(item.material, item.costSqFt),
-      availableSqFt: item.availableSqFt,
-      imageUrl: item.imageUrl
-    })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
-
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
-    res.json(normalizedData);
-  } catch (error) {
-    logger.error(`Materials fetch error: ${error.message}`);
-    res.status(500).json({ error: `Failed to fetch materials: ${error.message}` });
+try {
+  const cacheKey = 'materials:data';
+  const cachedData = await redis.get(cacheKey);
+  if (cachedData) {
+    return res.json(JSON.parse(cachedData));
   }
+
+  const { name } = req.query;
+  let query = {};
+  if (name) {
+    query.colorName = { $regex: name, $options: 'i' };
+  }
+  const materials = await Material.find(query).lean();
+
+  if (!materials.length) {
+    const response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
+    const materialsData = await new Promise((resolve, reject) => {
+      const records = [];
+      parse(response.data, { columns: true, skip_empty_lines: true })
+        .on('data', (record) => records.push(record))
+        .on('end', () => resolve(records))
+        .on('error', (error) => reject(error));
+    });
+
+    const newMaterials = materialsData.map((item) => ({
+      colorName: item['Color Name'] || 'Unknown',
+      vendorName: item['Vendor Name'] || 'Unknown',
+      thickness: item['Thickness'] || 'Unknown',
+      material: item['Material'] || 'Unknown',
+      costSqFt: parseFloat(item['Cost/SqFt']) || 0,
+      availableSqFt: parseFloat(item['Total/SqFt']) || 0,
+      imageUrl: item['ImageUrl'] || 'https://via.placeholder.com/50'
+    }));
+
+    await Material.deleteMany({});
+    await Material.insertMany(newMaterials);
+    materials = await Material.find(query).lean();
+  }
+
+  const normalizedData = materials.map((item) => ({
+    colorName: item.colorName,
+    vendorName: item.vendorName,
+    thickness: item.thickness,
+    material: item.material,
+    costSqFt: item.costSqFt,
+    finishedPrice: calculateFinishedPrice(item.material, item.costSqFt),
+    availableSqFt: item.availableSqFt,
+    imageUrl: item.imageUrl
+  })).filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
+
+  await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+  res.json(normalizedData);
+} catch (error) {
+  logger.error(`Materials fetch error: ${error.message}`);
+  res.status(500).json({ error: `Failed to fetch materials: ${error.message}` });
+}
 });
 
 // Fetch Labor Costs
 app.get('/api/labor', async (req, res) => {
-  try {
-    const cacheKey = 'labor:data';
-    const cachedData = await redis.get(cacheKey);
-    if (cachedData) {
-      return res.json(JSON.parse(cachedData));
-    }
-
-    let laborCosts = await Labor.find({}).lean();
-    if (!laborCosts.length) {
-      const response = await axios.get(process.env.PUBLISHED_CSV_LABOR);
-      const laborData = await new Promise((resolve, reject) => {
-        const records = [];
-        parse(response.data, { columns: true, skip_empty_lines: true })
-          .on('data', (record) => records.push(record))
-          .on('end', () => resolve(records))
-          .on('error', (error) => reject(error));
-      });
-
-      laborCosts = laborData.map((item) => ({
-        code: item['Code'] || 'Unknown',
-        service: item['Service'] || 'Unknown',
-        unit: item['U/M'] || 'Unknown',
-        price: parseFloat(item['Price']) || 0,
-        description: item['Description'] || ''
-      }));
-
-      await Labor.deleteMany({});
-      await Labor.insertMany(laborCosts);
-      laborCosts = await Labor.find({}).lean();
-    }
-
-    const normalizedData = laborCosts.map((item) => ({
-      code: item.code,
-      service: item.service,
-      unit: item.unit,
-      price: item.price,
-      description: item.description
-    })).filter((item) => item.code && item.service && item.unit && item.price >= 0);
-
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
-    res.json(normalizedData);
-  } catch (error) {
-    logger.error(`Labor costs fetch error: ${error.message}`);
-    res.status(500).json({ error: `Failed to fetch labor costs: ${error.message}` });
+try {
+  const cacheKey = 'labor:data';
+  const cachedData = await redis.get(cacheKey);
+  if (cachedData) {
+    return res.json(JSON.parse(cachedData));
   }
+
+  let laborCosts = await Labor.find({}).lean();
+  if (!laborCosts.length) {
+    const response = await axios.get(process.env.PUBLISHED_CSV_LABOR);
+    const laborData = await new Promise((resolve, reject) => {
+      const records = [];
+      parse(response.data, { columns: true, skip_empty_lines: true })
+        .on('data', (record) => records.push(record))
+        .on('end', () => resolve(records))
+        .on('error', (error) => reject(error));
+    });
+
+    laborCosts = laborData.map((item) => ({
+      code: item['Code'] || 'Unknown',
+      service: item['Service'] || 'Unknown',
+      unit: item['U/M'] || 'Unknown',
+      price: parseFloat(item['Price']) || 0,
+      description: item['Description'] || ''
+    }));
+
+    await Labor.deleteMany({});
+    await Labor.insertMany(laborCosts);
+    laborCosts = await Labor.find({}).lean();
+  }
+
+  const normalizedData = laborCosts.map((item) => ({
+    code: item.code,
+    service: item.service,
+    unit: item.unit,
+    price: item.price,
+    description: item.description
+  })).filter((item) => item.code && item.service && item.unit && item.price >= 0);
+
+  await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+  res.json(normalizedData);
+} catch (error) {
+  logger.error(`Labor costs fetch error: ${error.message}`);
+  res.status(500).json({ error: `Failed to fetch labor costs: ${error.message}` });
+}
 });
 
 // Health Check
 app.get('/health', async (req, res) => {
-  const health = {
-    status: 'OK',
-    mongodb: 'disconnected',
-    redis: 'disconnected',
-    openai: 'unknown',
-    shopify: 'unknown'
-  };
-  try {
-    await mongoose.connection.db.admin().ping();
-    health.mongodb = 'connected';
-  } catch (err) {
-    health.mongodb = `error: ${err.message}`;
-  }
-  try {
-    await redis.ping();
-    health.redis = 'connected';
-  } catch (err) {
-    health.redis = `error: ${err.message}`;
-  }
-  try {
-    await axios.get('https://api.openai.com/v1/models', {
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
-    });
-    health.openai = 'connected';
-  } catch (err) {
-    health.openai = `error: ${err.message}`;
-  }
+const health = {
+  status: 'OK',
+  mongodb: 'disconnected',
+  redis: 'disconnected',
+  openai: 'unknown',
+  shopify: 'unknown'
+};
+try {
+  await mongoose.connection.db.admin().ping();
+  health.mongodb = 'connected';
+} catch (err) {
+  health.mongodb = `error: ${err.message}`;
+}
+try {
+  await redis.ping();
+  health.redis = 'connected';
+} catch (err) {
+  health.redis = `error: ${err.message}`;
+}
+try {
+  await axios.get('https://api.openai.com/v1/models', {
+    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
+  });
+  health.openai = 'connected';
+} catch (err) {
+  health.openai = `error: ${err.message}`;
+}
+if (shopify) {
   try {
     await shopify.product.list({ limit: 1 });
     health.shopify = 'connected';
   } catch (err) {
     health.shopify = `error: ${err.message}`;
   }
-  res.status(200).json(health);
+} else {
+  health.shopify = 'not configured';
+}
+res.status(200).json(health);
 });
 
 // Root Route
 app.get('/', (req, res) => {
-  res.status(200).json({ message: 'Surprise Granite API' });
+res.status(200).json({ message: 'Surprise Granite API' });
 });
 
 // Error Handling
 app.use((err, req, res, next) => {
-  logger.error(`Server error: ${err.stack}`);
-  res.status(500).json({ error: `Internal server error: ${err.message}` });
+logger.error(`Server error: ${err.stack}`);
+res.status(500).json({ error: `Internal server error: ${err.message}` });
 });
 
 // Startup validation
 async function validateServices() {
+try {
+  await mongoose.connection.db.admin().ping();
+  logger.info('MongoDB connection validated');
+} catch (err) {
+  logger.error(`MongoDB validation failed: ${err.message}`);
+  process.exit(1);
+}
+try {
+  await redis.ping();
+  logger.info('Redis connection validated');
+} catch (err) {
+  logger.error(`Redis validation failed: ${err.message}`);
+}
+try {
+  await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
+  await axios.get(process.env.PUBLISHED_CSV_LABOR);
+  logger.info('CSV URLs validated');
+} catch (err) {
+  logger.error(`CSV validation failed: ${err.message}`);
+  process.exit(1);
+}
+try {
+  await axios.get('https://api.openai.com/v1/models', {
+    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
+  });
+  logger.info('OpenAI API validated');
+} catch (err) {
+  logger.error(`OpenAI validation failed: ${err.message}`);
+  process.exit(1);
+}
+if (shopify) {
   try {
-    await mongoose.connection.db.admin().ping();
-    logger.info('MongoDB connection validated');
-    await redis.ping();
-    logger.info('Redis connection validated');
-    await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
-    await axios.get(process.env.PUBLISHED_CSV_LABOR);
-    logger.info('CSV URLs validated');
-    await axios.get('https://api.openai.com/v1/models', {
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
-    });
-    logger.info('OpenAI API validated');
     await shopify.product.list({ limit: 1 });
     logger.info('Shopify API validated');
   } catch (err) {
-    logger.error(`Service validation failed: ${err.message}`);
-    process.exit(1);
+    logger.error(`Shopify validation failed: ${err.message}`);
   }
+}
 }
 
 mongoose
-  .connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(() => {
-    logger.info('MongoDB connected');
-    validateServices();
-  })
-  .catch((err) => {
-    logger.error(`MongoDB connection error: ${err.message}`);
-    process.exit(1);
-  });
+.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
+.then(() => {
+  logger.info('MongoDB connected');
+  validateServices();
+})
+.catch((err) => {
+  logger.error(`MongoDB connection error: ${err.message}`);
+  process.exit(1);
+});
 
 // Start Server
 app.listen(port, () => logger.info(`Server running on port ${port}`));
