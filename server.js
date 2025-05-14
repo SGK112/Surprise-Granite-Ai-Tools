@@ -9,6 +9,8 @@ import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import Jimp from 'jimp';
+import { GridFSBucket } from 'mongodb';
+import FormData from 'form-data';
 
 // Load environment variables
 dotenv.config();
@@ -48,13 +50,6 @@ try {
   logger.error(`Failed to initialize Redis: ${err.message}`);
 }
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests
-});
-app.use(limiter);
-
 // Multer setup for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -81,11 +76,12 @@ app.use(cors({
           'https://artifacts.grokusercontent.com',
           'https://grok.com'
         ];
+    logger.info(`CORS check for origin: ${origin}, allowed: ${allowedOrigins}`);
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin}`);
-      callback(null, true); // Allow all for testing; revert to strict in production
+      callback(new Error(`CORS policy: ${origin} not allowed`));
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -95,8 +91,14 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 app.use((req, res, next) => {
-  logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin}, user-agent: ${req.headers['user-agent']}, referer: ${req.headers.referer}, accept: ${req.headers.accept}`);
+  logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin}, user-agent: ${req.headers['user-agent']}, referer: ${req.headers.referer}, accept: ${req.headers.accept}, headers: ${JSON.stringify(req.headers)}`);
   next();
+});
+
+// MongoDB GridFS setup
+let gfs;
+mongoose.connection.once('open', () => {
+  gfs = new GridFSBucket(mongoose.connection.db, { bucketName: 'images' });
 });
 
 // Favicon redirect
@@ -133,6 +135,7 @@ const leadSchema = new mongoose.Schema({
   email: { type: String, required: true },
   message: { type: String },
   imageAnalysis: { type: String },
+  imageId: { type: mongoose.Types.ObjectId },
   createdAt: { type: Date, default: Date.now }
 });
 const Lead = mongoose.model('Lead', leadSchema);
@@ -155,6 +158,78 @@ function calculateFinishedPrice(material, costSqFt) {
   return (costSqFt * 3.25 + additionalCost).toFixed(2);
 }
 
+// Store and retrieve images
+app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    const image = req.file;
+    if (!image) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    const uploadStream = gfs.openUploadStream(image.originalname, {
+      contentType: image.mimetype
+    });
+    uploadStream.end(image.buffer);
+
+    const imageId = await new Promise((resolve, reject) => {
+      uploadStream.on('finish', () => resolve(uploadStream.id));
+      uploadStream.on('error', reject);
+    });
+
+    const imageUrl = `/api/image/${imageId}`;
+    res.json({ imageId, imageUrl });
+  } catch (error) {
+    logger.error(`Image upload error: ${error.message}, stack: ${error.stack}`);
+    res.status(500).json({ error: `Failed to upload image: ${error.message}` });
+  }
+});
+
+app.get('/api/image/:id', async (req, res) => {
+  try {
+    const imageId = new mongoose.Types.ObjectId(req.params.id);
+    const downloadStream = gfs.openDownloadStream(imageId);
+
+    downloadStream.on('error', (err) => {
+      logger.error(`Image download error: ${err.message}, stack: ${err.stack}`);
+      res.status(404).json({ error: 'Image not found' });
+    });
+
+    downloadStream.pipe(res);
+  } catch (error) {
+    logger.error(`Image retrieval error: ${error.message}, stack: ${error.stack}`);
+    res.status(500).json({ error: `Failed to retrieve image: ${error.message}` });
+  }
+});
+
+// Send quote request to Basin
+app.post('/api/quote', async (req, res) => {
+  try {
+    const { email, message, imageAnalysis, imageId } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const formData = new FormData();
+    formData.append('email', email);
+    if (message) formData.append('message', message);
+    if (imageAnalysis) formData.append('imageAnalysis', imageAnalysis);
+    if (imageId) formData.append('imageId', imageId);
+
+    const response = await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
+      headers: formData.getHeaders()
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`Basin API error: ${response.statusText}`);
+    }
+
+    res.json({ message: 'Quote request sent successfully' });
+  } catch (error) {
+    logger.error(`Quote submission error: ${error.message}, stack: ${error.stack}`);
+    res.status(500).json({ error: `Failed to send quote request: ${error.message}` });
+  }
+});
+
 // GET /api/chat (handle invalid method)
 app.get('/api/chat', (req, res) => {
   logger.warn(`Invalid GET request to /api/chat from origin: ${req.headers.origin}, user-agent: ${req.headers['user-agent']}, referer: ${req.headers.referer}, accept: ${req.headers.accept}`);
@@ -167,25 +242,48 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     const { message } = req.body;
     const image = req.file;
     let responseMessage = '';
+    let imageId, imageUrl;
 
     if (image) {
       let jimpImage;
       try {
         jimpImage = await Jimp.read(image.buffer);
       } catch (jimpErr) {
-        logger.error(`Jimp image processing error: ${jimpErr.message}`);
+        logger.error(`Jimp image processing error: ${jimpErr.message}, stack: ${jimpErr.stack}`);
         throw new Error('Failed to process image. Please try another file.');
       }
       const { width, height } = jimpImage.bitmap;
       const dominantColor = jimpImage.getPixelColor(0, 0);
       const rgba = Jimp.intToRGBA(dominantColor);
 
-      const materials = await Material.find({ material: 'Granite' }).lean();
+      const uploadStream = gfs.openUploadStream(image.originalname, {
+        contentType: image.mimetype
+      });
+      uploadStream.end(image.buffer);
+
+      imageId = await new Promise((resolve, reject) => {
+        uploadStream.on('finish', () => resolve(uploadStream.id));
+        uploadStream.on('error', reject);
+      });
+      imageUrl = `/api/image/${imageId}`;
+
+      let materials;
+      try {
+        materials = await Material.find({ material: 'Granite' }).lean();
+      } catch (mongoErr) {
+        logger.error(`MongoDB query error for materials: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+        throw new Error('Database error. Please try again later.');
+      }
       const suggestedMaterial = materials[Math.floor(Math.random() * materials.length)] || { colorName: 'Classic Granite' };
       const analysis = `Image (${width}x${height}px, dominant color RGB(${rgba.r}, ${rgba.g}, ${rgba.b})). Try ${suggestedMaterial.colorName} granite for a modern look. Share your email for a quote!`;
 
       if (message && message.includes('@')) {
-        await Lead.create({ email: message, message, imageAnalysis: analysis });
+        try {
+          await Lead.create({ email: message, message, imageAnalysis: analysis, imageId });
+        } catch (mongoErr) {
+          logger.error(`MongoDB insert error for lead: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          throw new Error('Failed to save lead. Please try again.');
+        }
       }
       responseMessage = analysis;
     } else if (!message) {
@@ -193,12 +291,24 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     } else {
       const lowerMessage = message.toLowerCase();
       if (lowerMessage.includes('granite options')) {
-        const materials = await Material.find({ material: 'Granite' }).lean();
+        let materials;
+        try {
+          materials = await Material.find({ material: 'Granite' }).lean();
+        } catch (mongoErr) {
+          logger.error(`MongoDB query error for materials: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          throw new Error('Database error. Please try again later.');
+        }
         responseMessage = materials.length > 0
           ? `Granites: ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a photo for design tips!`
           : `No granite options. Email ${businessInfo.contact}.`;
       } else if (lowerMessage.includes('pricing') || lowerMessage.includes('how much')) {
-        const materials = await Material.find({ material: 'Granite' }).lean();
+        let materials;
+        try {
+          materials = await Material.find({ material: 'Granite' }).lean();
+        } catch (mongoErr) {
+          logger.error(`MongoDB query error for materials: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          throw new Error('Database error. Please try again later.');
+        }
         const avgPrice = materials.length > 0
           ? materials.reduce((sum, m) => sum + parseFloat(calculateFinishedPrice(m.material, m.costSqFt)), 0) / materials.length
           : 0;
@@ -206,7 +316,13 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
           ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote!`
           : `Pricing unavailable. Email ${businessInfo.contact}.`;
       } else if (lowerMessage.includes('services')) {
-        const labor = await Labor.find({}).lean();
+        let labor;
+        try {
+          labor = await Labor.find({}).lean();
+        } catch (mongoErr) {
+          logger.error(`MongoDB query error for labor: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          throw new Error('Database error. Please try again later.');
+        }
         responseMessage = labor.length > 0
           ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo for project ideas!`
           : `Services unavailable. Email ${businessInfo.contact}.`;
@@ -215,14 +331,25 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
       } else if (lowerMessage.includes('location') || lowerMessage.includes('hours')) {
         responseMessage = `Location: ${businessInfo.location}. Hours: ${businessInfo.hours}. Visit or request a quote!`;
       } else if (lowerMessage.includes('@')) {
-        await Lead.create({ email: message, message });
-        responseMessage = `Email saved! We’ll send a quote. Upload a photo for more ideas.`;
+        try {
+          await Lead.create({ email: message, message });
+          const formData = new FormData();
+          formData.append('email', message);
+          formData.append('message', message);
+          await axios.post('https://usebasin.com/f/0e9742fed801', formData, {
+            headers: formData.getHeaders()
+          });
+        } catch (mongoErr) {
+          logger.error(`MongoDB insert or Basin submission error: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+          throw new Error('Failed to save lead or send quote. Please try again.');
+        }
+        responseMessage = `Email saved and quote request sent! We’ll contact you soon. Upload a photo for more ideas.`;
       } else {
         responseMessage = `Ask about granite, pricing, services, our location (${businessInfo.location}), or upload a photo!`;
       }
     }
 
-    res.json({ message: responseMessage });
+    res.json({ message: responseMessage, imageId, imageUrl });
   } catch (error) {
     logger.error(`Chat error: ${error.message}, stack: ${error.stack}`);
     res.status(500).json({ error: `Failed to process request: ${error.message}` });
@@ -233,7 +360,12 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 app.get('/api/materials', async (req, res) => {
   try {
     const cacheKey = 'materials:data';
-    const cachedData = await redis.get(cacheKey);
+    let cachedData;
+    try {
+      cachedData = await redis.get(cacheKey);
+    } catch (redisErr) {
+      logger.error(`Redis get error: ${redisErr.message}, stack: ${redisErr.stack}`);
+    }
     if (cachedData) {
       return res.json(JSON.parse(cachedData));
     }
@@ -243,14 +375,20 @@ app.get('/api/materials', async (req, res) => {
     if (name) {
       query.colorName = { $regex: name, $options: 'i' };
     }
-    let materials = await Material.find(query).lean();
+    let materials;
+    try {
+      materials = await Material.find(query).lean();
+    } catch (mongoErr) {
+      logger.error(`MongoDB query error for materials: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+      throw new Error('Database error. Please try again later.');
+    }
 
     if (!materials || materials.length === 0) {
       let response;
       try {
         response = await axios.get(process.env.PUBLISHED_CSV_MATERIALS);
       } catch (csvErr) {
-        logger.error(`CSV fetch error for materials: ${csvErr.message}`);
+        logger.error(`CSV fetch error for materials: ${csvErr.message}, stack: ${csvErr.stack}`);
         throw new Error('Failed to fetch material data');
       }
       const materialsData = await new Promise((resolve, reject) => {
@@ -271,9 +409,14 @@ app.get('/api/materials', async (req, res) => {
         imageUrl: item['ImageUrl'] || 'https://via.placeholder.com/50'
       }));
 
-      await Material.deleteMany({});
-      await Material.insertMany(materials);
-      materials = await Material.find(query).lean();
+      try {
+        await Material.deleteMany({});
+        await Material.insertMany(materials);
+        materials = await Material.find(query).lean();
+      } catch (mongoErr) {
+        logger.error(`MongoDB update error for materials: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+        throw new Error('Database error. Please try again later.');
+      }
     }
 
     const normalizedData = materials
@@ -289,7 +432,11 @@ app.get('/api/materials', async (req, res) => {
       }))
       .filter((item) => item.colorName && item.material && item.vendorName && item.costSqFt > 0);
 
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+    try {
+      await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+    } catch (redisErr) {
+      logger.error(`Redis set error: ${redisErr.message}, stack: ${redisErr.stack}`);
+    }
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}, stack: ${error.stack}`);
@@ -301,18 +448,30 @@ app.get('/api/materials', async (req, res) => {
 app.get('/api/labor', async (req, res) => {
   try {
     const cacheKey = 'labor:data';
-    const cachedData = await redis.get(cacheKey);
+    let cachedData;
+    try {
+      cachedData = await redis.get(cacheKey);
+    } catch (redisErr) {
+      logger.error(`Redis get error: ${redisErr.message}, stack: ${redisErr.stack}`);
+    }
     if (cachedData) {
       return res.json(JSON.parse(cachedData));
     }
 
-    let laborCosts = await Labor.find({}).lean();
+    let laborCosts;
+    try {
+      laborCosts = await Labor.find({}).lean();
+    } catch (mongoErr) {
+      logger.error(`MongoDB query error for labor: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+      throw new Error('Database error. Please try again later.');
+    }
+
     if (!laborCosts || laborCosts.length === 0) {
       let response;
       try {
         response = await axios.get(process.env.PUBLISHED_CSV_LABOR);
       } catch (csvErr) {
-        logger.error(`CSV fetch error for labor: ${csvErr.message}`);
+        logger.error(`CSV fetch error for labor: ${csvErr.message}, stack: ${csvErr.stack}`);
         throw new Error('Failed to fetch labor data');
       }
       const laborData = await new Promise((resolve, reject) => {
@@ -331,9 +490,14 @@ app.get('/api/labor', async (req, res) => {
         description: item['Description'] || ''
       }));
 
-      await Labor.deleteMany({});
-      await Labor.insertMany(laborCosts);
-      laborCosts = await Labor.find({}).lean();
+      try {
+        await Labor.deleteMany({});
+        await Labor.insertMany(laborCosts);
+        laborCosts = await Labor.find({}).lean();
+      } catch (mongoErr) {
+        logger.error(`MongoDB update error for labor: ${mongoErr.message}, stack: ${mongoErr.stack}`);
+        throw new Error('Database error. Please try again later.');
+      }
     }
 
     const normalizedData = laborCosts
@@ -346,7 +510,11 @@ app.get('/api/labor', async (req, res) => {
       }))
       .filter((item) => item.code && item.service && item.unit && item.price >= 0);
 
-    await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+    try {
+      await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+    } catch (redisErr) {
+      logger.error(`Redis set error: ${redisErr.message}, stack: ${redisErr.stack}`);
+    }
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Labor costs fetch error: ${error.message}, stack: ${error.stack}`);
@@ -366,12 +534,14 @@ app.get('/health', async (req, res) => {
     health.mongodb = 'connected';
   } catch (err) {
     logger.error(`MongoDB health check failed: ${err.message}`);
+    health.mongodb = `error: ${err.message}`;
   }
   try {
     await redis.ping();
     health.redis = 'connected';
   } catch (err) {
     logger.error(`Redis health check failed: ${err.message}`);
+    health.redis = `error: ${err.message}`;
   }
   res.status(200).json(health);
 });
