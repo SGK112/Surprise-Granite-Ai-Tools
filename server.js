@@ -323,6 +323,7 @@ app.get('/api/labor', async (req, res) => {
       .filter((item) => item.code && item.service && item.unit && item.price >= 0);
 
     await redis.set(cacheKey, JSON.stringify(normalizedData), 'EX', 3600);
+    enquête
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Labor costs fetch error: ${error.message}`);
