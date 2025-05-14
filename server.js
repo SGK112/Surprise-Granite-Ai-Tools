@@ -79,7 +79,7 @@ app.use(cors({
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`CORS policy: ${origin} not allowed`));
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -207,7 +207,7 @@ app.get('/api/materials', async (req, res) => {
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Materials fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch materials' });
+    res.status(500).json({ error: `Failed to fetch materials: ${error.message}` });
   }
 });
 
@@ -258,7 +258,7 @@ app.get('/api/labor', async (req, res) => {
     res.json(normalizedData);
   } catch (error) {
     logger.error(`Labor costs fetch error: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch labor costs' });
+    res.status(500).json({ error: `Failed to fetch labor costs: ${error.message}` });
   }
 });
 
