@@ -8,6 +8,7 @@ import { parse } from 'csv-parse';
 import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
+import sharp from 'sharp';
 
 // Load environment variables
 dotenv.config();
@@ -30,7 +31,7 @@ const app = express();
 const port = process.env.PORT || 10000;
 
 // Validate required environment variables
-const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'PUBLISHED_CSV_LABOR', 'REDIS_URL'];
+const requiredEnv = ['MONGODB_URI', 'PUBLISHED_CSV_MATERIALS', 'PUBLISHED_CSV_LABOR', 'REDIS_URL', 'SHOPIFY_ACCESS_TOKEN', 'SHOPIFY_STORE_URL'];
 requiredEnv.forEach((key) => {
   if (!process.env[key]) {
     logger.error(`Missing environment variable: ${key}`);
@@ -169,15 +170,16 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     let responseMessage = '';
 
     if (image) {
-      const Jimp = await import('jimp'); // Dynamic import to fix ESM issue
-      const jimpImage = await Jimp.read(image.buffer);
-      const { width, height } = jimpImage.bitmap;
-      const dominantColor = jimpImage.getPixelColor(0, 0);
-      const rgba = Jimp.intToRGBA(dominantColor);
+      const metadata = await sharp(image.buffer).metadata();
+      const { width, height } = metadata;
+      const pixel = await sharp(image.buffer)
+        .extract({ left: 0, top: 0, width: 1, height: 1 })
+        .toBuffer();
+      const [r, g, b] = pixel;
 
       const materials = await Material.find({ material: 'Granite' }).lean();
       const suggestedMaterial = materials[Math.floor(Math.random() * materials.length)] || { colorName: 'Classic Granite' };
-      const analysis = `Image (${width}x${height}px, dominant color RGB(${rgba.r}, ${rgba.g}, ${rgba.b})). Try ${suggestedMaterial.colorName} granite for a modern look. Share your email for a quote!`;
+      const analysis = `Image (${width}x${height}px, dominant color RGB(${r}, ${g}, ${b})). Try ${suggestedMaterial.colorName} granite for a modern look. Share your email for a quote!`;
 
       if (message && message.includes('@')) {
         await Lead.create({ email: message, message, imageAnalysis: analysis });
@@ -196,7 +198,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         const materials = await Material.find({ material: 'Granite' }).lean();
         const avgPrice = materials.length > 0
           ? materials.reduce((sum, m) => sum + parseFloat(calculateFinishedPrice(m.material, m.costSqFt)), 0) / materials.length
-          : 0;
+          : 0 0;
         responseMessage = avgPrice
           ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote!`
           : `Pricing unavailable. Email ${businessInfo.contact}.`;
@@ -336,6 +338,24 @@ app.get('/api/labor', async (req, res) => {
   } catch (error) {
     logger.error(`Labor costs fetch error: ${error.message}`);
     res.status(500).json({ error: `Failed to fetch labor costs: ${error.message}` });
+  }
+});
+
+// GET /api/shopify-products
+app.get('/api/shopify-products', async (req, res) => {
+  try {
+    const response = await axios.get(`${process.env.SHOPIFY_STORE_URL}/admin/api/2023-10/products.json`, {
+      headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN }
+    });
+    const products = response.data.products.map(p => ({
+      title: p.title,
+      price: parseFloat(p.variants[0].price),
+      url: `https://www.surprisegranite.com/products/${p.handle}`
+    }));
+    res.json(products);
+  } catch (error) {
+    logger.error(`Shopify fetch error: ${error.message}`);
+    res.status(500).json({ error: `Failed to fetch Shopify products: ${error.message}` });
   }
 });
 
