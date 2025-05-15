@@ -1,3 +1,4 @@
+```json
 {
   "name": "surprise-granite-ai-tools",
   "version": "1.0.0",
@@ -7,20 +8,17 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.7.7",
     "cors": "^2.8.5",
-    "mongoose": "^8.0.0",
-    "dotenv": "^16.3.1",
-    "winston": "^3.11.0",
-    "axios": "^1.6.0",
-    "csv-parse": "^5.5.0",
-    "ioredis": "^5.3.2",
-    "express-rate-limit": "^7.1.0",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "ioredis": "^5.4.1",
+    "jimp": "^0.22.12",
+    "mongoose": "^8.6.3",
     "multer": "^1.4.5-lts.1",
-    "jimp": "^0.22.10",
-    "shopify-api-node": "^3.12.0",
-    "helmet": "^7.0.0",
-    "sanitize-html": "^2.12.0",
-    "form-data": "^4.0.0"
+    "winston": "^3.14.2"
   }
 }
+```
