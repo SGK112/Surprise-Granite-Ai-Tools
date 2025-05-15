@@ -89,7 +89,7 @@ app.use(limiter);
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // Increased to 10MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png'];
     if (!allowedTypes.includes(file.mimetype)) {
@@ -127,6 +127,11 @@ app.use(cors({
 app.use((req, res, next) => {
   logger.info(`Request: ${req.method} ${req.url} from origin: ${req.headers.origin || 'none'} with user-agent: ${req.headers['user-agent']}`);
   next();
+});
+
+// Favicon redirect
+app.get('/favicon.ico', (req, res) => {
+  res.redirect(301, 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg');
 });
 
 // MongoDB Schemas
@@ -239,6 +244,14 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 
     // Handle image upload and analysis
     if (image) {
+      // Validate image
+      try {
+        await sharp(image.buffer).metadata(); // Check if image is valid
+      } catch (error) {
+        logger.error(`Invalid image file: ${error.message}`);
+        return res.status(400).json({ error: 'Invalid image file. Only JPEG and PNG are allowed. Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.' });
+      }
+
       const imageBuffer = await sharp(image.buffer).resize({ width: 800 }).toBuffer();
       const uploadResult = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream({ folder: 'surprise_granite' }, (error, result) => {
@@ -277,20 +290,20 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
       const lowerMessage = message.toLowerCase();
       let systemPrompt = 'You are a Surprise Granite assistant specializing in countertops, cabinets, tile, and kitchen/bathroom remodeling. Provide helpful, accurate responses based on the user’s query, incorporating relevant business information (location: Surprise, AZ 85374; hours: Mon-Fri 8 AM-5 PM, Sat 9 AM-2 PM, Sun Closed; contact: info@surprisegranite.com). Always include a link to https://www.surprisegranite.com in your response.';
 
-      if (lowerMessage.includes('granite options')) {
+      if (lowerMessage.includes('countertop') || lowerMessage.includes('granite options')) {
         const materials = await Material.find({ material: 'Granite' }).lean();
         responseMessage = materials.length > 0
-          ? `Granites: ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a photo for design tips! Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`
-          : `No granite options. Email info@surprisegranite.com. Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`;
+          ? `Countertops: ${materials.slice(0, 3).map(m => m.colorName).join(', ')}. Upload a photo for design tips! Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`
+          : `No countertop options. Email info@surprisegranite.com. Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`;
       } else if (lowerMessage.includes('pricing') || lowerMessage.includes('how much')) {
         const materials = await Material.find({ material: 'Granite' }).lean();
         const avgPrice = materials.length > 0
           ? materials.reduce((sum, m) => sum + parseFloat(calculateFinishedPrice(m.material, m.costSqFt)), 0) / materials.length
           : 0;
         responseMessage = avgPrice
-          ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote! Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`
+          ? `Countertops ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote! Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`
           : `Pricing unavailable. Email info@surprisegranite.com. Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`;
-      } else if (lowerMessage.includes('services')) {
+      } else if (lowerMessage.includes('services') || lowerMessage.includes('tile') || lowerMessage.includes('cabinet') || lowerMessage.includes('remodeling')) {
         const labor = await Labor.find({}).lean();
         responseMessage = labor.length > 0
           ? `Services: ${labor.slice(0, 3).map(l => l.service).join(', ')}. Upload a photo for project ideas! Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.`
@@ -314,7 +327,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         const products = await axios.get(`${process.env.SHOPIFY_STORE_URL}/admin/api/2023-10/products.json`, {
           headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN }
         });
-        responseMessage = `Check out our Shopify store for granite samples, countertops, and more! Visit <a href="https://www.surprisegranite.com/collections/all">www.surprisegranite.com</a>.`;
+        responseMessage = `Check out our Shopify store for countertops, cabinets, and more! Visit <a href="https://www.surprisegranite.com/collections/all">www.surprisegranite.com</a>.`;
       } else {
         const openaiResponse = await openai.chat.completions.create({
           model: 'gpt-4o',
@@ -454,7 +467,11 @@ app.get('/api/labor', async (req, res) => {
 // GET /api/shopify-products
 app.get('/api/shopify-products', async (req, res) => {
   try {
-    const response = await axios.get(`${process.env.SHOPIFY_STORE_URL}/admin/api/2023-10/products.json`, {
+    const shopifyUrl = `${process.env.SHOPIFY_STORE_URL}/admin/api/2023-10/products.json`;
+    if (!shopifyUrl.startsWith('https://')) {
+      throw new Error('Invalid SHOPIFY_STORE_URL: must start with https://');
+    }
+    const response = await axios.get(shopifyUrl, {
       headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN }
     });
     const products = response.data.products.map(p => ({
