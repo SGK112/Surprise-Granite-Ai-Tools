@@ -89,11 +89,14 @@ app.use(limiter);
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // Increased to 10MB
+  limits: { fileSize: 10 * 1024 * 1024, fields: 1, files: 1 }, // 10MB, limit non-file fields
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png'];
     if (!allowedTypes.includes(file.mimetype)) {
       return cb(new Error('Only JPEG and PNG images are allowed'));
+    }
+    if (file.fieldname !== 'image') {
+      return cb(new Error('File field must be named "image"'));
     }
     cb(null, true);
   }
@@ -230,7 +233,7 @@ async function sendChatLog(userMessage, botResponse, imageUrl = null) {
 }
 
 // POST /api/chat
-app.post('/api/chat', upload.single('image'), async (req, res) => {
+app.post('/api/chat', upload.single('image'), async (req, res, next) => {
   try {
     const { message } = req.body;
     const image = req.file;
@@ -246,7 +249,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     if (image) {
       // Validate image
       try {
-        await sharp(image.buffer).metadata(); // Check if image is valid
+        await sharp(image.buffer).metadata();
       } catch (error) {
         logger.error(`Invalid image file: ${error.message}`);
         return res.status(400).json({ error: 'Invalid image file. Only JPEG and PNG are allowed. Visit <a href="https://www.surprisegranite.com">www.surprisegranite.com</a>.' });
