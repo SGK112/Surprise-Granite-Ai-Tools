@@ -1,4 +1,3 @@
-```json
 {
   "name": "surprise-granite-ai-tools",
   "version": "1.0.0",
@@ -21,4 +20,3 @@
     "winston": "^3.14.2"
   }
 }
-```
