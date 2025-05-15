@@ -198,7 +198,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         const materials = await Material.find({ material: 'Granite' }).lean();
         const avgPrice = materials.length > 0
           ? materials.reduce((sum, m) => sum + parseFloat(calculateFinishedPrice(m.material, m.costSqFt)), 0) / materials.length
-          : 0 0;
+          : 0;
         responseMessage = avgPrice
           ? `Granite ~$${avgPrice.toFixed(2)}/sq.ft. Share details for a quote!`
           : `Pricing unavailable. Email ${businessInfo.contact}.`;
