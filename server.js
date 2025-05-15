@@ -41,7 +41,7 @@ requiredEnv.forEach((key) => {
 });
 
 // Log CORS_ORIGIN for debugging
-logger.info(`Raw CORS_ORIGIN: "${process.env.CORS_ORIGIN}"`);
+logger.info(`Raw CORS_ORIGIN: "${process.env.CORS_ORIGIN || 'undefined'}"`);
 
 // Redis setup for caching
 const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
@@ -81,8 +81,9 @@ app.use(cors({
           'http://localhost:3000',
           'https://grok.com'
         ];
-    logger.info(`CORS check for origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}`);
+    logger.info(`CORS check - Origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}, Raw CORS_ORIGIN: "${process.env.CORS_ORIGIN || 'undefined'}"`);
     if (!origin || allowedOrigins.includes(origin)) {
+      logger.info(`CORS allowed for origin: ${origin || 'none'}`);
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin || 'none'}`);
