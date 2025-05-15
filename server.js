@@ -70,19 +70,15 @@ const upload = multer({
 app.use(express.json());
 app.use(cors({
   origin: (origin, callback) => {
-    const allowedOrigins = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN.trim()
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(o => o)
-      : [
-          'https://surprisegranite.webflow.io',
-          'https://www.surprisegranite.com',
-          'https://ttt.surprisegranite.com',
-          'https://artifacts.grokusercontent.com',
-          'http://localhost:3000',
-          'https://grok.com'
-        ];
-    logger.info(`CORS check - Origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}`);
-    if (!origin || allowedOrigins.includes(origin)) {
+    const corsOrigin = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN.trim();
+    if (corsOrigin === '*' || !origin) {
       logger.info(`CORS allowed for origin: ${origin || 'none'}`);
+      return callback(null, true);
+    }
+    const allowedOrigins = corsOrigin.split(',').map(o => o.trim()).filter(o => o);
+    logger.info(`CORS check - Origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}`);
+    if (allowedOrigins.includes(origin)) {
+      logger.info(`CORS allowed for origin: ${origin}`);
       callback(null, true);
     } else {
       logger.warn(`CORS blocked for origin: ${origin || 'none'}`);
