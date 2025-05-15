@@ -1,18 +1,7 @@
-# Use Node.js LTS version
-FROM node:18
-
-# Set working directory
+FROM node:18.20.8
+RUN npm install -g npm@11.3.0
 WORKDIR /app
-
-# Copy package.json and install dependencies
 COPY package.json .
 RUN npm install
-
-# Copy application code
 COPY . .
-
-# Expose port
-EXPOSE 10000
-
-# Start the application
 CMD ["npm", "start"]
