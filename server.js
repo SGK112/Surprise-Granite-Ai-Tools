@@ -1,4 +1,3 @@
-```javascript
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
@@ -9,7 +8,6 @@ import { parse } from 'csv-parse';
 import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
-import Jimp from 'jimp';
 
 // Load environment variables
 dotenv.config();
@@ -171,6 +169,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     let responseMessage = '';
 
     if (image) {
+      const Jimp = await import('jimp'); // Dynamic import to fix ESM issue
       const jimpImage = await Jimp.read(image.buffer);
       const { width, height } = jimpImage.bitmap;
       const dominantColor = jimpImage.getPixelColor(0, 0);
@@ -373,4 +372,3 @@ mongoose
 
 // Start Server
 app.listen(port, () => logger.info(`Server running on port ${port}`));
-```
