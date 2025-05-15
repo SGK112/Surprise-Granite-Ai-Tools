@@ -43,21 +43,21 @@ requiredEnv.forEach((key) => {
 // Log CORS_ORIGIN for debugging
 logger.info(`Raw CORS_ORIGIN: "${process.env.CORS_ORIGIN || 'undefined'}"`);
 
-// Redis setup for caching
+// Redis setup
 const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests
+  windowMs: 15 * 60 * 1000,
+  max: 100,
 });
 app.use(limiter);
 
-// Multer setup for file uploads
+// Multer setup
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png'];
     if (!allowedTypes.includes(file.mimetype)) {
@@ -69,7 +69,7 @@ const upload = multer({
 
 // Middleware
 app.use(express.json());
-app.use(cors({ 
+app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN.trim()
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(o => o)
@@ -81,7 +81,7 @@ app.use(cors({
           'http://localhost:3000',
           'https://grok.com'
         ];
-    logger.info(`CORS check - Origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}, Raw CORS_ORIGIN: "${process.env.CORS_ORIGIN || 'undefined'}"`);
+    logger.info(`CORS check - Origin: ${origin || 'none'}, Allowed: ${allowedOrigins.join(', ')}`);
     if (!origin || allowedOrigins.includes(origin)) {
       logger.info(`CORS allowed for origin: ${origin || 'none'}`);
       callback(null, true);
@@ -157,7 +157,7 @@ function calculateFinishedPrice(material, costSqFt) {
   return (costSqFt * 3.25 + additionalCost).toFixed(2);
 }
 
-// GET /api/chat (handle invalid method)
+// GET /api/chat
 app.get('/api/chat', (req, res) => {
   logger.warn(`Invalid GET request to /api/chat from origin: ${req.headers.origin || 'none'}, user-agent: ${req.headers['user-agent']}`);
   res.status(405).json({ error: 'Method Not Allowed: Use POST for /api/chat' });
@@ -227,7 +227,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
   }
 });
 
-// Fetch Materials
+// GET /api/materials
 app.get('/api/materials', async (req, res) => {
   try {
     const cacheKey = 'materials:data';
@@ -289,7 +289,7 @@ app.get('/api/materials', async (req, res) => {
   }
 });
 
-// Fetch Labor Costs
+// GET /api/labor
 app.get('/api/labor', async (req, res) => {
   try {
     const cacheKey = 'labor:data';
