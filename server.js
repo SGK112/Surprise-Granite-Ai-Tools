@@ -503,6 +503,34 @@ app.get('/api/business-info', async (req, res) => {
   }
 });
 
+// POST /api/quote
+app.post('/api/quote', async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: 'New Quote Request',
+      html: `
+        <h2>New Quote Request</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Quote request submitted successfully' });
+  } catch (error) {
+    logger.error(`Quote request error: ${error.message}`);
+    res.status(500).json({ error: `Failed to submit quote request: ${error.message}` });
+  }
+});
+
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });

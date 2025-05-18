@@ -452,4 +452,135 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('version-toggle').checked = localStorage.getItem('isProMode') === 'true';
     showTool('estimator');
     calculateEstimate();
+
+    // Fetch countertop data from the server and display it in the comparison price list
+    const fetchCountertopData = async () => {
+        try {
+            const response = await fetchWithRetry('https://surprise-granite-connections-dev.onrender.com/api/materials');
+            const data = await response.json();
+            displayCountertopData(data);
+        } catch (error) {
+            console.error('Failed to fetch countertop data:', error);
+        }
+    };
+
+    const displayCountertopData = (data) => {
+        const priceList = document.getElementById('price-list');
+        priceList.innerHTML = data.map(item => `
+            <div class="price-item">
+                <img src="${sanitizeInput(item.imageUrl)}" alt="${sanitizeInput(item.colorName)}" />
+                <p><strong>${sanitizeInput(item.colorName)}</strong></p>
+                <p>${sanitizeInput(item.material)}</p>
+                <p>${formatCurrency(item.finishedPrice)}</p>
+                <button class="add-to-cart" data-id="${sanitizeInput(item.colorName)}">Add to Cart</button>
+            </div>
+        `).join('');
+    };
+
+    // Handle ZIP code submission and update region multiplier
+    const handleZipCodeSubmission = () => {
+        const zipCodeInput = document.getElementById('zip-code');
+        const zipCode = zipCodeInput.value.trim();
+        if (!/^\d{5}$/.test(zipCode)) {
+            alert('Please enter a valid 5-digit ZIP code.');
+            return;
+        }
+        // Update region multiplier based on ZIP code
+        // This is a placeholder implementation, replace with actual logic
+        const regionMultiplier = zipCode.startsWith('85') ? 1.1 : 1.0;
+        localStorage.setItem('regionMultiplier', regionMultiplier);
+        fetchCountertopData();
+    };
+
+    document.getElementById('zip-code-submit').addEventListener('click', handleZipCodeSubmission);
+
+    // Implement search functionality for countertops
+    const searchCountertops = () => {
+        const searchInput = document.getElementById('search-input');
+        const query = searchInput.value.trim().toLowerCase();
+        const priceItems = document.querySelectorAll('.price-item');
+        priceItems.forEach(item => {
+            const colorName = item.querySelector('strong').textContent.trim().toLowerCase();
+            const material = item.querySelector('p:nth-child(3)').textContent.trim().toLowerCase();
+            item.style.display = colorName.includes(query) || material.includes(query) ? 'block' : 'none';
+        });
+    };
+
+    document.getElementById('search-input').addEventListener('input', debounce(searchCountertops, 300));
+
+    // Manage comparison cart and update UI accordingly
+    const updateComparisonCart = () => {
+        const cart = JSON.parse(localStorage.getItem('comparisonCart')) || [];
+        const cartContainer = document.getElementById('comparison-cart');
+        cartContainer.innerHTML = cart.map(item => `
+            <div class="cart-item">
+                <img src="${sanitizeInput(item.imageUrl)}" alt="${sanitizeInput(item.colorName)}" />
+                <p><strong>${sanitizeInput(item.colorName)}</strong></p>
+                <p>${sanitizeInput(item.material)}</p>
+                <p>${formatCurrency(item.finishedPrice)}</p>
+                <button class="remove-from-cart" data-id="${sanitizeInput(item.colorName)}">Remove</button>
+            </div>
+        `).join('');
+    };
+
+    const addToCart = (colorName) => {
+        const cart = JSON.parse(localStorage.getItem('comparisonCart')) || [];
+        const item = Array.from(document.querySelectorAll('.price-item')).find(item => item.querySelector('strong').textContent.trim() === colorName);
+        if (item) {
+            const newItem = {
+                colorName,
+                material: item.querySelector('p:nth-child(3)').textContent.trim(),
+                finishedPrice: item.querySelector('p:nth-child(4)').textContent.trim(),
+                imageUrl: item.querySelector('img').src
+            };
+            cart.push(newItem);
+            localStorage.setItem('comparisonCart', JSON.stringify(cart));
+            updateComparisonCart();
+        }
+    };
+
+    const removeFromCart = (colorName) => {
+        let cart = JSON.parse(localStorage.getItem('comparisonCart')) || [];
+        cart = cart.filter(item => item.colorName !== colorName);
+        localStorage.setItem('comparisonCart', JSON.stringify(cart));
+        updateComparisonCart();
+    };
+
+    document.getElementById('price-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('add-to-cart')) {
+            const colorName = e.target.dataset.id;
+            addToCart(colorName);
+        }
+    });
+
+    document.getElementById('comparison-cart').addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-from-cart')) {
+            const colorName = e.target.dataset.id;
+            removeFromCart(colorName);
+        }
+    });
+
+    // Handle form submission for personalized quote
+    const handleQuoteFormSubmission = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        try {
+            const response = await fetchWithRetry('https://surprise-granite-connections-dev.onrender.com/api/quote', {
+                method: 'POST',
+                body: formData
+            });
+            if (!response.ok) throw new Error('Failed to submit quote form');
+            alert('Quote request submitted successfully!');
+            form.reset();
+        } catch (error) {
+            console.error('Quote form submission error:', error);
+            alert('Failed to submit quote request. Please try again later.');
+        }
+    };
+
+    document.getElementById('quote-form').addEventListener('submit', handleQuoteFormSubmission);
+
+    // Initial fetch of countertop data
+    fetchCountertopData();
 });
