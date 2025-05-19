@@ -7,6 +7,7 @@ import csv
 import requests
 from urllib.parse import quote, urlparse
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -15,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # MongoDB connection
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")  # Use Render env variable
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 DB_NAME = "countertops"
 COLLECTION_NAME = "images"
 client = MongoClient(MONGO_URI)
@@ -36,13 +37,26 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 # Base URL for production
-BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")  # Use Render env variable
+BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 
 # CSV processing
-PUBLISHED_CSV_MATERIALS = os.getenv("PUBLISHED_CSV_MATERIALS", "")  # e.g., "/app/materials.csv" or URL
+PUBLISHED_CSV_MATERIALS = os.getenv("PUBLISHED_CSV_MATERIALS", "")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def optimize_images():
+    """Optimize images to 320x128px for mobile performance."""
+    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+        if allowed_file(filename):
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            try:
+                img = Image.open(file_path)
+                img.thumbnail((320, 128))
+                img.save(file_path, quality=80)
+                logger.info(f"Optimized image: {filename}")
+            except Exception as e:
+                logger.error(f"Error optimizing image {filename}: {str(e)}")
 
 def process_csv_and_images():
     if not PUBLISHED_CSV_MATERIALS:
@@ -50,10 +64,7 @@ def process_csv_and_images():
         return
 
     try:
-        # Clear existing collection (optional, comment out to append)
         collection.delete_many({})
-
-        # Read CSV
         if PUBLISHED_CSV_MATERIALS.startswith(('http://', 'https://')):
             response = requests.get(PUBLISHED_CSV_MATERIALS)
             response.raise_for_status()
@@ -64,7 +75,6 @@ def process_csv_and_images():
                 csv_reader = csv.DictReader(csv_file)
 
         for row in csv_reader:
-            # Prepare countertop data
             countertop_data = {
                 'colorName': row.get('colorName', 'Unknown'),
                 'vendorName': row.get('vendorName', 'Unknown'),
@@ -77,11 +87,9 @@ def process_csv_and_images():
                 'isNew': row.get('isNew', 'false').lower() == 'true'
             }
 
-            # Handle image
             image_url = row.get('imageUrl', '')
             if image_url:
                 if image_url.startswith(('http://', 'https://')):
-                    # Download image from URL
                     try:
                         image_response = requests.get(image_url, stream=True)
                         image_response.raise_for_status()
@@ -94,27 +102,25 @@ def process_csv_and_images():
                             countertop_data['imageUrl'] = filename
                             logger.info(f"Downloaded image: {filename}")
                         else:
-                            logger.warning(f"Invalid image extension: {filename}")
                             countertop_data['imageUrl'] = 'fallback.jpg'
                     except Exception as e:
                         logger.error(f"Failed to download image {image_url}: {str(e)}")
                         countertop_data['imageUrl'] = 'fallback.jpg'
                 else:
-                    # Assume local filename in countertop_images
                     if allowed_file(image_url) and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], image_url)):
                         countertop_data['imageUrl'] = image_url
                     else:
                         logger.warning(f"Image not found: {image_url}")
                         countertop_data['imageUrl'] = 'fallback.jpg'
 
-            # Insert into MongoDB
             collection.insert_one(countertop_data)
             logger.info(f"Inserted countertop: {countertop_data['colorName']}")
+
+        optimize_images()
 
     except Exception as e:
         logger.error(f"Error processing CSV: {str(e)}")
 
-# Run CSV processing on startup
 if PUBLISHED_CSV_MATERIALS:
     process_csv_and_images()
 
@@ -241,143 +247,1194 @@ if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
 ```
 
+#### 2. `index.html`
+**Purpose**: Main HTML file for the app’s UI, linking to CSS, JavaScript, and manifest.
+
 **Changes**:
-- Added `requests` and `csv` imports for CSV processing and image downloads.
-- Added `PUBLISHED_CSV_MATERIALS` environment variable parsing.
-- Implemented `process_csv_and_images` to:
-  - Read CSV from a URL or local file.
-  - Clear MongoDB collection (optional).
-  - Insert countertop data into MongoDB.
-  - Download images from URLs to `countertop_images` or validate local filenames.
-- Runs `process_csv_and_images` on startup if `PUBLISHED_CSV_MATERIALS` is set.
-- Added environment variables for `MONGO_URI` and `BASE_URL`.
+- Replaced Tailwind CDN with compiled `output.css`.
+- Updated `toast` CSS for visibility.
+- Fixed `theme-toggle` and `top-nav` overlap.
+- Added `region-display` div.
+- Used local logo (`/images/icon-192.png`).
 
-#### 3. Update `requirements.txt`
-Add dependencies for CSV and image processing:
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="1491fdd8-f743-4554-aa97-b348b2eb5470" title="index.html" contentType="text/html">
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Compare and quote granite, quartz, and other countertops with Surprise Granite's interactive calculator.">
+    <meta name="keywords" content="countertops, granite, quartz, quote, comparison, Surprise Granite">
+    <meta name="author" content="Surprise Granite">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="Surprise Granite Countertop Comparison Quote">
+    <meta property="og:description" content="Compare and quote granite, quartz, and other countertops with Surprise Granite's interactive calculator.">
+    <meta property="og:image" content="/images/icon-192.png">
+    <meta property="og:url" content="https://www.surprisegranite.com/compare-quote">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="theme-color" content="#f5f5f5">
+    <title>Surprise Granite Countertop Comparison Quote</title>
+    <link rel="canonical" href="https://www.surprisegranite.com/compare-quote">
+    <link rel="icon" href="/images/icon-192.png" type="image/png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/dist/output.css">
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js" defer></script>
+    <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-color: #e5e7eb;
+            --accent-color: #2563eb;
+            --error-color: #b91c1c;
+            --success-color: #10b981;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1f2937;
+            --bg-secondary: #374151;
+            --text-primary: #d1d5db;
+            --text-secondary: #9ca3af;
+            --border-color: #4b5563;
+            --accent-color: #3b82f6;
+            --error-color: #ef4444;
+            --success-color: #34d399;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+            font-family: 'Inter', system-ui, sans-serif;
+            box-sizing: border-box;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        .app-container {
+            min-height: 100vh;
+            width: 100%;
+            max-width: 100vw;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 5rem;
+        }
+        .material-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.75rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .color-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            display: inline-block;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            z-index: 50;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.75rem 0;
+            transition: background-color 0.3s;
+            width: 100%;
+            max-width: 100vw;
+        }
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            transition: transform 0.2s, background-color 0.3s;
+            padding: 1rem;
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .card img {
+            width: 100%;
+            height: 128px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .toast {
+            position: fixed;
+            bottom: 6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--success-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            z-index: 1000;
+            max-width: 90%;
+            font-size: 1rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.error {
+            background: var(--error-color);
+        }
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .error-message {
+            background: #fee2e2;
+            color: var(--error-color);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+            margin: 1rem auto;
+            max-width: 90%;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        [data-theme="dark"] .error-message {
+            background: #7f1d1d;
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            padding: 1rem;
+            flex: 1;
+            margin: 0 auto;
+        }
+        .card-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+        .filter-panel {
+            display: none;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .filter-panel.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        input, select, textarea, button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+            touch-action: manipulation;
+            width: 100%;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        button {
+            min-height: 44px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+        @media (min-width: 640px) {
+            body { padding-bottom: 0; }
+            .bottom-nav { display: none; }
+            .container { padding: 2rem; }
+            .card-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                gap: 1.5rem;
+            }
+            .filter-panel { display: block; }
+            .app-container { padding-bottom: 0; }
+        }
+        @media (min-width: 768px) {
+            h1 { font-size: 2rem; }
+            h2 { font-size: 1.5rem; }
+            p, input, select, button, textarea { font-size: 1rem; }
+        }
+        @media (min-width: 1280px) {
+            .container { max-width: 1600px; }
+            .card-grid { gap: 2rem; }
+        }
+        .top-nav {
+            display: none;
+        }
+        @media (min-width: 640px) {
+            .top-nav {
+                display: flex;
+                justify-content: center;
+                gap: 2rem;
+                padding: 2rem 4rem;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+                margin-bottom: 1rem;
+                transition: background-color 0.3s, border-color 0.3s;
+                max-width: 1400px;
+                margin-left: auto;
+                margin-right: auto;
+                position: relative;
+                z-index: 50;
+            }
+        }
+        .theme-toggle {
+            position: fixed;
+            top: 0.5rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            padding: 0.25rem;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-primary);
+        }
+        @media (min-width: 640px) {
+            .theme-toggle {
+                right: 1rem;
+                top: 0.5rem;
+            }
+        }
+        @media (max-width: 639px) {
+            input, select, textarea {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <div id="error" class="error-message hidden"></div>
+    <div id="region-display" class="text-sm text-center" style="color: var(--text-secondary)"></div>
+    <script src="/js/app.js"></script>
+</body>
+</html>
+```
 
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="10dd2ff5-f420-41d5-9677-97c64cd30074" title="requirements.txt" contentType="text/plain">
+#### 3. `app.js`
+**Purpose**: React-based JavaScript for UI logic, state management, and API calls.
+
+**Changes**:
+- Updated `fetchPriceList` to use Flask endpoint.
+- Fixed cart update with tab switch and toast.
+- Reordered filters (vendor, material, color).
+- Added `debounce` for search input.
+- Improved square footage input with `onBlur`.
+- Added `formatCurrency` for accounting format.
+- Fixed null `textContent` error with checks.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f1b36ff5-7b2c-474f-9822-42b7ded1e4f3" title="app.js" contentType="application/javascript">
+```javascript
+// Reset viewport scale and scroll on load
+window.addEventListener('load', () => {
+    document.body.style.zoom = '1';
+    window.scrollTo(0, 0);
+    history.scrollRestoration = 'manual';
+});
+
+// Utility Functions
+const getColorSwatch = colorName => {
+    const name = (colorName || '').toLowerCase();
+    if (name.includes('white')) return '#F5F5F5';
+    if (name.includes('black')) return '#1F2937';
+    if (name.includes('blue')) return '#3B82F6';
+    if (name.includes('gray')) return '#6B7280';
+    return '#D1D5DB';
+};
+
+const getMaterialBadgeColor = material => {
+    const m = (material || '').toLowerCase();
+    if (m.includes('granite')) return 'bg-green-600';
+    if (m.includes('quartz')) return 'bg-blue-600';
+    if (m.includes('quartzite')) return 'bg-purple-600';
+    if (m.includes('dekton')) return 'bg-gray-600';
+    if (m.includes('porcelain')) return 'bg-red-600';
+    return 'bg-gray-500';
+};
+
+const getWasteFactor = sqFt => {
+    if (sqFt < 25) return 1.30;
+    if (sqFt <= 50) return 1.20;
+    return 1.15;
+};
+
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(value);
+};
+
+const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), delay);
+    };
+};
+
+// React Component
+function App() {
+    const [priceData, setPriceData] = React.useState([]);
+    const [quote, setQuote] = React.useState(JSON.parse(localStorage.getItem('quote')) || []);
+    const [searchQuery, setSearchQuery] = React.useState(localStorage.getItem('searchQuery') || '');
+    const [currentTab, setCurrentTab] = React.useState(localStorage.getItem('currentTab') || 'search');
+    const [zipCode, setZipCode] = React.useState(localStorage.getItem('zipCode') || '');
+    const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
+    const [regionName, setRegionName] = React.useState('National Average');
+    const [filters, setFilters] = React.useState(JSON.parse(localStorage.getItem('filters')) || { material: '', color: '', vendor: '' });
+    const [showFilters, setShowFilters] = React.useState(false);
+    const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
+    const [error, setError] = React.useState('');
+    const [theme, setTheme] = React.useState(localStorage.getItem('theme') || 'light');
+
+    React.useEffect(() => {
+        fetchPriceList();
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        localStorage.setItem('currentTab', currentTab);
+        localStorage.setItem('searchQuery', searchQuery);
+        localStorage.setItem('filters', JSON.stringify(filters));
+        window.scrollTo(0, 0);
+    }, [zipCode, theme, currentTab, searchQuery, filters]);
+
+    const showToast = (message, isError = false) => {
+        setToast({ message, show: true, isError });
+        setTimeout(() => setToast({ message: '', show: false, isError: false }), 3000);
+    };
+
+    const showError = (message) => {
+        setError(message);
+        const errorDiv = document.getElementById('error');
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        } else {
+            console.warn('Error div not found');
+        }
+    };
+
+    const toggleTheme = () => {
+        setTheme(theme === 'light' ? 'dark' : 'light');
+    };
+
+    const fetchPriceList = async () => {
+        try {
+            const response = await fetch('/api/countertops', {
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(5000)
+            });
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+            const rawData = await response.json();
+            const processedData = rawData.flatMap((item, index) => 
+                ['2cm', '3cm'].map(thickness => ({
+                    id: `${item.colorName}-${item.vendorName}-${thickness}-${index}`,
+                    colorName: item.colorName || 'Unknown',
+                    vendorName: item.vendorName || 'Unknown',
+                    thickness,
+                    material: item.material || 'Unknown',
+                    installedPricePerSqFt: (parseFloat(item.costSqFt || 0) * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * regionMultiplier,
+                    availableSqFt: parseFloat(item.availableSqFt || 0),
+                    imageUrl: item.imageUrl || '/images/fallback.jpg',
+                    popularity: item.popularity || Math.random(),
+                    isNew: item.isNew || Math.random() > 0.8
+                }))
+            );
+            setPriceData(processedData);
+        } catch (err) {
+            console.error('Fetch error:', err.message);
+            setPriceData([{
+                id: 'mock-granite-2cm-0',
+                colorName: 'Mock Granite',
+                vendorName: 'Mock Vendor',
+                thickness: '2cm',
+                material: 'Granite',
+                installedPricePerSqFt: 50 * regionMultiplier,
+                availableSqFt: 100,
+                imageUrl: '/images/fallback.jpg',
+                popularity: 0.8,
+                isNew: false
+            }]);
+            showError('Failed to load countertop data. Using mock data.');
+        }
+    };
+
+    const addToQuote = (item) => {
+        if (quote.some(q => q.id === item.id)) {
+            showToast(`${item.colorName} is already in cart`, true);
+            return;
+        }
+        const newQuote = [...quote, { ...item, sqFt: 10 }];
+        setQuote(newQuote);
+        localStorage.setItem('quote', JSON.stringify(newQuote));
+        showToast(`${item.colorName} added to cart`);
+        setCurrentTab('cart');
+    };
+
+    const removeFromQuote = (index) => {
+        const newQuote = quote.filter((_, i) => i !== index);
+        setQuote(newQuote);
+        localStorage.setItem('quote', JSON.stringify(newQuote));
+        showToast('Item removed from cart');
+    };
+
+    const updateSqFt = (index, value) => {
+        const parsedValue = parseFloat(value);
+        if (isNaN(parsedValue) || parsedValue < 0) {
+            showToast('Please enter a valid square footage', true);
+            return;
+        }
+        const newQuote = [...quote];
+        newQuote[index].sqFt = parsedValue;
+        setQuote(newQuote);
+        localStorage.setItem('quote', JSON.stringify(newQuote));
+    };
+
+    const handleZipSubmit = () => {
+        if (!/^\d{5}$/.test(zipCode)) {
+            showToast('Invalid ZIP code', true);
+            return;
+        }
+        localStorage.setItem('zipCode', zipCode);
+        const region = zipCode.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                      zipCode.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                      zipCode.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                      zipCode.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                      { name: 'Southeast', multiplier: 1.05 };
+        setRegionName(region.name);
+        setRegionMultiplier(region.multiplier);
+        const regionDisplay = document.getElementById('region-display');
+        if (regionDisplay) {
+            regionDisplay.textContent = `Region: ${region.name}`;
+        }
+        showToast(`Region set to ${region.name}`);
+    };
+
+    const handleQuoteSubmit = (e) => {
+        e.preventDefault();
+        const name = e.target.name.value;
+        const email = e.target.email.value;
+        if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            showToast('Please provide a valid name and email', true);
+            return;
+        }
+        showToast('Quote submitted successfully');
+        e.target.reset();
+        setCurrentTab('search');
+    };
+
+    const vendors = [...new Set(priceData.map(item => item.vendorName))].sort();
+
+    const handleSearchChange = debounce((value) => {
+        setSearchQuery(value);
+    }, 300);
+
+    const filteredResults = priceData.filter(item => {
+        const matchesSearch = !searchQuery || item.colorName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                             item.material.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesMaterial = !filters.material || item.material === filters.material;
+        const matchesColor = !filters.color || item.colorName.toLowerCase().includes(filters.color.toLowerCase());
+        const matchesVendor = !filters.vendor || item.vendorName === filters.vendor;
+        return matchesSearch && matchesMaterial && matchesColor && matchesVendor;
+    });
+
+    return React.createElement('div', { className: 'app-container' },
+        React.createElement('div', { className: 'container relative' },
+            // Theme Toggle
+            React.createElement('button', {
+                onClick: toggleTheme,
+                className: 'theme-toggle',
+                'aria-label': `Switch to ${theme === 'light' ? 'dark' : 'light'} mode`
+            },
+                theme === 'light' ?
+                    React.createElement('svg', {
+                        fill: 'none',
+                        viewBox: '0 0 24 24',
+                        stroke: 'currentColor'
+                    }, React.createElement('path', {
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                        strokeWidth: '2',
+                        d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'
+                    })) :
+                    React.createElement('svg', {
+                        fill: 'none',
+                        viewBox: '0 0 24 24',
+                        stroke: 'currentColor'
+                    }, React.createElement('path', {
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                        strokeWidth: '2',
+                        d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'
+                    }))
+            ),
+
+            // Top Navigation (Desktop)
+            React.createElement('nav', { className: 'top-nav' },
+                React.createElement('button', {
+                    onClick: () => setCurrentTab('search'),
+                    className: `px-4 py-2 font-medium ${currentTab === 'search' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
+                    style: { color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+                }, 'Search'),
+                React.createElement('button', {
+                    onClick: () => setCurrentTab('cart'),
+                    className: `px-4 py-2 font-medium ${currentTab === 'cart' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
+                    style: { color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+                }, 'Cart'),
+                React.createElement('button', {
+                    onClick: () => setCurrentTab('quote'),
+                    className: `px-4 py-2 font-medium ${currentTab === 'quote' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
+                    style: { color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+                }, 'Quote')
+            ),
+
+            // Header
+            React.createElement('header', { className: 'text-center mb-6 relative' },
+                React.createElement('img', {
+                    src: '/images/icon-192.png',
+                    alt: 'Surprise Granite Logo',
+                    className: 'h-12 mx-auto mb-4 max-w-full'
+                }),
+                React.createElement('h1', { className: 'font-bold', style: { color: 'var(--accent-color)' } }, 'Countertop Quote'),
+                React.createElement('p', { className: 'mt-2 text-sm', style: { color: 'var(--text-secondary)' } }, 'Compare and get quotes for your perfect countertops')
+            ),
+
+            // ZIP Code Input
+            React.createElement('div', { className: 'mb-6 flex flex-col sm:flex-row gap-2 max-w-md mx-auto' },
+                React.createElement('input', {
+                    type: 'text',
+                    value: zipCode,
+                    onChange: e => setZipCode(e.target.value),
+                    placeholder: 'ZIP Code',
+                    className: 'flex-1 p-2 border rounded-lg',
+                    maxLength: '5',
+                    pattern: '[0-9]{5}'
+                }),
+                React.createElement('button', {
+                    onClick: handleZipSubmit,
+                    className: 'bg-blue-600 text-white px-4 py-2 rounded-lg sm:w-auto w-full',
+                    style: { backgroundColor: 'var(--accent-color)' }
+                }, 'Update')
+            ),
+
+            // Search Tab
+            currentTab === 'search' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
+                React.createElement('div', { className: 'relative mb-4 max-w-md mx-auto' },
+                    React.createElement('input', {
+                        type: 'search',
+                        value: searchQuery,
+                        onChange: e => handleSearchChange(e.target.value),
+                        placeholder: 'Search colors, materials...',
+                        className: 'w-full p-2 pl-10 border rounded-lg'
+                    }),
+                    React.createElement('svg', {
+                        className: 'absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5',
+                        style: { color: 'var(--text-secondary)' },
+                        fill: 'none',
+                        viewBox: '0 0 24 24',
+                        stroke: 'currentColor'
+                    }, React.createElement('path', {
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                        strokeWidth: '2',
+                        d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                    }))
+                ),
+
+                React.createElement('button', {
+                    onClick: () => setShowFilters(!showFilters),
+                    className: 'w-full max-w-md mx-auto p-2 rounded-lg text-left mb-4 sm:hidden',
+                    style: { backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }
+                }, showFilters ? 'Hide Filters' : 'Show Filters'),
+
+                React.createElement('div', { className: `filter-panel ${showFilters ? 'active' : ''} sm:block grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-4xl mx-auto` },
+                    React.createElement('div', null,
+                        React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Vendor'),
+                        React.createElement('select', {
+                            value: filters.vendor,
+                            onChange: e => setFilters({ ...filters, vendor: e.target.value }),
+                            className: 'w-full p-2 border rounded-lg'
+                        },
+                            React.createElement('option', { value: '' }, 'All Vendors'),
+                            vendors.map(vendor => React.createElement('option', { key: vendor, value: vendor }, vendor))
+                        )
+                    ),
+                    React.createElement('div', null,
+                        React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Material'),
+                        React.createElement('select', {
+                            value: filters.material,
+                            onChange: e => setFilters({ ...filters, material: e.target.value }),
+                            className: 'w-full p-2 border rounded-lg'
+                        },
+                            React.createElement('option', { value: '' }, 'All Materials'),
+                            React.createElement('option', { value: 'Granite' }, 'Granite'),
+                            React.createElement('option', { value: 'Quartz' }, 'Quartz'),
+                            React.createElement('option', { value: 'Quartzite' }, 'Quartzite'),
+                            React.createElement('option', { value: 'Dekton' }, 'Dekton'),
+                            React.createElement('option', { value: 'Porcelain' }, 'Porcelain')
+                        )
+                    ),
+                    React.createElement('div', null,
+                        React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Color'),
+                        React.createElement('select', {
+                            value: filters.color,
+                            onChange: e => setFilters({ ...filters, color: e.target.value }),
+                            className: 'w-full p-2 border rounded-lg'
+                        },
+                            React.createElement('option', { value: '' }, 'All Colors'),
+                            React.createElement('option', { value: 'White' }, 'White'),
+                            React.createElement('option', { value: 'Black' }, 'Black'),
+                            React.createElement('option', { value: 'Blue' }, 'Blue'),
+                            React.createElement('option', { value: 'Gray' }, 'Gray'),
+                            React.createElement('option', { value: 'Neutral' }, 'Neutral')
+                        )
+                    )
+                ),
+
+                React.createElement('div', { className: 'card-grid' },
+                    filteredResults.length === 0 ?
+                        React.createElement('p', { className: 'text-center col-span-full', style: { color: 'var(--text-secondary)' } }, 'No results found') :
+                        filteredResults.map(item => React.createElement('div', {
+                            key: item.id,
+                            className: 'card'
+                        },
+                            React.createElement('img', {
+                                src: item.imageUrl,
+                                alt: item.colorName,
+                                className: 'w-full h-32 object-cover rounded-lg mb-4 max-w-full',
+                                loading: 'lazy'
+                            }),
+                            React.createElement('h3', {
+                                className: 'font-semibold flex items-center text-base',
+                                style: { color: 'var(--text-primary)' }
+                            },
+                                React.createElement('span', {
+                                    className: 'color-swatch mr-2',
+                                    style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName) }
+                                }),
+                                item.colorName
+                            ),
+                            React.createElement('p', { className: 'text-sm', style: { color: 'var(--text-secondary)' } },
+                                'Material: ',
+                                React.createElement('span', {
+                                    className: `material-badge ${getMaterialBadgeColor(item.material)}`
+                                }, item.material)
+                            ),
+                            React.createElement('p', { className: 'text-sm', style: { color: 'var(--text-secondary)' } },
+                                'Vendor: ', item.vendorName
+                            ),
+                            React.createElement('p', { className: 'text-sm', style: { color: 'var(--text-secondary)' } },
+                                'Price: ', formatCurrency(item.installedPricePerSqFt), '/sq ft'
+                            ),
+                            React.createElement('button', {
+                                onClick: () => addToQuote(item),
+                                disabled: quote.some(q => q.id === item.id),
+                                className: 'w-full mt-4 text-white p-2 rounded-lg',
+                                style: { backgroundColor: quote.some(q => q.id === item.id) ? '#6b7280' : 'var(--accent-color)' }
+                            }, quote.some(q => q.id === item.id) ? 'In Cart' : 'Add to Cart')
+                        ))
+                )
+            ),
+
+            // Cart Tab
+            currentTab === 'cart' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
+                React.createElement('h2', {
+                    className: 'text-xl font-bold mb-4 text-center',
+                    style: { color: 'var(--text-primary)' }
+                }, 'Your Cart'),
+                quote.length === 0 ?
+                    React.createElement('p', {
+                        className: 'text-center',
+                        style: { color: 'var(--text-secondary)' }
+                    }, 'Your cart is empty') :
+                    React.createElement('div', { className: 'card-grid' },
+                        quote.map((item, index) => React.createElement('div', {
+                            key: item.id,
+                            className: 'card'
+                        },
+                            React.createElement('img', {
+                                src: item.imageUrl,
+                                alt: item.colorName,
+                                className: 'w-full h-32 object-cover rounded-lg mb-4 max-w-full',
+                                loading: 'lazy'
+                            }),
+                            React.createElement('h3', {
+                                className: 'font-semibold text-base',
+                                style: { color: 'var(--text-primary)' }
+                            }, item.colorName),
+                            React.createElement('p', {
+                                className: 'text-sm',
+                                style: { color: 'var(--text-secondary)' }
+                            },
+                                'Material: ',
+                                React.createElement('span', {
+                                    className: `material-badge ${getMaterialBadgeColor(item.material)}`
+                                }, item.material)
+                            ),
+                            React.createElement('p', {
+                                className: 'text-sm',
+                                style: { color: 'var(--text-secondary)' }
+                            }, 'Vendor: ', item.vendorName),
+                            React.createElement('div', { className: 'mt-2' },
+                                React.createElement('label', {
+                                    className: 'block text-sm',
+                                    style: { color: 'var(--text-primary)' }
+                                }, 'Area (sq ft)'),
+                                React.createElement('input', {
+                                    type: 'number',
+                                    value: item.sqFt.toString(),
+                                    onChange: e => updateSqFt(index, e.target.value),
+                                    onBlur: e => updateSqFt(index, e.target.value),
+                                    className: 'w-full p-2 border rounded-lg',
+                                    min: '0',
+                                    step: '0.01',
+                                    placeholder: 'Enter sq ft'
+                                })
+                            ),
+                            React.createElement('p', {
+                                className: 'text-sm mt-2',
+                                style: { color: 'var(--text-secondary)' }
+                            },
+                                'Cost: ', formatCurrency(item.sqFt * getWasteFactor(item.sqFt) * item.installedPricePerSqFt)
+                            ),
+                            React.createElement('button', {
+                                onClick: () => removeFromQuote(index),
+                                className: 'w-full mt-4 text-white p-2 rounded-lg',
+                                style: { backgroundColor: 'var(--error-color)' }
+                            }, 'Remove')
+                        ))
+                    ),
+                quote.length > 0 && React.createElement('button', {
+                    onClick: () => setCurrentTab('quote'),
+                    className: 'w-full max-w-md mx-auto text-white p-3 rounded-lg mt-6 block',
+                    style: { backgroundColor: 'var(--accent-color)' }
+                }, 'Get Quote')
+            ),
+
+            // Quote Tab
+            currentTab === 'quote' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
+                React.createElement('h2', {
+                    className: 'text-xl font-bold mb-4 text-center',
+                    style: { color: 'var(--text-primary)' }
+                }, 'Get Your Quote'),
+                React.createElement('form', {
+                    onSubmit: handleQuoteSubmit,
+                    className: 'card p-4 max-w-md mx-auto',
+                    'data-wf-form': 'quote-form'
+                },
+                    React.createElement('div', { className: 'mb-4' },
+                        React.createElement('label', {
+                            className: 'block text-sm font-medium',
+                            style: { color: 'var(--text-primary)' }
+                        }, 'Name *'),
+                        React.createElement('input', {
+                            type: 'text',
+                            name: 'name',
+                            className: 'w-full p-2 border rounded-lg',
+                            required: true
+                        })
+                    ),
+                    React.createElement('div', { className: 'mb-4' },
+                        React.createElement('label', {
+                            className: 'block text-sm font-medium',
+                            style: { color: 'var(--text-primary)' }
+                        }, 'Email *'),
+                        React.createElement('input', {
+                            type: 'email',
+                            name: 'email',
+                            className: 'w-full p-2 border rounded-lg',
+                            required: true
+                        })
+                    ),
+                    React.createElement('div', { className: 'mb-4' },
+                        React.createElement('label', {
+                            className: 'block text-sm font-medium',
+                            style: { color: 'var(--text-primary)' }
+                        }, 'Phone (Optional)'),
+                        React.createElement('input', {
+                            type: 'tel',
+                            name: 'phone',
+                            className: 'w-full p-2 border rounded-lg'
+                        })
+                    ),
+                    React.createElement('div', { className: 'mb-4' },
+                        React.createElement('label', {
+                            className: 'block text-sm font-medium',
+                            style: { color: 'var(--text-primary)' }
+                        }, 'Notes'),
+                        React.createElement('textarea', {
+                            name: 'notes',
+                            className: 'w-full p-2 border rounded-lg',
+                            rows: '4'
+                        })
+                    ),
+                    React.createElement('button', {
+                        type: 'submit',
+                        className: 'w-full text-white p-3 rounded-lg',
+                        style: { backgroundColor: 'var(--accent-color)' }
+                    }, 'Submit Quote')
+                )
+            ),
+
+            // Toast
+            React.createElement('div', {
+                className: `toast ${toast.show ? 'show' : ''} ${toast.isError ? 'error' : ''}`,
+                style: { opacity: toast.show ? 1 : 0 }
+            }, toast.message)
+        ),
+
+        // Bottom Navigation (Mobile)
+        React.createElement('nav', { className: 'bottom-nav' },
+            React.createElement('button', {
+                onClick: () => setCurrentTab('search'),
+                className: `flex flex-col items-center min-w-[80px] ${currentTab === 'search' ? 'text-blue-600' : ''}`,
+                style: { color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+            },
+                React.createElement('svg', {
+                    className: 'w-6 h-6 mb-1',
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor'
+                }, React.createElement('path', {
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    strokeWidth: '2',
+                    d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                })),
+                'Search'
+            ),
+            React.createElement('button', {
+                onClick: () => setCurrentTab('cart'),
+                className: `flex flex-col items-center min-w-[80px] ${currentTab === 'cart' ? 'text-blue-600' : ''}`,
+                style: { color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+            },
+                React.createElement('svg', {
+                    className: 'w-6 h-6 mb-1',
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor'
+                }, React.createElement('path', {
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    strokeWidth: '2',
+                    d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
+                })),
+                'Cart'
+            ),
+            React.createElement('button', {
+                onClick: () => setCurrentTab('quote'),
+                className: `flex flex-col items-center min-w-[80px] ${currentTab === 'quote' ? 'text-blue-600' : ''}`,
+                style: { color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)' }
+            },
+                React.createElement('svg', {
+                    className: 'w-6 h-6 mb-1',
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor'
+                }, React.createElement('path', {
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    strokeWidth: '2',
+                    d: 'M3 3h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
+                })),
+                'Quote'
+            )
+        )
+    );
+}
+
+// Render App
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (window.React && window.ReactDOM) {
+            ReactDOM.render(React.createElement(App), document.getElementById('root'));
+        } else {
+            const errorDiv = document.getElementById('error');
+            if (errorDiv) {
+                errorDiv.textContent = 'Failed to load React. Please refresh the page.';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+    }, 100);
+});
+
+// Service Worker Registration
+if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+    window.addEventListener('load', async () => {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+            console.log('Service Worker registered');
+        } catch (err) {
+            console.warn('Service Worker registration failed:', err.message);
+        }
+    });
+}
+```
+
+#### 4. `sw.js`
+**Purpose**: Service worker for PWA offline support and caching.
+
+**Changes**:
+- Used provided code, ensuring caching of critical files and dynamic image caching.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="438a8c2c-ed9b-4770-b287-94941641a557" title="sw.js" contentType="application/javascript">
+```javascript
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open('granite-quote-v1').then(cache => {
+            return cache.addAll([
+                '/',
+                '/manifest.json',
+                '/dist/output.css',
+                '/js/app.js',
+                '/images/fallback.jpg',
+                '/images/icon-192.png',
+                '/images/icon-512.png'
+            ]);
+        })
+    );
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        caches.match(event.request).then(response => {
+            return response || fetch(event.request).then(fetchResponse => {
+                if (event.request.url.includes('/countertop_images/')) {
+                    caches.open('granite-quote-v1').then(cache => {
+                        cache.put(event.request, fetchResponse.clone());
+                    });
+                }
+                return fetchResponse;
+            });
+        }).catch(() => {
+            if (event.request.url.includes('/countertop_images/')) {
+                return caches.match('/images/fallback.jpg');
+            }
+        })
+    );
+});
+```
+
+#### 5. `manifest.json`
+**Purpose**: Web app manifest for PWA features.
+
+**Changes**:
+- Used provided JSON, saved as a proper file.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="75bf0c7b-3b36-4f10-bc8e-c0261717cb34" title="manifest.json" contentType="application/json">
+```json
+{
+    "name": "Surprise Granite Countertop Quote",
+    "short_name": "Granite Quote",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f5f5f5",
+    "theme_color": "#2563eb",
+    "icons": [
+        {
+            "src": "/images/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/images/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
+```
+
+#### 6. `input.css`
+**Purpose**: Tailwind CSS input for compilation.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="cc153059-6d3f-4a7b-8f42-0d0af97ea434" title="input.css" contentType="text/css">
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+#### 7. `tailwind.config.js`
+**Purpose**: Tailwind configuration for purging unused styles.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f85b7666-138f-4983-aa26-106e1e79dd1b" title="tailwind.config.js" contentType="application/javascript">
+```javascript
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './index.html',
+    './app.js'
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+#### 8. `package.json`
+**Purpose**: Node.js dependencies and build scripts.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="33e5ce31-feed-44e7-a62c-282c00654a8e" title="package.json" contentType="application/json">
+```json
+{
+  "name": "countertop-app",
+  "version": "1.0.0",
+  "description": "Surprise Granite Countertop Comparison Quote",
+  "main": "app.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./input.css -o ./dist/output.css --minify"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tailwindcss": "^3.4.3",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19"
+  }
+}
+```
+
+#### 9. `requirements.txt`
+**Purpose**: Python dependencies for Flask and image processing.
+
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="d1146c43-5a20-468a-934e-8cb42002bc88" title="requirements.txt" contentType="text/plain">
 ```
 Flask==2.3.2
 pymongo==4.6.3
 gunicorn==22.0.0
 requests==2.31.0
+Pillow==10.3.0
 ```
 
-#### 4. Configure Render Environment Variables
-In Render’s dashboard:
-- Go to your service → Environment → Environment Variables.
-- Add:
-  - `PUBLISHED_CSV_MATERIALS`: URL (e.g., `https://example.com/materials.csv`) or local path (e.g., `/app/materials.csv`).
-  - `MONGO_URI`: MongoDB connection string (e.g., `mongodb+srv://user:password@cluster.mongodb.net`).
-  - `BASE_URL`: Your deployed URL (e.g., `https://your-app-name.onrender.com`).
-- Example:
-  ```
-  PUBLISHED_CSV_MATERIALS=https://example.com/materials.csv
-  MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net
-  BASE_URL=https://your-app-name.onrender.com
-  ```
+#### 10. `Procfile`
+**Purpose**: Render deployment configuration.
 
-#### 5. Include `materials.csv` (Optional)
-If `PUBLISHED_CSV_MATERIALS` points to a local file (e.g., `/app/materials.csv`), include `materials.csv` in the repo:
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="8e737320-48f4-4ecd-8e07-43e2c69a44ff" title="materials.csv" contentType="text/csv">
-```csv
-colorName,vendorName,material,thickness,costSqFt,availableSqFt,imageUrl,popularity,isNew
-Calacatta Quartz,Caesarstone,Quartz,3cm,50,100,https://example.com/images/calacatta-quartz.jpg,0.8,false
-Black Granite,Local Supplier,Granite,2cm,40,80,black-granite.jpg,0.7,true
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f6cec795-1e83-4910-9d62-768c2d638964" title="Procfile" contentType="text/plain">
+```
+web: gunicorn app:app
 ```
 
-**Note**: If using URLs, ensure they are publicly accessible. If using local filenames, place images in `countertop_images` before deployment.
-
-#### 6. Reuse Existing Files
-Use the previously provided files for the frontend and PWA:
-- `index.html`, `app.js`, `sw.js`, `manifest.json` (from prior responses).
-- `input.css`, `tailwind.config.js`, `package.json` for Tailwind CSS.
-- Generate `dist/output.css`:
-  ```bash
-  npm run build:css
-  ```
-
-#### 7. Populate `countertop_images` and `images`
+#### 11. `countertop_images/` and `images/`
 - **countertop_images/**:
-  - If CSV uses local filenames, add images (e.g., `calacatta-quartz.jpg`, `black-granite.jpg`).
-  - If CSV uses URLs, `app.py` will download them on startup.
-  - Add a fallback:
+  - Add images (e.g., `calacatta-quartz.jpg`, `black-granite.jpg`) or let `app.py` download from CSV URLs.
+  - Include fallback:
     ```bash
     curl -o countertop_images/fallback.jpg https://placehold.co/150x150
     ```
 - **images/**:
   - Add `fallback.jpg`, `icon-192.png`, `icon-512.png` (convert SVG logo using convertio.co).
 
-### Addressing Previous Errors
-- **Regex Error (`Uncaught SyntaxError: Invalid regular expression: missing /`)**: Ensured regex patterns in `app.js` (e.g., `/^\d{5}$/`) are correct.
-- **Shopyflow Conflicts**: Hosting on Flask avoids Webflow/Shopyflow injections. If using Webflow, disable Shopyflow in Project Settings → Integrations.
-- **Null Error (`Cannot set properties of null`)**: Added `<div id="region-display">` and null checks in `app.js`.
-- **Placeholder Errors (`via.placeholder.com`)**: Replaced with local `/images/fallback.jpg`.
-- **Service Worker 404**: `sw.js` is served by Flask, fixing the 404.
-- **Wized 404**: Removed Wized script (not needed).
+#### 12. `materials.csv` (Optional)
+**Purpose**: Local CSV if `PUBLISHED_CSV_MATERIALS` points to a file.
 
-### Deployment on Render
-1. **Prepare Repository**:
-   - Ensure all files are in the repo (see structure above).
-   - Commit and push:
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="fab1345b-bc7b-4557-83d8-e73c286426d5" title="materials.csv" contentType="text/csv">
+```csv
+colorName,vendorName,material,thickness,costSqFt,availableSqFt,imageUrl,popularity,isNew
+Calacatta Quartz,Caesarstone,Quartz,3cm,50,100,calacatta-quartz.jpg,0.8,false
+Black Granite,Local Supplier,Granite,2cm,40,80,black-granite.jpg,0.7,true
+```
+
+### Deployment and Testing
+1. **Setup**:
+   - Create directory structure and add files.
+   - Install dependencies:
+     ```bash
+     npm install
+     pip install -r requirements.txt
+     ```
+   - Build CSS:
+     ```bash
+     npm run build:css
+     ```
+
+2. **Local Testing**:
+   ```bash
+   export PUBLISHED_CSV_MATERIALS=/path/to/materials.csv
+   export MONGO_URI=mongodb://localhost:27017
+   export BASE_URL=http://localhost:5000
+   python app.py
+   ```
+   Open `http://localhost:5000`.
+
+3. **Deploy to Render**:
+   - Commit and push to GitHub:
      ```bash
      git add .
-     git commit -m "Add CSV processing and fix errors"
+     git commit -m "Update app with cart, filters, and performance fixes"
      git push origin main
      ```
-
-2. **Deploy**:
-   - Connect your GitHub repo to Render.
-   - Create a new Web Service, select Python environment.
-   - Configure environment variables in Render’s dashboard.
-   - Deploy; Render will install dependencies from `requirements.txt` and run `Procfile`:
-     ```bash
-     echo "web: gunicorn app:app" > Procfile
+   - In Render’s dashboard, set environment variables:
      ```
-
-3. **Verify CSV Processing**:
-   - Check logs in Render’s dashboard for CSV processing messages (e.g., “Inserted countertop: Calacatta Quartz”).
-   - Verify MongoDB has records:
-     ```python
-     from pymongo import MongoClient
-     client = MongoClient('your-mongo-uri')
-     db = client['countertops']
-     print(list(db['images'].find({}, {'_id': 0})))
+     PUBLISHED_CSV_MATERIALS=https://example.com/materials.csv
+     MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net
+     BASE_URL=https://your-app-name.onrender.com
      ```
-   - Confirm images in `countertop_images` (Render’s filesystem is ephemeral, so images are downloaded on startup).
+   - Deploy via GitHub integration.
 
-### Testing
-1. **Local Testing**:
-   - Set environment variables:
-     ```bash
-     export PUBLISHED_CSV_MATERIALS=/path/to/materials.csv
-     export MONGO_URI=mongodb://localhost:27017
-     export BASE_URL=http://localhost:5000
-     ```
-   - Run:
-     ```bash
-     python app.py
-     ```
-   - Open `http://localhost:5000`.
+4. **Test**:
+   - **Cart**: Add a color; verify cart tab updates and toast appears.
+   - **Filters**: Confirm vendors are first.
+   - **Performance**: Test on iPhone for smooth scrolling.
+   - **Square Footage**: Enter 10, 50, 10.5; confirm input works.
+   - **Prices**: Check `$1,700.00` format.
+   - **Theme Toggle**: Ensure no overlap on desktop.
+   - **Errors**: Verify no console errors (F12 → Console).
 
-2. **Render Testing**:
-   - Access `https://your-app-name.onrender.com`.
-   - Verify:
-     - Pricing (e.g., `$237.50/sq ft` for Calacatta Quartz 3cm, West Coast).
-     - Images load from `/countertop_images/`.
-     - No console errors (F12 → Console).
-     - PWA features (home screen installation, offline support).
-   - Test on iPhone (app-like behavior) and PC (wide-screen layout).
+### Addressing Previous Errors
+- **Regex Error**: Validated regex patterns.
+- **Shopyflow**: Flask hosting avoids conflicts.
+- **Null Error**: Added `region-display` and checks.
+- **Placeholder Errors**: Used local fallback.
+- **Service Worker 404**: Served via Flask.
 
-### Additional Notes
-- **CSV Hosting**: If `PUBLISHED_CSV_MATERIALS` is a URL, host the CSV on a reliable service (e.g., Google Drive, Dropbox, or your own server). Ensure it’s UTF-8 encoded to avoid parsing errors.[](https://help.shopify.com/en/manual/products/import-export/using-csv)
-- **Image Sources**: If CSV URLs are unavailable, source images from vendors (e.g., Caesarstone) or stock libraries (Unsplash, Pexels).
-- **MongoDB**: Use MongoDB Atlas for a hosted database in production.
-- **Webflow**: If hosting on Webflow, upload `index.html`, `dist/output.css`, `/images/*`, and `manifest.json` to the Asset Manager, but serve `app.js` and `sw.js` from Flask.
-
-If you encounter issues, please provide:
-- The console log from Chrome DevTools.
-- The Render URL and `/api/countertops` response.
-- The CSV file or its URL for verification.
-I’ll ensure the app leverages the CSV for images and pricing, fixing all errors![](https://render.com/docs/configure-environment-variables)
+If issues persist, provide:
+- Console log from Chrome DevTools.
+- Render URL and `/api/countertops` response.
+- CSV details (`PUBLISHED_CSV_MATERIALS` value).
+I’ll ensure the app works flawlessly!
