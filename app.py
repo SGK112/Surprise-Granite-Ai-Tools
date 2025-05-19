@@ -1,8 +1,7 @@
 ```python
-from flask import Flask, render_template, send_from_directory, request, jsonify
+from flask import Flask, send_from_directory, request, jsonify
 from pymongo import MongoClient
 import os
-import logging
 import csv
 import requests
 from urllib.parse import quote, urlparse
@@ -11,11 +10,6 @@ from PIL import Image
 
 app = Flask(__name__)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# MongoDB connection
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 DB_NAME = "countertops"
 COLLECTION_NAME = "images"
@@ -23,241 +17,174 @@ client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 
-# Directories
 UPLOAD_FOLDER = 'countertop_images'
 STATIC_FOLDER = 'dist'
 IMAGES_FOLDER = 'images'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-if not os.path.exists(STATIC_FOLDER):
-    os.makedirs(STATIC_FOLDER)
-if not os.path.exists(IMAGES_FOLDER):
-    os.makedirs(IMAGES_FOLDER)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(STATIC_FOLDER, exist_ok=True)
+os.makedirs(IMAGES_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-# Base URL for production
 BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
-
-# CSV processing
 PUBLISHED_CSV_MATERIALS = os.getenv("PUBLISHED_CSV_MATERIALS", "")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def optimize_images():
-    """Optimize images to 320x128px for mobile performance."""
     for filename in os.listdir(app.config['UPLOAD_FOLDER']):
         if allowed_file(filename):
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            try:
-                img = Image.open(file_path)
-                img.thumbnail((320, 128))
-                img.save(file_path, quality=80)
-                logger.info(f"Optimized image: {filename}")
-            except Exception as e:
-                logger.error(f"Error optimizing image {filename}: {str(e)}")
+            img = Image.open(file_path)
+            img.thumbnail((320, 128))
+            img.save(file_path, quality=80)
 
 def process_csv_and_images():
     if not PUBLISHED_CSV_MATERIALS:
-        logger.warning("PUBLISHED_CSV_MATERIALS not set")
         return
-
-    try:
-        collection.delete_many({})
-        if PUBLISHED_CSV_MATERIALS.startswith(('http://', 'https://')):
-            response = requests.get(PUBLISHED_CSV_MATERIALS)
-            response.raise_for_status()
-            csv_content = response.text.splitlines()
-            csv_reader = csv.DictReader(csv_content)
-        else:
-            with open(PUBLISHED_CSV_MATERIALS, 'r') as csv_file:
-                csv_reader = csv.DictReader(csv_file)
-
-        for row in csv_reader:
-            countertop_data = {
-                'colorName': row.get('colorName', 'Unknown'),
-                'vendorName': row.get('vendorName', 'Unknown'),
-                'material': row.get('material', 'Unknown'),
-                'thickness': row.get('thickness', 'Unknown'),
-                'costSqFt': float(row.get('costSqFt', 0)),
-                'availableSqFt': float(row.get('availableSqFt', 0)),
-                'imageUrl': row.get('imageUrl', ''),
-                'popularity': float(row.get('popularity', 0)),
-                'isNew': row.get('isNew', 'false').lower() == 'true'
-            }
-
-            image_url = row.get('imageUrl', '')
-            if image_url:
-                if image_url.startswith(('http://', 'https://')):
-                    try:
-                        image_response = requests.get(image_url, stream=True)
-                        image_response.raise_for_status()
-                        filename = secure_filename(os.path.basename(urlparse(image_url).path))
-                        if allowed_file(filename):
-                            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                            with open(file_path, 'wb') as f:
-                                for chunk in image_response.iter_content(1024):
-                                    f.write(chunk)
-                            countertop_data['imageUrl'] = filename
-                            logger.info(f"Downloaded image: {filename}")
-                        else:
-                            countertop_data['imageUrl'] = 'fallback.jpg'
-                    except Exception as e:
-                        logger.error(f"Failed to download image {image_url}: {str(e)}")
-                        countertop_data['imageUrl'] = 'fallback.jpg'
+    collection.delete_many({})
+    if PUBLISHED_CSV_MATERIALS.startswith(('http://', 'https://')):
+        response = requests.get(PUBLISHED_CSV_MATERIALS)
+        response.raise_for_status()
+        csv_content = response.text.splitlines()
+        csv_reader = csv.DictReader(csv_content)
+    else:
+        with open(PUBLISHED_CSV_MATERIALS, 'r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+    for row in csv_reader:
+        countertop_data = {
+            'colorName': row.get('colorName', 'Unknown'),
+            'vendorName': row.get('vendorName', 'Unknown'),
+            'material': row.get('material', 'Unknown'),
+            'thickness': row.get('thickness', 'Unknown'),
+            'costSqFt': float(row.get('costSqFt', 0)),
+            'availableSqFt': float(row.get('availableSqFt', 0)),
+            'imageUrl': row.get('imageUrl', ''),
+            'popularity': float(row.get('popularity', 0)),
+            'isNew': row.get('isNew', 'false').lower() == 'true'
+        }
+        image_url = row.get('imageUrl', '')
+        if image_url:
+            if image_url.startswith(('http://', 'https://')):
+                image_response = requests.get(image_url, stream=True)
+                image_response.raise_for_status()
+                filename = secure_filename(os.path.basename(urlparse(image_url).path))
+                if allowed_file(filename):
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    with open(file_path, 'wb') as f:
+                        for chunk in image_response.iter_content(1024):
+                            f.write(chunk)
+                    countertop_data['imageUrl'] = filename
                 else:
-                    if allowed_file(image_url) and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], image_url)):
-                        countertop_data['imageUrl'] = image_url
-                    else:
-                        logger.warning(f"Image not found: {image_url}")
-                        countertop_data['imageUrl'] = 'fallback.jpg'
-
-            collection.insert_one(countertop_data)
-            logger.info(f"Inserted countertop: {countertop_data['colorName']}")
-
-        optimize_images()
-
-    except Exception as e:
-        logger.error(f"Error processing CSV: {str(e)}")
+                    countertop_data['imageUrl'] = 'fallback.jpg'
+            else:
+                if allowed_file(image_url) and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], image_url)):
+                    countertop_data['imageUrl'] = image_url
+                else:
+                    countertop_data['imageUrl'] = 'fallback.jpg'
+        collection.insert_one(countertop_data)
+    optimize_images()
 
 if PUBLISHED_CSV_MATERIALS:
     process_csv_and_images()
 
 @app.route('/')
 def serve_index():
-    try:
-        return send_from_directory('.', 'index.html')
-    except Exception as e:
-        logger.error(f"Error serving index.html: {str(e)}")
-        return jsonify({'error': 'Failed to load page'}), 500
+    return send_from_directory('.', 'index.html')
 
 @app.route('/countertop_images/<path:filename>')
 def serve_images(filename):
-    try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    except Exception as e:
-        logger.error(f"Error serving image {filename}: {str(e)}")
-        return jsonify({'error': 'Image not found'}), 404
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/dist/<path:filename>')
 def serve_static(filename):
-    try:
-        return send_from_directory(STATIC_FOLDER, filename)
-    except Exception as e:
-        logger.error(f"Error serving static file {filename}: {str(e)}")
-        return jsonify({'error': 'File not found'}), 404
+    return send_from_directory(STATIC_FOLDER, filename)
 
 @app.route('/js/app.js')
 def serve_app_js():
-    try:
-        return send_from_directory('.', 'app.js')
-    except Exception as e:
-        logger.error(f"Error serving app.js: {str(e)}")
-        return jsonify({'error': 'Script not found'}), 404
+    return send_from_directory('.', 'app.js')
 
 @app.route('/sw.js')
 def serve_sw():
-    try:
-        return send_from_directory('.', 'sw.js')
-    except Exception as e:
-        logger.error(f"Error serving sw.js: {str(e)}")
-        return jsonify({'error': 'Service worker not found'}), 404
+    return send_from_directory('.', 'sw.js')
 
 @app.route('/manifest.json')
 def serve_manifest():
-    try:
-        return send_from_directory('.', 'manifest.json')
-    except Exception as e:
-        logger.error(f"Error serving manifest.json: {str(e)}")
-        return jsonify({'error': 'Manifest not found'}), 404
+    return send_from_directory('.', 'manifest.json')
 
 @app.route('/images/<path:filename>')
 def serve_fallback(filename):
-    try:
-        return send_from_directory(IMAGES_FOLDER, filename)
-    except Exception as e:
-        logger.error(f"Error serving image {filename}: {str(e)}")
-        return jsonify({'error': 'Image not found'}), 404
+    return send_from_directory(IMAGES_FOLDER, filename)
 
 @app.route('/api/countertops', methods=['GET'])
 def get_countertops():
-    try:
-        countertops = list(collection.find({}, {'_id': 0}))
-        for countertop in countertops:
-            if 'imageUrl' in countertop and countertop['imageUrl']:
-                countertop['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(countertop['imageUrl'])}"
-        logger.info(f"Served {len(countertops)} countertops via API")
-        return jsonify(countertops)
-    except Exception as e:
-        logger.error(f"Error serving countertops API: {str(e)}")
-        return jsonify({'error': 'Failed to load countertops'}), 500
+    countertops = list(collection.find({}, {'_id': 0}))
+    for countertop in countertops:
+        if 'imageUrl' in countertop and countertop['imageUrl']:
+            countertop['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(countertop['imageUrl'])}"
+    return jsonify(countertops)
 
 @app.route('/api/upload-image', methods=['POST'])
 def upload_image():
-    try:
-        if 'file' not in request.files:
-            logger.warning("No file uploaded in request")
-            return jsonify({'error': 'No file uploaded'}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            logger.warning("No file selected")
-            return jsonify({'error': 'No file selected'}), 400
-
-        if not allowed_file(file.filename):
-            logger.warning(f"Invalid file extension: {file.filename}")
-            return jsonify({'error': 'Invalid file type. Use PNG or JPG'}), 400
-
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        logger.info(f"Saved image: {filename}")
-
-        countertop_data = {
-            'colorName': filename.split('.')[0],
-            'vendorName': 'Uploaded',
-            'material': 'Unknown',
-            'thickness': 'Unknown',
-            'costSqFt': 0,
-            'availableSqFt': 0,
-            'imageUrl': filename,
-            'popularity': 0,
-            'isNew': True
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file type. Use PNG or JPG'}), 400
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
+    countertop_data = {
+        'colorName': filename.split('.')[0],
+        'vendorName': 'Uploaded',
+        'material': 'Unknown',
+        'thickness': 'Unknown',
+        'costSqFt': 0,
+        'availableSqFt': 0,
+        'imageUrl': filename,
+        'popularity': 0,
+        'isNew': True
+    }
+    collection.insert_one(countertop_data)
+    return jsonify({
+        'imageUrl': f"{BASE_URL}/countertop_images/{quote(filename)}",
+        'analysis': {
+            'stoneType': 'Unknown',
+            'colorPattern': 'Unknown',
+            'isNaturalStone': False,
+            'damageType': 'None',
+            'severity': 'None',
+            'estimatedCost': 'N/A'
         }
-        collection.insert_one(countertop_data)
-        logger.info(f"Stored countertop data for {filename} in MongoDB")
-
-        return jsonify({
-            'imageUrl': f"{BASE_URL}/countertop_images/{quote(filename)}",
-            'analysis': {
-                'stoneType': 'Unknown',
-                'colorPattern': 'Unknown',
-                'isNaturalStone': false,
-                'damageType': 'None',
-                'severity': 'None',
-                'estimatedCost': 'N/A'
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error uploading image: {str(e)}")
-        return jsonify({'error': 'Failed to upload image'}), 500
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
 ```
 
-#### 2. `index.html`
-**Purpose**: Main HTML file for the app’s UI, linking to CSS, JavaScript, and manifest.
+#### 2. `requirements.txt`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="25b26bcf-3f6f-408b-9ee2-637e2ba1688c" title="requirements.txt" contentType="text/plain">
+```
+Flask==2.3.2
+pymongo==4.6.3
+gunicorn==22.0.0
+requests==2.31.0
+Pillow==10.3.0
+```
 
-**Changes**:
-- Replaced Tailwind CDN with compiled `output.css`.
-- Updated `toast` CSS for visibility.
-- Fixed `theme-toggle` and `top-nav` overlap.
-- Added `region-display` div.
-- Used local logo (`/images/icon-192.png`).
+#### 3. `Procfile`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="e6ef2dad-16be-49e8-8e89-052ef156fc48" title="Procfile" contentType="text/plain">
+```
+web: gunicorn app:app
+```
 
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="1491fdd8-f743-4554-aa97-b348b2eb5470" title="index.html" contentType="text/html">
+### Front-End Files
+
+#### 4. `index.html`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="98ea4d3b-aafb-48df-adf7-3b68161ae551" title="index.html" contentType="text/html">
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -554,28 +481,15 @@ if __name__ == '__main__':
 </html>
 ```
 
-#### 3. `app.js`
-**Purpose**: React-based JavaScript for UI logic, state management, and API calls.
-
-**Changes**:
-- Updated `fetchPriceList` to use Flask endpoint.
-- Fixed cart update with tab switch and toast.
-- Reordered filters (vendor, material, color).
-- Added `debounce` for search input.
-- Improved square footage input with `onBlur`.
-- Added `formatCurrency` for accounting format.
-- Fixed null `textContent` error with checks.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f1b36ff5-7b2c-474f-9822-42b7ded1e4f3" title="app.js" contentType="application/javascript">
+#### 5. `app.js`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="ca025c30-b78e-4dba-a6e9-bf6fb3a4fa7f" title="app.js" contentType="application/javascript">
 ```javascript
-// Reset viewport scale and scroll on load
 window.addEventListener('load', () => {
     document.body.style.zoom = '1';
     window.scrollTo(0, 0);
     history.scrollRestoration = 'manual';
 });
 
-// Utility Functions
 const getColorSwatch = colorName => {
     const name = (colorName || '').toLowerCase();
     if (name.includes('white')) return '#F5F5F5';
@@ -618,7 +532,6 @@ const debounce = (func, delay) => {
     };
 };
 
-// React Component
 function App() {
     const [priceData, setPriceData] = React.useState([]);
     const [quote, setQuote] = React.useState(JSON.parse(localStorage.getItem('quote')) || []);
@@ -654,8 +567,6 @@ function App() {
         if (errorDiv) {
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
-        } else {
-            console.warn('Error div not found');
         }
     };
 
@@ -687,7 +598,6 @@ function App() {
             );
             setPriceData(processedData);
         } catch (err) {
-            console.error('Fetch error:', err.message);
             setPriceData([{
                 id: 'mock-granite-2cm-0',
                 colorName: 'Mock Granite',
@@ -785,7 +695,6 @@ function App() {
 
     return React.createElement('div', { className: 'app-container' },
         React.createElement('div', { className: 'container relative' },
-            // Theme Toggle
             React.createElement('button', {
                 onClick: toggleTheme,
                 className: 'theme-toggle',
@@ -813,8 +722,6 @@ function App() {
                         d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'
                     }))
             ),
-
-            // Top Navigation (Desktop)
             React.createElement('nav', { className: 'top-nav' },
                 React.createElement('button', {
                     onClick: () => setCurrentTab('search'),
@@ -832,8 +739,6 @@ function App() {
                     style: { color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)' }
                 }, 'Quote')
             ),
-
-            // Header
             React.createElement('header', { className: 'text-center mb-6 relative' },
                 React.createElement('img', {
                     src: '/images/icon-192.png',
@@ -843,8 +748,6 @@ function App() {
                 React.createElement('h1', { className: 'font-bold', style: { color: 'var(--accent-color)' } }, 'Countertop Quote'),
                 React.createElement('p', { className: 'mt-2 text-sm', style: { color: 'var(--text-secondary)' } }, 'Compare and get quotes for your perfect countertops')
             ),
-
-            // ZIP Code Input
             React.createElement('div', { className: 'mb-6 flex flex-col sm:flex-row gap-2 max-w-md mx-auto' },
                 React.createElement('input', {
                     type: 'text',
@@ -861,8 +764,6 @@ function App() {
                     style: { backgroundColor: 'var(--accent-color)' }
                 }, 'Update')
             ),
-
-            // Search Tab
             currentTab === 'search' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
                 React.createElement('div', { className: 'relative mb-4 max-w-md mx-auto' },
                     React.createElement('input', {
@@ -885,13 +786,11 @@ function App() {
                         d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                     }))
                 ),
-
                 React.createElement('button', {
                     onClick: () => setShowFilters(!showFilters),
                     className: 'w-full max-w-md mx-auto p-2 rounded-lg text-left mb-4 sm:hidden',
                     style: { backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }
                 }, showFilters ? 'Hide Filters' : 'Show Filters'),
-
                 React.createElement('div', { className: `filter-panel ${showFilters ? 'active' : ''} sm:block grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-4xl mx-auto` },
                     React.createElement('div', null,
                         React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Vendor'),
@@ -935,7 +834,6 @@ function App() {
                         )
                     )
                 ),
-
                 React.createElement('div', { className: 'card-grid' },
                     filteredResults.length === 0 ?
                         React.createElement('p', { className: 'text-center col-span-full', style: { color: 'var(--text-secondary)' } }, 'No results found') :
@@ -980,8 +878,6 @@ function App() {
                         ))
                 )
             ),
-
-            // Cart Tab
             currentTab === 'cart' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
                 React.createElement('h2', {
                     className: 'text-xl font-bold mb-4 text-center',
@@ -1055,8 +951,6 @@ function App() {
                     style: { backgroundColor: 'var(--accent-color)' }
                 }, 'Get Quote')
             ),
-
-            // Quote Tab
             currentTab === 'quote' && React.createElement('div', { className: 'animate-slide-up', style: { transition: 'opacity 0.3s' } },
                 React.createElement('h2', {
                     className: 'text-xl font-bold mb-4 text-center',
@@ -1120,15 +1014,11 @@ function App() {
                     }, 'Submit Quote')
                 )
             ),
-
-            // Toast
             React.createElement('div', {
                 className: `toast ${toast.show ? 'show' : ''} ${toast.isError ? 'error' : ''}`,
                 style: { opacity: toast.show ? 1 : 0 }
             }, toast.message)
         ),
-
-        // Bottom Navigation (Mobile)
         React.createElement('nav', { className: 'bottom-nav' },
             React.createElement('button', {
                 onClick: () => setCurrentTab('search'),
@@ -1188,7 +1078,6 @@ function App() {
     );
 }
 
-// Render App
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         if (window.React && window.ReactDOM) {
@@ -1203,26 +1092,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
-// Service Worker Registration
 if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
     window.addEventListener('load', async () => {
         try {
             await navigator.serviceWorker.register('/sw.js');
-            console.log('Service Worker registered');
-        } catch (err) {
-            console.warn('Service Worker registration failed:', err.message);
-        }
+        } catch (err) {}
     });
 }
 ```
 
-#### 4. `sw.js`
-**Purpose**: Service worker for PWA offline support and caching.
-
-**Changes**:
-- Used provided code, ensuring caching of critical files and dynamic image caching.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="438a8c2c-ed9b-4770-b287-94941641a557" title="sw.js" contentType="application/javascript">
+#### 6. `sw.js`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f726cc10-2453-4af0-902a-f1b947a76d86" title="sw.js" contentType="application/javascript">
 ```javascript
 self.addEventListener('install', event => {
     event.waitUntil(
@@ -1260,13 +1140,8 @@ self.addEventListener('fetch', event => {
 });
 ```
 
-#### 5. `manifest.json`
-**Purpose**: Web app manifest for PWA features.
-
-**Changes**:
-- Used provided JSON, saved as a proper file.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="75bf0c7b-3b36-4f10-bc8e-c0261717cb34" title="manifest.json" contentType="application/json">
+#### 7. `manifest.json`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="50245c8f-adeb-4f95-a24a-52748366f634" title="manifest.json" contentType="application/json">
 ```json
 {
     "name": "Surprise Granite Countertop Quote",
@@ -1290,22 +1165,17 @@ self.addEventListener('fetch', event => {
 }
 ```
 
-#### 6. `input.css`
-**Purpose**: Tailwind CSS input for compilation.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="cc153059-6d3f-4a7b-8f42-0d0af97ea434" title="input.css" contentType="text/css">
+#### 8. `input.css`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="198c90d9-0324-4f87-8402-3d52152b7c18" title="input.css" contentType="text/css">
 ```css
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 ```
 
-#### 7. `tailwind.config.js`
-**Purpose**: Tailwind configuration for purging unused styles.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f85b7666-138f-4983-aa26-106e1e79dd1b" title="tailwind.config.js" contentType="application/javascript">
+#### 9. `tailwind.config.js`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="278a576d-61bb-44a7-9d2b-76c178e5e798" title="tailwind.config.js" contentType="application/javascript">
 ```javascript
-/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     './index.html',
@@ -1318,10 +1188,8 @@ module.exports = {
 }
 ```
 
-#### 8. `package.json`
-**Purpose**: Node.js dependencies and build scripts.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="33e5ce31-feed-44e7-a62c-282c00654a8e" title="package.json" contentType="application/json">
+#### 10. `package.json`
+<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="0093960d-842b-4f72-8a6f-650fc1f1f291" title="package.json" contentType="application/json">
 ```json
 {
   "name": "countertop-app",
@@ -1340,58 +1208,27 @@ module.exports = {
 }
 ```
 
-#### 9. `requirements.txt`
-**Purpose**: Python dependencies for Flask and image processing.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="d1146c43-5a20-468a-934e-8cb42002bc88" title="requirements.txt" contentType="text/plain">
-```
-Flask==2.3.2
-pymongo==4.6.3
-gunicorn==22.0.0
-requests==2.31.0
-Pillow==10.3.0
-```
-
-#### 10. `Procfile`
-**Purpose**: Render deployment configuration.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="f6cec795-1e83-4910-9d62-768c2d638964" title="Procfile" contentType="text/plain">
-```
-web: gunicorn app:app
-```
-
-#### 11. `countertop_images/` and `images/`
-- **countertop_images/**:
-  - Add images (e.g., `calacatta-quartz.jpg`, `black-granite.jpg`) or let `app.py` download from CSV URLs.
-  - Include fallback:
+### Additional Setup
+- **Images**:
+  - **countertop_images/**: Add images or let `app.py` download from CSV. Include:
     ```bash
     curl -o countertop_images/fallback.jpg https://placehold.co/150x150
     ```
-- **images/**:
-  - Add `fallback.jpg`, `icon-192.png`, `icon-512.png` (convert SVG logo using convertio.co).
+  - **images/**: Add `fallback.jpg`, `icon-192.png`, `icon-512.png` (convert SVG via convertio.co).
+- **CSV**: If local, include `materials.csv` with format:
+  ```csv
+  colorName,vendorName,material,thickness,costSqFt,availableSqFt,imageUrl,popularity,isNew
+  Calacatta Quartz,Caesarstone,Quartz,3cm,50,100,calacatta-quartz.jpg,0.8,false
+  Black Granite,Local Supplier,Granite,2cm,40,80,black-granite.jpg,0.7,true
+  ```
 
-#### 12. `materials.csv` (Optional)
-**Purpose**: Local CSV if `PUBLISHED_CSV_MATERIALS` points to a file.
-
-<xaiArtifact artifact_id="8fbeeebd-684e-4a3b-8536-200d96398a18" artifact_version_id="fab1345b-bc7b-4557-83d8-e73c286426d5" title="materials.csv" contentType="text/csv">
-```csv
-colorName,vendorName,material,thickness,costSqFt,availableSqFt,imageUrl,popularity,isNew
-Calacatta Quartz,Caesarstone,Quartz,3cm,50,100,calacatta-quartz.jpg,0.8,false
-Black Granite,Local Supplier,Granite,2cm,40,80,black-granite.jpg,0.7,true
-```
-
-### Deployment and Testing
+### Deployment
 1. **Setup**:
-   - Create directory structure and add files.
-   - Install dependencies:
-     ```bash
-     npm install
-     pip install -r requirements.txt
-     ```
-   - Build CSS:
-     ```bash
-     npm run build:css
-     ```
+   ```bash
+   npm install
+   pip install -r requirements.txt
+   npm run build:css
+   ```
 
 2. **Local Testing**:
    ```bash
@@ -1402,39 +1239,28 @@ Black Granite,Local Supplier,Granite,2cm,40,80,black-granite.jpg,0.7,true
    ```
    Open `http://localhost:5000`.
 
-3. **Deploy to Render**:
-   - Commit and push to GitHub:
+3. **Render Deployment**:
+   - Commit:
      ```bash
      git add .
-     git commit -m "Update app with cart, filters, and performance fixes"
+     git commit -m "Clean app files"
      git push origin main
      ```
-   - In Render’s dashboard, set environment variables:
+   - In Render, set:
      ```
      PUBLISHED_CSV_MATERIALS=https://example.com/materials.csv
      MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net
      BASE_URL=https://your-app-name.onrender.com
      ```
-   - Deploy via GitHub integration.
+   - Deploy via GitHub.
 
-4. **Test**:
-   - **Cart**: Add a color; verify cart tab updates and toast appears.
-   - **Filters**: Confirm vendors are first.
-   - **Performance**: Test on iPhone for smooth scrolling.
-   - **Square Footage**: Enter 10, 50, 10.5; confirm input works.
-   - **Prices**: Check `$1,700.00` format.
-   - **Theme Toggle**: Ensure no overlap on desktop.
-   - **Errors**: Verify no console errors (F12 → Console).
+### Testing
+- **Cart**: Add color; verify cart tab and toast.
+- **Filters**: Vendors first.
+- **Performance**: Smooth iPhone scrolling.
+- **Square Footage**: Enter 10, 50, 10.5.
+- **Prices**: `$1,700.00` format.
+- **Theme Toggle**: No desktop overlap.
+- **Errors**: No console errors (F12 → Console).
 
-### Addressing Previous Errors
-- **Regex Error**: Validated regex patterns.
-- **Shopyflow**: Flask hosting avoids conflicts.
-- **Null Error**: Added `region-display` and checks.
-- **Placeholder Errors**: Used local fallback.
-- **Service Worker 404**: Served via Flask.
-
-If issues persist, provide:
-- Console log from Chrome DevTools.
-- Render URL and `/api/countertops` response.
-- CSV details (`PUBLISHED_CSV_MATERIALS` value).
-I’ll ensure the app works flawlessly!
+Provide console logs or Render URL if issues arise.
