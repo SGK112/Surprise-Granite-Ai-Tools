@@ -29,6 +29,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.error('MongoDB connection error:', err);
 });
 
+// Ensure case-sensitive and correct path
 import Material from './models/Material.js';
 
 app.get('/api/materials', async (req, res) => {
