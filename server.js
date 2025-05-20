@@ -20,16 +20,12 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => {
+mongoose.connect(process.env.MONGODB_URI).then(() => {
     console.log('Connected to MongoDB');
 }).catch(err => {
     console.error('MongoDB connection error:', err);
 });
 
-// Import Materials.js (plural)
 import Material from './models/Materials.js';
 
 app.get('/api/materials', async (req, res) => {
