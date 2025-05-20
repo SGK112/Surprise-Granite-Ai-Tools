@@ -1,11 +1,8 @@
-__pycache__/
+node_modules/
 .env
 .DS_Store
-venv/
-node_modules/
-uploads/
+error.log
+combined.log
 package-lock.json
 db.json
-node_modules/ 
-error.log 
-combined.log
+Uploads/
