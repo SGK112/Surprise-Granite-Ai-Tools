@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import csv from 'csv-parse';
+import fetch from 'node-fetch';
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +22,7 @@ app.use(express.static('public'));
 
 // MongoDB connection
 const uri = process.env.MONGODB_URI;
+const csvUrl = process.env.CSV_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
 if (!uri) {
   console.error('MONGODB_URI is not defined in environment variables');
   process.exit(1);
@@ -40,8 +43,8 @@ const Countertop = mongoose.model('Countertop', countertopSchema);
 // Connect to MongoDB with retry
 const connectWithRetry = async (retries = 5, delay = 5000) => {
   try {
-    await mongoose.connect(uri, { dbName: 'test' });
-    console.log('Connected to MongoDB (test database)');
+    await mongoose.connect(uri, { dbName: 'countertops' });
+    console.log('Connected to MongoDB (countertops database)');
   } catch (err) {
     console.error('MongoDB connection error:', err.message, err.stack);
     if (retries > 0) {
@@ -62,11 +65,82 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
+// Sync CSV to MongoDB
+const syncCsvToMongo = async () => {
+  try {
+    console.log('Fetching CSV from:', csvUrl);
+    const response = await fetch(csvUrl);
+    if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.status}`);
+    const csvText = await response.text();
+
+    const parser = csv.parse({
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    const records = [];
+    parser.on('readable', () => {
+      let record;
+      while ((record = parser.read())) {
+        records.push({
+          colorName: record.colorName || 'Unknown',
+          vendorName: record.vendorName || 'Unknown',
+          material: record.material || 'Unknown',
+          costSqFt: parseFloat(record.costSqFt) || 0,
+          availableSqFt: parseFloat(record.availableSqFt) || 0,
+          imageUrl: record.imageUrl || 'https://via.placeholder.com/150x150?text=Countertop+Image'
+        });
+      }
+    });
+
+    parser.on('error', (err) => {
+      throw new Error(`CSV parsing error: ${err.message}`);
+    });
+
+    await new Promise((resolve, reject) => {
+      parser.on('end', resolve);
+      parser.on('error', reject);
+      parser.write(csvText);
+      parser.end();
+    });
+
+    console.log('Parsed CSV records:', records.length);
+    for (const record of records) {
+      if (record.costSqFt > 0) {
+        await Countertop.updateOne(
+          { colorName: record.colorName, vendorName: record.vendorName, material: record.material },
+          { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } }, // Preserve existing imageUrl
+          { upsert: true }
+        );
+      }
+    }
+    console.log('CSV data synced to MongoDB');
+  } catch (error) {
+    console.error('Error syncing CSV to MongoDB:', error.message, error.stack);
+  }
+};
+
+// Sync on startup and every 5 minutes
+syncCsvToMongo();
+setInterval(syncCsvToMongo, 5 * 60 * 1000);
+
+// API route to trigger manual sync
+app.get('/api/sync-csv', async (req, res) => {
+  try {
+    await syncCsvToMongo();
+    res.status(200).json({ message: 'CSV sync completed' });
+  } catch (error) {
+    console.error('Manual CSV sync error:', error.message);
+    res.status(500).json({ error: 'Failed to sync CSV' });
+  }
+});
+
 // API route for materials
 app.get('/api/materials', async (req, res) => {
   try {
     const materials = await Countertop.find({}).exec();
-    console.log('Fetched materials:', materials);
+    console.log('Fetched materials:', materials.length);
     res.json(materials);
   } catch (error) {
     console.error('Error fetching materials:', error.message, error.stack);
