@@ -43,7 +43,7 @@ const connectWithRetry = async (retries = 5, delay = 5000) => {
     await mongoose.connect(uri, { dbName: 'test' });
     console.log('Connected to MongoDB (test database)');
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err.message, err.stack);
     if (retries > 0) {
       console.log(`Retrying MongoDB connection (${retries} attempts left)...`);
       setTimeout(() => connectWithRetry(retries - 1, delay), delay);
@@ -55,6 +55,13 @@ const connectWithRetry = async (retries = 5, delay = 5000) => {
 };
 connectWithRetry();
 
+// Handle process termination
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, closing MongoDB connection');
+  await mongoose.connection.close();
+  process.exit(0);
+});
+
 // API route for materials
 app.get('/api/materials', async (req, res) => {
   try {
@@ -62,14 +69,14 @@ app.get('/api/materials', async (req, res) => {
     console.log('Fetched materials:', materials);
     res.json(materials);
   } catch (error) {
-    console.error('Error fetching materials:', error);
+    console.error('Error fetching materials:', error.message, error.stack);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Health check route
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
+  res.status(200).json({ status: 'OK', mongooseConnected: mongoose.connection.readyState === 1 });
 });
 
 const port = process.env.PORT || 3000;
