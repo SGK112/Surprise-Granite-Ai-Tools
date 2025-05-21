@@ -92,6 +92,9 @@ const syncCsvToMongo = async () => {
     const response = await fetch(csvUrl);
     if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.status}`);
 
+    const csvText = await response.text();
+    console.log('Raw CSV data:', csvText.substring(0, 500)); // Log first 500 chars for debugging
+
     const parser = parse({
       columns: true,
       skip_empty_lines: true,
@@ -107,6 +110,7 @@ const syncCsvToMongo = async () => {
       parser,
       async function* (source) {
         for await (const record of source) {
+          console.log('Processing CSV record:', record); // Log each record for debugging
           const parsedRecord = {
             colorName: record.colorName || 'Unknown',
             vendorName: record.vendorName || 'Unknown',
@@ -115,16 +119,15 @@ const syncCsvToMongo = async () => {
             availableSqFt: parseFloat(record.availableSqFt) || 0
           };
 
-          if (parsedRecord.costSqFt > 0) {
-            batch.push({
-              updateOne: {
-                filter: { colorName: parsedRecord.colorName, vendorName: parsedRecord.vendorName, material: parsedRecord.material },
-                update: { $set: { costSqFt: parsedRecord.costSqFt, availableSqFt: parsedRecord.availableSqFt } },
-                upsert: true
-              }
-            });
-            recordCount++;
-          }
+          // Relax costSqFt validation to allow records with costSqFt <= 0
+          batch.push({
+            updateOne: {
+              filter: { colorName: parsedRecord.colorName, vendorName: parsedRecord.vendorName, material: parsedRecord.material },
+              update: { $set: { costSqFt: parsedRecord.costSqFt, availableSqFt: parsedRecord.availableSqFt } },
+              upsert: true
+            }
+          });
+          recordCount++;
 
           if (batch.length >= batchSize) {
             await Countertop.bulkWrite(batch);
