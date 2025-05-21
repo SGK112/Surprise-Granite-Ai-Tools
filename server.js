@@ -99,7 +99,7 @@ const syncCsvToMongo = async () => {
     });
 
     let recordCount = 0;
-    const batchSize = 50; // Smaller batch size
+    const batchSize = 50;
     let batch = [];
 
     await pipelineAsync(
@@ -165,7 +165,10 @@ app.get('/api/sync-csv', async (req, res) => {
 // API route for materials
 app.get('/api/materials', async (req, res) => {
   try {
-    const materials = await Countertop.find({}).limit(2000).exec(); // Limit to avoid memory issues
+    const materials = await Countertop.find({})
+      .select('colorName vendorName material costSqFt availableSqFt imageUrl') // Select only needed fields
+      .limit(2000)
+      .exec();
     console.log('Fetched materials:', materials.length);
     res.json(materials);
   } catch (error) {
