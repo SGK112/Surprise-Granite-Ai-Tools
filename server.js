@@ -166,7 +166,7 @@ app.get('/api/sync-csv', async (req, res) => {
 app.get('/api/materials', async (req, res) => {
   try {
     const materials = await Countertop.find({})
-      .select('colorName vendorName material costSqFt availableSqFt imageUrl') // Select only needed fields
+      .select('colorName vendorName material costSqFt availableSqFt imageUrl')
       .limit(2000)
       .exec();
     console.log('Fetched materials:', materials.length);
