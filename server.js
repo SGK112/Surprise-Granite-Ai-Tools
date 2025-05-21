@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import csv from 'csv-parse';
+import { parse } from 'csv-parse';
 import fetch from 'node-fetch';
 
 // Load environment variables
@@ -73,7 +73,7 @@ const syncCsvToMongo = async () => {
     if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.status}`);
     const csvText = await response.text();
 
-    const parser = csv.parse({
+    const parser = parse({
       columns: true,
       skip_empty_lines: true,
       trim: true
