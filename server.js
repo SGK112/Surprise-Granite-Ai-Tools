@@ -4,6 +4,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { parse } from 'csv-parse';
 import fetch from 'node-fetch';
+import { pipeline } from 'stream';
+import { promisify } from 'util';
+
+const pipelineAsync = promisify(pipeline);
 
 // Load environment variables
 dotenv.config();
@@ -87,7 +91,6 @@ const syncCsvToMongo = async () => {
     console.log('Fetching CSV from:', csvUrl);
     const response = await fetch(csvUrl);
     if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.status}`);
-    const csvText = await response.text();
 
     const parser = parse({
       columns: true,
@@ -95,55 +98,56 @@ const syncCsvToMongo = async () => {
       trim: true
     });
 
-    const records = [];
-    parser.on('readable', () => {
-      let record;
-      while ((record = parser.read())) {
-        records.push({
-          colorName: record.colorName || 'Unknown',
-          vendorName: record.vendorName || 'Unknown',
-          material: record.material || 'Unknown',
-          costSqFt: parseFloat(record.costSqFt) || 0,
-          availableSqFt: parseFloat(record.availableSqFt) || 0
-        });
-      }
-    });
+    let recordCount = 0;
+    const batchSize = 50; // Smaller batch size
+    let batch = [];
 
-    parser.on('error', (err) => {
-      throw new Error(`CSV parsing error: ${err.message}`);
-    });
+    await pipelineAsync(
+      response.body,
+      parser,
+      async function* (source) {
+        for await (const record of source) {
+          const parsedRecord = {
+            colorName: record.colorName || 'Unknown',
+            vendorName: record.vendorName || 'Unknown',
+            material: record.material || 'Unknown',
+            costSqFt: parseFloat(record.costSqFt) || 0,
+            availableSqFt: parseFloat(record.availableSqFt) || 0
+          };
 
-    await new Promise((resolve, reject) => {
-      parser.on('end', resolve);
-      parser.on('error', reject);
-      parser.write(csvText);
-      parser.end();
-    });
-
-    console.log('Parsed CSV records:', records.length);
-    const batchSize = 100; // Process in batches to reduce memory usage
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      const bulkOps = batch
-        .filter(record => record.costSqFt > 0)
-        .map(record => ({
-          updateOne: {
-            filter: { colorName: record.colorName, vendorName: record.vendorName, material: record.material },
-            update: { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } },
-            upsert: true
+          if (parsedRecord.costSqFt > 0) {
+            batch.push({
+              updateOne: {
+                filter: { colorName: parsedRecord.colorName, vendorName: parsedRecord.vendorName, material: parsedRecord.material },
+                update: { $set: { costSqFt: parsedRecord.costSqFt, availableSqFt: parsedRecord.availableSqFt } },
+                upsert: true
+              }
+            });
+            recordCount++;
           }
-        }));
-      if (bulkOps.length > 0) {
-        await Countertop.bulkWrite(bulkOps);
+
+          if (batch.length >= batchSize) {
+            await Countertop.bulkWrite(batch);
+            batch = [];
+            console.log(`Processed ${recordCount} CSV records`);
+          }
+        }
+
+        if (batch.length > 0) {
+          await Countertop.bulkWrite(batch);
+          console.log(`Processed ${recordCount} CSV records (final batch)`);
+        }
       }
-    }
+    );
+
+    console.log('Total CSV records processed:', recordCount);
     console.log('CSV pricing synced to MongoDB');
   } catch (error) {
     console.error('Error syncing CSV to MongoDB:', error.message, error.stack);
   }
 };
 
-// Sync on startup and every 15 minutes (reduced frequency)
+// Sync on startup and every 15 minutes
 syncCsvToMongo();
 setInterval(syncCsvToMongo, 15 * 60 * 1000);
 
@@ -161,7 +165,7 @@ app.get('/api/sync-csv', async (req, res) => {
 // API route for materials
 app.get('/api/materials', async (req, res) => {
   try {
-    const materials = await Countertop.find({}).exec();
+    const materials = await Countertop.find({}).limit(2000).exec(); // Limit to avoid memory issues
     console.log('Fetched materials:', materials.length);
     res.json(materials);
   } catch (error) {
