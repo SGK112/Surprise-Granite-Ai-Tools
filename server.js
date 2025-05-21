@@ -61,7 +61,23 @@ connectWithRetry();
 // Handle process termination
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, closing MongoDB connection');
-  await mongoose.connection.close();
+  try {
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed');
+  } catch (err) {
+    console.error('Error closing MongoDB connection:', err.message);
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT, closing MongoDB connection');
+  try {
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed');
+  } catch (err) {
+    console.error('Error closing MongoDB connection:', err.message);
+  }
   process.exit(0);
 });
 
