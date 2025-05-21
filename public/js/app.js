@@ -4,8 +4,11 @@ if (!window.compareQuoteApp) {
 
   window.onerror = function(message, source, lineno, colno, error) {
     console.error('Script error:', { message, source, lineno, colno, error });
-    document.getElementById('error').textContent = `Error loading app: ${message}. Please refresh.`;
-    document.getElementById('error').classList.remove('hidden');
+    const errorElement = document.getElementById('error');
+    if (errorElement) {
+      errorElement.textContent = `Error loading app: ${message}. Please refresh.`;
+      errorElement.classList.remove('hidden');
+    }
   };
 
   function getColorSwatch(colorName) {
@@ -37,24 +40,26 @@ if (!window.compareQuoteApp) {
     let timeout;
     return function(...args) {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), wait);
+      timeout = setTimeout(function() { func(...args); }, wait);
     };
   }
 
   const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSwgc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
 
-  function waitForReact(callback, retries = 20, interval = 300) {
+  function waitForReact(callback, retries, interval) {
+    if (retries === undefined) retries = 30;
+    if (interval === undefined) interval = 500;
     console.log('waitForReact called, retries:', retries);
     if (window.React && window.ReactDOM) {
       console.log('React and ReactDOM found, calling callback');
       callback();
     } else if (retries > 0) {
-      setTimeout(() => waitForReact(callback, retries - 1, interval), interval);
+      setTimeout(function() { waitForReact(callback, retries - 1, interval); }, interval);
     } else {
       console.error('Failed to load React/ReactDOM');
       const errorElement = document.getElementById('error');
       if (errorElement) {
-        errorElement.textContent = 'Failed to load app. Please refresh.';
+        errorElement.textContent = 'Failed to load app dependencies. Please refresh.';
         errorElement.classList.remove('hidden');
       }
     }
@@ -64,11 +69,16 @@ if (!window.compareQuoteApp) {
     console.log('initApp called');
     try {
       const rootElement = document.getElementById('root');
-      console.log('Root element:', rootElement);
+      const errorElement = document.getElementById('error');
       if (!rootElement) {
         throw new Error('Root element not found');
       }
+      if (!errorElement) {
+        console.warn('Error element not found, error messages may not display');
+      }
+      console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
+
       const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
         return React.createElement('div', { className: 'card' },
@@ -160,6 +170,7 @@ if (!window.compareQuoteApp) {
           try {
             return JSON.parse(localStorage.getItem('quote')) || [];
           } catch (e) {
+            console.error('Failed to parse quote from localStorage:', e);
             return [];
           }
         });
@@ -233,7 +244,12 @@ if (!window.compareQuoteApp) {
         }
 
         function processData(rawData) {
+          if (!Array.isArray(rawData)) {
+            console.error('Raw data is not an array:', rawData);
+            return [];
+          }
           return rawData.flatMap(function(item, index) {
+            if (!item || typeof item !== 'object') return [];
             return ['2cm', '3cm'].map(function(thickness) {
               const costSqFt = parseFloat(item.costSqFt);
               if (isNaN(costSqFt) || costSqFt <= 0) return null;
@@ -311,7 +327,7 @@ if (!window.compareQuoteApp) {
 
         function validateForm(name, email) {
           const errors = { name: '', email: '' };
-          if (!name.trim()) errors.name = 'Name is required';
+          if (!name || !name.trim()) errors.name = 'Name is required';
           if (!email) {
             errors.email = 'Email is required';
           } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -379,6 +395,7 @@ if (!window.compareQuoteApp) {
             setCurrentTab('search');
             setFormErrors({ name: '', email: '' });
           } catch (err) {
+            console.error('Quote submission error:', err);
             showToast('Failed to submit quote. Check spam folder or try again.', true);
           } finally {
             setIsLoading(false);
@@ -830,10 +847,5 @@ if (!window.compareQuoteApp) {
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-      console.log('DOMContentLoaded: Starting waitForReact');
-      waitForReact(initApp);
-    }, 2000);
-  });
+  waitForReact(initApp);
 }
