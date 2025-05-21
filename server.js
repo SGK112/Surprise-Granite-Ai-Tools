@@ -121,13 +121,20 @@ const syncCsvToMongo = async () => {
     });
 
     console.log('Parsed CSV records:', records.length);
-    for (const record of records) {
-      if (record.costSqFt > 0) {
-        await Countertop.updateOne(
-          { colorName: record.colorName, vendorName: record.vendorName, material: record.material },
-          { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } },
-          { upsert: true }
-        );
+    const batchSize = 100; // Process in batches to reduce memory usage
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const bulkOps = batch
+        .filter(record => record.costSqFt > 0)
+        .map(record => ({
+          updateOne: {
+            filter: { colorName: record.colorName, vendorName: record.vendorName, material: record.material },
+            update: { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } },
+            upsert: true
+          }
+        }));
+      if (bulkOps.length > 0) {
+        await Countertop.bulkWrite(bulkOps);
       }
     }
     console.log('CSV pricing synced to MongoDB');
@@ -136,9 +143,9 @@ const syncCsvToMongo = async () => {
   }
 };
 
-// Sync on startup and every 5 minutes
+// Sync on startup and every 15 minutes (reduced frequency)
 syncCsvToMongo();
-setInterval(syncCsvToMongo, 5 * 60 * 1000);
+setInterval(syncCsvToMongo, 15 * 60 * 1000);
 
 // API route to trigger manual sync
 app.get('/api/sync-csv', async (req, res) => {
