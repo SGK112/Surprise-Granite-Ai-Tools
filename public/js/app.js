@@ -526,7 +526,7 @@ const initApp = () => {
           React.createElement('img', {
             src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
             alt: 'Surprise Granite Logo',
-            className: ' h-12 mx-auto mb-4 max-w-full'
+            className: 'h-12 mx-auto mb-4 max-w-full'
           }),
           React.createElement('h1', { className: 'font-bold', style: { color: 'var(--accent-color)' } }, 'Countertop Quote'),
           React.createElement('p', { className: 'mt-2', style: { color: 'var(--text-secondary)' } }, 'Compare and get quotes for your perfect countertops')
@@ -801,7 +801,7 @@ const initApp = () => {
             style: { color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)' }
           },
             React.createElement('svg', {
-              className: 'w-6 h-6 mb- brief1',
+              className: 'w-6 h-6 mb-1',
               fill: 'none',
               viewBox: '0 0 24 24',
               stroke: 'currentColor'
@@ -864,6 +864,8 @@ const initApp = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOMContentLoaded: Starting waitForReact');
-  waitForReact(initApp);
+  setTimeout(() => {
+    console.log('DOMContentLoaded: Starting waitForReact');
+    waitForReact(initApp);
+  }, 2000);
 });
