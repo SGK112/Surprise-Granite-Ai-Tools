@@ -50,13 +50,13 @@ if (!window.compareQuoteApp) {
     if (retries === undefined) retries = 40;
     if (interval === undefined) interval = 500;
     console.log('waitForReact called, retries:', retries);
-    if (window.React && window.ReactDOM) {
-      console.log('React and ReactDOM found, calling callback');
+    if (window.React && window.ReactDOM && window.Papa) {
+      console.log('React, ReactDOM, and PapaParse found, calling callback');
       callback();
     } else if (retries > 0) {
       setTimeout(function() { waitForReact(callback, retries - 1, interval); }, interval);
     } else {
-      console.error('Failed to load React/ReactDOM after maximum retries');
+      console.error('Failed to load dependencies (React/ReactDOM/PapaParse) after maximum retries');
       const errorElement = document.getElementById('error');
       if (errorElement) {
         errorElement.textContent = 'Failed to load app dependencies after 20 seconds. Please check your connection and refresh.';
@@ -217,28 +217,41 @@ if (!window.compareQuoteApp) {
           setIsLoading(true);
           console.log('fetchPriceList: Starting fetch');
           try {
-            const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/materials', {
-              headers: { 'Accept': 'application/json' },
-              signal: AbortSignal.timeout(10000)
-            });
-            console.log('fetchPriceList: Response status:', response.status);
+            const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
+            const response = await fetch(csvUrl);
             if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-            const rawData = await response.json();
-            console.log('fetchPriceList: Raw data:', rawData);
-            const processedData = processData(rawData);
-            console.log('fetchPriceList: Processed data:', processedData);
-            if (processedData.length === 0) {
-              showToast('No countertop data available.', true);
-              setPriceData([]);
-              return;
-            }
-            setPriceData(processedData);
-            localStorage.setItem('priceData', JSON.stringify(processedData));
+            const csvText = await response.text();
+            console.log('fetchPriceList: Raw CSV data:', csvText.substring(0, 500));
+
+            // Parse CSV using PapaParse
+            Papa.parse(csvText, {
+              header: true,
+              skipEmptyLines: true,
+              complete: function(results) {
+                const rawData = results.data;
+                console.log('fetchPriceList: Parsed CSV data:', rawData);
+                const processedData = processData(rawData);
+                console.log('fetchPriceList: Processed data:', processedData);
+                if (processedData.length === 0) {
+                  showToast('No valid countertop data available. Prices may be missing.', true);
+                  setPriceData([]);
+                  return;
+                }
+                setPriceData(processedData);
+                localStorage.setItem('priceData', JSON.stringify(processedData));
+                setIsLoading(false);
+              },
+              error: function(error) {
+                console.error('PapaParse error:', error);
+                showToast('Failed to parse countertop data.', true);
+                setPriceData([]);
+                setIsLoading(false);
+              }
+            });
           } catch (err) {
             console.error('fetchPriceList error:', err);
             showToast('Failed to load countertop data.', true);
             setPriceData([]);
-          } finally {
             setIsLoading(false);
           }
         }
@@ -249,23 +262,28 @@ if (!window.compareQuoteApp) {
             return [];
           }
           return rawData.flatMap(function(item, index) {
-            if (!item || typeof item !== 'object') return [];
+            if (!item || typeof item !== 'object') {
+              console.log('Skipping invalid item:', item);
+              return [];
+            }
+            const costSqFt = parseFloat(item['Cost/SqFt']);
+            if (isNaN(costSqFt)) {
+              console.log(`Skipping item with invalid costSqFt: ${item['Cost/SqFt']}`, item);
+            }
             return ['2cm', '3cm'].map(function(thickness) {
-              const costSqFt = parseFloat(item.costSqFt);
-              if (isNaN(costSqFt) || costSqFt <= 0) return null;
               return {
-                id: `${item.colorName || 'Unknown'}-${item.vendorName || 'Unknown'}-${thickness}-${index}`,
-                colorName: item.colorName || 'Unknown',
-                vendorName: item.vendorName || 'Unknown',
+                id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
+                colorName: item['Color Name'] || 'Unknown',
+                vendorName: item['Vendor Name'] || 'Unknown',
                 thickness: thickness,
-                material: item.material || 'Unknown',
-                installedPricePerSqFt: (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
-                availableSqFt: parseFloat(item.availableSqFt) || 0,
+                material: item['Material'] || 'Unknown',
+                installedPricePerSqFt: isNaN(costSqFt) ? 0 : (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
+                availableSqFt: parseFloat(item['Total/SqFt']) || 0,
                 imageUrl: item.imageUrl || imageComingSoon,
                 popularity: Math.random(),
                 isNew: Math.random() > 0.8
               };
-            }).filter(function(item) { return item !== null; });
+            });
           });
         }
 
