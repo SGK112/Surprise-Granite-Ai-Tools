@@ -59,12 +59,8 @@ connectWithRetry();
 app.get('/api/materials', async (req, res) => {
   try {
     const materials = await Countertop.find({}).exec();
-    console.log('Fetched materials:', materials); // Debug log
-    if (!materials || materials.length === 0) {
-      console.warn('No materials found in countertop_images collection');
-      return res.status(200).json([]); // Return empty array instead of 404
-    }
-    res.json(materials);
+    console.log('Fetched materials:', materials);
+    res.json(materials); // Return empty array if no data
   } catch (error) {
     console.error('Error fetching materials:', error);
     res.status(500).json({ error: 'Internal server error' });
