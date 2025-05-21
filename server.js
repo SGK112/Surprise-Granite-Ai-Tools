@@ -37,16 +37,26 @@ const countertopSchema = new mongoose.Schema({
 
 const Countertop = mongoose.model('Countertop', countertopSchema);
 
-// Connect to MongoDB
-mongoose.connect(uri, { 
-  useNewUrlParser: true, 
-  useUnifiedTopology: true 
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1);
-});
+// Connect to MongoDB with retry
+const connectWithRetry = async (retries = 5, delay = 5000) => {
+  try {
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('Connected to MongoDB');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    if (retries > 0) {
+      console.log(`Retrying MongoDB connection (${retries} attempts left)...`);
+      setTimeout(() => connectWithRetry(retries - 1, delay), delay);
+    } else {
+      console.error('MongoDB connection failed after retries');
+      process.exit(1);
+    }
+  }
+};
+connectWithRetry();
 
 // API route for materials
 app.get('/api/materials', async (req, res) => {
