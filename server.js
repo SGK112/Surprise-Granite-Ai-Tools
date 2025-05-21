@@ -88,8 +88,7 @@ const syncCsvToMongo = async () => {
           vendorName: record.vendorName || 'Unknown',
           material: record.material || 'Unknown',
           costSqFt: parseFloat(record.costSqFt) || 0,
-          availableSqFt: parseFloat(record.availableSqFt) || 0,
-          imageUrl: record.imageUrl || 'https://via.placeholder.com/150x150?text=Countertop+Image'
+          availableSqFt: parseFloat(record.availableSqFt) || 0
         });
       }
     });
@@ -110,12 +109,12 @@ const syncCsvToMongo = async () => {
       if (record.costSqFt > 0) {
         await Countertop.updateOne(
           { colorName: record.colorName, vendorName: record.vendorName, material: record.material },
-          { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } }, // Preserve existing imageUrl
+          { $set: { costSqFt: record.costSqFt, availableSqFt: record.availableSqFt } },
           { upsert: true }
         );
       }
     }
-    console.log('CSV data synced to MongoDB');
+    console.log('CSV pricing synced to MongoDB');
   } catch (error) {
     console.error('Error syncing CSV to MongoDB:', error.message, error.stack);
   }
