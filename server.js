@@ -40,8 +40,8 @@ const Countertop = mongoose.model('Countertop', countertopSchema);
 // Connect to MongoDB with retry
 const connectWithRetry = async (retries = 5, delay = 5000) => {
   try {
-    await mongoose.connect(uri);
-    console.log('Connected to MongoDB');
+    await mongoose.connect(uri, { dbName: 'test' });
+    console.log('Connected to MongoDB (test database)');
   } catch (err) {
     console.error('MongoDB connection error:', err);
     if (retries > 0) {
@@ -60,7 +60,7 @@ app.get('/api/materials', async (req, res) => {
   try {
     const materials = await Countertop.find({}).exec();
     console.log('Fetched materials:', materials);
-    res.json(materials); // Return empty array if no data
+    res.json(materials);
   } catch (error) {
     console.error('Error fetching materials:', error);
     res.status(500).json({ error: 'Internal server error' });
