@@ -2,7 +2,7 @@
 if (!window.compareQuoteApp) {
   window.compareQuoteApp = true;
 
-  window.onerror = (message, source, lineno, colno, error) => {
+  window.onerror = function(message, source, lineno, colno, error) {
     console.error('Script error:', { message, source, lineno, colno, error });
     document.getElementById('error').textContent = `Error loading app: ${message}. Please refresh.`;
     document.getElementById('error').classList.remove('hidden');
@@ -35,7 +35,7 @@ if (!window.compareQuoteApp) {
 
   function debounce(func, wait) {
     let timeout;
-    return (...args) => {
+    return function(...args) {
       clearTimeout(timeout);
       timeout = setTimeout(() => func(...args), wait);
     };
@@ -52,17 +52,24 @@ if (!window.compareQuoteApp) {
       setTimeout(() => waitForReact(callback, retries - 1, interval), interval);
     } else {
       console.error('Failed to load React/ReactDOM');
-      document.getElementById('error').textContent = 'Failed to load app. Please refresh.';
-      document.getElementById('error').classList.remove('hidden');
+      const errorElement = document.getElementById('error');
+      if (errorElement) {
+        errorElement.textContent = 'Failed to load app. Please refresh.';
+        errorElement.classList.remove('hidden');
+      }
     }
   }
 
   function initApp() {
     console.log('initApp called');
     try {
-      console.log('Root element:', document.getElementById('root'));
+      const rootElement = document.getElementById('root');
+      console.log('Root element:', rootElement);
+      if (!rootElement) {
+        throw new Error('Root element not found');
+      }
       console.log('Attempting ReactDOM.render');
-      const CountertopCard = React.memo(({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index }) => {
+      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
         return React.createElement('div', { className: 'card' },
           React.createElement('img', {
@@ -110,7 +117,7 @@ if (!window.compareQuoteApp) {
               React.createElement('input', {
                 type: 'number',
                 value: item.sqFt,
-                onChange: e => updateSqFt(index, e.target.value),
+                onChange: function(e) { updateSqFt(index, e.target.value); },
                 className: 'w-full p-2 border rounded-lg',
                 min: '0',
                 step: '0.01',
@@ -119,7 +126,7 @@ if (!window.compareQuoteApp) {
               })
             ),
             React.createElement('button', {
-              onClick: () => clearSqFt(index),
+              onClick: function() { clearSqFt(index); },
               className: 'p-2 border rounded-lg',
               style: { color: 'var(--text-primary)', borderColor: 'var(--border-color)' },
               'aria-label': `Clear square footage for ${item.colorName}`
@@ -132,14 +139,14 @@ if (!window.compareQuoteApp) {
             'Cost: $', item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'
           ),
           !isInCart && React.createElement('button', {
-            onClick: () => addToQuote(item),
+            onClick: function() { addToQuote(item); },
             disabled: isInCart,
             className: 'w-full mt-4 text-white p-2 rounded-lg',
             style: { backgroundColor: isInCart ? '#6b7280' : 'var(--accent-color)' },
             'aria-label': `Add ${item.colorName} to cart`
           }, isInCart ? 'In Cart' : 'Add to Cart'),
           isInCart && React.createElement('button', {
-            onClick: () => removeFromQuote(index),
+            onClick: function() { removeFromQuote(index); },
             className: 'w-full mt-4 text-white p-2 rounded-lg',
             style: { backgroundColor: 'var(--error-color)' },
             'aria-label': `Remove ${item.colorName} from cart`
@@ -149,7 +156,7 @@ if (!window.compareQuoteApp) {
 
       function App() {
         const [priceData, setPriceData] = React.useState([]);
-        const [quote, setQuote] = React.useState(() => {
+        const [quote, setQuote] = React.useState(function() {
           try {
             return JSON.parse(localStorage.getItem('quote')) || [];
           } catch (e) {
@@ -169,23 +176,24 @@ if (!window.compareQuoteApp) {
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
         const [showBackToTop, setShowBackToTop] = React.useState(false);
 
-        React.useEffect(() => {
+        React.useEffect(function() {
           console.log('useEffect: Fetching price list');
           localStorage.removeItem('priceData');
           fetchPriceList();
           document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
 
-          const handleScroll = () => {
+          function handleScroll() {
             setShowBackToTop(window.scrollY + window.innerHeight > document.documentElement.scrollHeight * 0.8);
-          };
+          }
 
           window.addEventListener('scroll', handleScroll);
-          return () => window.removeEventListener('scroll', handleScroll);
+          return function() { window.removeEventListener('scroll', handleScroll); };
         }, [zipCode]);
 
-        function showToast(message, isError = false) {
-          setToast({ message, show: true, isError });
-          setTimeout(() => setToast({ message: '', show: false, isError: false }), 3000);
+        function showToast(message, isError) {
+          if (isError === undefined) isError = false;
+          setToast({ message: message, show: true, isError: isError });
+          setTimeout(function() { setToast({ message: '', show: false, isError: false }); }, 3000);
         }
 
         function toggleTheme() {
@@ -200,7 +208,7 @@ if (!window.compareQuoteApp) {
           try {
             const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/materials', {
               headers: { 'Accept': 'application/json' },
-              signal: AbortSignal.timeout(5000)
+              signal: AbortSignal.timeout(10000)
             });
             console.log('fetchPriceList: Response status:', response.status);
             if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
@@ -225,15 +233,15 @@ if (!window.compareQuoteApp) {
         }
 
         function processData(rawData) {
-          return rawData.flatMap((item, index) => 
-            ['2cm', '3cm'].map(thickness => {
+          return rawData.flatMap(function(item, index) {
+            return ['2cm', '3cm'].map(function(thickness) {
               const costSqFt = parseFloat(item.costSqFt);
               if (isNaN(costSqFt) || costSqFt <= 0) return null;
               return {
                 id: `${item.colorName || 'Unknown'}-${item.vendorName || 'Unknown'}-${thickness}-${index}`,
                 colorName: item.colorName || 'Unknown',
                 vendorName: item.vendorName || 'Unknown',
-                thickness,
+                thickness: thickness,
                 material: item.material || 'Unknown',
                 installedPricePerSqFt: (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
                 availableSqFt: parseFloat(item.availableSqFt) || 0,
@@ -241,12 +249,12 @@ if (!window.compareQuoteApp) {
                 popularity: Math.random(),
                 isNew: Math.random() > 0.8
               };
-            }).filter(item => item !== null)
-          );
+            }).filter(function(item) { return item !== null; });
+          });
         }
 
-        const addToQuote = React.useCallback((item) => {
-          if (quote.some(q => q.id === item.id)) {
+        const addToQuote = React.useCallback(function(item) {
+          if (quote.some(function(q) { return q.id === item.id; })) {
             showToast(`${item.colorName} is already in cart`, true);
             return;
           }
@@ -256,14 +264,14 @@ if (!window.compareQuoteApp) {
           showToast(`${item.colorName} added to cart`);
         }, [quote]);
 
-        const removeFromQuote = React.useCallback((index) => {
-          const newQuote = quote.filter((_, i) => i !== index);
+        const removeFromQuote = React.useCallback(function(index) {
+          const newQuote = quote.filter(function(_, i) { return i !== index; });
           setQuote(newQuote);
           localStorage.setItem('quote', JSON.stringify(newQuote));
           showToast('Item removed from cart');
         }, [quote]);
 
-        const updateSqFt = React.useCallback((index, value) => {
+        const updateSqFt = React.useCallback(function(index, value) {
           const parsedValue = value === '' ? '' : parseFloat(value);
           if (parsedValue !== '' && (isNaN(parsedValue) || parsedValue <= 0)) {
             showToast('Please enter a valid square footage', true);
@@ -275,7 +283,7 @@ if (!window.compareQuoteApp) {
           localStorage.setItem('quote', JSON.stringify(newQuote));
         }, [quote]);
 
-        const clearSqFt = React.useCallback((index) => {
+        const clearSqFt = React.useCallback(function(index) {
           const newQuote = [...quote];
           newQuote[index].sqFt = '';
           setQuote(newQuote);
@@ -333,23 +341,25 @@ if (!window.compareQuoteApp) {
             return;
           }
 
-          const quoteDetails = quote.map(item => ({
-            colorName: item.colorName,
-            material: item.material,
-            vendor: item.vendorName,
-            thickness: item.thickness,
-            sqFt: item.sqFt || 'Not specified',
-            cost: item.sqFt && typeof item.installedPricePerSqFt === 'number' ? (item.sqFt * getWasteFactor(item.sqFt) * item.installedPricePerSqFt).toFixed(2) : 'N/A'
-          }));
+          const quoteDetails = quote.map(function(item) {
+            return {
+              colorName: item.colorName,
+              material: item.material,
+              vendor: item.vendorName,
+              thickness: item.thickness,
+              sqFt: item.sqFt || 'Not specified',
+              cost: item.sqFt && typeof item.installedPricePerSqFt === 'number' ? (item.sqFt * getWasteFactor(item.sqFt) * item.installedPricePerSqFt).toFixed(2) : 'N/A'
+            };
+          });
 
           const formData = new FormData();
           formData.append('name', name);
           formData.append('email', email);
           formData.append('phone', phone || 'Not provided');
           formData.append('notes', notes || 'No additional notes');
-          formData.append('quote_details', quoteDetails.map(item => 
-            `Color: ${item.colorName}, Material: ${item.material}, Vendor: ${item.vendor}, Thickness: ${item.thickness}, Sq Ft: ${item.sqFt}, Cost: $${item.cost}`
-          ).join('\n'));
+          formData.append('quote_details', quoteDetails.map(function(item) {
+            return `Color: ${item.colorName}, Material: ${item.material}, Vendor: ${item.vendor}, Thickness: ${item.thickness}, Sq Ft: ${item.sqFt}, Cost: $${item.cost}`;
+          }).join('\n'));
           formData.append('region', regionName);
           formData.append('zip_code', zipCode);
 
@@ -379,37 +389,39 @@ if (!window.compareQuoteApp) {
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
-          setTimeout(() => {
+          setTimeout(function() {
             setCurrentTab(tab);
             setIsTabLoading(false);
           }, 300);
         }
 
-        const vendors = React.useMemo(() => [...new Set(priceData.map(item => item.vendorName))].sort(), [priceData]);
+        const vendors = React.useMemo(function() {
+          return [...new Set(priceData.map(function(item) { return item.vendorName; }))].sort();
+        }, [priceData]);
 
-        const availableMaterials = React.useMemo(() => {
-          if (!filters.vendor) return [...new Set(priceData.map(item => item.material))].sort();
+        const availableMaterials = React.useMemo(function() {
+          if (!filters.vendor) return [...new Set(priceData.map(function(item) { return item.material; }))].sort();
           return [...new Set(priceData
-            .filter(item => item.vendorName === filters.vendor)
-            .map(item => item.material))].sort();
+            .filter(function(item) { return item.vendorName === filters.vendor; })
+            .map(function(item) { return item.material; }))].sort();
         }, [priceData, filters.vendor]);
 
-        const availableColors = React.useMemo(() => {
-          if (!filters.vendor || !filters.material) return [...new Set(priceData.map(item => item.colorName))].sort();
+        const availableColors = React.useMemo(function() {
+          if (!filters.vendor || !filters.material) return [...new Set(priceData.map(function(item) { return item.colorName; }))].sort();
           return [...new Set(priceData
-            .filter(item => item.vendorName === filters.vendor && item.material === filters.material)
-            .map(item => item.colorName))].sort();
+            .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material; })
+            .map(function(item) { return item.colorName; }))].sort();
         }, [priceData, filters.vendor, filters.material]);
 
-        const availableThicknesses = React.useMemo(() => {
+        const availableThicknesses = React.useMemo(function() {
           if (!filters.vendor || !filters.material || !filters.color) return ['2cm', '3cm'];
           return [...new Set(priceData
-            .filter(item => item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color)
-            .map(item => item.thickness))].sort();
+            .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color; })
+            .map(function(item) { return item.thickness; }))].sort();
         }, [priceData, filters.vendor, filters.material, filters.color]);
 
-        const filteredResults = React.useMemo(() => {
-          return priceData.filter(item => {
+        const filteredResults = React.useMemo(function() {
+          return priceData.filter(function(item) {
             const matchesSearch = !searchQuery || item.colorName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                 item.material.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesVendor = !filters.vendor || item.vendorName === filters.vendor;
@@ -428,7 +440,7 @@ if (!window.compareQuoteApp) {
           React.createElement('button', {
             onClick: toggleTheme,
             className: 'theme-toggle',
-            'aria-label': `Switch theme`
+            'aria-label': 'Switch theme'
           },
             (localStorage.getItem('theme') || 'light') === 'light' ?
               React.createElement('svg', {
@@ -455,12 +467,12 @@ if (!window.compareQuoteApp) {
 
           React.createElement('nav', { className: 'top-nav' },
             React.createElement('button', {
-              onClick: () => handleTabChange('search'),
+              onClick: function() { handleTabChange('search'); },
               className: `px-4 py-2 font-medium relative ${currentTab === 'search' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
               style: { color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             }, 'Search'),
             React.createElement('button', {
-              onClick: () => handleTabChange('cart'),
+              onClick: function() { handleTabChange('cart'); },
               className: `px-4 py-2 font-medium relative ${currentTab === 'cart' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
               style: { color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             },
@@ -468,7 +480,7 @@ if (!window.compareQuoteApp) {
               quote.length > 0 && React.createElement('span', { className: 'cart-badge' }, quote.length)
             ),
             React.createElement('button', {
-              onClick: () => handleTabChange('quote'),
+              onClick: function() { handleTabChange('quote'); },
               className: `px-4 py-2 font-medium relative ${currentTab === 'quote' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
               style: { color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             }, 'Quote')
@@ -488,7 +500,7 @@ if (!window.compareQuoteApp) {
             React.createElement('input', {
               type: 'text',
               value: zipCode,
-              onChange: e => setZipCode(e.target.value.replace(/\D/g, '')),
+              onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
               placeholder: 'ZIP Code',
               className: 'flex-1 p-2 border rounded-lg',
               maxLength: '5',
@@ -512,7 +524,7 @@ if (!window.compareQuoteApp) {
                 React.createElement('input', {
                   type: 'search',
                   value: searchQuery,
-                  onChange: e => debouncedSetSearchQuery(e.target.value),
+                  onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
                   placeholder: 'Search colors, materials...',
                   className: 'w-full p-2 pl-10 border rounded-lg',
                   'aria-label': 'Search countertops'
@@ -532,7 +544,7 @@ if (!window.compareQuoteApp) {
               ),
 
               React.createElement('button', {
-                onClick: () => setShowFilters(!showFilters),
+                onClick: function() { setShowFilters(!showFilters); },
                 className: 'w-full p-2 rounded-lg text-left mb-4 sm:hidden',
                 style: { backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }
               }, showFilters ? 'Hide Filters' : 'Show Filters'),
@@ -542,54 +554,54 @@ if (!window.compareQuoteApp) {
                   React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Vendor'),
                   React.createElement('select', {
                     value: filters.vendor,
-                    onChange: e => setFilters({ ...filters, vendor: e.target.value, material: '', color: '', thickness: '' }),
+                    onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: '', color: '', thickness: '' }); },
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by vendor'
                   },
                     React.createElement('option', { value: '' }, 'All Vendors'),
-                    vendors.map(vendor => React.createElement('option', { key: vendor, value: vendor }, vendor))
+                    vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
                   )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Material'),
                   React.createElement('select', {
                     value: filters.material,
-                    onChange: e => setFilters({ ...filters, material: e.target.value, color: '', thickness: '' }),
+                    onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: '', thickness: '' }); },
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by material'
                   },
                     React.createElement('option', { value: '' }, 'All Materials'),
-                    availableMaterials.map(material => 
-                      React.createElement('option', { key: material, value: material }, material)
-                    )
+                    availableMaterials.map(function(material) { 
+                      return React.createElement('option', { key: material, value: material }, material);
+                    })
                   )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Color'),
                   React.createElement('select', {
                     value: filters.color,
-                    onChange: e => setFilters({ ...filters, color: e.target.value, thickness: '' }),
+                    onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: '' }); },
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by color'
                   },
                     React.createElement('option', { value: '' }, 'All Colors'),
-                    availableColors.map(color => 
-                      React.createElement('option', { key: color, value: color }, color)
-                    )
+                    availableColors.map(function(color) { 
+                      return React.createElement('option', { key: color, value: color }, color);
+                    })
                   )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: 'block text-sm font-medium', style: { color: 'var(--text-primary)' } }, 'Thickness'),
                   React.createElement('select', {
                     value: filters.thickness,
-                    onChange: e => setFilters({ ...filters, thickness: e.target.value }),
+                    onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by thickness'
                   },
                     React.createElement('option', { value: '' }, 'All Thicknesses'),
-                    availableThicknesses.map(thickness => 
-                      React.createElement('option', { key: thickness, value: thickness }, thickness)
-                    )
+                    availableThicknesses.map(function(thickness) { 
+                      return React.createElement('option', { key: thickness, value: thickness }, thickness);
+                    })
                   )
                 )
               ),
@@ -599,14 +611,14 @@ if (!window.compareQuoteApp) {
                 priceData.length === 0 ?
                   React.createElement('p', { className: 'text-center col-span-full', style: { color: 'var(--text-secondary)' } }, 'No countertops available') :
                   React.createElement('div', { className: 'card-grid' },
-                    filteredResults.map(item => 
-                      React.createElement(CountertopCard, {
+                    filteredResults.map(function(item) {
+                      return React.createElement(CountertopCard, {
                         key: item.id,
-                        item,
-                        isInCart: quote.some(q => q.id === item.id),
-                        addToQuote
-                      })
-                    )
+                        item: item,
+                        isInCart: quote.some(function(q) { return q.id === item.id; }),
+                        addToQuote: addToQuote
+                      });
+                    })
                   )
             )
           ),
@@ -626,20 +638,20 @@ if (!window.compareQuoteApp) {
                   style: { color: 'var(--text-secondary)' }
                 }, 'Your cart is empty') :
                 React.createElement('div', { className: 'card-grid' },
-                  quote.map((item, index) => 
-                    React.createElement(CountertopCard, {
+                  quote.map(function(item, index) {
+                    return React.createElement(CountertopCard, {
                       key: item.id,
-                      item,
+                      item: item,
                       isInCart: true,
-                      removeFromQuote,
-                      updateSqFt,
-                      clearSqFt,
-                      index
-                    })
-                  )
+                      removeFromQuote: removeFromQuote,
+                      updateSqFt: updateSqFt,
+                      clearSqFt: clearSqFt,
+                      index: index
+                    });
+                  })
                 ),
               quote.length > 0 && React.createElement('button', {
-                onClick: () => handleTabChange('quote'),
+                onClick: function() { handleTabChange('quote'); },
                 className: 'w-full max-w-md mx-auto text-white p-3 rounded-lg mt-6 block',
                 style: { backgroundColor: 'var(--accent-color)' }
               }, 'Get Quote')
@@ -669,7 +681,7 @@ if (!window.compareQuoteApp) {
                     name: 'name',
                     className: `w-full p-2 border rounded-lg ${formErrors.name ? 'input-error' : ''}`,
                     required: true,
-                    onChange: e => setFormErrors({ ...formErrors, name: '' }),
+                    onChange: function(e) { setFormErrors({ ...formErrors, name: '' }); },
                     'aria-label': 'Enter your name'
                   }),
                   formErrors.name && React.createElement('p', { className: 'error-text' }, formErrors.name)
@@ -684,7 +696,7 @@ if (!window.compareQuoteApp) {
                     name: 'email',
                     className: `w-full p-2 border rounded-lg ${formErrors.email ? 'input-error' : ''}`,
                     required: true,
-                    onChange: e => setFormErrors({ ...formErrors, email: '' }),
+                    onChange: function(e) { setFormErrors({ ...formErrors, email: '' }); },
                     'aria-label': 'Enter your email'
                   }),
                   formErrors.email && React.createElement('p', { className: 'error-text' }, formErrors.email)
@@ -748,7 +760,7 @@ if (!window.compareQuoteApp) {
 
           React.createElement('nav', { className: 'bottom-nav' },
             React.createElement('button', {
-              onClick: () => handleTabChange('search'),
+              onClick: function() { handleTabChange('search'); },
               className: `flex flex-col items-center min-w-[80px] ${currentTab === 'search' ? 'text-blue-600' : ''}`,
               style: { color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             },
@@ -766,7 +778,7 @@ if (!window.compareQuoteApp) {
               'Search'
             ),
             React.createElement('button', {
-              onClick: () => handleTabChange('cart'),
+              onClick: function() { handleTabChange('cart'); },
               className: `flex flex-col items-center min-w-[80px] relative ${currentTab === 'cart' ? 'text-blue-600' : ''}`,
               style: { color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             },
@@ -785,7 +797,7 @@ if (!window.compareQuoteApp) {
               quote.length > 0 && React.createElement('span', { className: 'cart-badge' }, quote.length)
             ),
             React.createElement('button', {
-              onClick: () => handleTabChange('quote'),
+              onClick: function() { handleTabChange('quote'); },
               className: `flex flex-col items-center min-w-[80px] ${currentTab === 'quote' ? 'text-blue-600' : ''}`,
               style: { color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             },
@@ -810,13 +822,16 @@ if (!window.compareQuoteApp) {
       console.log('ReactDOM.render completed');
     } catch (err) {
       console.error('App error:', err);
-      document.getElementById('error').textContent = `App error: ${err.message}. Please refresh.`;
-      document.getElementById('error').classList.remove('hidden');
+      const errorElement = document.getElementById('error');
+      if (errorElement) {
+        errorElement.textContent = `App error: ${err.message}. Please refresh.`;
+        errorElement.classList.remove('hidden');
+      }
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
       console.log('DOMContentLoaded: Starting waitForReact');
       waitForReact(initApp);
     }, 2000);
