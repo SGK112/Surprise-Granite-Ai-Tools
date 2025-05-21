@@ -40,10 +40,7 @@ const Countertop = mongoose.model('Countertop', countertopSchema);
 // Connect to MongoDB with retry
 const connectWithRetry = async (retries = 5, delay = 5000) => {
   try {
-    await mongoose.connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    await mongoose.connect(uri);
     console.log('Connected to MongoDB');
   } catch (err) {
     console.error('MongoDB connection error:', err);
@@ -62,8 +59,10 @@ connectWithRetry();
 app.get('/api/materials', async (req, res) => {
   try {
     const materials = await Countertop.find({}).exec();
-    if (!materials.length) {
-      return res.status(404).json({ error: 'No materials found' });
+    console.log('Fetched materials:', materials); // Debug log
+    if (!materials || materials.length === 0) {
+      console.warn('No materials found in countertop_images collection');
+      return res.status(200).json([]); // Return empty array instead of 404
     }
     res.json(materials);
   } catch (error) {
