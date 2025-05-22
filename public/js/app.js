@@ -327,7 +327,7 @@ if (!window.compareQuoteApp) {
                 material: item['Material'] || 'Unknown',
                 installedPricePerSqFt: (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
                 availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-                imageUrl: `/countertop_images/${item['Color Name'] || 'Unknown'}_${item['Vendor Name'] || 'Unknown'}_${thickness}.jpg`,
+                imageUrl: imageComingSoon,
                 popularity: Math.random(),
                 isNew: Math.random() > 0.8
               };
@@ -350,7 +350,7 @@ if (!window.compareQuoteApp) {
         }, [searchQuery, priceData]);
 
         const addToQuote = React.useCallback(function(item) {
-          if (quote.some(function(q) { return q.id === item.id; })) {
+          if (quote.some(function(q) { return q.id === item.id; Bower })) {
             showToast(`${item.colorName} is already in cart`, true);
             return;
           }
@@ -486,7 +486,7 @@ if (!window.compareQuoteApp) {
           }
         }
 
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 300), []);
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
@@ -640,8 +640,7 @@ if (!window.compareQuoteApp) {
 
                 React.createElement('button', {
                   onClick: function() { setShowFilters(!showFilters); },
-                  className: 'w-full max-w-sm p-2 rounded-lg text-left sm:hidden',
-                  style: { backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }
+                  className: 'filter-toggle sm:hidden'
                 }, showFilters ? 'Hide Filters' : 'Show Filters'),
 
                 React.createElement('div', { className: `filter-panel ${showFilters ? 'active' : ''}` },
@@ -752,7 +751,7 @@ if (!window.compareQuoteApp) {
                   onClick: function() { handleTabChange('quote'); },
                   className: 'w-full max-w-md mx-auto text-white p-3 rounded-lg mt-6 block',
                   style: { backgroundColor: 'var(--accent-color)' }
-                }, 'Get Quote')
+                }, 'Confirm Quote')
               )
             ),
 
