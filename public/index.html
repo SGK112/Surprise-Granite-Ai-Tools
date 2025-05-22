@@ -36,6 +36,7 @@
             --shadow-color: rgba(0, 0, 0, 0.1);
             --gold-icon: #feda00;
             --brand-dark: #1e2749;
+            --highlight-color: rgba(37, 99, 235, 0.1);
         }
         [data-theme="dark"] {
             --bg-primary: #1e2749;
@@ -49,6 +50,7 @@
             --shadow-color: rgba(0, 0, 0, 0.3);
             --gold-icon: #feda00;
             --brand-dark: #f5f5f5;
+            --highlight-color: rgba(59, 130, 246, 0.1);
         }
         html, body {
             margin: 0;
@@ -73,6 +75,7 @@
             display: flex;
             flex-direction: column;
             padding-bottom: 5rem;
+            padding-top: 5rem;
             align-items: center;
         }
         .container {
@@ -89,7 +92,7 @@
         header {
             width: 100%;
             text-align: center;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
         header img {
             height: 2.5rem;
@@ -141,17 +144,30 @@
             align-items: center;
             justify-content: center;
         }
-        .search-bar {
-            position: relative;
+        .search-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
             width: 100%;
             max-width: 40rem;
             margin: 1rem auto;
             display: flex;
             align-items: center;
+            gap: 0.5rem;
+            z-index: 100;
+            background: var(--bg-primary);
+            padding: 0.5rem;
+        }
+        .search-bar {
+            position: relative;
+            width: 100%;
+            display: flex;
+            align-items: center;
         }
         .search-bar input {
             width: 100%;
-            padding: 0.75rem 0.75rem 0.75rem 3rem;
+            padding: 0.75rem 2.5rem 0.75rem 3rem;
             border: 2px solid var(--border-color);
             border-radius: 0.75rem;
             font-size: 1.25rem;
@@ -161,7 +177,7 @@
         }
         .search-bar input:focus {
             border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px var(--highlight-color);
         }
         .search-bar svg {
             position: absolute;
@@ -172,45 +188,64 @@
             height: 1.5rem;
             color: var(--text-secondary);
         }
-        .search-suggestions {
-            width: 100%;
-            max-width: 40rem;
-            margin: 0 auto;
-            padding: 0.5rem 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            justify-content: center;
-        }
-        .suggestion-chip {
-            padding: 0.25rem 0.75rem;
-            background: var(--bg-secondary);
+        .clear-search {
+            padding: 0.5rem;
             border: 1px solid var(--border-color);
-            border-radius: 1rem;
-            font-size: 0.875rem;
+            border-radius: 0.5rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        .suggestion-chip:hover {
-            background: #e0e7ff;
+        .clear-search:hover {
+            background: var(--highlight-color);
+        }
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 101;
+            box-shadow: 0 2px 8px var(--shadow-color);
+        }
+        .autocomplete-suggestion {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .autocomplete-suggestion:hover {
+            background: var(--highlight-color);
+        }
+        .highlight {
+            background: var(--highlight-color);
+            padding: 0 0.2rem;
         }
         .filter-panel {
             width: 100%;
             max-width: 60rem;
             grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
             gap: 1rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             display: grid;
+            justify-items: center;
         }
         .filter-panel div {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            width: 100%;
+            max-width: 12rem;
         }
         .filter-panel label {
             font-size: 0.875rem;
             font-weight: 500;
             color: var(--text-primary);
+            text-align: center;
         }
         .filter-panel select {
             padding: 0.5rem;
@@ -219,33 +254,11 @@
             font-size: 0.875rem;
             background: var(--bg-secondary);
             color: var(--text-primary);
-            transition: border-color 0.3s;
+            transition: background-color 0.3s;
+            width: 100%;
         }
         .filter-panel select:focus {
-            border-color: var(--accent-color);
-        }
-        .filter-panel select:not([value="All Vendors"]):not([value="All Materials"]):not([value="All Colors"]):not([value="All Thicknesses"]) {
-            border-color: var(--accent-color);
-            font-weight: 500;
-        }
-        .clear-filters {
-            width: 100%;
-            max-width: 12rem;
-            padding: 0.5rem 1rem;
-            margin: 0 auto;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            background: var(--error-color);
-            color: white;
-            border: none;
-            display: block;
-            text-align: center;
-        }
-        .clear-filters:hover {
-            background: #991b1b;
+            background: var(--highlight-color);
         }
         .card-grid {
             display: grid;
@@ -325,6 +338,7 @@
         .tooltip {
             position: relative;
             display: inline-block;
+            width: 100%;
         }
         .tooltip .tooltip-text {
             visibility: hidden;
@@ -529,9 +543,6 @@
         }
         @media (max-width: 639px) {
             input, select, textarea { font-size: 1rem; }
-            .filter-panel {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
