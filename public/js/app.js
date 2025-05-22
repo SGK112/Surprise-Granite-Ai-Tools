@@ -10,14 +10,6 @@ if (!window.compareQuoteApp) {
     }
   };
 
-  // Temporary mapping of color names to image URLs (replace with actual URLs)
-  const colorImageMap = {
-    'white': 'https://via.placeholder.com/150/FFFFFF/000000?text=White',
-    'black': 'https://via.placeholder.com/150/1F2937/FFFFFF?text=Black',
-    'blue': 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=Blue',
-    'gray': 'https://via.placeholder.com/150/6B7280/FFFFFF?text=Gray'
-  };
-
   // Vendor to CSV URL mapping (replace with actual URLs)
   const vendorCsvMap = {
     'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
@@ -80,6 +72,19 @@ if (!window.compareQuoteApp) {
   }
 
   const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSwgc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
+
+  // Function to fetch image URL from MongoDB via an API endpoint
+  async function fetchImageUrl(colorName) {
+    try {
+      const response = await fetch(`/api/images/${encodeURIComponent(colorName)}`);
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      const data = await response.json();
+      return data.imageUrl || imageComingSoon;
+    } catch (err) {
+      console.error(`Failed to fetch image for ${colorName}:`, err);
+      return imageComingSoon;
+    }
+  }
 
   function waitForReact(callback, retries, interval) {
     if (retries === undefined) retries = 50;
@@ -393,14 +398,19 @@ if (!window.compareQuoteApp) {
             const cachedData = localStorage.getItem(cacheKey);
             if (cachedData) {
               console.log('Using cached price data');
-              setPriceData(decryptData(cachedData));
+              const data = decryptData(cachedData);
+              // Fetch images for each item in the cached data
+              const updatedData = await Promise.all(data.map(async (item) => {
+                const imageUrl = await fetchImageUrl(item.colorName);
+                return { ...item, imageUrl };
+              }));
+              setPriceData(updatedData);
               setIsLoading(false);
               return;
             }
 
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-            // Basic security validation: check for expected content type
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('text/csv')) {
               throw new Error('Unexpected content type: ' + contentType);
@@ -411,7 +421,7 @@ if (!window.compareQuoteApp) {
             Papa.parse(csvText, {
               header: true,
               skipEmptyLines: true,
-              complete: function(results) {
+              complete: async function(results) {
                 const rawData = results.data;
                 console.log('fetchPriceList: Parsed CSV data:', rawData);
                 const processedData = processData(rawData);
@@ -419,10 +429,16 @@ if (!window.compareQuoteApp) {
                 if (processedData.length === 0) {
                   showToast('No valid countertop data available.', true);
                   setPriceData([]);
+                  setIsLoading(false);
                   return;
                 }
-                setPriceData(processedData);
-                localStorage.setItem(cacheKey, encryptData(processedData));
+                // Fetch images for each item
+                const updatedData = await Promise.all(processedData.map(async (item) => {
+                  const imageUrl = await fetchImageUrl(item.colorName);
+                  return { ...item, imageUrl };
+                }));
+                setPriceData(updatedData);
+                localStorage.setItem(cacheKey, encryptData(updatedData));
                 setIsLoading(false);
               },
               error: function(error) {
@@ -461,11 +477,6 @@ if (!window.compareQuoteApp) {
               return null;
             }
             const thickness = item['Thickness'] ? String(item['Thickness']) : 'Unknown';
-            const colorNameLower = (item['Color Name'] || '').toLowerCase();
-            const imageUrl = Object.keys(colorImageMap).reduce((url, color) => {
-              if (colorNameLower.includes(color)) return colorImageMap[color];
-              return url;
-            }, imageComingSoon);
             return {
               id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
               colorName: item['Color Name'] ? String(item['Color Name']) : 'Unknown',
@@ -474,7 +485,7 @@ if (!window.compareQuoteApp) {
               material: item['Material'] ? String(item['Material']) : 'Unknown',
               installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
               availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-              imageUrl: imageUrl,
+              imageUrl: imageComingSoon, // Will be updated after fetching
               popularity: Math.random(),
               isNew: Math.random() > 0.8
             };
@@ -633,7 +644,6 @@ if (!window.compareQuoteApp) {
           }).join('\n'));
           formData.append('region', regionName);
           formData.append('zip_code', zipCode);
-          // TODO: Add CSRF token here (requires backend support)
 
           try {
             const response = await fetch('https://usebasin.com/f/0e1679dd8d79', {
@@ -714,24 +724,28 @@ if (!window.compareQuoteApp) {
         return React.createElement('div', { className: 'app-container', style: { paddingBottom: '5rem', paddingTop: '0' } },
           React.createElement('div', {
             style: {
-              position: 'relative',
-              padding: '0.5rem 0',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '10rem',
               display: 'flex',
               flexDirection: 'column',
+              justifyContent: 'center',
               alignItems: 'center',
               background: 'var(--bg-primary)',
-              zIndex: 100
+              zIndex: 100,
+              padding: '0.5rem 0'
             }
           },
-            React.createElement('header', { style: { width: '100%', maxWidth: '90rem', textAlign: 'center', margin: '0.5rem 0' } },
+            React.createElement('header', { style: { width: '100%', maxWidth: '90rem', textAlign: 'center' } },
               React.createElement('img', {
                 src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
                 alt: 'Surprise Granite Logo',
-                style: { height: '2.5rem', margin: '0 auto' }
+                style: { height: '3rem', margin: '0 auto' }
               }),
-              React.createElement('h1', { style: { fontSize: '1.25rem', color: 'var(--accent-color)', margin: '0.5rem 0' } }, 'Surprise Granite Quote'),
-              React.createElement('p', { style: { fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0.25rem 0' } }, 'Compare and get quotes for your perfect countertops'),
-              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', marginBottom: '0.5rem' } },
+              React.createElement('h1', { style: { fontSize: '1.5rem', color: 'var(--accent-color)', margin: '0.5rem 0' } }, 'Surprise Granite Quote'),
+              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' } },
                 React.createElement('button', {
                   onClick: toggleTheme,
                   className: 'theme-toggle',
@@ -797,7 +811,7 @@ if (!window.compareQuoteApp) {
             className: 'container', 
             style: { 
               padding: '1rem', 
-              marginTop: '8rem',
+              marginTop: '11rem', // Adjusted to account for fixed header height (10rem) + extra spacing
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
