@@ -10,13 +10,20 @@ if (!window.compareQuoteApp) {
     }
   };
 
-  // Temporary mapping of color names to image URLs (for quick implementation)
+  // Temporary mapping of color names to image URLs
   const colorImageMap = {
     'white': 'https://example.com/images/white-countertop.jpg',
     'black': 'https://example.com/images/black-countertop.jpg',
     'blue': 'https://example.com/images/blue-countertop.jpg',
     'gray': 'https://example.com/images/gray-countertop.jpg'
-    // Add more mappings as needed; replace with actual URLs when available
+  };
+
+  // Vendor to CSV URL mapping (replace with actual URLs)
+  const vendorCsvMap = {
+    'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
+    'MSI': 'https://docs.google.com/spreadsheets/d/e/2PACX-MSI-CSV-URL/pub?output=csv', // Replace with MSI's CSV URL
+    'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-VENDOR2-CSV-URL/pub?output=csv' // Replace with Vendor2's CSV URL
+    // Add more vendors as needed
   };
 
   function getColorSwatch(colorName) {
@@ -298,7 +305,6 @@ if (!window.compareQuoteApp) {
             navigator.geolocation.getCurrentPosition(
               (position) => {
                 console.log('Location permission granted:', position);
-                // Simulate ZIP code lookup based on coordinates (mock for now)
                 const mockZip = '85001'; // Example: Phoenix, AZ
                 setZipCode(mockZip);
                 const region = mockZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
@@ -312,7 +318,6 @@ if (!window.compareQuoteApp) {
               },
               (error) => {
                 console.error('Location permission denied:', error);
-                // Fallback to National Average
                 setRegionName('National Average');
                 setRegionMultiplier(1.0);
                 fetchPriceList();
@@ -342,7 +347,8 @@ if (!window.compareQuoteApp) {
           setIsLoading(true);
           console.log('fetchPriceList: Starting fetch');
           try {
-            const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
+            const csvUrl = vendorCsvMap[filters.vendor] || vendorCsvMap['All Vendors'];
+            console.log('Fetching CSV for vendor:', filters.vendor, 'URL:', csvUrl);
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
             const csvText = await response.text();
@@ -396,7 +402,6 @@ if (!window.compareQuoteApp) {
             }
             const thickness = item['Thickness'] || 'Unknown';
             const colorNameLower = (item['Color Name'] || '').toLowerCase();
-            // Temporary image mapping: use colorImageMap, fallback to imageComingSoon
             const imageUrl = Object.keys(colorImageMap).reduce((url, color) => {
               if (colorNameLower.includes(color)) return colorImageMap[color];
               return url;
@@ -442,6 +447,11 @@ if (!window.compareQuoteApp) {
             setIsSearchLoading(false);
           }
         }, [searchQuery, priceData]);
+
+        // Refetch price list when vendor filter changes
+        React.useEffect(() => {
+          fetchPriceList();
+        }, [filters.vendor]);
 
         const addToQuote = React.useCallback(function(item) {
           if (quote.some(function(q) { return q.id === item.id; })) {
@@ -757,27 +767,42 @@ if (!window.compareQuoteApp) {
                   color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)', 
                   padding: '0.75rem 1rem', 
                   fontSize: '1rem',
-                  position: 'relative'
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
                 }
               },
-                'Cart ($', totalCartCost, ')',
-                quote.length > 0 && React.createElement('span', { 
-                  className: 'cart-badge',
-                  style: {
-                    position: 'absolute',
-                    top: '0',
-                    right: '0',
-                    background: 'var(--accent-color)',
-                    color: 'white',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    width: '1.25rem',
-                    height: '1.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }
-                }, quote.length)
+                React.createElement('span', { style: { position: 'relative' } },
+                  React.createElement('svg', {
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor',
+                    style: { width: '1.5rem', height: '1.5rem' }
+                  }, React.createElement('path', {
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    strokeWidth: '2',
+                    d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
+                  })),
+                  quote.length > 0 && React.createElement('span', { 
+                    className: 'cart-badge',
+                    style: {
+                      position: 'absolute',
+                      top: '-0.5rem',
+                      right: '-0.5rem',
+                      background: 'var(--accent-color)',
+                      color: 'white',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      width: '1.25rem',
+                      height: '1.25rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }
+                  }, quote.length)
+                ),
+                `Cart ($${totalCartCost})`
               ),
               React.createElement('button', {
                 onClick: function() { handleTabChange('quote'); },
@@ -1242,7 +1267,7 @@ if (!window.compareQuoteApp) {
                 borderRadius: '50%', 
                 background: 'var(--accent-color)', 
                 color: 'white', 
-                border: 'none', 
+                border: 'none',
                 display: showBackToTop ? 'block' : 'none' 
               }
             },
@@ -1306,17 +1331,36 @@ if (!window.compareQuoteApp) {
                   fontSize: '0.875rem' 
                 }
               },
-                React.createElement('svg', {
-                  fill: 'none',
-                  viewBox: '0 0 24 24',
-                  stroke: 'currentColor',
-                  style: { width: '1.5rem', height: '1.5rem' }
-                }, React.createElement('path', {
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                  strokeWidth: '2',
-                  d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
-                })),
+                React.createElement('span', { style: { position: 'relative' } },
+                  React.createElement('svg', {
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor',
+                    style: { width: '1.5rem', height: '1.5rem' }
+                  }, React.createElement('path', {
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    strokeWidth: '2',
+                    d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
+                  })),
+                  quote.length > 0 && React.createElement('span', { 
+                    className: 'cart-badge',
+                    style: {
+                      position: 'absolute',
+                      top: '-0.5rem',
+                      right: '-0.5rem',
+                      background: 'var(--accent-color)',
+                      color: 'white',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      width: '1.25rem',
+                      height: '1.25rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }
+                  }, quote.length)
+                ),
                 'Cart'
               ),
               React.createElement('button', {
