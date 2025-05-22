@@ -8,11 +8,19 @@ const __dirname = join(__filename, '..');
 
 const app = express();
 
-// Middleware to parse JSON bodies
-app.use(express.json());
+// Middleware to set correct MIME type for JavaScript files
+app.use((req, res, next) => {
+  if (req.url.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+  }
+  next();
+});
 
 // Serve static files from the "public" directory
 app.use(express.static(join(__dirname, 'public')));
+
+// Middleware to parse JSON bodies
+app.use(express.json());
 
 // Basic route to serve the index.html
 app.get('/', (req, res) => {
