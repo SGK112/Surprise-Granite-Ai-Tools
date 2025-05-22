@@ -10,6 +10,15 @@ if (!window.compareQuoteApp) {
     }
   };
 
+  // Temporary mapping of color names to image URLs (for quick implementation)
+  const colorImageMap = {
+    'white': 'https://example.com/images/white-countertop.jpg',
+    'black': 'https://example.com/images/black-countertop.jpg',
+    'blue': 'https://example.com/images/blue-countertop.jpg',
+    'gray': 'https://example.com/images/gray-countertop.jpg'
+    // Add more mappings as needed; replace with actual URLs when available
+  };
+
   function getColorSwatch(colorName) {
     const name = (colorName || '').toLowerCase();
     if (name.includes('white')) return '#F5F5F5';
@@ -107,7 +116,7 @@ if (!window.compareQuoteApp) {
           }
         },
           React.createElement('img', {
-            src: item.imageUrl || imageComingSoon,
+            src: item.imageUrl,
             alt: item.colorName,
             className: 'w-full h-32 object-contain rounded-lg mb-2 max-w-full',
             loading: 'lazy'
@@ -235,7 +244,7 @@ if (!window.compareQuoteApp) {
         const [currentTab, setCurrentTab] = React.useState('search');
         const [isTabLoading, setIsTabLoading] = React.useState(false);
         const [isSearchLoading, setIsSearchLoading] = React.useState(false);
-        const [zipCode, setZipCode] = React.useState(localStorage.getItem('zipCode') || '');
+        const [zipCode, setZipCode] = React.useState('');
         const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
         const [regionName, setRegionName] = React.useState('National Average');
         const [filters, setFilters] = React.useState({ 
@@ -283,10 +292,39 @@ if (!window.compareQuoteApp) {
           return function() { window.removeEventListener('scroll', handleScroll); };
         }, []);
 
-        React.useEffect(function() {
-          console.log('useEffect: Fetching price list for ZIP code:', zipCode);
-          fetchPriceList();
-        }, [zipCode]);
+        // Silently fetch user's location and set region
+        React.useEffect(() => {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                console.log('Location permission granted:', position);
+                // Simulate ZIP code lookup based on coordinates (mock for now)
+                const mockZip = '85001'; // Example: Phoenix, AZ
+                setZipCode(mockZip);
+                const region = mockZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                               mockZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                               mockZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                               mockZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                               { name: 'Southeast', multiplier: 1.05 };
+                setRegionName(region.name);
+                setRegionMultiplier(region.multiplier);
+                fetchPriceList();
+              },
+              (error) => {
+                console.error('Location permission denied:', error);
+                // Fallback to National Average
+                setRegionName('National Average');
+                setRegionMultiplier(1.0);
+                fetchPriceList();
+              }
+            );
+          } else {
+            console.log('Geolocation not supported');
+            setRegionName('National Average');
+            setRegionMultiplier(1.0);
+            fetchPriceList();
+          }
+        }, []);
 
         function showToast(message, isError) {
           if (isError === undefined) isError = false;
@@ -357,6 +395,12 @@ if (!window.compareQuoteApp) {
               return null;
             }
             const thickness = item['Thickness'] || 'Unknown';
+            const colorNameLower = (item['Color Name'] || '').toLowerCase();
+            // Temporary image mapping: use colorImageMap, fallback to imageComingSoon
+            const imageUrl = Object.keys(colorImageMap).reduce((url, color) => {
+              if (colorNameLower.includes(color)) return colorImageMap[color];
+              return url;
+            }, imageComingSoon);
             return {
               id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
               colorName: item['Color Name'] || 'Unknown',
@@ -365,7 +409,7 @@ if (!window.compareQuoteApp) {
               material: item['Material'] || 'Unknown',
               installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
               availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-              imageUrl: imageComingSoon,
+              imageUrl: imageUrl,
               popularity: Math.random(),
               isNew: Math.random() > 0.8
             };
@@ -445,23 +489,6 @@ if (!window.compareQuoteApp) {
             setTempSqFt('');
           }
         }, [expandedCard]);
-
-        function handleZipSubmit() {
-          if (!/^\d{5}$/.test(zipCode)) {
-            showToast('Invalid ZIP code', true);
-            return;
-          }
-          localStorage.setItem('zipCode', zipCode);
-          const region = zipCode.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
-                         zipCode.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
-                         zipCode.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
-                         zipCode.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
-                         { name: 'Southeast', multiplier: 1.05 };
-          setRegionName(region.name);
-          setRegionMultiplier(region.multiplier);
-          fetchPriceList();
-          showToast(`Region set to ${region.name}`);
-        }
 
         function clearSearchAndFilters() {
           setSearchQuery('');
@@ -613,17 +640,13 @@ if (!window.compareQuoteApp) {
         return React.createElement('div', { className: 'app-container', style: { paddingBottom: '5rem', paddingTop: '0' } },
           React.createElement('div', {
             style: {
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              background: 'var(--bg-primary)',
-              zIndex: 100,
+              position: 'relative',
               padding: '0.5rem 0',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              boxShadow: '0 2px 8px var(--shadow-color)'
+              background: 'var(--bg-primary)',
+              zIndex: 100
             }
           },
             React.createElement('header', { style: { width: '100%', maxWidth: '90rem', textAlign: 'center', margin: '0.5rem 0' } },
@@ -633,48 +656,65 @@ if (!window.compareQuoteApp) {
                 style: { height: '2.5rem', margin: '0 auto' }
               }),
               React.createElement('h1', { style: { fontSize: '1.25rem', color: 'var(--accent-color)', margin: '0.5rem 0' } }, 'Surprise Granite Quote'),
-              React.createElement('p', { style: { fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0.25rem 0' } }, 'Compare and get quotes for your perfect countertops')
-            ),
-            (currentTab === 'search' || currentTab === 'cart') && React.createElement('div', { 
-              className: 'search-container', 
-              style: { width: '100%', maxWidth: '40rem', padding: '0 1rem', margin: '0 auto' }
-            },
-              React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
-                React.createElement('input', {
-                  type: 'search',
-                  value: searchQuery,
-                  onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
-                  placeholder: 'Search for colors, materials, vendors...',
-                  'aria-label': 'Search countertops',
-                  style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem' }
-                }),
-                React.createElement('svg', {
-                  fill: 'none',
-                  viewBox: '0 0 24 24',
-                  stroke: 'currentColor',
-                  style: { position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1.5rem', height: '1.5rem' }
-                }, React.createElement('path', {
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                  strokeWidth: '2',
-                  d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-                }))
-              ),
-              searchQuery && React.createElement('button', {
-                onClick: clearSearchAndFilters,
-                className: 'clear-search',
-                'aria-label': 'Clear search and filters',
-                style: { padding: '0.75rem' }
-              }, 'Clear'),
-              suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%' } },
-                suggestions.map((suggestion, index) => 
-                  React.createElement('div', {
-                    key: index,
-                    className: 'autocomplete-suggestion',
-                    onClick: function() { handleSuggestionClick(suggestion); },
-                    style: { padding: '0.75rem 1rem' }
-                  }, suggestion)
-                )
+              React.createElement('p', { style: { fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0.25rem 0' } }, 'Compare and get quotes for your perfect countertops'),
+              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' } },
+                React.createElement('button', {
+                  onClick: toggleTheme,
+                  className: 'theme-toggle',
+                  'aria-label': 'Switch theme',
+                  style: { padding: '0.5rem', width: '2rem', height: '2rem' }
+                },
+                  (localStorage.getItem('theme') || 'light') === 'light' ?
+                    React.createElement('svg', {
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      stroke: 'currentColor',
+                      style: { width: '1.25rem', height: '1.25rem' }
+                    }, React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeWidth: '2',
+                      d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'
+                    })) :
+                    React.createElement('svg', {
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      stroke: 'currentColor',
+                      style: { width: '1.25rem', height: '1.25rem' }
+                    }, React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeWidth: '2',
+                      d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'
+                    }))
+                ),
+                React.createElement('button', {
+                  onClick: function() {
+                    const newZip = prompt('Enter your ZIP code:', zipCode || '');
+                    if (newZip && /^\d{5}$/.test(newZip)) {
+                      setZipCode(newZip);
+                      const region = newZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                                     newZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                                     newZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                                     newZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                                     { name: 'Southeast', multiplier: 1.05 };
+                      setRegionName(region.name);
+                      setRegionMultiplier(region.multiplier);
+                      fetchPriceList();
+                      showToast(`Region set to ${region.name}`);
+                    } else if (newZip) {
+                      showToast('Invalid ZIP code', true);
+                    }
+                  },
+                  style: { 
+                    padding: '0.5rem', 
+                    fontSize: '0.875rem', 
+                    color: 'var(--text-secondary)', 
+                    background: 'transparent', 
+                    border: 'none',
+                    textDecoration: 'underline'
+                  }
+                }, zipCode ? `Region: ${regionName}` : 'Set ZIP Code')
               )
             )
           ),
@@ -683,7 +723,6 @@ if (!window.compareQuoteApp) {
             className: 'container', 
             style: { 
               padding: '1rem', 
-              marginTop: '150px', 
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
@@ -717,11 +756,28 @@ if (!window.compareQuoteApp) {
                 style: { 
                   color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)', 
                   padding: '0.75rem 1rem', 
-                  fontSize: '1rem' 
+                  fontSize: '1rem',
+                  position: 'relative'
                 }
               },
                 'Cart ($', totalCartCost, ')',
-                quote.length > 0 && React.createElement('span', { className: 'cart-badge' }, quote.length)
+                quote.length > 0 && React.createElement('span', { 
+                  className: 'cart-badge',
+                  style: {
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    background: 'var(--accent-color)',
+                    color: 'white',
+                    borderRadius: '9999px',
+                    fontSize: '0.75rem',
+                    width: '1.25rem',
+                    height: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }
+                }, quote.length)
               ),
               React.createElement('button', {
                 onClick: function() { handleTabChange('quote'); },
@@ -755,31 +811,51 @@ if (!window.compareQuoteApp) {
                 } 
               },
                 React.createElement('div', { 
-                  className: 'zip-input', 
+                  className: 'search-container', 
                   style: { 
                     width: '100%', 
-                    maxWidth: '20rem', 
-                    margin: '1rem auto', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '0.5rem' 
+                    maxWidth: '40rem', 
+                    padding: '0 1rem', 
+                    margin: '1rem auto' 
                   }
                 },
-                  React.createElement('input', {
-                    type: 'text',
-                    value: zipCode,
-                    onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
-                    placeholder: 'ZIP Code',
-                    maxLength: '5',
-                    pattern: '[0-9]{5}',
-                    'aria-label': 'Enter ZIP Code',
-                    style: { padding: '0.75rem', fontSize: '1rem' }
-                  }),
-                  React.createElement('button', {
-                    onClick: handleZipSubmit,
-                    disabled: isLoading,
-                    style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', fontSize: '1rem' }
-                  }, isLoading ? 'Updating...' : 'Update')
+                  React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
+                    React.createElement('input', {
+                      type: 'search',
+                      value: searchQuery,
+                      onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
+                      placeholder: 'Search for colors, materials, vendors...',
+                      'aria-label': 'Search countertops',
+                      style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem' }
+                    }),
+                    React.createElement('svg', {
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      stroke: 'currentColor',
+                      style: { position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1.5rem', height: '1.5rem' }
+                    }, React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeWidth: '2',
+                      d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                    }))
+                  ),
+                  searchQuery && React.createElement('button', {
+                    onClick: clearSearchAndFilters,
+                    className: 'clear-search',
+                    'aria-label': 'Clear search and filters',
+                    style: { padding: '0.75rem' }
+                  }, 'Clear'),
+                  suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%' } },
+                    suggestions.map((suggestion, index) => 
+                      React.createElement('div', {
+                        key: index,
+                        className: 'autocomplete-suggestion',
+                        onClick: function() { handleSuggestionClick(suggestion); },
+                        style: { padding: '0.75rem 1rem' }
+                      }, suggestion)
+                    )
+                  )
                 ),
 
                 React.createElement('div', { 
@@ -807,7 +883,7 @@ if (!window.compareQuoteApp) {
                       vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
                     )
                   ),
-                  React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
+                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
                     React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Material'),
                     React.createElement('span', { className: 'tooltip-text' }, 'Filter by material type'),
                     React.createElement('select', {
@@ -821,7 +897,7 @@ if (!window.compareQuoteApp) {
                       })
                     )
                   ),
-                  React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
+                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
                     React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Color'),
                     React.createElement('span', { className: 'tooltip-text' }, 'Filter by color'),
                     React.createElement('select', {
@@ -835,7 +911,7 @@ if (!window.compareQuoteApp) {
                       })
                     )
                   ),
-                  React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
+                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
                     React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Thickness'),
                     React.createElement('span', { className: 'tooltip-text' }, 'Filter by thickness'),
                     React.createElement('select', {
@@ -852,8 +928,8 @@ if (!window.compareQuoteApp) {
                   activeFiltersCount > 0 && React.createElement('span', {
                     style: {
                       position: 'absolute',
-                      top: '-0.5rem',
-                      right: '-0.5rem',
+                      top: '0',
+                      right: '0',
                       background: 'var(--accent-color)',
                       color: 'white',
                       borderRadius: '9999px',
@@ -866,6 +942,15 @@ if (!window.compareQuoteApp) {
                     }
                   }, activeFiltersCount)
                 ),
+
+                filteredResults.length > 0 && React.createElement('p', {
+                  style: {
+                    color: 'var(--text-secondary)',
+                    padding: '0.5rem 0',
+                    fontSize: '0.875rem',
+                    textAlign: 'center'
+                  }
+                }, `Found ${filteredResults.length} result${filteredResults.length === 1 ? '' : 's'}`),
 
                 isLoading ? 
                   React.createElement('p', { 
@@ -956,31 +1041,51 @@ if (!window.compareQuoteApp) {
                 } 
               },
                 React.createElement('div', { 
-                  className: 'zip-input', 
+                  className: 'search-container', 
                   style: { 
                     width: '100%', 
-                    maxWidth: '20rem', 
-                    margin: '1rem auto', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '0.5rem' 
+                    maxWidth: '40rem', 
+                    padding: '0 1rem', 
+                    margin: '1rem auto' 
                   }
                 },
-                  React.createElement('input', {
-                    type: 'text',
-                    value: zipCode,
-                    onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
-                    placeholder: 'ZIP Code',
-                    maxLength: '5',
-                    pattern: '[0-9]{5}',
-                    'aria-label': 'Enter ZIP Code',
-                    style: { padding: '0.75rem', fontSize: '1rem' }
-                  }),
-                  React.createElement('button', {
-                    onClick: handleZipSubmit,
-                    disabled: isLoading,
-                    style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', fontSize: '1rem' }
-                  }, isLoading ? 'Updating...' : 'Update Location')
+                  React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
+                    React.createElement('input', {
+                      type: 'search',
+                      value: searchQuery,
+                      onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
+                      placeholder: 'Search for colors, materials, vendors...',
+                      'aria-label': 'Search countertops',
+                      style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem' }
+                    }),
+                    React.createElement('svg', {
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      stroke: 'currentColor',
+                      style: { position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1.5rem', height: '1.5rem' }
+                    }, React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeWidth: '2',
+                      d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                    }))
+                  ),
+                  searchQuery && React.createElement('button', {
+                    onClick: clearSearchAndFilters,
+                    className: 'clear-search',
+                    'aria-label': 'Clear search and filters',
+                    style: { padding: '0.75rem' }
+                  }, 'Clear'),
+                  suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%' } },
+                    suggestions.map((suggestion, index) => 
+                      React.createElement('div', {
+                        key: index,
+                        className: 'autocomplete-suggestion',
+                        onClick: function() { handleSuggestionClick(suggestion); },
+                        style: { padding: '0.75rem 1rem' }
+                      }, suggestion)
+                    )
+                  )
                 ),
 
                 React.createElement('h2', {
@@ -1212,8 +1317,7 @@ if (!window.compareQuoteApp) {
                   strokeWidth: '2',
                   d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
                 })),
-                'Cart',
-                quote.length > 0 && React.createElement('span', { className: 'cart-badge' }, quote.length)
+                'Cart'
               ),
               React.createElement('button', {
                 onClick: function() { handleTabChange('quote'); },
