@@ -6,9 +6,7 @@ self.addEventListener('install', event => {
                 '/manifest.json',
                 '/dist/output.css',
                 '/js/app.js',
-                '/images/fallback.jpg',
-                '/images/icon-192.png',
-                '/images/icon-512.png'
+                '/images/fallback.jpg'
             ]);
         })
     );
