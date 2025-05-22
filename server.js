@@ -1,74 +1,30 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
-
-dotenv.config();
+const express = require('express');
+const mongoose = require('mongoose');
+const path = require('path');
 
 const app = express();
 
-// Health check route (respond immediately)
-app.get('/health', (req, res) => {
-  console.log('Health check endpoint called');
-  res.status(200).json({ status: 'OK' });
-});
+// Middleware to parse JSON bodies
+app.use(express.json());
 
-// Enforce HTTPS in production
-app.use((req, res, next) => {
-  if (req.headers['x-forwarded-proto'] !== 'https' && process.env.NODE_ENV === 'production') {
-    return res.redirect(`https://${req.headers.host}${req.url}`);
-  }
-  next();
-});
+// Serve static files from the "public" directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Enable CORS for Webflow
-app.use(cors({
-  origin: 'https://surprisegranite.webflow.io',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Accept']
-}));
-
-// Serve static files from the public directory
-app.use(express.static('public'));
-
-// Serve index.html for the root route
+// Basic route to serve the index.html
 app.get('/', (req, res) => {
-  console.log('Serving index.html for root route');
-  res.sendFile(path.resolve('public', 'index.html'), (err) => {
-    if (err) {
-      console.error('Error serving index.html:', err);
-      res.status(500).send('Error serving the application');
-    }
-  });
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serve sw.js with the correct Content-Type
-app.get('/sw.js', (req, res) => {
-  console.log('Serving sw.js');
-  res.set('Content-Type', 'application/javascript');
-  res.sendFile(path.resolve('public', 'sw.js'), (err) => {
-    if (err) {
-      console.error('Error serving sw.js:', err);
-      res.status(500).send('Error serving service worker');
-    }
-  });
-});
+// Connect to MongoDB (optional, since images aren't set up yet)
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/surprise_granite', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.error('MongoDB connection error:', err));
 
-// Handle uncaught errors
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
-
+// Use the PORT environment variable provided by Render, fallback to 3000 for local development
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-}).on('error', (err) => {
-  console.error('Server startup error:', err);
-  process.exit(1);
 });
