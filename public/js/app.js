@@ -84,8 +84,18 @@ if (!window.compareQuoteApp) {
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
-      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost }) {
+      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost, highlightText }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
+        const highlight = (text) => {
+          if (!highlightText || !text) return text;
+          const regex = new RegExp(`(${highlightText})`, 'gi');
+          const parts = text.split(regex);
+          return parts.map((part, i) => 
+            regex.test(part) ? 
+              React.createElement('span', { key: i, className: 'highlight' }, part) : 
+              part
+          );
+        };
         return React.createElement('div', { 
           className: 'card',
           style: { transition: 'all 0.3s ease' }
@@ -104,19 +114,19 @@ if (!window.compareQuoteApp) {
               className: 'color-swatch',
               style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName) }
             }),
-            item.colorName
+            highlight(item.colorName)
           ),
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
             'Material: ',
             React.createElement('span', {
               className: `material-badge ${getMaterialBadgeColor(item.material)}`
-            }, item.material)
+            }, highlight(item.material))
           ),
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
-            'Vendor: ', item.vendorName
+            'Vendor: ', highlight(item.vendorName)
           ),
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
-            'Thickness: ', item.thickness || 'N/A'
+            'Thickness: ', highlight(item.thickness || 'N/A')
           ),
           isInCart && React.createElement('div', { className: 'tooltip' },
             React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
@@ -233,6 +243,7 @@ if (!window.compareQuoteApp) {
         const [showBackToTop, setShowBackToTop] = React.useState(false);
         const [expandedCard, setExpandedCard] = React.useState(null);
         const [tempSqFt, setTempSqFt] = React.useState('');
+        const [suggestions, setSuggestions] = React.useState([]);
 
         const totalCartCost = React.useMemo(() => {
           return quote.reduce((total, item) => {
@@ -344,7 +355,7 @@ if (!window.compareQuoteApp) {
         }
 
         React.useEffect(() => {
-          if (searchQuery && searchQuery.length >= 2 && priceData.length > 0) {
+          if (searchQuery && priceData.length > 0) {
             setIsSearchLoading(true);
             const fuse = new Fuse(priceData, {
               keys: [
@@ -355,15 +366,17 @@ if (!window.compareQuoteApp) {
               ],
               threshold: 0.2,
               includeScore: true,
-              minMatchCharLength: 2,
+              minMatchCharLength: 1,
               tokenize: true,
               matchAllTokens: true
             });
             const results = fuse.search(searchQuery).map(result => result.item);
             setSearchResults(results);
-            setIsSearchLoading(false);
+            setSuggestions(results.slice(0, 5).map(item => `${item.colorName} (${item.material}, ${item.vendorName})`));
+            setTimeout(() => setIsSearchLoading(false), 100);
           } else {
             setSearchResults([]);
+            setSuggestions([]);
             setIsSearchLoading(false);
           }
         }, [searchQuery, priceData]);
@@ -441,6 +454,12 @@ if (!window.compareQuoteApp) {
             thickness: 'All Thicknesses' 
           });
           setSearchResults([]);
+          setSuggestions([]);
+        }
+
+        function handleSuggestionClick(suggestion) {
+          setSearchQuery(suggestion);
+          setSuggestions([]);
         }
 
         function validateForm(name, email) {
@@ -520,7 +539,7 @@ if (!window.compareQuoteApp) {
           }
         }
 
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 300), []);
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
@@ -559,7 +578,7 @@ if (!window.compareQuoteApp) {
 
         const filteredResults = React.useMemo(function() {
           console.log('Computing filteredResults', { searchQuery, searchResultsLength: searchResults.length, filters });
-          if (!searchQuery || searchQuery.length < 2) return [];
+          if (!searchQuery) return [];
           let results = searchResults || [];
           return results.filter(function(item) {
             const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
@@ -601,6 +620,42 @@ if (!window.compareQuoteApp) {
                 strokeWidth: '2',
                 d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'
               }))
+          ),
+
+          (currentTab === 'search' || currentTab === 'cart') && React.createElement('div', { className: 'search-container' },
+            React.createElement('div', { className: 'search-bar' },
+              React.createElement('input', {
+                type: 'search',
+                value: searchQuery,
+                onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
+                placeholder: 'Search for colors, materials, vendors...',
+                'aria-label': 'Search countertops'
+              }),
+              React.createElement('svg', {
+                fill: 'none',
+                viewBox: '0 0 24 24',
+                stroke: 'currentColor'
+              }, React.createElement('path', {
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+                strokeWidth: '2',
+                d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+              }))
+            ),
+            searchQuery && React.createElement('button', {
+              onClick: clearSearchAndFilters,
+              className: 'clear-search',
+              'aria-label': 'Clear search and filters'
+            }, 'Clear'),
+            suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions' },
+              suggestions.map((suggestion, index) => 
+                React.createElement('div', {
+                  key: index,
+                  className: 'autocomplete-suggestion',
+                  onClick: function() { handleSuggestionClick(suggestion); }
+                }, suggestion)
+              )
+            )
           ),
 
           React.createElement('div', { className: 'container' },
@@ -654,33 +709,6 @@ if (!window.compareQuoteApp) {
                     disabled: isLoading,
                     style: { backgroundColor: 'var(--accent-color)' }
                   }, isLoading ? 'Updating...' : 'Update')
-                ),
-
-                React.createElement('div', { className: 'search-container' },
-                  React.createElement('div', { className: 'search-bar' },
-                    React.createElement('input', {
-                      type: 'search',
-                      value: searchQuery,
-                      onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
-                      placeholder: 'Search for colors, materials, vendors...',
-                      'aria-label': 'Search countertops'
-                    }),
-                    React.createElement('svg', {
-                      fill: 'none',
-                      viewBox: '0 0 24 24',
-                      stroke: 'currentColor'
-                    }, React.createElement('path', {
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                      strokeWidth: '2',
-                      d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-                    }))
-                  ),
-                  searchQuery && React.createElement('button', {
-                    onClick: clearSearchAndFilters,
-                    className: 'clear-search',
-                    'aria-label': 'Clear search and filters'
-                  }, 'Clear')
                 ),
 
                 React.createElement('div', { className: 'filter-panel' },
@@ -758,7 +786,8 @@ if (!window.compareQuoteApp) {
                           toggleCard: toggleCard,
                           isExpanded: expandedCard === index,
                           index: index,
-                          totalCartCost: totalCartCost
+                          totalCartCost: totalCartCost,
+                          highlightText: searchQuery
                         });
                       })
                     )
@@ -808,7 +837,8 @@ if (!window.compareQuoteApp) {
                         setTempSqFt: setTempSqFt,
                         clearSqFt: clearSqFt,
                         index: index,
-                        totalCartCost: totalCartCost
+                        totalCartCost: totalCartCost,
+                        highlightText: searchQuery
                       });
                     })
                   ),
