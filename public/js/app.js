@@ -86,7 +86,10 @@ if (!window.compareQuoteApp) {
 
       const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
-        return React.createElement('div', { className: 'card' },
+        return React.createElement('div', { 
+          className: 'card',
+          style: { transition: 'all 0.3s ease' }
+        },
           React.createElement('img', {
             src: item.imageUrl || imageComingSoon,
             alt: item.colorName,
@@ -213,10 +216,16 @@ if (!window.compareQuoteApp) {
         const [searchResults, setSearchResults] = React.useState([]);
         const [currentTab, setCurrentTab] = React.useState('search');
         const [isTabLoading, setIsTabLoading] = React.useState(false);
+        const [isSearchLoading, setIsSearchLoading] = React.useState(false);
         const [zipCode, setZipCode] = React.useState(localStorage.getItem('zipCode') || '');
         const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
         const [regionName, setRegionName] = React.useState('National Average');
-        const [filters, setFilters] = React.useState({ vendor: '', material: '', color: '', thickness: '' });
+        const [filters, setFilters] = React.useState({ 
+          vendor: 'All Vendors', 
+          material: 'All Materials', 
+          color: 'All Colors', 
+          thickness: 'All Thicknesses' 
+        });
         const [showFilters, setShowFilters] = React.useState(false);
         const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
         const [isLoading, setIsLoading] = React.useState(false);
@@ -336,6 +345,7 @@ if (!window.compareQuoteApp) {
 
         React.useEffect(() => {
           if (searchQuery && priceData.length > 0) {
+            setIsSearchLoading(true);
             const fuse = new Fuse(priceData, {
               keys: ['colorName', 'material', 'vendorName'],
               threshold: 0.3,
@@ -343,8 +353,10 @@ if (!window.compareQuoteApp) {
             });
             const results = fuse.search(searchQuery).map(result => result.item);
             setSearchResults(results);
+            setIsSearchLoading(false);
           } else {
             setSearchResults([]);
+            setIsSearchLoading(false);
           }
         }, [searchQuery, priceData]);
 
@@ -642,9 +654,10 @@ if (!window.compareQuoteApp) {
                     d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                   }))
                 ),
+                isSearchLoading && React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Searching...'),
 
                 React.createElement('button', {
-                  onClick: function() { setShowFilters(!showFilters); },
+                  onClick: function() { setShowFilters(prev => !prev); },
                   className: 'filter-toggle sm:hidden'
                 }, showFilters ? 'Hide Filters' : 'Show Filters'),
 
@@ -653,7 +666,7 @@ if (!window.compareQuoteApp) {
                     React.createElement('label', null, 'Vendor'),
                     React.createElement('select', {
                       value: filters.vendor,
-                      onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: '', color: '', thickness: '' }); },
+                      onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', color: 'All Colors', thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by vendor'
                     },
                       vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
@@ -663,7 +676,7 @@ if (!window.compareQuoteApp) {
                     React.createElement('label', null, 'Material'),
                     React.createElement('select', {
                       value: filters.material,
-                      onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: '', thickness: '' }); },
+                      onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: 'All Colors', thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by material'
                     },
                       availableMaterials.map(function(material) { 
@@ -675,7 +688,7 @@ if (!window.compareQuoteApp) {
                     React.createElement('label', null, 'Color'),
                     React.createElement('select', {
                       value: filters.color,
-                      onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: '' }); },
+                      onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by color'
                     },
                       availableColors.map(function(color) { 
@@ -754,7 +767,7 @@ if (!window.compareQuoteApp) {
                   ),
                 quote.length > 0 && React.createElement('button', {
                   onClick: function() { handleTabChange('quote'); },
-                  className: 'w-full max-w-md mx-auto text-white p-3 rounded-lg mt-6 block',
+                  className: 'w-full max-w-md mx-auto text-white p-2 rounded-lg mt-6 block',
                   style: { backgroundColor: 'var(--accent-color)' }
                 }, 'Confirm Quote')
               )
