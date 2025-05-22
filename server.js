@@ -22,18 +22,43 @@ app.use(express.static(join(__dirname, 'public')));
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Basic route to serve the index.html
-app.get('/', (req, res) => {
-  res.sendFile(join(__dirname, 'public', 'index.html'));
+// MongoDB Schema for Images
+const ImageSchema = new mongoose.Schema({
+  colorName: { type: String, required: true },
+  imageUrl: { type: String, required: true },
 });
 
-// Connect to MongoDB (optional, since images aren't set up yet)
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/surprise_granite', {
+const Image = mongoose.model('Image', ImageSchema, 'images'); // Assumes collection name is 'images'
+
+// Connect to MongoDB
+const MONGO_URI = 'mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1';
+mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
+
+// API endpoint to fetch image URL by colorName
+app.get('/api/images/:colorName', async (req, res) => {
+  try {
+    const colorName = req.params.colorName;
+    const image = await Image.findOne({ colorName: { $regex: colorName, $options: 'i' } });
+    if (image) {
+      res.json({ imageUrl: image.imageUrl });
+    } else {
+      res.status(404).json({ imageUrl: null });
+    }
+  } catch (err) {
+    console.error('Error fetching image:', err);
+    res.status(500).json({ imageUrl: null });
+  }
+});
+
+// Basic route to serve the index.html
+app.get('/', (req, res) => {
+  res.sendFile(join(__dirname, 'public', 'index.html'));
+});
 
 // Use the PORT environment variable provided by Render, fallback to 3000 for local development
 const port = process.env.PORT || 3000;
