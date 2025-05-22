@@ -10,20 +10,19 @@ if (!window.compareQuoteApp) {
     }
   };
 
-  // Temporary mapping of color names to image URLs
+  // Temporary mapping of color names to image URLs (replace with actual URLs)
   const colorImageMap = {
-    'white': 'https://example.com/images/white-countertop.jpg',
-    'black': 'https://example.com/images/black-countertop.jpg',
-    'blue': 'https://example.com/images/blue-countertop.jpg',
-    'gray': 'https://example.com/images/gray-countertop.jpg'
+    'white': 'https://via.placeholder.com/150/FFFFFF/000000?text=White', // Replace with actual URL
+    'black': 'https://via.placeholder.com/150/1F2937/FFFFFF?text=Black', // Replace with actual URL
+    'blue': 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=Blue',   // Replace with actual URL
+    'gray': 'https://via.placeholder.com/150/6B7280/FFFFFF?text=Gray'    // Replace with actual URL
   };
 
   // Vendor to CSV URL mapping (replace with actual URLs)
   const vendorCsvMap = {
     'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
-    'MSI': 'https://docs.google.com/spreadsheets/d/e/2PACX-MSI-CSV-URL/pub?output=csv', // Replace with MSI's CSV URL
-    'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-VENDOR2-CSV-URL/pub?output=csv' // Replace with Vendor2's CSV URL
-    // Add more vendors as needed
+    'MSI': 'https://docs.google.com/spreadsheets/d/e/2PACX-MSI-CSV-URL/pub?output=csv',
+    'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-VENDOR2-CSV-URL/pub?output=csv'
   };
 
   function getColorSwatch(colorName) {
@@ -126,7 +125,11 @@ if (!window.compareQuoteApp) {
             src: item.imageUrl,
             alt: item.colorName,
             className: 'w-full h-32 object-contain rounded-lg mb-2 max-w-full',
-            loading: 'lazy'
+            loading: 'lazy',
+            onError: function(e) { 
+              console.error(`Failed to load image for ${item.colorName}: ${item.imageUrl}`);
+              e.target.src = imageComingSoon; 
+            }
           }),
           React.createElement('h3', {
             className: 'font-semibold flex items-center text-base sm:text-lg',
@@ -305,7 +308,7 @@ if (!window.compareQuoteApp) {
             navigator.geolocation.getCurrentPosition(
               (position) => {
                 console.log('Location permission granted:', position);
-                const mockZip = '85001'; // Example: Phoenix, AZ
+                const mockZip = '85001';
                 setZipCode(mockZip);
                 const region = mockZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
                                mockZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
@@ -448,7 +451,6 @@ if (!window.compareQuoteApp) {
           }
         }, [searchQuery, priceData]);
 
-        // Refetch price list when vendor filter changes
         React.useEffect(() => {
           fetchPriceList();
         }, [filters.vendor]);
@@ -739,82 +741,6 @@ if (!window.compareQuoteApp) {
               width: '100%' 
             } 
           },
-            React.createElement('nav', { 
-              className: 'top-nav', 
-              style: { 
-                width: '100%', 
-                maxWidth: '30rem', 
-                margin: '0.5rem auto', 
-                padding: '0.5rem 0', 
-                display: 'flex', 
-                justifyContent: 'center', 
-                gap: '1rem' 
-              }
-            },
-              React.createElement('button', {
-                onClick: function() { handleTabChange('search'); },
-                className: `relative ${currentTab === 'search' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
-                style: { 
-                  color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  padding: '0.75rem 1rem', 
-                  fontSize: '1rem' 
-                }
-              }, 'Search'),
-              React.createElement('button', {
-                onClick: function() { handleTabChange('cart'); },
-                className: `relative ${currentTab === 'cart' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
-                style: { 
-                  color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  padding: '0.75rem 1rem', 
-                  fontSize: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }
-              },
-                React.createElement('span', { style: { position: 'relative' } },
-                  React.createElement('svg', {
-                    fill: 'none',
-                    viewBox: '0 0 24 24',
-                    stroke: 'currentColor',
-                    style: { width: '1.5rem', height: '1.5rem' }
-                  }, React.createElement('path', {
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round',
-                    strokeWidth: '2',
-                    d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
-                  })),
-                  quote.length > 0 && React.createElement('span', { 
-                    className: 'cart-badge',
-                    style: {
-                      position: 'absolute',
-                      top: '-0.5rem',
-                      right: '-0.5rem',
-                      background: 'var(--accent-color)',
-                      color: 'white',
-                      borderRadius: '9999px',
-                      fontSize: '0.75rem',
-                      width: '1.25rem',
-                      height: '1.25rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }
-                  }, quote.length)
-                ),
-                `Cart ($${totalCartCost})`
-              ),
-              React.createElement('button', {
-                onClick: function() { handleTabChange('quote'); },
-                className: `relative ${currentTab === 'quote' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
-                style: { 
-                  color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  padding: '0.75rem 1rem', 
-                  fontSize: '1rem' 
-                }
-              }, 'Quote')
-            ),
-
             React.createElement('div', {
               className: `fade-transition ${currentTab === 'search' ? '' : 'hidden'}`,
               style: { 
@@ -1317,7 +1243,32 @@ if (!window.compareQuoteApp) {
                   strokeWidth: '2',
                   d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                 })),
-                'Search'
+                '1. Search'
+              ),
+              React.createElement('button', {
+                onClick: function() { handleTabChange('quote'); },
+                className: `${currentTab === 'quote' ? 'text-blue-600' : ''}`,
+                style: { 
+                  color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  gap: '0.25rem', 
+                  fontSize: '0.875rem' 
+                }
+              },
+                React.createElement('svg', {
+                  fill: 'none',
+                  viewBox: '0 0 24 24',
+                  stroke: 'currentColor',
+                  style: { width: '1.5rem', height: '1.5rem' }
+                }, React.createElement('path', {
+                  strokeLinecap: 'round',
+                  strokeLinejoin: 'round',
+                  strokeWidth: '2',
+                  d: 'M3 3h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
+                })),
+                '2. Quote'
               ),
               React.createElement('button', {
                 onClick: function() { handleTabChange('cart'); },
@@ -1361,32 +1312,7 @@ if (!window.compareQuoteApp) {
                     }
                   }, quote.length)
                 ),
-                'Cart'
-              ),
-              React.createElement('button', {
-                onClick: function() { handleTabChange('quote'); },
-                className: `${currentTab === 'quote' ? 'text-blue-600' : ''}`,
-                style: { 
-                  color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  gap: '0.25rem', 
-                  fontSize: '0.875rem' 
-                }
-              },
-                React.createElement('svg', {
-                  fill: 'none',
-                  viewBox: '0 0 24 24',
-                  stroke: 'currentColor',
-                  style: { width: '1.5rem', height: '1.5rem' }
-                }, React.createElement('path', {
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                  strokeWidth: '2',
-                  d: 'M3 3h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
-                })),
-                'Quote'
+                '3. Cart'
               )
             )
           )
