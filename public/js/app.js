@@ -43,7 +43,7 @@ if (!window.compareQuoteApp) {
     };
   }
 
-  const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSwgc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
+  const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSw gc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
 
   function waitForReact(callback, retries, interval) {
     if (retries === undefined) retries = 50;
@@ -233,6 +233,7 @@ if (!window.compareQuoteApp) {
         const [showBackToTop, setShowBackToTop] = React.useState(false);
         const [expandedCard, setExpandedCard] = React.useState(null);
         const [tempSqFt, setTempSqFt] = React.useState('');
+        const [searchSuggestions, setSearchSuggestions] = React.useState([]);
 
         const totalCartCost = React.useMemo(() => {
           return quote.reduce((total, item) => {
@@ -343,10 +344,20 @@ if (!window.compareQuoteApp) {
           }).filter(item => item !== null);
         }
 
+        const filteredData = React.useMemo(() => {
+          return priceData.filter(function(item) {
+            const matchesVendor = !filters.vendor || filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
+            const matchesMaterial = !filters.material || filters.material === 'All Materials' || item.material === filters.material;
+            const matchesColor = !filters.color || filters.color === 'All Colors' || item.colorName === filters.color;
+            const matchesThickness = !filters.thickness || filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
+            return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
+          });
+        }, [priceData, filters]);
+
         React.useEffect(() => {
-          if (searchQuery && searchQuery.length >= 2 && priceData.length > 0) {
+          if (searchQuery && searchQuery.length >= 2 && filteredData.length > 0) {
             setIsSearchLoading(true);
-            const fuse = new Fuse(priceData, {
+            const fuse = new Fuse(filteredData, {
               keys: [
                 { name: 'colorName', weight: 0.4 },
                 { name: 'material', weight: 0.3 },
@@ -355,16 +366,22 @@ if (!window.compareQuoteApp) {
               ],
               threshold: 0.3,
               includeScore: true,
-              minMatchCharLength: 2
+              minMatchCharLength: 2,
+              tokenize: true,
+              matchAllTokens: true
             });
             const results = fuse.search(searchQuery).map(result => result.item);
             setSearchResults(results);
+
+            const suggestions = [...new Set([...results.map(item => item.colorName), ...results.map(item => item.material)])].slice(0, 5);
+            setSearchSuggestions(suggestions);
             setIsSearchLoading(false);
           } else {
             setSearchResults([]);
+            setSearchSuggestions([]);
             setIsSearchLoading(false);
           }
-        }, [searchQuery, priceData]);
+        }, [searchQuery, filteredData]);
 
         const addToQuote = React.useCallback(function(item) {
           if (quote.some(function(q) { return q.id === item.id; })) {
@@ -507,7 +524,7 @@ if (!window.compareQuoteApp) {
           }
         }
 
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 600), []);
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 400), []);
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
@@ -515,6 +532,22 @@ if (!window.compareQuoteApp) {
             setCurrentTab(tab);
             setIsTabLoading(false);
           }, 300);
+        }
+
+        function clearFilters() {
+          setFilters({
+            vendor: 'All Vendors',
+            material: 'All Materials',
+            color: 'All Colors',
+            thickness: 'All Thicknesses'
+          });
+          setSearchQuery('');
+          setSearchResults([]);
+          setSearchSuggestions([]);
+        }
+
+        function handleSuggestionClick(suggestion) {
+          setSearchQuery(suggestion);
         }
 
         const vendors = React.useMemo(function() {
@@ -543,18 +576,6 @@ if (!window.compareQuoteApp) {
             .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color; })
             .map(function(item) { return item.thickness; }))].sort();
         }, [priceData, filters.vendor, filters.material, filters.color]);
-
-        const filteredResults = React.useMemo(function() {
-          if (!searchQuery || searchQuery.length < 2) return [];
-          let results = searchResults;
-          return results.filter(function(item) {
-            const matchesVendor = !filters.vendor || filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
-            const matchesMaterial = !filters.material || filters.material === 'All Materials' || item.material === filters.material;
-            const matchesColor = !filters.color || filters.color === 'All Colors' || item.colorName === filters.color;
-            const matchesThickness = !filters.thickness || filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
-            return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
-          });
-        }, [searchQuery, searchResults, filters]);
 
         function scrollToTop() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -647,7 +668,7 @@ if (!window.compareQuoteApp) {
                     type: 'search',
                     value: searchQuery,
                     onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
-                    placeholder: 'Search colors, materials...',
+                    placeholder: 'Search colors, materials, e.g., "white granite 2cm"',
                     'aria-label': 'Search countertops'
                   }),
                   React.createElement('svg', {
@@ -660,6 +681,16 @@ if (!window.compareQuoteApp) {
                     strokeWidth: '2',
                     d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                   }))
+                ),
+
+                searchSuggestions.length > 0 && React.createElement('div', { className: 'search-suggestions' },
+                  searchSuggestions.map(function(suggestion) {
+                    return React.createElement('div', {
+                      key: suggestion,
+                      className: 'suggestion-chip',
+                      onClick: function() { handleSuggestionClick(suggestion); }
+                    }, suggestion);
+                  })
                 ),
 
                 React.createElement('div', { className: 'filter-panel' },
@@ -710,6 +741,11 @@ if (!window.compareQuoteApp) {
                     )
                   )
                 ),
+
+                React.createElement('button', {
+                  onClick: clearFilters,
+                  className: 'clear-filters'
+                }, 'Clear Filters'),
 
                 isLoading ? 
                   React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Loading countertops...') :
