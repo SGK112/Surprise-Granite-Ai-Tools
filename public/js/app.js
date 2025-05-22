@@ -118,7 +118,7 @@ if (!window.compareQuoteApp) {
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
             'Thickness: ', item.thickness || 'N/A'
           ),
-          React.createElement('div', { className: 'tooltip' },
+          isInCart && React.createElement('div', { className: 'tooltip' },
             React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
               'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : ''
             ),
@@ -226,7 +226,7 @@ if (!window.compareQuoteApp) {
           color: 'All Colors', 
           thickness: 'All Thicknesses' 
         });
-        const [showFilters, setShowFilters] = React.useState(false);
+        const [showFilters] = React.useState(true);
         const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
         const [isLoading, setIsLoading] = React.useState(false);
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
@@ -290,7 +290,7 @@ if (!window.compareQuoteApp) {
                 const processedData = processData(rawData);
                 console.log('fetchPriceList: Processed data:', processedData);
                 if (processedData.length === 0) {
-                  showToast('No valid countertop data available. Prices may be missing.', true);
+                  showToast('No valid countertop data available.', true);
                   setPriceData([]);
                   return;
                 }
@@ -344,12 +344,18 @@ if (!window.compareQuoteApp) {
         }
 
         React.useEffect(() => {
-          if (searchQuery && priceData.length > 0) {
+          if (searchQuery && searchQuery.length >= 2 && priceData.length > 0) {
             setIsSearchLoading(true);
             const fuse = new Fuse(priceData, {
-              keys: ['colorName', 'material', 'vendorName'],
+              keys: [
+                { name: 'colorName', weight: 0.4 },
+                { name: 'material', weight: 0.3 },
+                { name: 'vendorName', weight: 0.2 },
+                { name: 'thickness', weight: 0.1 }
+              ],
               threshold: 0.3,
-              includeScore: true
+              includeScore: true,
+              minMatchCharLength: 2
             });
             const results = fuse.search(searchQuery).map(result => result.item);
             setSearchResults(results);
@@ -501,7 +507,7 @@ if (!window.compareQuoteApp) {
           }
         }
 
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 600), []);
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
@@ -539,7 +545,8 @@ if (!window.compareQuoteApp) {
         }, [priceData, filters.vendor, filters.material, filters.color]);
 
         const filteredResults = React.useMemo(function() {
-          let results = searchQuery ? searchResults : priceData;
+          if (!searchQuery || searchQuery.length < 2) return [];
+          let results = searchResults;
           return results.filter(function(item) {
             const matchesVendor = !filters.vendor || filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
             const matchesMaterial = !filters.material || filters.material === 'All Materials' || item.material === filters.material;
@@ -547,7 +554,7 @@ if (!window.compareQuoteApp) {
             const matchesThickness = !filters.thickness || filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
             return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
           });
-        }, [priceData, searchQuery, searchResults, filters]);
+        }, [searchQuery, searchResults, filters]);
 
         function scrollToTop() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -613,28 +620,28 @@ if (!window.compareQuoteApp) {
               }, 'Quote')
             ),
 
-            React.createElement('div', { className: 'zip-input' },
-              React.createElement('input', {
-                type: 'text',
-                value: zipCode,
-                onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
-                placeholder: 'ZIP Code',
-                maxLength: '5',
-                pattern: '[0-9]{5}',
-                'aria-label': 'Enter ZIP Code'
-              }),
-              React.createElement('button', {
-                onClick: handleZipSubmit,
-                disabled: isLoading,
-                style: { backgroundColor: 'var(--accent-color)' }
-              }, isLoading ? 'Updating...' : 'Update')
-            ),
-
             React.createElement('div', {
               className: `fade-transition ${currentTab === 'search' ? '' : 'hidden'}`,
               style: { opacity: isTabLoading ? 0.5 : 1 }
             },
               currentTab === 'search' && React.createElement('div', { className: 'animate-slide-up' },
+                React.createElement('div', { className: 'zip-input' },
+                  React.createElement('input', {
+                    type: 'text',
+                    value: zipCode,
+                    onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
+                    placeholder: 'ZIP Code',
+                    maxLength: '5',
+                    pattern: '[0-9]{5}',
+                    'aria-label': 'Enter ZIP Code'
+                  }),
+                  React.createElement('button', {
+                    onClick: handleZipSubmit,
+                    disabled: isLoading,
+                    style: { backgroundColor: 'var(--accent-color)' }
+                  }, isLoading ? 'Updating...' : 'Update')
+                ),
+
                 React.createElement('div', { className: 'search-bar' },
                   React.createElement('input', {
                     type: 'search',
@@ -654,14 +661,8 @@ if (!window.compareQuoteApp) {
                     d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                   }))
                 ),
-                isSearchLoading && React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Searching...'),
 
-                React.createElement('button', {
-                  onClick: function() { setShowFilters(prev => !prev); },
-                  className: 'filter-toggle sm:hidden'
-                }, showFilters ? 'Hide Filters' : 'Show Filters'),
-
-                React.createElement('div', { className: `filter-panel ${showFilters ? 'active' : ''}` },
+                React.createElement('div', { className: 'filter-panel' },
                   React.createElement('div', null,
                     React.createElement('label', null, 'Vendor'),
                     React.createElement('select', {
@@ -712,8 +713,10 @@ if (!window.compareQuoteApp) {
 
                 isLoading ? 
                   React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Loading countertops...') :
+                  isSearchLoading ?
+                    React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Searching...') :
                   filteredResults.length === 0 ?
-                    React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'No countertops available') :
+                    React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, searchQuery ? 'No countertops found' : 'Please enter a search query') :
                     React.createElement('div', { className: 'card-grid' },
                       filteredResults.map(function(item, index) {
                         return React.createElement(CountertopCard, {
@@ -740,6 +743,23 @@ if (!window.compareQuoteApp) {
               style: { opacity: isTabLoading ? 0.5 : 1 }
             },
               currentTab === 'cart' && React.createElement('div', { className: 'animate-slide-up' },
+                React.createElement('div', { className: 'zip-input' },
+                  React.createElement('input', {
+                    type: 'text',
+                    value: zipCode,
+                    onChange: function(e) { setZipCode(e.target.value.replace(/\D/g, '')); },
+                    placeholder: 'ZIP Code',
+                    maxLength: '5',
+                    pattern: '[0-9]{5}',
+                    'aria-label': 'Enter ZIP Code'
+                  }),
+                  React.createElement('button', {
+                    onClick: handleZipSubmit,
+                    disabled: isLoading,
+                    style: { backgroundColor: 'var(--accent-color)' }
+                  }, isLoading ? 'Updating...' : 'Update Location')
+                ),
+
                 React.createElement('h2', {
                   className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
                   style: { color: 'var(--text-primary)' }
