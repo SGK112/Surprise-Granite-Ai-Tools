@@ -7,6 +7,12 @@ dotenv.config();
 
 const app = express();
 
+// Health check route (respond immediately)
+app.get('/health', (req, res) => {
+  console.log('Health check endpoint called');
+  res.status(200).json({ status: 'OK' });
+});
+
 // Enforce HTTPS in production
 app.use((req, res, next) => {
   if (req.headers['x-forwarded-proto'] !== 'https' && process.env.NODE_ENV === 'production') {
@@ -46,12 +52,6 @@ app.get('/sw.js', (req, res) => {
       res.status(500).send('Error serving service worker');
     }
   });
-});
-
-// Health check route
-app.get('/health', (req, res) => {
-  console.log('Health check endpoint called');
-  res.status(200).json({ status: 'OK' });
 });
 
 // Handle uncaught errors
