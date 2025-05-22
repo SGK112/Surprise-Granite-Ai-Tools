@@ -12,10 +12,10 @@ if (!window.compareQuoteApp) {
 
   // Temporary mapping of color names to image URLs (replace with actual URLs)
   const colorImageMap = {
-    'white': 'https://via.placeholder.com/150/FFFFFF/000000?text=White', // Replace with actual URL
-    'black': 'https://via.placeholder.com/150/1F2937/FFFFFF?text=Black', // Replace with actual URL
-    'blue': 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=Blue',   // Replace with actual URL
-    'gray': 'https://via.placeholder.com/150/6B7280/FFFFFF?text=Gray'    // Replace with actual URL
+    'white': 'https://via.placeholder.com/150/FFFFFF/000000?text=White',
+    'black': 'https://via.placeholder.com/150/1F2937/FFFFFF?text=Black',
+    'blue': 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=Blue',
+    'gray': 'https://via.placeholder.com/150/6B7280/FFFFFF?text=Gray'
   };
 
   // Vendor to CSV URL mapping (replace with actual URLs)
@@ -302,7 +302,6 @@ if (!window.compareQuoteApp) {
           return function() { window.removeEventListener('scroll', handleScroll); };
         }, []);
 
-        // Silently fetch user's location and set region
         React.useEffect(() => {
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -669,7 +668,7 @@ if (!window.compareQuoteApp) {
               }),
               React.createElement('h1', { style: { fontSize: '1.25rem', color: 'var(--accent-color)', margin: '0.5rem 0' } }, 'Surprise Granite Quote'),
               React.createElement('p', { style: { fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0.25rem 0' } }, 'Compare and get quotes for your perfect countertops'),
-              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' } },
+              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', marginBottom: '0.5rem' } },
                 React.createElement('button', {
                   onClick: toggleTheme,
                   className: 'theme-toggle',
@@ -735,6 +734,7 @@ if (!window.compareQuoteApp) {
             className: 'container', 
             style: { 
               padding: '1rem', 
+              marginTop: '8rem', // Increased margin to ensure content is below the header
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
@@ -767,7 +767,7 @@ if (!window.compareQuoteApp) {
                     width: '100%', 
                     maxWidth: '40rem', 
                     padding: '0 1rem', 
-                    margin: '1rem auto' 
+                    margin: '0.5rem auto' // Adjusted margin to ensure no overlap with header
                   }
                 },
                   React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
@@ -997,7 +997,7 @@ if (!window.compareQuoteApp) {
                     width: '100%', 
                     maxWidth: '40rem', 
                     padding: '0 1rem', 
-                    margin: '1rem auto' 
+                    margin: '0.5rem auto' // Adjusted margin to ensure no overlap with header
                   }
                 },
                   React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
