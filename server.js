@@ -1,6 +1,10 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const path = require('path');
+import express from 'express';
+import mongoose from 'mongoose';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = join(__filename, '..');
 
 const app = express();
 
@@ -8,11 +12,11 @@ const app = express();
 app.use(express.json());
 
 // Serve static files from the "public" directory
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(join(__dirname, 'public')));
 
 // Basic route to serve the index.html
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
 // Connect to MongoDB (optional, since images aren't set up yet)
