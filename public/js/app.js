@@ -112,7 +112,7 @@ if (!window.compareQuoteApp) {
           },
             React.createElement('span', {
               className: 'color-swatch',
-              style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName) }
+              style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName), marginRight: '0.5rem' }
             }),
             highlight(item.colorName)
           ),
@@ -258,7 +258,7 @@ if (!window.compareQuoteApp) {
           document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
 
           function handleScroll() {
-            setShowBackToTop(window.scrollY + window.innerHeight > document.documentElement.scrollHeight * 0.8);
+            setShowBackToTop(window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 50);
           }
 
           window.addEventListener('scroll', handleScroll);
@@ -578,8 +578,7 @@ if (!window.compareQuoteApp) {
 
         const filteredResults = React.useMemo(function() {
           console.log('Computing filteredResults', { searchQuery, searchResultsLength: searchResults.length, filters });
-          if (!searchQuery) return [];
-          let results = searchResults || [];
+          let results = searchQuery ? searchResults || [] : priceData || [];
           return results.filter(function(item) {
             const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
             const matchesMaterial = filters.material === 'All Materials' || item.material === filters.material;
@@ -587,7 +586,7 @@ if (!window.compareQuoteApp) {
             const matchesThickness = filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
             return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
           });
-        }, [searchQuery, searchResults, filters]);
+        }, [searchQuery, searchResults, filters, priceData]);
 
         function scrollToTop() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -691,9 +690,9 @@ if (!window.compareQuoteApp) {
 
             React.createElement('div', {
               className: `fade-transition ${currentTab === 'search' ? '' : 'hidden'}`,
-              style: { opacity: isTabLoading ? 0.5 : 1 }
+              style: { opacity: isTabLoading ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }
             },
-              currentTab === 'search' && React.createElement('div', { className: 'animate-slide-up' },
+              currentTab === 'search' && React.createElement('div', { className: 'animate-slide-up', style: { width: '100%', maxWidth: '90rem', display: 'flex', flexDirection: 'column', alignItems: 'center' } },
                 React.createElement('div', { className: 'zip-input' },
                   React.createElement('input', {
                     type: 'text',
@@ -711,7 +710,7 @@ if (!window.compareQuoteApp) {
                   }, isLoading ? 'Updating...' : 'Update')
                 ),
 
-                React.createElement('div', { className: 'filter-panel' },
+                React.createElement('div', { className: 'filter-panel', style: { width: '100%', maxWidth: '60rem' } },
                   React.createElement('div', { className: 'tooltip' },
                     React.createElement('label', null, 'Vendor'),
                     React.createElement('span', { className: 'tooltip-text' }, 'Select a vendor to narrow down results'),
@@ -771,8 +770,8 @@ if (!window.compareQuoteApp) {
                   !filteredResults ?
                     React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Loading results...') :
                   filteredResults.length === 0 ?
-                    React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, searchQuery ? 'No countertops found' : 'Please enter a search query') :
-                    React.createElement('div', { className: 'card-grid' },
+                    React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or select a vendor') :
+                    React.createElement('div', { className: 'card-grid', style: { width: '100%', maxWidth: '90rem' } },
                       filteredResults.map(function(item, index) {
                         return React.createElement(CountertopCard, {
                           key: item.id,
@@ -922,7 +921,8 @@ if (!window.compareQuoteApp) {
             React.createElement('button', {
               onClick: scrollToTop,
               className: `back-to-top ${showBackToTop ? 'show' : ''}`,
-              'aria-label': 'Scroll to top'
+              'aria-label': 'Scroll to top',
+              style: { left: '50%', transform: 'translateX(-50%)', right: 'auto' }
             },
               React.createElement('svg', {
                 fill: 'none',
