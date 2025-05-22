@@ -295,7 +295,7 @@ if (!window.compareQuoteApp) {
                 material: item['Material'] || 'Unknown',
                 installedPricePerSqFt: (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
                 availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-                imageUrl: item.imageUrl || imageComingSoon,
+                imageUrl: `/countertop_images/${item['Color Name'] || 'Unknown'}_${item['Vendor Name'] || 'Unknown'}_${thickness}.jpg`,
                 popularity: Math.random(),
                 isNew: Math.random() > 0.8
               };
@@ -326,6 +326,7 @@ if (!window.compareQuoteApp) {
           setQuote(newQuote);
           localStorage.setItem('quote', JSON.stringify(newQuote));
           showToast(`${item.colorName} added to cart`);
+          handleTabChange('cart'); // Switch to cart tab after adding
         }, [quote]);
 
         const removeFromQuote = React.useCallback(function(index) {
