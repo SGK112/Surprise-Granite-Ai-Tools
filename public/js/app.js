@@ -120,7 +120,7 @@ if (!window.compareQuoteApp) {
               'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : ''
             ),
             React.createElement('span', { className: 'tooltip-text' },
-              'Price includes material, installation, and regional adjustments. 2cm is 10% less than 3cm.'
+              'Price includes material, installation, and regional adjustments.'
             )
           ),
           !isInCart && React.createElement('button', {
@@ -308,31 +308,30 @@ if (!window.compareQuoteApp) {
             console.error('Raw data is not an array:', rawData);
             return [];
           }
-          return rawData.flatMap(function(item, index) {
+          return rawData.map(function(item, index) {
             if (!item || typeof item !== 'object') {
               console.log('Skipping invalid item:', item);
-              return [];
+              return null;
             }
             const costSqFt = parseFloat(item['Cost/SqFt']);
             if (isNaN(costSqFt)) {
               console.log(`Skipping item with invalid costSqFt: ${item['Cost/SqFt']}`, item);
-              return [];
+              return null;
             }
-            return ['2cm', '3cm'].map(function(thickness) {
-              return {
-                id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
-                colorName: item['Color Name'] || 'Unknown',
-                vendorName: item['Vendor Name'] || 'Unknown',
-                thickness: thickness,
-                material: item['Material'] || 'Unknown',
-                installedPricePerSqFt: (costSqFt * 3.25 + 35) * (thickness === '2cm' ? 0.9 : 1) * (regionMultiplier || 1.0),
-                availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-                imageUrl: imageComingSoon,
-                popularity: Math.random(),
-                isNew: Math.random() > 0.8
-              };
-            });
-          });
+            const thickness = item['Thickness'] || 'Unknown';
+            return {
+              id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
+              colorName: item['Color Name'] || 'Unknown',
+              vendorName: item['Vendor Name'] || 'Unknown',
+              thickness: thickness,
+              material: item['Material'] || 'Unknown',
+              installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
+              availableSqFt: parseFloat(item['Total/SqFt']) || 0,
+              imageUrl: imageComingSoon,
+              popularity: Math.random(),
+              isNew: Math.random() > 0.8
+            };
+          }).filter(item => item !== null);
         }
 
         React.useEffect(() => {
@@ -350,7 +349,7 @@ if (!window.compareQuoteApp) {
         }, [searchQuery, priceData]);
 
         const addToQuote = React.useCallback(function(item) {
-          if (quote.some(function(q) { return q.id === item.id; Bower })) {
+          if (quote.some(function(q) { return q.id === item.id; })) {
             showToast(`${item.colorName} is already in cart`, true);
             return;
           }
@@ -366,9 +365,13 @@ if (!window.compareQuoteApp) {
         const removeFromQuote = React.useCallback(function(index) {
           const newQuote = quote.filter(function(_, i) { return i !== index; });
           setQuote(newQuote);
+          if (expandedCard === index) {
+            setExpandedCard(null);
+            setTempSqFt('');
+          }
           localStorage.setItem('quote', JSON.stringify(newQuote));
           showToast('Item removed from cart');
-        }, [quote]);
+        }, [quote, expandedCard]);
 
         const updateTempSqFt = React.useCallback(function(value) {
           setTempSqFt(value);
@@ -515,7 +518,9 @@ if (!window.compareQuoteApp) {
         }, [priceData, filters.vendor, filters.material]);
 
         const availableThicknesses = React.useMemo(function() {
-          if (!filters.vendor || !filters.material || !filters.color || filters.vendor === 'All Vendors' || filters.material === 'All Materials' || filters.color === 'All Colors') return ['All Thicknesses', '2cm', '3cm'];
+          if (!filters.vendor || !filters.material || !filters.color || filters.vendor === 'All Vendors' || filters.material === 'All Materials' || filters.color === 'All Colors') {
+            return ['All Thicknesses', ...new Set(priceData.map(function(item) { return item.thickness; }))].sort();
+          }
           return ['All Thicknesses', ...new Set(priceData
             .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color; })
             .map(function(item) { return item.thickness; }))].sort();
@@ -529,7 +534,7 @@ if (!window.compareQuoteApp) {
             const matchesColor = !filters.color || filters.color === 'All Colors' || item.colorName === filters.color;
             const matchesThickness = !filters.thickness || filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
             return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
-          }).slice(0, 50);
+          });
         }, [priceData, searchQuery, searchResults, filters]);
 
         function scrollToTop() {
