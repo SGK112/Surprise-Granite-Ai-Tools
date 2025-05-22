@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 
 dotenv.config();
 
@@ -13,12 +14,22 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Accept']
 }));
 
-// Serve static files (e.g., app.js)
+// Serve static files from the public directory
 app.use(express.static('public'));
+
+// Serve index.html for the root route
+app.get('/', (req, res) => {
+  res.sendFile(path.resolve('public', 'index.html'));
+});
 
 // Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
+});
+
+// Register service worker
+app.get('/sw.js', (req, res) => {
+  res.sendFile(path.resolve('public', 'sw.js'));
 });
 
 const port = process.env.PORT || 3000;
