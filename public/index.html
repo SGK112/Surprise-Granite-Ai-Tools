@@ -83,7 +83,7 @@
             margin: 0 auto;
             display: grid;
             grid-template-columns: 1fr;
-            gap: 1rem;
+            gap: 1.5rem;
             justify-items: center;
         }
         header {
@@ -172,6 +172,28 @@
             height: 1.5rem;
             color: var(--text-secondary);
         }
+        .search-suggestions {
+            width: 100%;
+            max-width: 40rem;
+            margin: 0 auto;
+            padding: 0.5rem 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        .suggestion-chip {
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .suggestion-chip:hover {
+            background: #e0e7ff;
+        }
         .filter-panel {
             width: 100%;
             max-width: 60rem;
@@ -197,6 +219,33 @@
             font-size: 0.875rem;
             background: var(--bg-secondary);
             color: var(--text-primary);
+            transition: border-color 0.3s;
+        }
+        .filter-panel select:focus {
+            border-color: var(--accent-color);
+        }
+        .filter-panel select:not([value="All Vendors"]):not([value="All Materials"]):not([value="All Colors"]):not([value="All Thicknesses"]) {
+            border-color: var(--accent-color);
+            font-weight: 500;
+        }
+        .clear-filters {
+            width: 100%;
+            max-width: 12rem;
+            padding: 0.5rem 1rem;
+            margin: 0 auto;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            background: var(--error-color);
+            color: white;
+            border: none;
+            display: block;
+            text-align: center;
+        }
+        .clear-filters:hover {
+            background: #991b1b;
         }
         .card-grid {
             display: grid;
@@ -480,6 +529,9 @@
         }
         @media (max-width: 639px) {
             input, select, textarea { font-size: 1rem; }
+            .filter-panel {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
