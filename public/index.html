@@ -1,142 +1,385 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Surprise Granite Project Estimator</title>
-  <link rel="stylesheet" href="css/styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Compare and quote granite, quartz, and other countertops with Surprise Granite's interactive calculator.">
+    <meta name="keywords" content="countertops, granite, quartz, quote, comparison, Surprise Granite">
+    <meta name="author" content="Surprise Granite">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="Surprise Granite Countertop Comparison Quote">
+    <meta property="og:description" content="Compare and quote granite, quartz, and other countertops with Surprise Granite's interactive calculator.">
+    <meta property="og:image" content="/images/icon-192.png">
+    <meta property="og:url" content="https://www.surprisegranite.com/compare-quote">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="theme-color" content="#f5f5f5">
+    <title>Surprise Granite Countertop Comparison Quote</title>
+    <link rel="canonical" href="https://www.surprisegranite.com/compare-quote">
+    <link rel="icon" href="/images/icon-192.png" type="image/png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/dist/output.css">
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+    <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --border-color: #e5e7eb;
+            --accent-color: #2563eb;
+            --error-color: #b91c1c;
+            --success-color: #10b981;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --gold-icon: #feda00;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1e2749;
+            --bg-secondary: #374151;
+            --text-primary: #d1d5db;
+            --text-secondary: #9ca3af;
+            --border-color: #ffffff;
+            --accent-color: #3b82f6;
+            --error-color: #ef4444;
+            --success-color: #34d399;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --gold-icon: #feda00;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+            font-family: 'Inter', system-ui, sans-serif;
+            box-sizing: border-box;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        .app-container {
+            min-height: 100vh;
+            width: 100%;
+            max-width: 100vw;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 5rem;
+        }
+        .material-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.75rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .color-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            display: inline-block;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            z-index: 50;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.75rem 0;
+            transition: background-color 0.3s;
+            width: 100%;
+            max-width: 100vw;
+        }
+        .cart-badge {
+            position: absolute;
+            top: -0.5rem;
+            right: -0.5rem;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            width: 1.25rem;
+            height: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            transition: transform 0.2s, background-color 0.3s;
+            padding: 1rem;
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .card img {
+            width: 100%;
+            height: 128px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .toast {
+            position: fixed;
+            bottom: 6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--success-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            z-index: 1000;
+            max-width: 90%;
+            font-size: 1rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.error {
+            background: var(--error-color);
+        }
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .fade-transition {
+            transition: opacity 0.4s ease-in-out, visibility 0.4s ease-in-out;
+        }
+        .fade-transition[hidden] {
+            opacity: 0;
+            visibility: hidden;
+            display: none;
+        }
+        .error-message {
+            background: #fee2e2;
+            color: var(--error-color);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+            margin: 1rem auto;
+            max-width: 90%;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        [data-theme="dark"] .error-message {
+            background: #7f1d1d;
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            padding: 1rem;
+            flex: 1;
+            margin: 0 auto;
+        }
+        .card-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+        .filter-panel {
+            display: none;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .filter-panel.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        input, select, textarea, button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+            touch-action: manipulation;
+            width: 100%;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        button {
+            min-height: 44px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+        .input-error {
+            border-color: var(--error-color);
+        }
+        .error-text {
+            color: var(--error-color);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+        .back-to-top {
+            position: fixed;
+            bottom: 2rem;
+            right: 1rem;
+            background: var(--accent-color);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 50%;
+            z-index: 50;
+            display: none;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .back-to-top.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .back-to-top:hover {
+            transform: translateY(-2px);
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid var(--border-color);
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        @media (min-width: 640px) {
+            body { padding-bottom: 0; }
+            .bottom-nav { display: none; }
+            .container { padding: 2rem; }
+            .card-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                gap: 1.5rem;
+            }
+            .filter-panel { display: block; }
+            .app-container { padding-bottom: 0; }
+        }
+        @media (min-width: 768px) {
+            h1 { font-size: 2rem; }
+            h2 { font-size: 1.5rem; }
+            p, input, select, button, textarea { font-size: 1rem; }
+        }
+        @media (min-width: 1280px) {
+            .container { max-width: 1600px; }
+            .card-grid { gap: 2rem; }
+        }
+        .top-nav {
+            display: none;
+        }
+        @media (min-width: 640px) {
+            .top-nav {
+                display: flex;
+                justify-content: center;
+                gap: 2rem;
+                padding: 2rem 4rem;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+                margin-bottom: 1rem;
+                transition: background-color 0.3s, border-color 0.3s;
+                max-width: 1400px;
+                margin-left: auto;
+                margin-right: auto;
+                position: relative;
+                z-index: 50;
+            }
+        }
+        .theme-toggle {
+            position: fixed;
+            top: 0.5rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            padding: 0.25rem;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            color: var(--gold-icon);
+        }
+        @media (min-width: 640px) {
+            .theme-toggle {
+                right: 1rem;
+                top: 0.5rem;
+            }
+        }
+        @media (max-width: 639px) {
+            input, select, textarea {
+                font-size: 16px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Surprise Granite Project Estimator</h1>
-    <div id="message" class="message"></div>
-
-    <!-- Project Estimator -->
-    <section class="section">
-      <h2>Countertop & Remodeling Estimator</h2>
-      <form id="estimator-form" class="form">
-        <div class="form-group">
-          <label for="client-name">Client Name</label>
-          <input type="text" id="client-name" name="clientName" required />
-        </div>
-        <div class="form-group">
-          <label for="client-email">Client Email</label>
-          <input type="email" id="client-email" name="clientEmail" required />
-        </div>
-        <div class="form-group">
-          <label for="material">Material</label>
-          <select id="material" name="material" required>
-            <option value="">Select Material</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="slab-name">Slab Name</label>
-          <input type="text" id="slab-name" name="slabName" />
-        </div>
-        <div class="form-group">
-          <label for="slab-length">Slab Length (in)</label>
-          <input type="number" id="slab-length" name="slabLength" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="slab-width">Slab Width (in)</label>
-          <input type="number" id="slab-width" name="slabWidth" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="slab-cost-sqft">Cost per Sq Ft ($)</label>
-          <input type="number" id="slab-cost-sqft" name="slabCostSqft" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="client-sqft">Countertop Sq Ft</label>
-          <input type="number" id="client-sqft" name="clientSqft" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="quantity">Quantity (Slabs)</label>
-          <input type="number" id="quantity" name="quantity" value="1" required />
-        </div>
-        <div class="form-group">
-          <label for="waste-factor">Waste Factor (%)</label>
-          <input type="number" id="waste-factor" name="wasteFactor" value="20" required />
-        </div>
-        <div class="form-group">
-          <label for="edge-type">Edge Type</label>
-          <select id="edge-type" name="edgeType">
-            <option value="standard">Standard ($10/linear ft)</option>
-            <option value="bullnose">Bullnose ($15/linear ft)</option>
-            <option value="waterfall">Waterfall ($25/linear ft)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="backsplash">Backsplash</label>
-          <select id="backsplash" name="backsplash">
-            <option value="none">None</option>
-            <option value="4">4" ($10/linear ft)</option>
-            <option value="6">6" ($12/linear ft)</option>
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-        <div id="custom-backsplash" class="form-group hidden">
-          <label for="backsplash-height">Custom Backsplash Height (in)</label>
-          <input type="number" id="backsplash-height" name="backsplashHeight" step="0.01" />
-          <label for="backsplash-linear-ft">Linear Feet</label>
-          <input type="number" id="backsplash-linear-ft" name="backsplashLinearFt" step="0.01" />
-        </div>
-        <div class="form-group">
-          <label for="demo">Demolition</label>
-          <select id="demo" name="demo">
-            <option value="none">None</option>
-            <option value="standard">Standard ($5/sqft)</option>
-            <option value="complex">Complex ($8/sqft)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="plumbing">Plumbing Reconnect</label>
-          <input type="checkbox" id="plumbing" name="plumbing" value="900" />
-          <span>$900</span>
-        </div>
-        <div class="form-group">
-          <label for="labor-rate">Labor Rate ($/hr)</label>
-          <input type="number" id="labor-rate" name="laborRate" value="50" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="labor-hours">Labor Hours</label>
-          <input type="number" id="labor-hours" name="laborHours" value="10" step="0.01" required />
-        </div>
-        <div class="form-group">
-          <label for="misc-costs">Miscellaneous Costs ($)</label>
-          <input type="number" id="misc-costs" name="miscCosts" value="0" step="0.01" />
-        </div>
-        <div class="form-group">
-          <label for="pricing-system">Pricing System</label>
-          <select id="pricing-system" name="pricingSystem">
-            <option value="cost-plus">Cost-Plus (35% margin)</option>
-            <option value="competitive">Competitive (3.25x + $26/sqft)</option>
-            <option value="tiered">Tiered Margins</option>
-          </select>
-        </div>
-        <div class="cost-display">
-          <p>Material Cost: $<span id="material-cost">0.00</span></p>
-          <p>Labor Cost: $<span id="labor-cost">0.00</span></p>
-          <p>Demo/Plumbing Cost: $<span id="demo-plumbing-cost">0.00</span></p>
-          <p>Misc Cost: $<span id="misc-cost">0.00</span></p>
-          <p>Bid Price: $<span id="bid-price">0.00</span></p>
-          <p>Retail Range: $<span id="retail-range">0.00</span></p>
-          <p>Profit Margin: <span id="profit-margin">0.00</span>%</p>
-        </div>
-        <button type="submit" class="button">Submit Estimate</button>
-      </form>
-    </section>
-
-    <!-- Slab Lookup -->
-    <section class="section">
-      <h2>Slab Lookup</h2>
-      <div class="search-bar">
-        <input type="text" id="slab-search" placeholder="Search by material or color (e.g., Granite, Black)" />
-        <button id="slab-search-button">Search</button>
-      </div>
-      <div id="slab-results" class="grid"></div>
-      <a href="eguide.html" class="link">View Slab Ordering Guide</a>
-    </section>
-  </div>
-  <script src="js/script.js"></script>
+    <div id="root"></div>
+    <div id="error" class="error-message hidden"></div>
+    <div id="region-display" class="text-sm text-center" style="color: var(--text-secondary)"></div>
+    <script src="/js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
