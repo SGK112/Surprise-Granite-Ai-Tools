@@ -27,11 +27,18 @@ app.use(express.static('public'));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
-  res.sendFile(path.resolve('public', 'index.html'));
+  console.log('Serving index.html for root route');
+  res.sendFile(path.resolve('public', 'index.html'), (err) => {
+    if (err) {
+      console.error('Error serving index.html:', err);
+      res.status(500).send('Error serving the application');
+    }
+  });
 });
 
 // Serve sw.js with the correct Content-Type
 app.get('/sw.js', (req, res) => {
+  console.log('Serving sw.js');
   res.set('Content-Type', 'application/javascript');
   res.sendFile(path.resolve('public', 'sw.js'), (err) => {
     if (err) {
@@ -43,8 +50,25 @@ app.get('/sw.js', (req, res) => {
 
 // Health check route
 app.get('/health', (req, res) => {
+  console.log('Health check endpoint called');
   res.status(200).json({ status: 'OK' });
 });
 
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+}).on('error', (err) => {
+  console.error('Server startup error:', err);
+  process.exit(1);
+});
