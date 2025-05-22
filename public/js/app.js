@@ -43,23 +43,24 @@ if (!window.compareQuoteApp) {
     };
   }
 
-  const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSwgc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
+  const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSw gc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
 
   function waitForReact(callback, retries, interval) {
     if (retries === undefined) retries = 50;
     if (interval === undefined) interval = 1000;
     console.log('waitForReact called, retries:', retries);
-    if (window.React && window.ReactDOM && window.Papa) {
-      console.log('React, ReactDOM, and PapaParse found, calling callback');
+    if (window.React && window.ReactDOM && window.Papa && window.Fuse) {
+      console.log('React, ReactDOM, PapaParse, and Fuse.js found, calling callback');
       callback();
     } else {
       if (!window.React) console.log('React not found');
       if (!window.ReactDOM) console.log('ReactDOM not found');
       if (!window.Papa) console.log('PapaParse not found');
+      if (!window.Fuse) console.log('Fuse.js not found');
       if (retries > 0) {
         setTimeout(function() { waitForReact(callback, retries - 1, interval); }, interval);
       } else {
-        console.error('Failed to load dependencies (React/ReactDOM/PapaParse) after maximum retries');
+        console.error('Failed to load dependencies after maximum retries');
         const errorElement = document.getElementById('error');
         if (errorElement) {
           errorElement.textContent = 'Failed to load app dependencies after 50 seconds. Please check your connection and refresh.';
@@ -83,7 +84,7 @@ if (!window.compareQuoteApp) {
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
-      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index }) {
+      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index, totalCartCost }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
         return React.createElement('div', { className: 'card' },
           React.createElement('img', {
@@ -179,6 +180,7 @@ if (!window.compareQuoteApp) {
           }
         });
         const [searchQuery, setSearchQuery] = React.useState('');
+        const [searchResults, setSearchResults] = React.useState([]);
         const [currentTab, setCurrentTab] = React.useState('search');
         const [isTabLoading, setIsTabLoading] = React.useState(false);
         const [zipCode, setZipCode] = React.useState(localStorage.getItem('zipCode') || '');
@@ -191,9 +193,16 @@ if (!window.compareQuoteApp) {
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
         const [showBackToTop, setShowBackToTop] = React.useState(false);
 
+        const totalCartCost = React.useMemo(() => {
+          return quote.reduce((total, item) => {
+            const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
+            const sqFt = parseFloat(item.sqFt) || 0;
+            return total + (sqFt * getWasteFactor(sqFt) * price);
+          }, 0).toFixed(2);
+        }, [quote]);
+
         React.useEffect(function() {
-          console.log('useEffect: Fetching price list');
-          fetchPriceList();
+          console.log('useEffect: Setting theme');
           document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
 
           function handleScroll() {
@@ -202,6 +211,11 @@ if (!window.compareQuoteApp) {
 
           window.addEventListener('scroll', handleScroll);
           return function() { window.removeEventListener('scroll', handleScroll); };
+        }, []);
+
+        React.useEffect(function() {
+          console.log('useEffect: Fetching price list for ZIP code:', zipCode);
+          fetchPriceList();
         }, [zipCode]);
 
         function showToast(message, isError) {
@@ -287,6 +301,20 @@ if (!window.compareQuoteApp) {
             });
           });
         }
+
+        React.useEffect(() => {
+          if (searchQuery && priceData.length > 0) {
+            const fuse = new Fuse(priceData, {
+              keys: ['colorName', 'material', 'vendorName'],
+              threshold: 0.3,
+              includeScore: true
+            });
+            const results = fuse.search(searchQuery).map(result => result.item);
+            setSearchResults(results);
+          } else {
+            setSearchResults([]);
+          }
+        }, [searchQuery, priceData]);
 
         const addToQuote = React.useCallback(function(item) {
           if (quote.some(function(q) { return q.id === item.id; })) {
@@ -431,41 +459,40 @@ if (!window.compareQuoteApp) {
         }
 
         const vendors = React.useMemo(function() {
-          return [...new Set(priceData.map(function(item) { return item.vendorName; }))].sort();
+          return ['All Vendors', ...new Set(priceData.map(function(item) { return item.vendorName; }))].sort();
         }, [priceData]);
 
         const availableMaterials = React.useMemo(function() {
-          if (!filters.vendor) return [...new Set(priceData.map(function(item) { return item.material; }))].sort();
-          return [...new Set(priceData
+          if (!filters.vendor || filters.vendor === 'All Vendors') return ['All Materials', ...new Set(priceData.map(function(item) { return item.material; }))].sort();
+          return ['All Materials', ...new Set(priceData
             .filter(function(item) { return item.vendorName === filters.vendor; })
             .map(function(item) { return item.material; }))].sort();
         }, [priceData, filters.vendor]);
 
         const availableColors = React.useMemo(function() {
-          if (!filters.vendor || !filters.material) return [...new Set(priceData.map(function(item) { return item.colorName; }))].sort();
-          return [...new Set(priceData
+          if (!filters.vendor || !filters.material || filters.vendor === 'All Vendors' || filters.material === 'All Materials') return ['All Colors', ...new Set(priceData.map(function(item) { return item.colorName; }))].sort();
+          return ['All Colors', ...new Set(priceData
             .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material; })
             .map(function(item) { return item.colorName; }))].sort();
         }, [priceData, filters.vendor, filters.material]);
 
         const availableThicknesses = React.useMemo(function() {
-          if (!filters.vendor || !filters.material || !filters.color) return ['2cm', '3cm'];
-          return [...new Set(priceData
+          if (!filters.vendor || !filters.material || !filters.color || filters.vendor === 'All Vendors' || filters.material === 'All Materials' || filters.color === 'All Colors') return ['All Thicknesses', '2cm', '3cm'];
+          return ['All Thicknesses', ...new Set(priceData
             .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color; })
             .map(function(item) { return item.thickness; }))].sort();
         }, [priceData, filters.vendor, filters.material, filters.color]);
 
         const filteredResults = React.useMemo(function() {
-          return priceData.filter(function(item) {
-            const matchesSearch = !searchQuery || item.colorName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                item.material.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesVendor = !filters.vendor || item.vendorName === filters.vendor;
-            const matchesMaterial = !filters.material || item.material === filters.material;
-            const matchesColor = !filters.color || item.colorName === filters.color;
-            const matchesThickness = !filters.thickness || item.thickness === filters.thickness;
-            return matchesSearch && matchesVendor && matchesMaterial && matchesColor && matchesThickness;
+          let results = searchQuery ? searchResults : priceData;
+          return results.filter(function(item) {
+            const matchesVendor = !filters.vendor || filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
+            const matchesMaterial = !filters.material || filters.material === 'All Materials' || item.material === filters.material;
+            const matchesColor = !filters.color || filters.color === 'All Colors' || item.colorName === filters.color;
+            const matchesThickness = !filters.thickness || filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
+            return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
           }).slice(0, 50);
-        }, [priceData, searchQuery, filters]);
+        }, [priceData, searchQuery, searchResults, filters]);
 
         function scrollToTop() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -511,7 +538,7 @@ if (!window.compareQuoteApp) {
               className: `px-4 py-2 font-medium relative ${currentTab === 'cart' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600'}`,
               style: { color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)' }
             },
-              'Cart',
+              'Cart ($', totalCartCost, ')',
               quote.length > 0 && React.createElement('span', { className: 'cart-badge' }, quote.length)
             ),
             React.createElement('button', {
@@ -593,7 +620,6 @@ if (!window.compareQuoteApp) {
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by vendor'
                   },
-                    React.createElement('option', { value: '' }, 'All Vendors'),
                     vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
                   )
                 ),
@@ -605,7 +631,6 @@ if (!window.compareQuoteApp) {
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by material'
                   },
-                    React.createElement('option', { value: '' }, 'All Materials'),
                     availableMaterials.map(function(material) { 
                       return React.createElement('option', { key: material, value: material }, material);
                     })
@@ -619,7 +644,6 @@ if (!window.compareQuoteApp) {
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by color'
                   },
-                    React.createElement('option', { value: '' }, 'All Colors'),
                     availableColors.map(function(color) { 
                       return React.createElement('option', { key: color, value: color }, color);
                     })
@@ -633,7 +657,6 @@ if (!window.compareQuoteApp) {
                     className: 'w-full p-2 border rounded-lg',
                     'aria-label': 'Filter by thickness'
                   },
-                    React.createElement('option', { value: '' }, 'All Thicknesses'),
                     availableThicknesses.map(function(thickness) { 
                       return React.createElement('option', { key: thickness, value: thickness }, thickness);
                     })
@@ -643,7 +666,7 @@ if (!window.compareQuoteApp) {
 
               isLoading ? 
                 React.createElement('p', { className: 'text-center', style: { color: 'var(--text-secondary)' } }, 'Loading countertops...') :
-                priceData.length === 0 ?
+                filteredResults.length === 0 ?
                   React.createElement('p', { className: 'text-center col-span-full', style: { color: 'var(--text-secondary)' } }, 'No countertops available') :
                   React.createElement('div', { className: 'card-grid' },
                     filteredResults.map(function(item) {
@@ -651,7 +674,8 @@ if (!window.compareQuoteApp) {
                         key: item.id,
                         item: item,
                         isInCart: quote.some(function(q) { return q.id === item.id; }),
-                        addToQuote: addToQuote
+                        addToQuote: addToQuote,
+                        totalCartCost: totalCartCost
                       });
                     })
                   )
@@ -666,7 +690,7 @@ if (!window.compareQuoteApp) {
               React.createElement('h2', {
                 className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
                 style: { color: 'var(--text-primary)' }
-              }, 'Your Cart'),
+              }, 'Your Cart (Total: $', totalCartCost, ')'),
               quote.length === 0 ?
                 React.createElement('p', {
                   className: 'text-center',
@@ -681,7 +705,8 @@ if (!window.compareQuoteApp) {
                       removeFromQuote: removeFromQuote,
                       updateSqFt: updateSqFt,
                       clearSqFt: clearSqFt,
-                      index: index
+                      index: index,
+                      totalCartCost: totalCartCost
                     });
                   })
                 ),
@@ -701,7 +726,7 @@ if (!window.compareQuoteApp) {
               React.createElement('h2', {
                 className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
                 style: { color: 'var(--text-primary)' }
-              }, 'Get Your Quote'),
+              }, 'Get Your Quote (Total: $', totalCartCost, ')'),
               React.createElement('form', {
                 onSubmit: handleQuoteSubmit,
                 className: 'card p-4 max-w-md mx-auto'
