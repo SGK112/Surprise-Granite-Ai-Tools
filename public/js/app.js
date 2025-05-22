@@ -25,6 +25,27 @@ if (!window.compareQuoteApp) {
     'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-VENDOR2-CSV-URL/pub?output=csv'
   };
 
+  // Simple encryption for local storage (using base64 for demo; use a proper encryption library in production)
+  function encryptData(data) {
+    return btoa(JSON.stringify(data));
+  }
+
+  function decryptData(encryptedData) {
+    try {
+      return JSON.parse(atob(encryptedData));
+    } catch (e) {
+      console.error('Failed to decrypt data:', e);
+      return [];
+    }
+  }
+
+  // Sanitize input to prevent XSS
+  function sanitizeInput(input) {
+    const div = document.createElement('div');
+    div.textContent = input;
+    return div.innerHTML;
+  }
+
   function getColorSwatch(colorName) {
     const name = (colorName || '').toLowerCase();
     if (name.includes('white')) return '#F5F5F5';
@@ -121,16 +142,33 @@ if (!window.compareQuoteApp) {
             maxWidth: '16rem'
           }
         },
-          React.createElement('img', {
-            src: item.imageUrl,
-            alt: item.colorName,
-            className: 'w-full h-32 object-contain rounded-lg mb-2 max-w-full',
-            loading: 'lazy',
-            onError: function(e) { 
-              console.error(`Failed to load image for ${item.colorName}: ${item.imageUrl}`);
-              e.target.src = imageComingSoon; 
-            }
-          }),
+          React.createElement('div', { style: { position: 'relative', width: '100%', height: '8rem' } },
+            React.createElement('img', {
+              src: item.imageUrl,
+              alt: item.colorName,
+              className: 'w-full h-32 object-contain rounded-lg mb-2 max-w-full',
+              loading: 'lazy',
+              style: { display: 'none' },
+              onLoad: function(e) { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; },
+              onError: function(e) { 
+                console.error(`Failed to load image for ${item.colorName}: ${item.imageUrl}`);
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'block';
+                e.target.src = imageComingSoon; 
+              }
+            }),
+            React.createElement('div', {
+              style: {
+                display: 'block',
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.875rem'
+              }
+            }, 'Loading...')
+          ),
           React.createElement('h3', {
             className: 'font-semibold flex items-center text-base sm:text-lg',
             style: { color: 'var(--text-primary)', padding: '0.25rem 0' }
@@ -243,7 +281,8 @@ if (!window.compareQuoteApp) {
         const [priceData, setPriceData] = React.useState([]);
         const [quote, setQuote] = React.useState(function() {
           try {
-            return JSON.parse(localStorage.getItem('quote')) || [];
+            const encryptedQuote = localStorage.getItem('quote');
+            return encryptedQuote ? decryptData(encryptedQuote) : [];
           } catch (e) {
             console.error('Failed to parse quote from localStorage:', e);
             return [];
@@ -345,14 +384,27 @@ if (!window.compareQuoteApp) {
           document.documentElement.setAttribute('data-theme', newTheme);
         }
 
-        async function fetchPriceList() {
+        async function fetchPriceList(retries = 3) {
           setIsLoading(true);
-          console.log('fetchPriceList: Starting fetch');
+          console.log('fetchPriceList: Starting fetch, retries left:', retries);
           try {
             const csvUrl = vendorCsvMap[filters.vendor] || vendorCsvMap['All Vendors'];
-            console.log('Fetching CSV for vendor:', filters.vendor, 'URL:', csvUrl);
+            const cacheKey = `priceData_${filters.vendor || 'All Vendors'}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            if (cachedData) {
+              console.log('Using cached price data');
+              setPriceData(decryptData(cachedData));
+              setIsLoading(false);
+              return;
+            }
+
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+            // Basic security validation: check for expected content type
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('text/csv')) {
+              throw new Error('Unexpected content type: ' + contentType);
+            }
             const csvText = await response.text();
             console.log('fetchPriceList: Raw CSV data:', csvText.substring(0, 500));
 
@@ -370,6 +422,7 @@ if (!window.compareQuoteApp) {
                   return;
                 }
                 setPriceData(processedData);
+                localStorage.setItem(cacheKey, encryptData(processedData));
                 setIsLoading(false);
               },
               error: function(error) {
@@ -381,9 +434,14 @@ if (!window.compareQuoteApp) {
             });
           } catch (err) {
             console.error('fetchPriceList error:', err);
-            showToast('Failed to load countertop data.', true);
-            setPriceData([]);
-            setIsLoading(false);
+            if (retries > 0) {
+              console.log('Retrying fetchPriceList, attempts left:', retries - 1);
+              setTimeout(() => fetchPriceList(retries - 1), 1000);
+            } else {
+              showToast('Failed to load countertop data after retries.', true);
+              setPriceData([]);
+              setIsLoading(false);
+            }
           }
         }
 
@@ -402,7 +460,7 @@ if (!window.compareQuoteApp) {
               console.log(`Skipping item with invalid costSqFt: ${item['Cost/SqFt']}`, item);
               return null;
             }
-            const thickness = item['Thickness'] || 'Unknown';
+            const thickness = item['Thickness'] ? String(item['Thickness']) : 'Unknown';
             const colorNameLower = (item['Color Name'] || '').toLowerCase();
             const imageUrl = Object.keys(colorImageMap).reduce((url, color) => {
               if (colorNameLower.includes(color)) return colorImageMap[color];
@@ -410,10 +468,10 @@ if (!window.compareQuoteApp) {
             }, imageComingSoon);
             return {
               id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
-              colorName: item['Color Name'] || 'Unknown',
-              vendorName: item['Vendor Name'] || 'Unknown',
+              colorName: item['Color Name'] ? String(item['Color Name']) : 'Unknown',
+              vendorName: item['Vendor Name'] ? String(item['Vendor Name']) : 'Unknown',
               thickness: thickness,
-              material: item['Material'] || 'Unknown',
+              material: item['Material'] ? String(item['Material']) : 'Unknown',
               installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
               availableSqFt: parseFloat(item['Total/SqFt']) || 0,
               imageUrl: imageUrl,
@@ -426,7 +484,11 @@ if (!window.compareQuoteApp) {
         React.useEffect(() => {
           if (searchQuery && priceData.length > 0) {
             setIsSearchLoading(true);
-            const fuse = new Fuse(priceData, {
+            const sanitizedQuery = sanitizeInput(searchQuery);
+            const filteredData = priceData.filter(item => 
+              filters.vendor === 'All Vendors' || item.vendorName === filters.vendor
+            );
+            const fuse = new Fuse(filteredData, {
               keys: [
                 { name: 'colorName', weight: 0.4 },
                 { name: 'material', weight: 0.3 },
@@ -439,7 +501,7 @@ if (!window.compareQuoteApp) {
               tokenize: true,
               matchAllTokens: true
             });
-            const results = fuse.search(searchQuery).map(result => result.item);
+            const results = fuse.search(sanitizedQuery).map(result => result.item);
             setSearchResults(results);
             setSuggestions(results.slice(0, 5).map(item => `${item.colorName} (${item.material}, ${item.vendorName})`));
             setTimeout(() => setIsSearchLoading(false), 100);
@@ -448,7 +510,7 @@ if (!window.compareQuoteApp) {
             setSuggestions([]);
             setIsSearchLoading(false);
           }
-        }, [searchQuery, priceData]);
+        }, [searchQuery, priceData, filters.vendor]);
 
         React.useEffect(() => {
           fetchPriceList();
@@ -463,7 +525,7 @@ if (!window.compareQuoteApp) {
           setQuote(newQuote);
           setExpandedCard(null);
           setTempSqFt('');
-          localStorage.setItem('quote', JSON.stringify(newQuote));
+          localStorage.setItem('quote', encryptData(newQuote));
           showToast(`${item.colorName} added to cart`);
           handleTabChange('cart');
         }, [quote]);
@@ -475,7 +537,7 @@ if (!window.compareQuoteApp) {
             setExpandedCard(null);
             setTempSqFt('');
           }
-          localStorage.setItem('quote', JSON.stringify(newQuote));
+          localStorage.setItem('quote', encryptData(newQuote));
           showToast('Item removed from cart');
         }, [quote, expandedCard]);
 
@@ -487,7 +549,7 @@ if (!window.compareQuoteApp) {
           const newQuote = [...quote];
           newQuote[index].sqFt = '';
           setQuote(newQuote);
-          localStorage.setItem('quote', JSON.stringify(newQuote));
+          localStorage.setItem('quote', encryptData(newQuote));
           showToast('Square footage cleared');
         }, [quote]);
 
@@ -533,10 +595,10 @@ if (!window.compareQuoteApp) {
         async function handleQuoteSubmit(e) {
           e.preventDefault();
           setIsLoading(true);
-          const name = e.target.name.value;
-          const email = e.target.email.value;
-          const phone = e.target.phone.value;
-          const notes = e.target.notes.value;
+          const name = sanitizeInput(e.target.name.value);
+          const email = sanitizeInput(e.target.email.value);
+          const phone = sanitizeInput(e.target.phone.value);
+          const notes = sanitizeInput(e.target.notes.value);
 
           if (!validateForm(name, email)) {
             setIsLoading(false);
@@ -571,6 +633,7 @@ if (!window.compareQuoteApp) {
           }).join('\n'));
           formData.append('region', regionName);
           formData.append('zip_code', zipCode);
+          // TODO: Add CSRF token here (requires backend support)
 
           try {
             const response = await fetch('https://usebasin.com/f/0e1679dd8d79', {
@@ -584,7 +647,7 @@ if (!window.compareQuoteApp) {
             showToast('Quote submitted successfully');
             e.target.reset();
             setQuote([]);
-            localStorage.setItem('quote', JSON.stringify([]));
+            localStorage.setItem('quote', encryptData([]));
             setCurrentTab('search');
             setFormErrors({ name: '', email: '' });
           } catch (err) {
@@ -595,7 +658,7 @@ if (!window.compareQuoteApp) {
           }
         }
 
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 300), []);
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
 
         function handleTabChange(tab) {
           setIsTabLoading(true);
@@ -734,7 +797,7 @@ if (!window.compareQuoteApp) {
             className: 'container', 
             style: { 
               padding: '1rem', 
-              marginTop: '8rem', // Increased margin to ensure content is below the header
+              marginTop: '8rem',
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
@@ -767,7 +830,7 @@ if (!window.compareQuoteApp) {
                     width: '100%', 
                     maxWidth: '40rem', 
                     padding: '0 1rem', 
-                    margin: '0.5rem auto' // Adjusted margin to ensure no overlap with header
+                    margin: '0.5rem auto' 
                   }
                 },
                   React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
@@ -997,7 +1060,7 @@ if (!window.compareQuoteApp) {
                     width: '100%', 
                     maxWidth: '40rem', 
                     padding: '0 1rem', 
-                    margin: '0.5rem auto' // Adjusted margin to ensure no overlap with header
+                    margin: '0.5rem auto' 
                   }
                 },
                   React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
