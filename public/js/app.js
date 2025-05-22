@@ -84,7 +84,7 @@ if (!window.compareQuoteApp) {
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
-      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateSqFt, clearSqFt, index, totalCartCost }) {
+      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
         return React.createElement('div', { className: 'card' },
           React.createElement('img', {
@@ -103,16 +103,16 @@ if (!window.compareQuoteApp) {
             }),
             item.colorName
           ),
-          isInCart && React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
+          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
             'Material: ',
             React.createElement('span', {
               className: `material-badge ${getMaterialBadgeColor(item.material)}`
             }, item.material)
           ),
-          isInCart && React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
+          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
             'Vendor: ', item.vendorName
           ),
-          isInCart && React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
+          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)' } },
             'Thickness: ', item.thickness || 'N/A'
           ),
           React.createElement('div', { className: 'tooltip' },
@@ -123,6 +123,43 @@ if (!window.compareQuoteApp) {
               'Price includes material, installation, and regional adjustments. 2cm is 10% less than 3cm.'
             )
           ),
+          !isInCart && React.createElement('button', {
+            onClick: function() { toggleCard(index); },
+            className: 'w-full mt-2 text-white p-2 rounded-lg',
+            style: { backgroundColor: 'var(--accent-color)' },
+            'aria-label': `Select ${item.colorName}`
+          }, isExpanded ? 'Close' : 'Select'),
+          !isInCart && isExpanded && React.createElement('div', { className: 'mt-2 flex gap-2 w-full' },
+            React.createElement('div', { className: 'flex-1' },
+              React.createElement('label', {
+                className: 'block text-sm sm:text-base',
+                style: { color: 'var(--text-primary)' }
+              }, 'Area (sq ft)'),
+              React.createElement('input', {
+                type: 'number',
+                value: tempSqFt,
+                onChange: function(e) { updateTempSqFt(e.target.value); },
+                className: 'w-full p-2 border rounded-lg',
+                min: '0',
+                step: '0.01',
+                placeholder: 'Enter sq ft',
+                'aria-label': `Square footage for ${item.colorName}`
+              })
+            ),
+            React.createElement('button', {
+              onClick: function() { 
+                if (tempSqFt && parseFloat(tempSqFt) > 0) {
+                  addToQuote({ ...item, sqFt: tempSqFt });
+                  setTempSqFt('');
+                } else {
+                  showToast('Please enter a valid square footage', true);
+                }
+              },
+              className: 'p-2 border rounded-lg',
+              style: { backgroundColor: 'var(--accent-color)', color: 'white' },
+              'aria-label': `Add ${item.colorName} to cart with square footage`
+            }, 'Add to Cart')
+          ),
           isInCart && React.createElement('div', { className: 'mt-2 flex gap-2 w-full' },
             React.createElement('div', { className: 'flex-1' },
               React.createElement('label', {
@@ -132,7 +169,7 @@ if (!window.compareQuoteApp) {
               React.createElement('input', {
                 type: 'number',
                 value: item.sqFt,
-                onChange: function(e) { updateSqFt(index, e.target.value); },
+                onChange: function(e) { updateTempSqFt(e.target.value); },
                 className: 'w-full p-2 border rounded-lg',
                 min: '0',
                 step: '0.01',
@@ -153,13 +190,6 @@ if (!window.compareQuoteApp) {
           },
             'Cost: $', item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'
           ),
-          !isInCart && React.createElement('button', {
-            onClick: function() { addToQuote(item); },
-            disabled: isInCart,
-            className: 'w-full mt-2 text-white p-2 rounded-lg',
-            style: { backgroundColor: isInCart ? '#6b7280' : 'var(--accent-color)' },
-            'aria-label': `Add ${item.colorName} to cart`
-          }, isInCart ? 'In Cart' : 'Add to Cart'),
           isInCart && React.createElement('button', {
             onClick: function() { removeFromQuote(index); },
             className: 'w-full mt-2 text-white p-2 rounded-lg',
@@ -192,6 +222,8 @@ if (!window.compareQuoteApp) {
         const [isLoading, setIsLoading] = React.useState(false);
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
         const [showBackToTop, setShowBackToTop] = React.useState(false);
+        const [expandedCard, setExpandedCard] = React.useState(null);
+        const [tempSqFt, setTempSqFt] = React.useState('');
 
         const totalCartCost = React.useMemo(() => {
           return quote.reduce((total, item) => {
@@ -322,11 +354,13 @@ if (!window.compareQuoteApp) {
             showToast(`${item.colorName} is already in cart`, true);
             return;
           }
-          const newQuote = [...quote, { ...item, sqFt: '' }];
+          const newQuote = [...quote, { ...item }];
           setQuote(newQuote);
+          setExpandedCard(null);
+          setTempSqFt('');
           localStorage.setItem('quote', JSON.stringify(newQuote));
           showToast(`${item.colorName} added to cart`);
-          handleTabChange('cart'); // Switch to cart tab after adding
+          handleTabChange('cart');
         }, [quote]);
 
         const removeFromQuote = React.useCallback(function(index) {
@@ -336,17 +370,9 @@ if (!window.compareQuoteApp) {
           showToast('Item removed from cart');
         }, [quote]);
 
-        const updateSqFt = React.useCallback(function(index, value) {
-          const parsedValue = value === '' ? '' : parseFloat(value);
-          if (parsedValue !== '' && (isNaN(parsedValue) || parsedValue <= 0)) {
-            showToast('Please enter a valid square footage', true);
-            return;
-          }
-          const newQuote = [...quote];
-          newQuote[index].sqFt = parsedValue;
-          setQuote(newQuote);
-          localStorage.setItem('quote', JSON.stringify(newQuote));
-        }, [quote]);
+        const updateTempSqFt = React.useCallback(function(value) {
+          setTempSqFt(value);
+        }, []);
 
         const clearSqFt = React.useCallback(function(index) {
           const newQuote = [...quote];
@@ -355,6 +381,16 @@ if (!window.compareQuoteApp) {
           localStorage.setItem('quote', JSON.stringify(newQuote));
           showToast('Square footage cleared');
         }, [quote]);
+
+        const toggleCard = React.useCallback(function(index) {
+          if (expandedCard === index) {
+            setExpandedCard(null);
+            setTempSqFt('');
+          } else {
+            setExpandedCard(index);
+            setTempSqFt('');
+          }
+        }, [expandedCard]);
 
         function handleZipSubmit() {
           if (!/^\d{5}$/.test(zipCode)) {
@@ -669,8 +705,11 @@ if (!window.compareQuoteApp) {
                           isInCart: quote.some(function(q) { return q.id === item.id; }),
                           addToQuote: addToQuote,
                           removeFromQuote: removeFromQuote,
-                          updateSqFt: updateSqFt,
-                          clearSqFt: clearSqFt,
+                          updateTempSqFt: updateTempSqFt,
+                          tempSqFt: tempSqFt,
+                          setTempSqFt: setTempSqFt,
+                          toggleCard: toggleCard,
+                          isExpanded: expandedCard === index,
                           index: index,
                           totalCartCost: totalCartCost
                         });
@@ -700,7 +739,9 @@ if (!window.compareQuoteApp) {
                         item: item,
                         isInCart: true,
                         removeFromQuote: removeFromQuote,
-                        updateSqFt: updateSqFt,
+                        updateTempSqFt: updateTempSqFt,
+                        tempSqFt: item.sqFt,
+                        setTempSqFt: setTempSqFt,
                         clearSqFt: clearSqFt,
                         index: index,
                         totalCartCost: totalCartCost
