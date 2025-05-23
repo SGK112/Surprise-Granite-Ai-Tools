@@ -2,12 +2,13 @@ if (!window.compareQuoteApp) {
   window.compareQuoteApp = true;
 
   window.onerror = function(message, source, lineno, colno, error) {
-    console.error('Script error:', { message, source, lineno, colno, error });
+    console.error('Script error:', { message, source, lineno, colno, error: error ? error.stack : 'No error stack available' });
     const errorElement = document.getElementById('error');
     if (errorElement) {
-      errorElement.textContent = `Error loading app: ${message}. Please refresh.`;
+      errorElement.textContent = `Error loading app: ${message} at ${source}:${lineno}:${colno}. Please refresh.`;
       errorElement.classList.remove('hidden');
     }
+    return true; // Prevent default browser error handling
   };
 
   const vendorCsvMap = {
@@ -17,7 +18,12 @@ if (!window.compareQuoteApp) {
   };
 
   function encryptData(data) {
-    return btoa(JSON.stringify(data));
+    try {
+      return btoa(JSON.stringify(data));
+    } catch (e) {
+      console.error('Encryption failed:', e);
+      return '';
+    }
   }
 
   function decryptData(encryptedData) {
@@ -30,12 +36,14 @@ if (!window.compareQuoteApp) {
   }
 
   function sanitizeInput(input) {
+    if (typeof input !== 'string') return '';
     const div = document.createElement('div');
     div.textContent = input;
     return div.innerHTML;
   }
 
   function normalizeColorName(name) {
+    if (typeof name !== 'string') return '';
     return name.trim().toLowerCase().replace(/\s+/g, '');
   }
 
