@@ -8,7 +8,7 @@ if (!window.compareQuoteApp) {
       errorElement.textContent = `Error loading app: ${message} at ${source}:${lineno}:${colno}. Please refresh.`;
       errorElement.classList.remove('hidden');
     }
-    return true; // Prevent default browser error handling
+    return true;
   };
 
   const vendorCsvMap = {
@@ -158,7 +158,7 @@ if (!window.compareQuoteApp) {
           ),
           React.createElement('p', { className: 'text-sm text-gray-600' },
             'Material: ',
-            React.createElement('span', { className: `px-2 py-1 rounded text-white ${getMaterialBadgeColor(item.material)}` }, highlight(item.material))
+            React.createElement('span', { className: 'px-2 py-1 rounded text-white bg-gray-500' }, highlight(item.material))
           ),
           React.createElement('p', { className: 'text-sm text-gray-600' }, 'Vendor: ', highlight(item.vendorName)),
           React.createElement('p', { className: 'text-sm text-gray-600' }, 'Thickness: ', highlight(item.thickness || 'N/A')),
