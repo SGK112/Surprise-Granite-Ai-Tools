@@ -30,26 +30,30 @@ const ImageSchema = new mongoose.Schema({
 
 const Image = mongoose.model('Image', ImageSchema, 'images');
 
-// Connect to MongoDB
+// Connect to MongoDB with error handling and timeout
 const MONGO_URI = 'mongodb+srv://CARI:%4011560Ndysart@cluster1.s4iodnn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1';
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-})
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+  serverSelectionTimeoutMS: 5000 // Timeout after 5 seconds
+}).then(() => {
+  console.log('Connected to MongoDB');
+}).catch((err) => {
+  console.error('MongoDB connection error:', err);
+  // Continue running the app even if MongoDB connection fails
+});
 
 // API endpoint to fetch image URL by colorName
 app.get('/api/images/:colorName', async (req, res) => {
   try {
     const colorName = req.params.colorName.trim();
-    console.log(`Querying image for colorName: ${colorName}`); // Debug log
+    console.log(`Querying image for colorName: ${colorName}`);
     const image = await Image.findOne({ colorName: { $regex: `^${colorName}$`, $options: 'i' } });
     if (image) {
-      console.log(`Found image for ${colorName}: ${image.imageUrl}`); // Debug log
+      console.log(`Found image for ${colorName}: ${image.imageUrl}`);
       res.json({ imageUrl: image.imageUrl });
     } else {
-      console.log(`No image found for ${colorName}`); // Debug log
+      console.log(`No image found for ${colorName}`);
       res.status(404).json({ imageUrl: null });
     }
   } catch (err) {
@@ -67,4 +71,9 @@ app.get('/', (req, res) => {
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+});
+
+// Handle uncaught exceptions to prevent crashing
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
 });
