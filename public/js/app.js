@@ -225,15 +225,7 @@ if (!window.compareQuoteApp) {
           console.log('fetchPriceList: Starting fetch, retries left:', retries);
           try {
             const csvUrl = vendorCsvMap[filters.vendor] || vendorCsvMap['All Vendors'];
-            const cacheKey = `priceData_${filters.vendor || 'All Vendors'}`;
-            const cachedData = localStorage.getItem(cacheKey);
-            if (cachedData) {
-              console.log('Using cached price data');
-              const data = decryptData(cachedData);
-              setPriceData(data);
-              setIsLoading(false);
-              return;
-            }
+            console.log(`Fetching CSV from URL: ${csvUrl}`);
 
             const response = await fetch(csvUrl);
             if (!response.ok) {
@@ -262,7 +254,6 @@ if (!window.compareQuoteApp) {
                   return;
                 }
                 setPriceData(processedData);
-                localStorage.setItem(cacheKey, encryptData(processedData));
                 setIsLoading(false);
               },
               error: function(error) {
@@ -592,29 +583,31 @@ if (!window.compareQuoteApp) {
                     })
                   )
                 ),
-                React.createElement('div', { className: 'relative flex-1 min-w-[200px]' },
-                  React.createElement('input', {
-                    type: 'search',
-                    value: searchQuery,
-                    onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
-                    placeholder: 'Search by slab name, material, vendor...',
-                    className: 'w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                    'aria-label': 'Search countertops'
-                  }),
-                  React.createElement('svg', {
-                    className: 'absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500',
-                    fill: 'none',
-                    viewBox: '0 0 24 24',
-                    stroke: 'currentColor'
-                  }, React.createElement('path', {
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round',
-                    strokeWidth: '2',
-                    d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-                  })),
+                React.createElement('div', { className: 'relative flex-1 min-w-[200px] flex items-center gap-2' },
+                  React.createElement('div', { className: 'relative flex-1' },
+                    React.createElement('input', {
+                      type: 'search',
+                      value: searchQuery,
+                      onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
+                      placeholder: 'Search by slab name, material, vendor...',
+                      className: 'w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                      'aria-label': 'Search countertops'
+                    }),
+                    React.createElement('svg', {
+                      className: 'absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500',
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      stroke: 'currentColor'
+                    }, React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeWidth: '2',
+                      d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                    }))
+                  ),
                   searchQuery && React.createElement('button', {
                     onClick: clearSearchAndFilters,
-                    className: 'absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-blue-600 hover:underline',
+                    className: 'px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors duration-200',
                     'aria-label': 'Clear search and filters'
                   }, 'Clear')
                 )
@@ -646,7 +639,7 @@ if (!window.compareQuoteApp) {
             )
           ),
 
-          React.createElement('main', { className: 'flex-1 pt-36 pb-8 px-4 max-w-6xl mx-auto w-full' },
+          React.createElement('main', { className: 'flex-1 pt-36 pb-20 px-4 max-w-6xl mx-auto w-full' },
             isLoading ? 
               React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading countertops...') :
               isSearchLoading ?
@@ -664,7 +657,12 @@ if (!window.compareQuoteApp) {
                         React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Material'),
                         React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Vendor'),
                         React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Thickness'),
-                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Slabs Needed'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 
+                          React.createElement('span', { className: 'relative' },
+                            'Slabs Needed',
+                            React.createElement('span', { className: 'tooltip-text' }, 'Number of slabs required based on square footage, including waste factor.')
+                          )
+                        ),
                         React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Cost/Sq Ft'),
                         React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Total Cost')
                       )
@@ -701,7 +699,7 @@ if (!window.compareQuoteApp) {
                     )
                   )
                 ),
-            filteredResults.length > 0 && React.createElement('div', { className: 'flex gap-4 mt-4' },
+            filteredResults.length > 0 && React.createElement('div', { className: 'flex gap-4 mt-4 justify-center' },
               React.createElement('button', {
                 onClick: submitQuote,
                 className: 'px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors duration-200',
