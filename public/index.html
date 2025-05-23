@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Estimate countertop, cabinet, and tile projects with Surprise Granite's interactive calculator.">
-    <meta name="keywords" content="countertops, cabinets, tiles, quote, estimator, Surprise Granite">
+    <meta name="description" content="Compare and quote countertops with Surprise Granite's interactive calculator.">
+    <meta name="keywords" content="countertops, granite, quartz, quote, comparison, Surprise Granite">
     <meta name="author" content="Surprise Granite">
     <meta name="robots" content="index, follow">
-    <meta property="og:title" content="Surprise Granite Estimator">
-    <meta property="og:description" content="Estimate countertop, cabinet, and tile projects with Surprise Granite's interactive calculator.">
+    <meta property="og:title" content="Surprise Granite Countertop Quote">
+    <meta property="og:description" content="Compare and quote countertops with Surprise Granite's interactive calculator.">
     <meta property="og:image" content="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg">
     <meta property="og:url" content="https://surprise-granite-connections-dev.onrender.com">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="theme-color" content="#1e2749">
-    <title>Surprise Granite Estimator</title>
+    <title>Surprise Granite Countertop Quote</title>
+    <link rel="canonical" href="https://surprise-granite-connections-dev.onrender.com">
     <link rel="icon" href="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" type="image/svg+xml">
-    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
-    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.5/babel.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         :root {
@@ -46,7 +48,7 @@
             --text-primary: #d1d5db;
             --text-secondary: #9ca3af;
             --text-header: #d1d5db;
-            --border-color: #4b5563;
+            --border-color: #ffffff;
             --accent-color: #3b82f6;
             --error-color: #ef4444;
             --success-color: #34d399;
@@ -96,912 +98,739 @@
             visibility: visible;
             opacity: 1;
         }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .autocomplete-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .autocomplete-item:hover {
+            background-color: var(--highlight-color);
+        }
+        input, select {
+            transition: all 0.2s ease;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px var(--highlight-color);
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
     <div id="error" class="error-message hidden text-center text-red-500 p-4"></div>
     <script type="text/babel">
-        if (!window.surpriseGraniteEstimator) {
-            window.surpriseGraniteEstimator = true;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
-            window.onerror = function(message, source, lineno, colno, error) {
-                console.error('Script error:', { message, source, lineno, colno, error: error ? error.stack : 'No error stack available' });
-                const errorElement = document.getElementById('error');
-                if (errorElement) {
-                    errorElement.textContent = `Error loading app: ${message} at ${source}:${lineno}:${colno}. Please refresh.`;
-                    errorElement.classList.remove('hidden');
-                }
-                return true;
+        const vendorCsvMap = {
+            'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
+            'MSI': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
+            'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv'
+        };
+
+        const fallbackCsvData = [
+            { "Color Name": "Arctic White", "Material": "Granite", "Vendor Name": "MSI", "Thickness": "2cm", "Cost/SqFt": "30", "Total/SqFt": "100", "Image URL": "https://example.com/images/arctic_white.jpg" },
+            { "Color Name": "Blue Pearl", "Material": "Quartz", "Vendor Name": "Vendor2", "Thickness": "3cm", "Cost/SqFt": "40", "Total/SqFt": "80", "Image URL": "https://example.com/images/blue_pearl.jpg" },
+            { "Color Name": "Calacatta Gold", "Material": "Quartzite", "Vendor Name": "MSI", "Thickness": "2cm", "Cost/SqFt": "50", "Total/SqFt": "120", "Image URL": "https://example.com/images/calacatta_gold.jpg" }
+        ];
+
+        function App() {
+            const [priceData, setPriceData] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [isSearchLoading, setIsSearchLoading] = useState(false);
+            const [zipCode, setZipCode] = useState('');
+            const [regionMultiplier, setRegionMultiplier] = useState(1.0);
+            const [regionName, setRegionName] = useState('National Average');
+            const [filters, setFilters] = useState({
+                vendor: 'All Vendors',
+                material: 'All Materials',
+                thickness: 'All Thicknesses'
+            });
+            const [toast, setToast] = useState({ message: '', show: false, isError: false });
+            const [suggestions, setSuggestions] = useState([]);
+            const [totalSqFt, setTotalSqFt] = useState('');
+            const [budget, setBudget] = useState('');
+            const [selectedItems, setSelectedItems] = useState([]);
+            const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+            const [usingFallbackData, setUsingFallbackData] = useState(false);
+            const [headerHeight, setHeaderHeight] = useState(0);
+
+            const slabArea = (127 * 64) / 144; // 127" x 64" slab in square feet
+
+            const calculateSlabsNeeded = (sqFt) => {
+                const wasteFactor = sqFt < 25 ? 1.30 : sqFt <= 50 ? 1.20 : 1.15;
+                const totalAreaWithWaste = sqFt * wasteFactor;
+                return Math.ceil(totalAreaWithWaste / slabArea);
             };
 
-            const vendorCsvMap = {
-                'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
-                'MSI': '', // Placeholder for future MSI-specific CSV
-                'Vendor2': '' // Placeholder for future Vendor2-specific CSV
+            const calculateCostPerSqFt = (item) => {
+                const baseCost = item.installedPricePerSqFt || 0;
+                const fixedCost = (material => {
+                    const m = (material || '').toLowerCase();
+                    if (m.includes('granite') || m.includes('quartz')) return 26;
+                    if (m.includes('quartzite') || m.includes('marble')) return 35;
+                    if (m.includes('dekton') || m.includes('porcelain')) return 55;
+                    return 26;
+                })(item.material);
+                return (baseCost * 3.25 + fixedCost) * regionMultiplier;
             };
 
-            const mockCsvData = [
-                { "Color Name": "Arctic White", "Material": "Granite", "Vendor Name": "MSI", "Thickness": "2cm", "Cost/SqFt": "30", "Total/SqFt": "100" },
-                { "Color Name": "Blue Pearl", "Material": "Quartz", "Vendor Name": "Vendor2", "Thickness": "3cm", "Cost/SqFt": "40", "Total/SqFt": "80" },
-                { "Color Name": "Calacatta Gold", "Material": "Quartzite", "Vendor Name": "MSI", "Thickness": "2cm", "Cost/SqFt": "50", "Total/SqFt": "120" }
-            ];
+            useEffect(() => {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+            }, [theme]);
 
-            function encryptData(data) {
-                try {
-                    return btoa(JSON.stringify(data));
-                } catch (e) {
-                    console.error('Encryption failed:', e);
-                    return '';
+            useEffect(() => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const mockZip = '85001';
+                            setZipCode(mockZip);
+                            const region = mockZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                                           mockZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                                           mockZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                                           mockZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                                           { name: 'Southeast', multiplier: 1.05 };
+                            setRegionName(region.name);
+                            setRegionMultiplier(region.multiplier);
+                            fetchPriceList();
+                        },
+                        (error) => {
+                            setRegionName('National Average');
+                            setRegionMultiplier(1.0);
+                            fetchPriceList();
+                        }
+                    );
+                } else {
+                    setRegionName('National Average');
+                    setRegionMultiplier(1.0);
+                    fetchPriceList();
                 }
-            }
+            }, []);
 
-            function decryptData(encryptedData) {
+            useEffect(() => {
+                const updateHeaderHeight = () => {
+                    const header = document.querySelector('header');
+                    if (header) {
+                        setHeaderHeight(header.offsetHeight);
+                    }
+                };
+
+                updateHeaderHeight();
+                window.addEventListener('resize', updateHeaderHeight);
+                return () => window.removeEventListener('resize', updateHeaderHeight);
+            }, []);
+
+            const showToast = (message, isError = false) => {
+                setToast({ message, show: true, isError });
+                setTimeout(() => setToast({ message: '', show: false, isError: false }), 3000);
+            };
+
+            const toggleTheme = () => {
+                setTheme(theme === 'light' ? 'dark' : 'light');
+            };
+
+            const fetchPriceList = async (retries = 3) => {
+                setIsLoading(true);
+                setUsingFallbackData(false);
+
+                const csvUrl = vendorCsvMap[filters.vendor] || vendorCsvMap['All Vendors'];
                 try {
-                    return JSON.parse(atob(encryptedData));
-                } catch (e) {
-                    console.error('Failed to decrypt data:', e);
+                    const response = await fetch(csvUrl);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error: ${response.status}`);
+                    }
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('text/csv')) {
+                        throw new Error('Unexpected content type: ' + contentType);
+                    }
+                    const csvText = await response.text();
+
+                    Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: async function(results) {
+                            const rawData = results.data;
+                            const processedData = processData(rawData);
+                            if (processedData.length === 0) {
+                                showToast('No valid countertop data available in CSV.', true);
+                                setPriceData([]);
+                                setIsLoading(false);
+                                return;
+                            }
+                            setPriceData(processedData);
+                            setIsLoading(false);
+                        },
+                        error: function(error) {
+                            showToast('Failed to parse countertop data from CSV.', true);
+                            setPriceData([]);
+                            setIsLoading(false);
+                        }
+                    });
+                } catch (err) {
+                    if (retries > 0) {
+                        setTimeout(() => fetchPriceList(retries - 1), 1000);
+                    } else {
+                        showToast('Failed to load countertop data from CSV. Using fallback data.', true);
+                        setUsingFallbackData(true);
+                        setPriceData(fallbackCsvData.map((item, index) => processData([item])[0]));
+                        setIsLoading(false);
+                    }
+                }
+            };
+
+            const processData = (rawData) => {
+                if (!Array.isArray(rawData)) {
                     return [];
                 }
-            }
-
-            function sanitizeInput(input) {
-                if (typeof input !== 'string') return '';
-                const div = document.createElement('div');
-                div.textContent = input;
-                return div.innerHTML;
-            }
-
-            function normalizeColorName(name) {
-                if (typeof name !== 'string') return '';
-                return name.trim().toLowerCase().replace(/\s+/g, '');
-            }
-
-            function getColorSwatch(colorName) {
-                const name = normalizeColorName(colorName || '');
-                if (name.includes('white')) return '#F5F5F5';
-                if (name.includes('black')) return '#1F2937';
-                if (name.includes('blue')) return '#3B82F6';
-                if (name.includes('gray')) return '#6B7280';
-                if (name.includes('brown')) return '#8B4513';
-                if (name.includes('green')) return '#10B981';
-                if (name.includes('gold')) return '#DAA520';
-                if (name.includes('pearl')) return '#E6E0FA';
-                if (name.includes('montreal')) return '#D3D3D3';
-                if (name.includes('fantasy')) return '#A0522D';
-                if (name.includes('calacatta')) return '#F0F0F0';
-                return '#D1D5DB';
-            }
-
-            function getWasteFactor(sqFt) {
-                if (sqFt < 25) return 1.30;
-                if (sqFt <= 50) return 1.20;
-                return 1.15;
-            }
-
-            function getFixedCost(material) {
-                const m = (material || '').toLowerCase();
-                if (m.includes('granite') || m.includes('quartz')) return 26;
-                if (m.includes('quartzite') || m.includes('marble')) return 35;
-                if (m.includes('dekton') || m.includes('porcelain')) return 55;
-                return 26;
-            }
-
-            function debounce(func, wait) {
-                let timeout;
-                return function(...args) {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(function() { func(...args); }, wait);
-                };
-            }
-
-            const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSw gc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
-
-            async function fetchImageUrl(colorName) {
-                const normalizedColorName = normalizeColorName(colorName);
-                console.log(`Fetching image for colorName: ${normalizedColorName}`);
-                return imageComingSoon; // Placeholder since image fetching isn't implemented
-            }
-
-            function waitForReact(callback, retries = 50, interval = 1000) {
-                console.log('waitForReact called, retries:', retries);
-                if (window.React && window.ReactDOM && window.Papa && window.Fuse && window.jspdf) {
-                    console.log('React, ReactDOM, PapaParse, Fuse.js, and jsPDF found, calling callback');
-                    callback();
-                } else {
-                    if (!window.React) console.log('React not found');
-                    if (!window.ReactDOM) console.log('ReactDOM not found');
-                    if (!window.Papa) console.log('PapaParse not found');
-                    if (!window.Fuse) console.log('Fuse.js not found');
-                    if (!window.jspdf) console.log('jsPDF not found');
-                    if (retries > 0) {
-                        setTimeout(function() { waitForReact(callback, retries - 1, interval); }, interval);
-                    } else {
-                        console.error('Failed to load dependencies after maximum retries');
-                        const errorElement = document.getElementById('error');
-                        if (errorElement) {
-                            errorElement.textContent = 'Failed to load app dependencies after 50 seconds. Please check your connection and refresh.';
-                            errorElement.classList.remove('hidden');
-                        }
+                return rawData.map((item, index) => {
+                    if (!item || typeof item !== 'object') {
+                        return null;
                     }
+                    const costKeys = ['Cost/SqFt', 'Cost per Sq Ft', 'Cost', 'Price/SqFt'];
+                    const totalKeys = ['Total/SqFt', 'Total Sq Ft', 'Available SqFt'];
+                    const colorKeys = ['Color Name', 'Color', 'Name'];
+                    const vendorKeys = ['Vendor Name', 'Vendor', 'Supplier'];
+                    const materialKeys = ['Material', 'Type'];
+                    const thicknessKeys = ['Thickness', 'Size'];
+                    const imageKeys = ['Image URL', 'Image', 'Photo URL'];
+                    const popularityKeys = ['Popularity', 'Rank'];
+                    const isNewKeys = ['Is New', 'New'];
+
+                    const getValue = (keys) => {
+                        for (let key of keys) {
+                            if (item[key] !== undefined && item[key] !== '') {
+                                return item[key];
+                            }
+                        }
+                        return null;
+                    };
+
+                    const costSqFt = parseFloat(getValue(costKeys));
+                    if (isNaN(costSqFt)) {
+                        return null;
+                    }
+                    const thickness = getValue(thicknessKeys) ? String(getValue(thicknessKeys)) : 'Unknown';
+                    return {
+                        id: `${getValue(colorKeys) || 'Unknown'}-${getValue(vendorKeys) || 'Unknown'}-${thickness}-${index}`,
+                        colorName: getValue(colorKeys) || 'Unknown',
+                        vendorName: getValue(vendorKeys) || 'Unknown',
+                        thickness: thickness,
+                        material: getValue(materialKeys) || 'Unknown',
+                        installedPricePerSqFt: costSqFt,
+                        availableSqFt: parseFloat(getValue(totalKeys)) || 0,
+                        imageUrl: getValue(imageKeys) || 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
+                        popularity: parseFloat(getValue(popularityKeys)) || Math.random(),
+                        isNew: getValue(isNewKeys) === 'true' || Math.random() > 0.8
+                    };
+                }).filter(item => item !== null);
+            };
+
+            useEffect(() => {
+                if (searchQuery && priceData.length > 0) {
+                    setIsSearchLoading(true);
+                    const sanitizedQuery = searchQuery.trim();
+                    const filteredData = priceData.filter(item => 
+                        filters.vendor === 'All Vendors' || item.vendorName === filters.vendor
+                    );
+                    const fuse = new Fuse(filteredData, {
+                        keys: [
+                            { name: 'colorName', weight: 0.4 },
+                            { name: 'material', weight: 0.3 },
+                            { name: 'vendorName', weight: 0.2 },
+                            { name: 'thickness', weight: 0.1 }
+                        ],
+                        threshold: 0.2,
+                        includeScore: true,
+                        minMatchCharLength: 1,
+                        tokenize: true,
+                        matchAllTokens: true
+                    });
+                    const results = fuse.search(sanitizedQuery).map(result => result.item);
+                    setSearchResults(results);
+                    setSuggestions(results.slice(0, 5).map(item => `${item.colorName} (${item.material}, ${item.vendorName})`));
+                    setTimeout(() => setIsSearchLoading(false), 100);
+                } else {
+                    setSearchResults([]);
+                    setSuggestions([]);
+                    setIsSearchLoading(false);
                 }
-            }
+            }, [searchQuery, priceData, filters.vendor]);
 
-            function initApp() {
-                console.log('initApp called');
+            useEffect(() => {
+                fetchPriceList();
+            }, [filters.vendor]);
+
+            const clearSearchAndFilters = () => {
+                setSearchQuery('');
+                setFilters({
+                    vendor: 'All Vendors',
+                    material: 'All Materials',
+                    thickness: 'All Thicknesses'
+                });
+                setSearchResults([]);
+                setSuggestions([]);
+            };
+
+            const handleSuggestionClick = (suggestion) => {
+                setSearchQuery(suggestion);
+                setSuggestions([]);
+            };
+
+            const toggleSelection = (item) => {
+                setSelectedItems(prev => {
+                    if (prev.some(selected => selected.id === item.id)) {
+                        return prev.filter(selected => selected.id !== item.id);
+                    } else {
+                        return [...prev, item];
+                    }
+                });
+            };
+
+            const vendors = useMemo(() => {
+                return ['All Vendors', ...new Set(priceData.map(item => item.vendorName))].sort();
+            }, [priceData]);
+
+            const availableMaterials = useMemo(() => {
+                if (!filters.vendor || filters.vendor === 'All Vendors') return ['All Materials', ...new Set(priceData.map(item => item.material))].sort();
+                return ['All Materials', ...new Set(priceData
+                    .filter(item => item.vendorName === filters.vendor)
+                    .map(item => item.material))].sort();
+            }, [priceData, filters.vendor]);
+
+            const availableThicknesses = useMemo(() => {
+                if (!filters.vendor || !filters.material || filters.vendor === 'All Vendors' || filters.material === 'All Materials') {
+                    return ['All Thicknesses', ...new Set(priceData.map(item => item.thickness))].sort();
+                }
+                return ['All Thicknesses', ...new Set(priceData
+                    .filter(item => item.vendorName === filters.vendor && item.material === filters.material)
+                    .map(item => item.thickness))].sort();
+            }, [priceData, filters.vendor, filters.material]);
+
+            const filteredResults = useMemo(() => {
+                let results = searchQuery ? searchResults : priceData;
+                return results
+                    .filter(item => {
+                        const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
+                        const matchesMaterial = filters.material === 'All Materials' || item.material === filters.material;
+                        const matchesThickness = filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
+                        return matchesVendor && matchesMaterial && matchesThickness;
+                    })
+                    .map(item => ({
+                        ...item,
+                        slabsNeeded: totalSqFt ? calculateSlabsNeeded(parseFloat(totalSqFt)) : 0,
+                        costPerSqFt: calculateCostPerSqFt(item),
+                        totalCost: totalSqFt ? (calculateCostPerSqFt(item) * parseFloat(totalSqFt) * calculateSlabsNeeded(parseFloat(totalSqFt))).toFixed(2) : 'N/A',
+                        isRecommended: totalSqFt && budget ? (
+                            parseFloat(totalSqFt) * calculateCostPerSqFt(item) * calculateSlabsNeeded(parseFloat(totalSqFt)) <= parseFloat(budget) &&
+                            (parseFloat(totalSqFt) < 25 ? item.material.toLowerCase().includes('granite') || item.material.toLowerCase().includes('quartz') : true)
+                        ) : false
+                    }))
+                    .sort((a, b) => {
+                        if (a.isRecommended && !b.isRecommended) return -1;
+                        if (!b.isRecommended && a.isRecommended) return 1;
+                        return b.popularity - a.popularity;
+                    });
+            }, [searchQuery, searchResults, filters, priceData, totalSqFt, budget]);
+
+            const debouncedSetSearchQuery = useCallback((value) => {
+                setTimeout(() => setSearchQuery(value), 300);
+            }, []);
+
+            const submitQuote = async (e) => {
+                e.preventDefault();
+                if (!totalSqFt || selectedItems.length === 0) {
+                    showToast('Please enter square footage and select at least one countertop.', true);
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('total_sq_ft', totalSqFt);
+                formData.append('budget', budget || 'Not specified');
+                formData.append('region', regionName);
+                formData.append('zip_code', zipCode);
+                formData.append('selected_items', selectedItems.map(item => 
+                    `Color: ${item.colorName}, Material: ${item.material}, Vendor: ${item.vendorName}, Thickness: ${item.thickness}, Slabs Needed: ${item.slabsNeeded}, Cost/Sq Ft: $${item.costPerSqFt.toFixed(2)}, Total Cost: $${item.totalCost}`
+                ).join('\n'));
+
                 try {
-                    const rootElement = document.getElementById('root');
-                    const errorElement = document.getElementById('error');
-                    if (!rootElement) throw new Error('Root element not found');
-                    if (!errorElement) console.warn('Error element not found, error messages may not display');
-                    console.log('Root element found:', rootElement);
-                    console.log('Attempting ReactDOM.render');
+                    const response = await fetch('https://usebasin.com/f/0e1679dd8d79', {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (response.status !== 200 && response.status !== 202) {
+                        throw new Error(`Submission failed: ${response.status}`);
+                    }
+                    showToast('Quote submitted successfully');
+                    setSelectedItems([]);
+                } catch (err) {
+                    showToast('Failed to submit quote. Please try again.', true);
+                }
+            };
 
-                    function App() {
-                        const [priceData, setPriceData] = React.useState([]);
-                        const [searchQuery, setSearchQuery] = React.useState('');
-                        const [searchResults, setSearchResults] = React.useState([]);
-                        const [isLoading, setIsLoading] = React.useState(false);
-                        const [isSearchLoading, setIsSearchLoading] = React.useState(false);
-                        const [zipCode, setZipCode] = React.useState('');
-                        const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
-                        const [regionName, setRegionName] = React.useState('National Average');
-                        const [filters, setFilters] = React.useState({
-                            estimatorType: 'Countertops',
-                            vendor: 'All Vendors',
-                            material: 'All Materials',
-                            thickness: 'All Thicknesses'
-                        });
-                        const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
-                        const [suggestions, setSuggestions] = React.useState([]);
-                        const [totalSqFt, setTotalSqFt] = React.useState('');
-                        const [budget, setBudget] = React.useState('');
-                        const [selectedItems, setSelectedItems] = React.useState([]);
-                        const [headerHeight, setHeaderHeight] = React.useState(0);
+            const exportToPDF = () => {
+                if (!totalSqFt || selectedItems.length === 0) {
+                    showToast('Please enter square footage and select at least one countertop.', true);
+                    return;
+                }
 
-                        const slabArea = (127 * 64) / 144; // 127" x 64" slab in square feet
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
 
-                        const calculateSlabsNeeded = (sqFt) => {
-                            const wasteFactor = getWasteFactor(sqFt);
-                            const totalAreaWithWaste = sqFt * wasteFactor;
-                            return Math.ceil(totalAreaWithWaste / slabArea);
-                        };
+                doc.setFontSize(16);
+                doc.text('Surprise Granite Countertop Quote', 20, 20);
+                doc.setFontSize(12);
+                doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
+                doc.text(`Total Square Footage: ${totalSqFt} sq ft`, 20, 40);
+                doc.text(`Budget: $${budget || 'Not specified'}`, 20, 50);
+                doc.text(`Region: ${regionName}`, 20, 60);
 
-                        const calculateCostPerSqFt = (item) => {
-                            const baseCost = item.installedPricePerSqFt || 0;
-                            const fixedCost = getFixedCost(item.material);
-                            return (baseCost * 3.25 + fixedCost) * regionMultiplier;
-                        };
+                doc.setFontSize(14);
+                doc.text('Selected Countertops:', 20, 80);
 
-                        const calculateCabinetCost = (sqFt) => {
-                            // Simplified cabinet cost calculation: $150/sq ft base + region multiplier
-                            return (150 * sqFt * regionMultiplier).toFixed(2);
-                        };
+                const tableData = selectedItems.map(item => [
+                    item.colorName,
+                    item.material,
+                    item.vendorName,
+                    item.thickness,
+                    item.slabsNeeded.toString(),
+                    `$${item.costPerSqFt.toFixed(2)}`,
+                    `$${item.totalCost}`
+                ]);
 
-                        const calculateTileCost = (sqFt) => {
-                            // Simplified tile cost calculation: $10/sq ft base + region multiplier
-                            return (10 * sqFt * regionMultiplier).toFixed(2);
-                        };
+                doc.autoTable({
+                    startY: 90,
+                    head: [['Color', 'Material', 'Vendor', 'Thickness', 'Slabs Needed', 'Cost/Sq Ft', 'Total Cost']],
+                    body: tableData,
+                    theme: 'grid',
+                    styles: { fontSize: 10, cellPadding: 2 },
+                    headStyles: { fillColor: [37, 99, 235] },
+                    alternateRowStyles: { fillColor: [240, 240, 240] }
+                });
 
-                        React.useEffect(() => {
-                            document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
-                        }, []);
+                doc.save(`Surprise_Granite_Quote_${new Date().toISOString().split('T')[0]}.pdf`);
+                showToast('Quote exported as PDF.');
+            };
 
-                        React.useEffect(() => {
-                            if (navigator.geolocation) {
-                                navigator.geolocation.getCurrentPosition(
-                                    (position) => {
-                                        console.log('Location permission granted:', position);
-                                        const mockZip = '85001';
-                                        setZipCode(mockZip);
-                                        const region = mockZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
-                                                       mockZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
-                                                       mockZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
-                                                       mockZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
-                                                       { name: 'Southeast', multiplier: 1.05 };
-                                        setRegionName(region.name);
-                                        setRegionMultiplier(region.multiplier);
-                                        fetchPriceList();
-                                    },
-                                    (error) => {
-                                        console.error('Location permission denied:', error);
-                                        setRegionName('National Average');
-                                        setRegionMultiplier(1.0);
-                                        fetchPriceList();
-                                    }
-                                );
-                            } else {
-                                console.log('Geolocation not supported');
-                                setRegionName('National Average');
-                                setRegionMultiplier(1.0);
-                                fetchPriceList();
-                            }
-                        }, []);
-
-                        React.useEffect(() => {
-                            const updateHeaderHeight = () => {
-                                const header = document.querySelector('header');
-                                if (header) {
-                                    setHeaderHeight(header.offsetHeight);
-                                }
-                            };
-
-                            updateHeaderHeight();
-                            window.addEventListener('resize', updateHeaderHeight);
-                            return () => window.removeEventListener('resize', updateHeaderHeight);
-                        }, []);
-
-                        function showToast(message, isError) {
-                            if (isError === undefined) isError = false;
-                            setToast({ message: message, show: true, isError: isError });
-                            setTimeout(() => setToast({ message: '', show: false, isError: false }), 3000);
-                        }
-
-                        function toggleTheme() {
-                            const newTheme = (localStorage.getItem('theme') || 'light') === 'light' ? 'dark' : 'light';
-                            localStorage.setItem('theme', newTheme);
-                            document.documentElement.setAttribute('data-theme', newTheme);
-                        }
-
-                        async function fetchPriceList(retries = 3) {
-                            setIsLoading(true);
-                            console.log('fetchPriceList: Starting fetch, retries left:', retries);
-
-                            try {
-                                const csvUrl = vendorCsvMap[filters.vendor] || vendorCsvMap['All Vendors'];
-                                const cacheKey = `priceData_${filters.vendor || 'All Vendors'}`;
-                                const cachedData = localStorage.getItem(cacheKey);
-                                if (cachedData) {
-                                    console.log('Using cached price data');
-                                    const data = decryptData(cachedData);
-                                    setPriceData(data);
-                                    setIsLoading(false);
-                                    return;
-                                }
-
-                                console.log(`Fetching CSV from URL: ${csvUrl}`);
-                                const response = await fetch(csvUrl);
-                                if (!response.ok) {
-                                    console.error(`CSV fetch failed, status: ${response.status}`);
-                                    throw new Error(`HTTP error: ${response.status}`);
-                                }
-                                const contentType = response.headers.get('content-type');
-                                if (!contentType || !contentType.includes('text/csv')) {
-                                    throw new Error('Unexpected content type: ' + contentType);
-                                }
-                                const csvText = await response.text();
-                                console.log('fetchPriceList: Raw CSV data:', csvText.substring(0, 500));
-
-                                Papa.parse(csvText, {
-                                    header: true,
-                                    skipEmptyLines: true,
-                                    complete: async function(results) {
-                                        const rawData = results.data;
-                                        console.log('fetchPriceList: Parsed CSV data:', rawData);
-                                        const processedData = processData(rawData);
-                                        console.log('fetchPriceList: Processed data:', processedData);
-                                        if (processedData.length === 0) {
-                                            showToast('No valid countertop data available in CSV.', true);
-                                            setPriceData([]);
-                                            setIsLoading(false);
-                                            return;
-                                        }
-                                        setPriceData(processedData);
-                                        localStorage.setItem(cacheKey, encryptData(processedData));
-                                        setIsLoading(false);
-                                    },
-                                    error: function(error) {
-                                        console.error('PapaParse error:', error);
-                                        showToast('Failed to parse countertop data from CSV.', true);
-                                        setPriceData([]);
-                                        setIsLoading(false);
-                                    }
-                                });
-                            } catch (err) {
-                                console.error('fetchPriceList error:', err);
-                                if (retries > 0) {
-                                    console.log('Retrying fetchPriceList, attempts left:', retries - 1);
-                                    setTimeout(() => fetchPriceList(retries - 1), 1000);
-                                } else {
-                                    showToast('Failed to load countertop data from CSV after retries. Using mock data.', true);
-                                    setPriceData(mockCsvData.map((item, index) => {
-                                        const costSqFt = parseFloat(item['Cost/SqFt']);
-                                        const thickness = item['Thickness'] ? String(item['Thickness']) : 'Unknown';
-                                        return {
-                                            id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
-                                            colorName: item['Color Name'] || 'Unknown',
-                                            vendorName: item['Vendor Name'] || 'Unknown',
-                                            thickness: thickness,
-                                            material: item['Material'] || 'Unknown',
-                                            installedPricePerSqFt: costSqFt,
-                                            availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-                                            imageUrl: imageComingSoon,
-                                            popularity: Math.random(),
-                                            isNew: Math.random() > 0.8
-                                        };
-                                    }).filter(item => item !== null));
-                                    setIsLoading(false);
-                                }
-                            }
-                        }
-
-                        function processData(rawData) {
-                            if (!Array.isArray(rawData)) {
-                                console.error('Raw data is not an array:', rawData);
-                                return [];
-                            }
-                            return rawData.map(function(item, index) {
-                                if (!item || typeof item !== 'object') {
-                                    console.log('Skipping invalid item:', item);
-                                    return null;
-                                }
-                                const costSqFt = parseFloat(item['Cost/SqFt']);
-                                if (isNaN(costSqFt)) {
-                                    console.log(`Skipping item with invalid costSqFt: ${item['Cost/SqFt']}`, item);
-                                    return null;
-                                }
-                                const thickness = item['Thickness'] ? String(item['Thickness']) : 'Unknown';
-                                return {
-                                    id: `${item['Color Name'] || 'Unknown'}-${item['Vendor Name'] || 'Unknown'}-${thickness}-${index}`,
-                                    colorName: item['Color Name'] || 'Unknown',
-                                    vendorName: item['Vendor Name'] || 'Unknown',
-                                    thickness: thickness,
-                                    material: item['Material'] || 'Unknown',
-                                    installedPricePerSqFt: costSqFt,
-                                    availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-                                    imageUrl: imageComingSoon,
-                                    popularity: Math.random(),
-                                    isNew: Math.random() > 0.8
-                                };
-                            }).filter(item => item !== null);
-                        }
-
-                        React.useEffect(() => {
-                            if (searchQuery && priceData.length > 0) {
-                                setIsSearchLoading(true);
-                                const sanitizedQuery = sanitizeInput(searchQuery);
-                                const filteredData = priceData.filter(item => 
-                                    filters.vendor === 'All Vendors' || item.vendorName === filters.vendor
-                                );
-                                const fuse = new Fuse(filteredData, {
-                                    keys: [
-                                        { name: 'colorName', weight: 0.4 },
-                                        { name: 'material', weight: 0.3 },
-                                        { name: 'vendorName', weight: 0.2 },
-                                        { name: 'thickness', weight: 0.1 }
-                                    ],
-                                    threshold: 0.2,
-                                    includeScore: true,
-                                    minMatchCharLength: 1,
-                                    tokenize: true,
-                                    matchAllTokens: true
-                                });
-                                const results = fuse.search(sanitizedQuery).map(result => result.item);
-                                setSearchResults(results);
-                                setSuggestions(results.slice(0, 5).map(item => `${item.colorName} (${item.material}, ${item.vendorName})`));
-                                setTimeout(() => setIsSearchLoading(false), 100);
-                            } else {
-                                setSearchResults([]);
-                                setSuggestions([]);
-                                setIsSearchLoading(false);
-                            }
-                        }, [searchQuery, priceData, filters.vendor]);
-
-                        React.useEffect(() => {
-                            fetchPriceList();
-                        }, [filters.vendor]);
-
-                        function clearSearchAndFilters() {
-                            setSearchQuery('');
-                            setFilters({
-                                estimatorType: filters.estimatorType,
-                                vendor: 'All Vendors',
-                                material: 'All Materials',
-                                thickness: 'All Thicknesses'
-                            });
-                            setSearchResults([]);
-                            setSuggestions([]);
-                        }
-
-                        function handleSuggestionClick(suggestion) {
-                            setSearchQuery(suggestion);
-                            setSuggestions([]);
-                        }
-
-                        const toggleSelection = (item) => {
-                            setSelectedItems(prev => {
-                                if (prev.some(selected => selected.id === item.id)) {
-                                    return prev.filter(selected => selected.id !== item.id);
-                                } else {
-                                    return [...prev, item];
-                                }
-                            });
-                        };
-
-                        const vendors = React.useMemo(function() {
-                            return ['All Vendors', ...new Set(priceData.map(function(item) { return item.vendorName; }))].sort();
-                        }, [priceData]);
-
-                        const availableMaterials = React.useMemo(function() {
-                            if (!filters.vendor || filters.vendor === 'All Vendors') return ['All Materials', ...new Set(priceData.map(function(item) { return item.material; }))].sort();
-                            return ['All Materials', ...new Set(priceData
-                                .filter(function(item) { return item.vendorName === filters.vendor; })
-                                .map(function(item) { return item.material; }))].sort();
-                        }, [priceData, filters.vendor]);
-
-                        const availableThicknesses = React.useMemo(function() {
-                            if (!filters.vendor || !filters.material || filters.vendor === 'All Vendors' || filters.material === 'All Materials') {
-                                return ['All Thicknesses', ...new Set(priceData.map(function(item) { return item.thickness; }))].sort();
-                            }
-                            return ['All Thicknesses', ...new Set(priceData
-                                .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material; })
-                                .map(function(item) { return item.thickness; }))].sort();
-                        }, [priceData, filters.vendor, filters.material]);
-
-                        const filteredResults = React.useMemo(function() {
-                            let results = searchQuery ? searchResults || [] : priceData || [];
-                            return results
-                                .filter(function(item) {
-                                    const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
-                                    const matchesMaterial = filters.material === 'All Materials' || item.material === filters.material;
-                                    const matchesThickness = filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
-                                    return matchesVendor && matchesMaterial && matchesThickness;
-                                })
-                                .map(item => {
-                                    if (filters.estimatorType === 'Countertops') {
-                                        return {
-                                            ...item,
-                                            slabsNeeded: totalSqFt ? calculateSlabsNeeded(parseFloat(totalSqFt)) : 0,
-                                            costPerSqFt: calculateCostPerSqFt(item),
-                                            totalCost: totalSqFt ? (calculateCostPerSqFt(item) * parseFloat(totalSqFt) * getWasteFactor(parseFloat(totalSqFt))).toFixed(2) : 'N/A',
-                                            isRecommended: totalSqFt && budget ? (
-                                                parseFloat(totalSqFt) * calculateCostPerSqFt(item) * getWasteFactor(parseFloat(totalSqFt)) <= parseFloat(budget) &&
-                                                (parseFloat(totalSqFt) < 25 ? item.material.toLowerCase().includes('granite') || item.material.toLowerCase().includes('quartz') : true)
-                                            ) : false
-                                        };
-                                    } else if (filters.estimatorType === 'Cabinets') {
-                                        return {
-                                            ...item,
-                                            totalCost: totalSqFt ? calculateCabinetCost(parseFloat(totalSqFt)) : 'N/A'
-                                        };
-                                    } else if (filters.estimatorType === 'Tiles') {
-                                        return {
-                                            ...item,
-                                            totalCost: totalSqFt ? calculateTileCost(parseFloat(totalSqFt)) : 'N/A'
-                                        };
-                                    }
-                                    return item;
-                                })
-                                .sort((a, b) => {
-                                    if (a.isRecommended && !b.isRecommended) return -1;
-                                    if (!b.isRecommended && a.isRecommended) return 1;
-                                    return b.popularity - a.popularity;
-                                });
-                        }, [searchQuery, searchResults, filters, priceData, totalSqFt, budget]);
-
-                        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
-
-                        async function submitQuote(e) {
-                            e.preventDefault();
-                            if (!totalSqFt || selectedItems.length === 0) {
-                                showToast('Please enter square footage and select at least one item.', true);
-                                return;
-                            }
-
-                            const formData = new FormData();
-                            formData.append('total_sq_ft', totalSqFt);
-                            formData.append('budget', budget || 'Not specified');
-                            formData.append('region', regionName);
-                            formData.append('zip_code', zipCode);
-                            formData.append('estimator_type', filters.estimatorType);
-                            formData.append('selected_items', selectedItems.map(item => {
-                                if (filters.estimatorType === 'Countertops') {
-                                    return `Type: ${filters.estimatorType}, Color: ${item.colorName}, Material: ${item.material}, Vendor: ${item.vendorName}, Thickness: ${item.thickness}, Slabs Needed: ${item.slabsNeeded}, Cost/Sq Ft: $${item.costPerSqFt.toFixed(2)}, Total Cost: $${item.totalCost}`;
-                                } else {
-                                    return `Type: ${filters.estimatorType}, Material: ${item.material}, Vendor: ${item.vendorName}, Total Cost: $${item.totalCost}`;
-                                }
-                            }).join('\n'));
-
-                            try {
-                                const response = await fetch('https://usebasin.com/f/0e1679dd8d79', {
-                                    method: 'POST',
-                                    body: formData,
-                                    headers: { 'Accept': 'application/json' }
-                                });
-                                if (response.status !== 200 && response.status !== 202) {
-                                    throw new Error(`Submission failed: ${response.status}`);
-                                }
-                                showToast('Quote submitted successfully');
-                                setSelectedItems([]);
-                            } catch (err) {
-                                console.error('Quote submission error:', err);
-                                showToast('Failed to submit quote. Please try again.', true);
-                            }
-                        }
-
-                        function exportToPDF() {
-                            if (!totalSqFt || selectedItems.length === 0) {
-                                showToast('Please enter square footage and select at least one item.', true);
-                                return;
-                            }
-
-                            const { jsPDF } = window.jspdf;
-                            const doc = new jsPDF();
-
-                            doc.setFontSize(16);
-                            doc.text('Surprise Granite Project Estimate', 20, 20);
-                            doc.setFontSize(12);
-                            doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
-                            doc.text(`Total Square Footage: ${totalSqFt} sq ft`, 20, 40);
-                            doc.text(`Budget: $${budget || 'Not specified'}`, 20, 50);
-                            doc.text(`Region: ${regionName}`, 20, 60);
-                            doc.text(`Estimator Type: ${filters.estimatorType}`, 20, 70);
-
-                            doc.setFontSize(14);
-                            doc.text('Selected Items:', 20, 90);
-
-                            const tableData = selectedItems.map(item => {
-                                if (filters.estimatorType === 'Countertops') {
-                                    return [
-                                        item.colorName,
-                                        item.material,
-                                        item.vendorName,
-                                        item.thickness,
-                                        item.slabsNeeded.toString(),
-                                        `$${item.costPerSqFt.toFixed(2)}`,
-                                        `$${item.totalCost}`
-                                    ];
-                                } else {
-                                    return [
-                                        item.material,
-                                        item.vendorName,
-                                        `$${item.totalCost}`
-                                    ];
-                                }
-                            });
-
-                            doc.autoTable({
-                                startY: 100,
-                                head: filters.estimatorType === 'Countertops' ? 
-                                    [['Color', 'Material', 'Vendor', 'Thickness', 'Slabs Needed', 'Cost/Sq Ft', 'Total Cost']] :
-                                    [['Material', 'Vendor', 'Total Cost']],
-                                body: tableData,
-                                theme: 'grid',
-                                styles: { fontSize: 10, cellPadding: 2 },
-                                headStyles: { fillColor: [37, 99, 235] },
-                                alternateRowStyles: { fillColor: [240, 240, 240] }
-                            });
-
-                            doc.save(`Surprise_Granite_Estimate_${new Date().toISOString().split('T')[0]}.pdf`);
-                            showToast('Estimate exported as PDF.');
-                        }
-
-                        return (
-                            <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-                                <header className="fixed top-0 left-0 right-0 z-10 p-4 flex flex-col gap-4 shadow-md" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                                    <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <img
-                                                src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg"
-                                                alt="Surprise Granite Logo"
-                                                className="h-10"
-                                            />
-                                            <h1 className="text-xl font-semibold">Surprise Granite Estimator</h1>
-                                        </div>
-                                        <button
-                                            onClick={toggleTheme}
-                                            className="px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200"
-                                            aria-label="Switch theme"
-                                        >
-                                            {(localStorage.getItem('theme') || 'light') === 'light' ? (
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    </div>
-                                    <div className="max-w-6xl mx-auto w-full flex flex-col gap-4">
-                                        <div className="bg-white shadow-md rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Total Sq Ft *</label>
-                                                <input
-                                                    type="number"
-                                                    value={totalSqFt}
-                                                    onChange={(e) => setTotalSqFt(e.target.value)}
-                                                    className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    min="0"
-                                                    step="0.01"
-                                                    placeholder="Enter sq ft"
-                                                    aria-label="Total square footage"
-                                                    required
-                                                    style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Budget ($)</label>
-                                                <input
-                                                    type="number"
-                                                    value={budget}
-                                                    onChange={(e) => setBudget(e.target.value)}
-                                                    className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    min="0"
-                                                    placeholder="Enter budget"
-                                                    aria-label="Budget in dollars"
-                                                    style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Estimator Type</label>
-                                                <select
-                                                    value={filters.estimatorType}
-                                                    onChange={(e) => setFilters({ ...filters, estimatorType: e.target.value })}
-                                                    className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    aria-label="Select estimator type"
-                                                    style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                >
-                                                    <option value="Countertops">Countertops</option>
-                                                    <option value="Cabinets">Cabinets</option>
-                                                    <option value="Tiles">Tiles</option>
-                                                </select>
-                                            </div>
-                                            {filters.estimatorType === 'Countertops' && (
-                                                <>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Vendor</label>
-                                                        <select
-                                                            value={filters.vendor}
-                                                            onChange={(e) => setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', thickness: 'All Thicknesses' })}
-                                                            className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                            aria-label="Filter by vendor"
-                                                            style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                        >
-                                                            {vendors.map(vendor => (
-                                                                <option key={vendor} value={vendor}>{vendor}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Material</label>
-                                                        <select
-                                                            value={filters.material}
-                                                            onChange={(e) => setFilters({ ...filters, material: e.target.value, thickness: 'All Thicknesses' })}
-                                                            className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                            aria-label="Filter by material"
-                                                            style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                        >
-                                                            {availableMaterials.map(material => (
-                                                                <option key={material} value={material}>{material}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Thickness</label>
-                                                        <select
-                                                            value={filters.thickness}
-                                                            onChange={(e) => setFilters({ ...filters, thickness: e.target.value })}
-                                                            className="p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                            aria-label="Filter by thickness"
-                                                            style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                        >
-                                                            {availableThicknesses.map(thickness => (
-                                                                <option key={thickness} value={thickness}>{thickness}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </>
-                                            )}
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Search</label>
-                                                <div className="relative flex items-center">
-                                                    <input
-                                                        type="search"
-                                                        value={searchQuery}
-                                                        onChange={(e) => debouncedSetSearchQuery(e.target.value)}
-                                                        placeholder="Search by name, material, vendor..."
-                                                        className="w-full p-2 pl-10 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        aria-label="Search items"
-                                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                                    />
-                                                    <svg
-                                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                        style={{ color: 'var(--text-secondary)' }}
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth="2"
-                                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                                        />
-                                                    </svg>
-                                                    {searchQuery && (
-                                                        <button
-                                                            onClick={clearSearchAndFilters}
-                                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-blue-600 hover:underline"
-                                                            aria-label="Clear search and filters"
-                                                        >
-                                                            Clear
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <button
-                                                onClick={() => {
-                                                    const newZip = prompt('Enter your ZIP code:', zipCode || '');
-                                                    if (newZip && /^\d{5}$/.test(newZip)) {
-                                                        setZipCode(newZip);
-                                                        const region = newZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
-                                                                       newZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
-                                                                       newZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
-                                                                       newZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
-                                                                       { name: 'Southeast', multiplier: 1.05 };
-                                                        setRegionName(region.name);
-                                                        setRegionMultiplier(region.multiplier);
-                                                        fetchPriceList();
-                                                        showToast(`Region set to ${region.name}`);
-                                                    } else if (newZip) {
-                                                        showToast('Invalid ZIP code', true);
-                                                    }
-                                                }}
-                                                className="text-sm hover:underline"
-                                                style={{ color: 'var(--text-secondary)' }}
-                                                aria-label="Set ZIP code"
-                                            >
-                                                {zipCode ? `Region: ${regionName}` : 'Set ZIP Code'}
-                                            </button>
-                                            {totalSqFt && filteredResults.length > 0 && (
-                                                <p style={{ color: 'var(--text-secondary)' }} className="text-sm">Found {filteredResults.length} options</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </header>
-
-                                <main className="flex-1 pb-20 px-4 max-w-6xl mx-auto w-full" style={{ paddingTop: `${Math.max(headerHeight, 144)}px` }}>
-                                    {isLoading ? (
-                                        <p className="text-center text-gray-600">Loading items...</p>
-                                    ) : isSearchLoading ? (
-                                        <p className="text-center text-gray-600">Searching...</p>
-                                    ) : !filteredResults ? (
-                                        <p className="text-center text-gray-600">Loading results...</p>
-                                    ) : filteredResults.length === 0 ? (
-                                        <p className="text-center text-gray-600">
-                                            {searchQuery || filters.vendor !== 'All Vendors' ? 'No items found' : 'Please enter a search query or apply filters'}
-                                        </p>
-                                    ) : (
-                                        <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-                                            <table className="min-w-full divide-y" style={{ borderColor: 'var(--border-color)' }}>
-                                                <thead style={{ backgroundColor: 'var(--bg-table-header)' }}>
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Select</th>
-                                                        {filters.estimatorType === 'Countertops' ? (
-                                                            <>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Color</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Material</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Vendor</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Thickness</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>
-                                                                    <span className="relative">
-                                                                        Slabs Needed
-                                                                        <span className="tooltip-text">Number of slabs required based on square footage, including waste factor.</span>
-                                                                    </span>
-                                                                </th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Cost/Sq Ft</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Total Cost</th>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Material</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Vendor</th>
-                                                                <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Total Cost</th>
-                                                            </>
-                                                        )}
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-                                                    {filteredResults.map(item => {
-                                                        const isSelected = selectedItems.some(selected => selected.id === item.id);
-                                                        return (
-                                                            <tr key={item.id} className={item.isRecommended ? 'bg-blue-50' : ''}>
-                                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isSelected}
-                                                                        onChange={() => toggleSelection(item)}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                        aria-label={`Select ${item.colorName || item.material}`}
-                                                                        style={{ borderColor: 'var(--border-color)' }}
-                                                                    />
-                                                                </td>
-                                                                {filters.estimatorType === 'Countertops' ? (
-                                                                    <>
-                                                                        <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
-                                                                            <div
-                                                                                className="w-6 h-6 rounded-full border"
-                                                                                style={{ 
-                                                                                    backgroundColor: getColorSwatch(item.colorName),
-                                                                                    borderColor: 'var(--border-color)'
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.colorName}</span>
-                                                                            {item.isRecommended && (
-                                                                                <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">Recommended</span>
-                                                                            )}
-                                                                        </td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.material}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.vendorName}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.thickness}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.slabsNeeded || 'N/A'}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>${item.costPerSqFt.toFixed(2)}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>${item.totalCost}</td>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.material}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.vendorName}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>${item.totalCost}</td>
-                                                                    </>
-                                                                )}
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                    {filteredResults.length > 0 && (
-                                        <div className="flex gap-4 mt-4 justify-center">
-                                            <button
-                                                onClick={submitQuote}
-                                                className="px-6 py-3 rounded-lg font-medium transition-colors duration-200"
-                                                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--text-white)' }}
-                                                aria-label="Submit quote"
-                                            >
-                                                Submit Estimate
-                                            </button>
-                                            <button
-                                                onClick={exportToPDF}
-                                                className="px-6 py-3 rounded-lg font-medium transition-colors duration-200"
-                                                style={{ backgroundColor: 'var(--accent-color)', color: 'var(--text-white)' }}
-                                                aria-label="Export to PDF"
-                                            >
-                                                Export to PDF
-                                            </button>
-                                        </div>
-                                    )}
-                                </main>
-
-                                <div
-                                    className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-sm ${toast.isError ? 'bg-red-500' : 'bg-green-500'} ${toast.show ? 'opacity-100' : 'opacity-0'} transition-opacity`}
-                                    style={{ zIndex: 1000, color: 'var(--text-white)' }}
-                                >
-                                    {toast.message}
+            return (
+                <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+                    <header className="fixed top-0 left-0 right-0 z-20 p-4 flex flex-col gap-4 shadow-md" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                        <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <img
+                                    src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg"
+                                    alt="Surprise Granite Logo"
+                                    className="h-10"
+                                />
+                                <h1 className="text-xl font-semibold">Quick Quote</h1>
+                            </div>
+                            <button
+                                onClick={toggleTheme}
+                                className="px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200 z-30"
+                                aria-label="Switch theme"
+                            >
+                                {theme === 'light' ? (
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
+                        <div className="max-w-6xl mx-auto w-full flex flex-col gap-4">
+                            <div className="bg-white shadow-md rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Vendor</label>
+                                    <select
+                                        value={filters.vendor}
+                                        onChange={(e) => setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', thickness: 'All Thicknesses' })}
+                                        className="p-2 border rounded-lg text-sm focus:outline-none"
+                                        aria-label="Filter by vendor"
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    >
+                                        {vendors.map(vendor => (
+                                            <option key={vendor} value={vendor}>{vendor}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Material</label>
+                                    <select
+                                        value={filters.material}
+                                        onChange={(e) => setFilters({ ...filters, material: e.target.value, thickness: 'All Thicknesses' })}
+                                        className="p-2 border rounded-lg text-sm focus:outline-none"
+                                        aria-label="Filter by material"
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    >
+                                        {availableMaterials.map(material => (
+                                            <option key={material} value={material}>{material}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Thickness</label>
+                                    <select
+                                        value={filters.thickness}
+                                        onChange={(e) => setFilters({ ...filters, thickness: e.target.value })}
+                                        className="p-2 border rounded-lg text-sm focus:outline-none"
+                                        aria-label="Filter by thickness"
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    >
+                                        {availableThicknesses.map(thickness => (
+                                            <option key={thickness} value={thickness}>{thickness}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Total Sq Ft *</label>
+                                    <input
+                                        type="number"
+                                        value={totalSqFt}
+                                        onChange={(e) => setTotalSqFt(e.target.value)}
+                                        className="p-2 border rounded-lg text-sm focus:outline-none"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="Enter sq ft"
+                                        aria-label="Total square footage"
+                                        required
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Budget ($)</label>
+                                    <input
+                                        type="number"
+                                        value={budget}
+                                        onChange={(e) => setBudget(e.target.value)}
+                                        className="p-2 border rounded-lg text-sm focus:outline-none"
+                                        min="0"
+                                        placeholder="Enter budget"
+                                        aria-label="Budget in dollars"
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    />
                                 </div>
                             </div>
-                        );
-                    }
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Search</label>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="search"
+                                        value={searchQuery}
+                                        onChange={(e) => debouncedSetSearchQuery(e.target.value)}
+                                        placeholder="Search by slab name, material, vendor..."
+                                        className="w-full p-2 pl-10 border rounded-lg text-sm focus:outline-none"
+                                        aria-label="Search countertops"
+                                        style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    />
+                                    <svg
+                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        style={{ color: 'var(--text-secondary)' }}
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                        />
+                                    </svg>
+                                    {searchQuery && (
+                                        <button
+                                            onClick={clearSearchAndFilters}
+                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-blue-600 hover:underline"
+                                            aria-label="Clear search and filters"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                    {suggestions.length > 0 && (
+                                        <div className="autocomplete-dropdown">
+                                            {suggestions.map((suggestion, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="autocomplete-item"
+                                                    onClick={() => handleSuggestionClick(suggestion)}
+                                                >
+                                                    {suggestion}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <button
+                                    onClick={() => {
+                                        const newZip = prompt('Enter your ZIP code:', zipCode || '');
+                                        if (newZip && /^\d{5}$/.test(newZip)) {
+                                            setZipCode(newZip);
+                                            const region = newZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                                                           newZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                                                           newZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                                                           newZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                                                           { name: 'Southeast', multiplier: 1.05 };
+                                            setRegionName(region.name);
+                                            setRegionMultiplier(region.multiplier);
+                                            fetchPriceList();
+                                            showToast(`Region set to ${region.name}`);
+                                        } else if (newZip) {
+                                            showToast('Invalid ZIP code', true);
+                                        }
+                                    }}
+                                    className="text-sm hover:underline"
+                                    style={{ color: 'var(--text-secondary)' }}
+                                    aria-label="Set ZIP code"
+                                >
+                                    {zipCode ? `Region: ${regionName}` : 'Set ZIP Code'}
+                                </button>
+                                {totalSqFt && filteredResults.length > 0 && (
+                                    <p style={{ color: 'var(--text-secondary)' }} className="text-sm">Found {filteredResults.length} options</p>
+                                )}
+                            </div>
+                        </div>
+                    </header>
 
-                    ReactDOM.render(<App />, document.getElementById('root'));
-                    console.log('ReactDOM.render completed');
-                } catch (err) {
-                    console.error('App error:', err);
-                    const errorElement = document.getElementById('error');
-                    if (errorElement) {
-                        errorElement.textContent = `App error: ${err.message}. Please refresh.`;
-                        errorElement.classList.remove('hidden');
-                    }
-                }
-            }
+                    <main className="flex-1 pb-20 px-4 max-w-6xl mx-auto w-full" style={{ paddingTop: `${Math.max(headerHeight, 144)}px` }}>
+                        {usingFallbackData && (
+                            <p className="text-center text-yellow-600 mb-4">
+                                Note: Using fallback data because the price list CSV could not be loaded. Contact support if this persists.
+                            </p>
+                        )}
+                        {isLoading ? (
+                            <div className="text-center">
+                                <svg className="animate-spin h-8 w-8 mx-auto" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8v-8H4z"></path>
+                                </svg>
+                                <p style={{ color: 'var(--text-secondary)' }}>Loading countertops...</p>
+                            </div>
+                        ) : isSearchLoading ? (
+                            <div className="text-center">
+                                <svg className="animate-spin h-8 w-8 mx-auto" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8v-8H4z"></path>
+                                </svg>
+                                <p style={{ color: 'var(--text-secondary)' }}>Searching...</p>
+                            </div>
+                        ) : !filteredResults ? (
+                            <p className="text-center" style={{ color: 'var(--text-secondary)' }}>Loading results...</p>
+                        ) : filteredResults.length === 0 ? (
+                            <p className="text-center" style={{ color: 'var(--text-secondary)' }}>
+                                {searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or apply filters'}
+                            </p>
+                        ) : (
+                            <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+                                <table className="min-w-full divide-y" style={{ borderColor: 'var(--border-color)' }}>
+                                    <thead style={{ backgroundColor: 'var(--bg-table-header)' }}>
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Select</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Color</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Material</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Vendor</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Thickness</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>
+                                                <span className="tooltip">
+                                                    Slabs Needed
+                                                    <span className="tooltip-text">Number of slabs required based on square footage, including waste factor.</span>
+                                                </span>
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Cost/Sq Ft</th>
+                                            <th className="px-6 py-3 text-left text-sm font-medium tracking-normal" style={{ color: 'var(--text-header)' }}>Total Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                                        {filteredResults.map(item => {
+                                            const isSelected = selectedItems.some(selected => selected.id === item.id);
+                                            return (
+                                                <tr key={item.id} className={item.isRecommended ? 'bg-blue-50' : ''}>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => toggleSelection(item)}
+                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                            aria-label={`Select ${item.colorName}`}
+                                                            style={{ borderColor: 'var(--border-color)' }}
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
+                                                        <img
+                                                            src={item.imageUrl}
+                                                            alt={`${item.colorName} preview`}
+                                                            className="w-6 h-6 rounded-full object-cover"
+                                                            onError={(e) => e.target.src = 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg'}
+                                                        />
+                                                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.colorName}</span>
+                                                        {item.isRecommended && (
+                                                            <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">Recommended</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.material}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.vendorName}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.thickness}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>{item.slabsNeeded || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>${item.costPerSqFt.toFixed(2)}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--text-secondary)' }}>${item.totalCost}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {filteredResults.length > 0 && (
+                            <div className="flex gap-4 mt-4 justify-center">
+                                <button
+                                    onClick={submitQuote}
+                                    className="px-6 py-3 rounded-lg font-medium transition-colors duration-200"
+                                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--text-white)' }}
+                                    aria-label="Submit quote"
+                                >
+                                    Submit Quote
+                                </button>
+                                <button
+                                    onClick={exportToPDF}
+                                    className="px-6 py-3 rounded-lg font-medium transition-colors duration-200"
+                                    style={{ backgroundColor: 'var(--accent-color)', color: 'var(--text-white)' }}
+                                    aria-label="Export quote to PDF"
+                                >
+                                    Export to PDF
+                                </button>
+                            </div>
+                        )}
+                    </main>
 
-            waitForReact(initApp);
+                    <div
+                        className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-sm ${toast.isError ? 'bg-red-500' : 'bg-green-500'} ${toast.show ? 'opacity-100' : 'opacity-0'} transition-opacity`}
+                        style={{ zIndex: 1000, color: 'var(--text-white)' }}
+                    >
+                        {toast.message}
+                    </div>
+                </div>
+            );
         }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
