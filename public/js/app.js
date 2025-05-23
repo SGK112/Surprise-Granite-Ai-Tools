@@ -63,20 +63,18 @@ if (!window.compareQuoteApp) {
     return '#D1D5DB';
   }
 
-  function getMaterialBadgeColor(material) {
-    const m = (material || '').toLowerCase();
-    if (m.includes('granite')) return 'bg-green-600';
-    if (m.includes('quartz')) return 'bg-blue-600';
-    if (m.includes('quartzite')) return 'bg-purple-600';
-    if (m.includes('dekton')) return 'bg-gray-600';
-    if (m.includes('porcelain')) return 'bg-red-600';
-    return 'bg-gray-500';
-  }
-
   function getWasteFactor(sqFt) {
     if (sqFt < 25) return 1.30;
     if (sqFt <= 50) return 1.20;
     return 1.15;
+  }
+
+  function getFixedCost(material) {
+    const m = (material || '').toLowerCase();
+    if (m.includes('granite') || m.includes('quartz')) return 26;
+    if (m.includes('quartzite') || m.includes('marble')) return 35;
+    if (m.includes('dekton') || m.includes('porcelain')) return 55;
+    return 26;
   }
 
   function debounce(func, wait) {
@@ -140,163 +138,41 @@ if (!window.compareQuoteApp) {
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
-      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost, highlightText }) {
-        const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
-        const highlight = (text) => {
-          if (!highlightText || !text) return text;
-          const regex = new RegExp(`(${highlightText})`, 'gi');
-          const parts = text.split(regex);
-          return parts.map((part, i) => 
-            regex.test(part) ? 
-              React.createElement('span', { key: i, className: 'highlight bg-blue-100 text-blue-800', style: { backgroundColor: '#dbeafe', color: '#1e40af' } }, part) : 
-              part
-          );
-        };
-        return React.createElement('div', { 
-          className: 'card bg-white shadow-lg rounded-xl p-4 flex flex-col gap-2 max-w-sm w-full transition-all duration-300 hover:shadow-xl',
-          style: { border: isInCart ? '2px solid #3b82f6' : 'none' }
-        },
-          React.createElement('div', { className: 'relative w-full h-32' },
-            React.createElement('div', {
-              className: 'w-8 h-8 rounded-full border border-gray-300 absolute top-2 left-2',
-              style: { backgroundColor: getColorSwatch(item.colorName) }
-            }),
-            React.createElement('div', {
-              className: 'absolute top-2 right-2 text-xs font-semibold text-white px-2 py-1 rounded',
-              style: { backgroundColor: item.isNew ? '#10b981' : 'transparent', visibility: item.isNew ? 'visible' : 'hidden' }
-            }, 'New')
-          ),
-          React.createElement('div', { className: 'flex flex-col gap-1 mt-2' },
-            React.createElement('h3', { className: 'text-lg font-semibold text-gray-800' }, highlight(item.colorName)),
-            React.createElement('p', { className: 'text-sm text-gray-600' },
-              'Material: ',
-              React.createElement('span', { className: `inline-block px-2 py-1 rounded text-white text-xs ${getMaterialBadgeColor(item.material)}` }, highlight(item.material))
-            ),
-            React.createElement('p', { className: 'text-sm text-gray-600' }, 'Vendor: ', highlight(item.vendorName)),
-            React.createElement('p', { className: 'text-sm text-gray-600' }, 'Thickness: ', highlight(item.thickness || 'N/A')),
-            React.createElement('p', { className: 'text-sm text-gray-600' }, 'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : '')
-          ),
-          !isInCart && React.createElement('button', {
-            onClick: function() { toggleCard(index); },
-            className: `w-full py-2 rounded-lg font-medium text-white transition-colors duration-200 ${isExpanded ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'}`,
-            'aria-label': `Select ${item.colorName}`
-          }, isExpanded ? 'Close' : 'Select'),
-          !isInCart && isExpanded && React.createElement('div', { className: 'mt-2 flex flex-col gap-2' },
-            React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Area (sq ft)'),
-            React.createElement('input', {
-              type: 'number',
-              value: tempSqFt,
-              onChange: function(e) { updateTempSqFt(e.target.value); },
-              className: 'p-2 border rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-              min: '0',
-              step: '0.01',
-              placeholder: 'Enter sq ft',
-              'aria-label': `Square footage for ${item.colorName}`
-            }),
-            React.createElement('button', {
-              onClick: function() { 
-                if (tempSqFt && parseFloat(tempSqFt) > 0) {
-                  addToQuote({ ...item, sqFt: tempSqFt });
-                  setTempSqFt('');
-                } else {
-                  showToast('Please enter a valid square footage', true);
-                }
-              },
-              className: 'w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors duration-200',
-              'aria-label': `Add ${item.colorName} to cart with square footage`
-            }, 'Add to Cart')
-          ),
-          isInCart && React.createElement('div', { className: 'mt-2 flex flex-col gap-2' },
-            React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Area (sq ft)'),
-            React.createElement('div', { className: 'flex gap-2' },
-              React.createElement('input', {
-                type: 'number',
-                value: item.sqFt,
-                onChange: function(e) { updateTempSqFt(e.target.value); },
-                className: 'p-2 border rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                min: '0',
-                step: '0.01',
-                placeholder: 'Enter sq ft',
-                'aria-label': `Square footage for ${item.colorName}`
-              }),
-              React.createElement('button', {
-                onClick: function() { clearSqFt(index); },
-                className: 'p-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300',
-                'aria-label': `Clear square footage for ${item.colorName}`
-              }, 'Clear')
-            ),
-            React.createElement('p', { className: 'text-sm text-gray-600' },
-              'Cost: $', item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'
-            ),
-            React.createElement('button', {
-              onClick: function() { removeFromQuote(index); },
-              className: 'w-full py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors duration-200',
-              'aria-label': `Remove ${item.colorName} from cart`
-            }, 'Remove')
-          )
-        );
-      });
-
       function App() {
         const [priceData, setPriceData] = React.useState([]);
-        const [quote, setQuote] = React.useState(function() {
-          try {
-            const encryptedQuote = localStorage.getItem('quote');
-            return encryptedQuote ? decryptData(encryptedQuote) : [];
-          } catch (e) {
-            console.error('Failed to parse quote from localStorage:', e);
-            return [];
-          }
-        });
         const [searchQuery, setSearchQuery] = React.useState('');
         const [searchResults, setSearchResults] = React.useState([]);
-        const [currentTab, setCurrentTab] = React.useState('search');
-        const [isTabLoading, setIsTabLoading] = React.useState(false);
+        const [isLoading, setIsLoading] = React.useState(false);
         const [isSearchLoading, setIsSearchLoading] = React.useState(false);
         const [zipCode, setZipCode] = React.useState('');
         const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
         const [regionName, setRegionName] = React.useState('National Average');
-        const [filters, setFilters] = React.useState({ 
-          vendor: 'All Vendors', 
-          material: 'All Materials', 
-          color: 'All Colors', 
-          thickness: 'All Thicknesses' 
+        const [filters, setFilters] = React.useState({
+          vendor: 'All Vendors',
+          material: 'All Materials',
+          thickness: 'All Thicknesses'
         });
         const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
-        const [isLoading, setIsLoading] = React.useState(false);
-        const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
-        const [showBackToTop, setShowBackToTop] = React.useState(false);
-        const [expandedCard, setExpandedCard] = React.useState(null);
-        const [tempSqFt, setTempSqFt] = React.useState('');
         const [suggestions, setSuggestions] = React.useState([]);
+        const [totalSqFt, setTotalSqFt] = React.useState('');
+        const [budget, setBudget] = React.useState('');
 
-        const totalCartCost = React.useMemo(() => {
-          return quote.reduce((total, item) => {
-            const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
-            const sqFt = parseFloat(item.sqFt) || 0;
-            return total + (sqFt * getWasteFactor(sqFt) * price);
-          }, 0).toFixed(2);
-        }, [quote]);
+        const slabArea = (127 * 64) / 144; // 127" x 64" slab in square feet
 
-        const activeFiltersCount = React.useMemo(() => {
-          let count = 0;
-          if (filters.vendor !== 'All Vendors') count++;
-          if (filters.material !== 'All Materials') count++;
-          if (filters.color !== 'All Colors') count++;
-          if (filters.thickness !== 'All Thicknesses') count++;
-          return count;
-        }, [filters]);
+        const calculateSlabsNeeded = (sqFt) => {
+          const wasteFactor = getWasteFactor(sqFt);
+          const totalAreaWithWaste = sqFt * wasteFactor;
+          return Math.ceil(totalAreaWithWaste / slabArea);
+        };
 
-        React.useEffect(function() {
+        const calculateCostPerSqFt = (item) => {
+          const baseCost = item.installedPricePerSqFt || 0;
+          const fixedCost = getFixedCost(item.material);
+          return (baseCost * 3.25 + fixedCost) * regionMultiplier;
+        };
+
+        React.useEffect(() => {
           document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
-
-          function handleScroll() {
-            const viewportHeight = window.innerHeight;
-            setShowBackToTop(window.scrollY > viewportHeight);
-          }
-
-          window.addEventListener('scroll', handleScroll);
-          return function() { window.removeEventListener('scroll', handleScroll); };
         }, []);
 
         React.useEffect(() => {
@@ -352,11 +228,7 @@ if (!window.compareQuoteApp) {
             if (cachedData) {
               console.log('Using cached price data');
               const data = decryptData(cachedData);
-              const updatedData = await Promise.all(data.map(async (item) => {
-                const imageUrl = await fetchImageUrl(item.colorName);
-                return { ...item, imageUrl };
-              }));
-              setPriceData(updatedData);
+              setPriceData(data);
               setIsLoading(false);
               return;
             }
@@ -387,12 +259,8 @@ if (!window.compareQuoteApp) {
                   setIsLoading(false);
                   return;
                 }
-                const updatedData = await Promise.all(processedData.map(async (item) => {
-                  const imageUrl = await fetchImageUrl(item.colorName);
-                  return { ...item, imageUrl };
-                }));
-                setPriceData(updatedData);
-                localStorage.setItem(cacheKey, encryptData(updatedData));
+                setPriceData(processedData);
+                localStorage.setItem(cacheKey, encryptData(processedData));
                 setIsLoading(false);
               },
               error: function(error) {
@@ -437,7 +305,7 @@ if (!window.compareQuoteApp) {
               vendorName: item['Vendor Name'] ? String(item['Vendor Name']) : 'Unknown',
               thickness: thickness,
               material: item['Material'] ? String(item['Material']) : 'Unknown',
-              installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
+              installedPricePerSqFt: costSqFt,
               availableSqFt: parseFloat(item['Total/SqFt']) || 0,
               imageUrl: imageComingSoon,
               popularity: Math.random(),
@@ -481,68 +349,12 @@ if (!window.compareQuoteApp) {
           fetchPriceList();
         }, [filters.vendor]);
 
-        const addToQuote = React.useCallback(function(item) {
-          if (quote.some(function(q) { return q.id === item.id; })) {
-            showToast(`${item.colorName} is already in cart`, true);
-            return;
-          }
-          const newQuote = [...quote, { ...item }];
-          setQuote(newQuote);
-          setExpandedCard(null);
-          setTempSqFt('');
-          localStorage.setItem('quote', encryptData(newQuote));
-          showToast(`${item.colorName} added to cart`);
-          handleTabChange('cart');
-        }, [quote]);
-
-        const removeFromQuote = React.useCallback(function(index) {
-          const newQuote = quote.filter(function(_, i) { return i !== index; });
-          setQuote(newQuote);
-          if (expandedCard === index) {
-            setExpandedCard(null);
-            setTempSqFt('');
-          }
-          localStorage.setItem('quote', encryptData(newQuote));
-          showToast('Item removed from cart');
-        }, [quote, expandedCard]);
-
-        const clearCart = React.useCallback(function() {
-          setQuote([]);
-          setExpandedCard(null);
-          setTempSqFt('');
-          localStorage.setItem('quote', encryptData([]));
-          showToast('Cart cleared');
-        }, []);
-
-        const updateTempSqFt = React.useCallback(function(value) {
-          setTempSqFt(value);
-        }, []);
-
-        const clearSqFt = React.useCallback(function(index) {
-          const newQuote = [...quote];
-          newQuote[index].sqFt = '';
-          setQuote(newQuote);
-          localStorage.setItem('quote', encryptData(newQuote));
-          showToast('Square footage cleared');
-        }, [quote]);
-
-        const toggleCard = React.useCallback(function(index) {
-          if (expandedCard === index) {
-            setExpandedCard(null);
-            setTempSqFt('');
-          } else {
-            setExpandedCard(index);
-            setTempSqFt('');
-          }
-        }, [expandedCard]);
-
         function clearSearchAndFilters() {
           setSearchQuery('');
-          setFilters({ 
-            vendor: 'All Vendors', 
-            material: 'All Materials', 
-            color: 'All Colors', 
-            thickness: 'All Thicknesses' 
+          setFilters({
+            vendor: 'All Vendors',
+            material: 'All Materials',
+            thickness: 'All Thicknesses'
           });
           setSearchResults([]);
           setSuggestions([]);
@@ -551,93 +363,6 @@ if (!window.compareQuoteApp) {
         function handleSuggestionClick(suggestion) {
           setSearchQuery(suggestion);
           setSuggestions([]);
-        }
-
-        function validateForm(name, email) {
-          const errors = { name: '', email: '' };
-          if (!name || !name.trim()) errors.name = 'Name is required';
-          if (!email) {
-            errors.email = 'Email is required';
-          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            errors.email = 'Invalid email format';
-          }
-          setFormErrors(errors);
-          return !errors.name && !errors.email;
-        }
-
-        async function handleQuoteSubmit(e) {
-          e.preventDefault();
-          setIsLoading(true);
-          const name = sanitizeInput(e.target.name.value);
-          const email = sanitizeInput(e.target.email.value);
-          const phone = sanitizeInput(e.target.phone.value);
-          const notes = sanitizeInput(e.target.notes.value);
-
-          if (!validateForm(name, email)) {
-            setIsLoading(false);
-            showToast('Please fix form errors', true);
-            return;
-          }
-
-          if (quote.length === 0) {
-            setIsLoading(false);
-            showToast('Please add items to your cart', true);
-            return;
-          }
-
-          const quoteDetails = quote.map(function(item) {
-            return {
-              colorName: item.colorName,
-              material: item.material,
-              vendor: item.vendorName,
-              thickness: item.thickness,
-              sqFt: item.sqFt || 'Not specified',
-              cost: item.sqFt && typeof item.installedPricePerSqFt === 'number' ? (item.sqFt * getWasteFactor(item.sqFt) * item.installedPricePerSqFt).toFixed(2) : 'N/A'
-            };
-          });
-
-          const formData = new FormData();
-          formData.append('name', name);
-          formData.append('email', email);
-          formData.append('phone', phone || 'Not provided');
-          formData.append('notes', notes || 'No additional notes');
-          formData.append('quote_details', quoteDetails.map(function(item) {
-            return `Color: ${item.colorName}, Material: ${item.material}, Vendor: ${item.vendor}, Thickness: ${item.thickness}, Sq Ft: ${item.sqFt}, Cost: $${item.cost}`;
-          }).join('\n'));
-          formData.append('region', regionName);
-          formData.append('zip_code', zipCode);
-
-          try {
-            const response = await fetch('https://usebasin.com/f/0e1679dd8d79', {
-              method: 'POST',
-              body: formData,
-              headers: { 'Accept': 'application/json' }
-            });
-            if (response.status !== 200 && response.status !== 202) {
-              throw new Error(`Submission failed: ${response.status}`);
-            }
-            showToast('Quote submitted successfully');
-            e.target.reset();
-            setQuote([]);
-            localStorage.setItem('quote', encryptData([]));
-            setCurrentTab('search');
-            setFormErrors({ name: '', email: '' });
-          } catch (err) {
-            console.error('Quote submission error:', err);
-            showToast('Failed to submit quote. Check spam folder or try again.', true);
-          } finally {
-            setIsLoading(false);
-          }
-        }
-
-        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
-
-        function handleTabChange(tab) {
-          setIsTabLoading(true);
-          setTimeout(function() {
-            setCurrentTab(tab);
-            setIsTabLoading(false);
-          }, 300);
         }
 
         const vendors = React.useMemo(function() {
@@ -651,72 +376,139 @@ if (!window.compareQuoteApp) {
             .map(function(item) { return item.material; }))].sort();
         }, [priceData, filters.vendor]);
 
-        const availableColors = React.useMemo(function() {
-          if (!filters.vendor || !filters.material || filters.vendor === 'All Vendors' || filters.material === 'All Materials') return ['All Colors', ...new Set(priceData.map(function(item) { return item.colorName; }))].sort();
-          return ['All Colors', ...new Set(priceData
-            .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material; })
-            .map(function(item) { return item.colorName; }))].sort();
-        }, [priceData, filters.vendor, filters.material]);
-
         const availableThicknesses = React.useMemo(function() {
-          if (!filters.vendor || !filters.material || !filters.color || filters.vendor === 'All Vendors' || filters.material === 'All Materials' || filters.color === 'All Colors') {
+          if (!filters.vendor || !filters.material || filters.vendor === 'All Vendors' || filters.material === 'All Materials') {
             return ['All Thicknesses', ...new Set(priceData.map(function(item) { return item.thickness; }))].sort();
           }
           return ['All Thicknesses', ...new Set(priceData
-            .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material && item.colorName === filters.color; })
+            .filter(function(item) { return item.vendorName === filters.vendor && item.material === filters.material; })
             .map(function(item) { return item.thickness; }))].sort();
-        }, [priceData, filters.vendor, filters.material, filters.color]);
+        }, [priceData, filters.vendor, filters.material]);
 
         const filteredResults = React.useMemo(function() {
-          console.log('Computing filteredResults', { searchQuery, searchResultsLength: searchResults.length, filters });
           let results = searchQuery ? searchResults || [] : priceData || [];
-          return results.filter(function(item) {
-            const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
-            const matchesMaterial = filters.material === 'All Materials' || item.material === filters.material;
-            const matchesColor = filters.color === 'All Colors' || item.colorName === filters.color;
-            const matchesThickness = filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
-            return matchesVendor && matchesMaterial && matchesColor && matchesThickness;
-          });
-        }, [searchQuery, searchResults, filters, priceData]);
+          return results
+            .filter(function(item) {
+              const matchesVendor = filters.vendor === 'All Vendors' || item.vendorName === filters.vendor;
+              const matchesMaterial = filters.material === 'All Materials' || item.material === filters.material;
+              const matchesThickness = filters.thickness === 'All Thicknesses' || item.thickness === filters.thickness;
+              return matchesVendor && matchesMaterial && matchesThickness;
+            })
+            .map(item => ({
+              ...item,
+              slabsNeeded: totalSqFt ? calculateSlabsNeeded(parseFloat(totalSqFt)) : 0,
+              costPerSqFt: calculateCostPerSqFt(item),
+              totalCost: totalSqFt ? (calculateCostPerSqFt(item) * parseFloat(totalSqFt) * getWasteFactor(parseFloat(totalSqFt))).toFixed(2) : 'N/A',
+              isRecommended: totalSqFt && budget ? (
+                parseFloat(totalSqFt) * calculateCostPerSqFt(item) * getWasteFactor(parseFloat(totalSqFt)) <= parseFloat(budget) &&
+                (parseFloat(totalSqFt) < 25 ? item.material.toLowerCase().includes('granite') || item.material.toLowerCase().includes('quartz') : true)
+              ) : false
+            }))
+            .sort((a, b) => {
+              if (a.isRecommended && !b.isRecommended) return -1;
+              if (!a.isRecommended && b.isRecommended) return 1;
+              return b.popularity - a.popularity;
+            });
+        }, [searchQuery, searchResults, filters, priceData, totalSqFt, budget]);
 
-        function scrollToTop() {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
 
-        return React.createElement('div', { className: 'app-container min-h-screen bg-gray-50 flex flex-col' },
-          React.createElement('div', { className: 'fixed top-0 left-0 right-0 bg-white shadow-md z-10 p-4 flex flex-col gap-2' },
-            React.createElement('header', { className: 'max-w-6xl mx-auto w-full flex flex-col items-center gap-2' },
-              React.createElement('div', { className: 'flex items-center justify-between w-full' },
-                React.createElement('div', { className: 'flex items-center gap-2' },
-                  React.createElement('img', {
-                    src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
-                    alt: 'Surprise Granite Logo',
-                    className: 'h-10'
-                  }),
-                  React.createElement('h1', { className: 'text-xl font-semibold text-gray-800' }, 'Surprise Granite Quote')
-                ),
-                React.createElement('button', {
-                  onClick: toggleTheme,
-                  className: 'p-2 rounded-full hover:bg-gray-200',
-                  'aria-label': 'Switch theme'
-                },
-                  (localStorage.getItem('theme') || 'light') === 'light' ?
-                    React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' })
-                    ) :
-                    React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
-                    )
-                )
+        return React.createElement('div', { className: 'min-h-screen bg-gray-50 flex flex-col' },
+          React.createElement('header', { className: 'fixed top-0 left-0 right-0 bg-white shadow-md z-10 p-4 flex flex-col gap-4' },
+            React.createElement('div', { className: 'max-w-6xl mx-auto w-full flex items-center justify-between' },
+              React.createElement('div', { className: 'flex items-center gap-2' },
+                React.createElement('img', {
+                  src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
+                  alt: 'Surprise Granite Logo',
+                  className: 'h-10'
+                }),
+                React.createElement('h1', { className: 'text-xl font-semibold text-gray-800' }, 'Quick Quote')
               ),
-              React.createElement('div', { className: 'w-full max-w-lg' },
-                React.createElement('div', { className: 'relative' },
+              React.createElement('button', {
+                onClick: toggleTheme,
+                className: 'px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200',
+                'aria-label': 'Switch theme'
+              },
+                (localStorage.getItem('theme') || 'light') === 'light' ?
+                  React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' })
+                  ) :
+                  React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
+                  )
+              )
+            ),
+            React.createElement('div', { className: 'max-w-6xl mx-auto w-full flex flex-col gap-4' },
+              React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-4 flex flex-wrap gap-4' },
+                React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Total Sq Ft'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: totalSqFt,
+                    onChange: function(e) { setTotalSqFt(e.target.value); },
+                    className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    min: '0',
+                    step: '0.01',
+                    placeholder: 'Enter sq ft',
+                    'aria-label': 'Total square footage'
+                  })
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Budget ($)')},
+                  React.createElement('input', {
+                    type: 'number',
+                    value: budget,
+                    onChange: function(e) { setBudget(e.target.value); },
+                    className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    min: '0',
+                    placeholder: 'Enter budget',
+                    'aria-label': 'Budget in dollars'
+                  })
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Vendor'),
+                  React.createElement('select', {
+                    value: filters.vendor,
+                    onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', thickness: 'All Thicknesses' }); },
+                    className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'aria-label': 'Filter by vendor'
+                  },
+                    vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
+                  )
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Material'),
+                  React.createElement('select', {
+                    value: filters.material,
+                    onChange: function(e) { setFilters({ ...filters, material: e.target.value, thickness: 'All Thicknesses' }); },
+                    className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'aria-label': 'Filter by material'
+                  },
+                    availableMaterials.map(function(material) { 
+                      return React.createElement('option', { key: material, value: material }, material);
+                    })
+                  )
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Thickness'),
+                  React.createElement('select', {
+                    value: filters.thickness,
+                    onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
+                    className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'aria-label': 'Filter by thickness'
+                  },
+                    availableThicknesses.map(function(thickness) { 
+                      return React.createElement('option', { key: thickness, value: thickness }, thickness);
+                    })
+                  )
+                ),
+                React.createElement('div', { className: 'relative flex-1 min-w-[200px]' },
                   React.createElement('input', {
                     type: 'search',
                     value: searchQuery,
                     onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
-                    placeholder: 'Search for colors, materials, vendors...',
-                    className: 'w-full p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    placeholder: 'Search by slab name, material, vendor...',
+                    className: 'w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
                     'aria-label': 'Search countertops'
                   }),
                   React.createElement('svg', {
@@ -729,24 +521,15 @@ if (!window.compareQuoteApp) {
                     strokeLinejoin: 'round',
                     strokeWidth: '2',
                     d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-                  }))
-                ),
-                searchQuery && React.createElement('button', {
-                  onClick: clearSearchAndFilters,
-                  className: 'absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-blue-600 hover:underline',
-                  'aria-label': 'Clear search and filters'
-                }, 'Clear'),
-                suggestions.length > 0 && React.createElement('div', { className: 'absolute top-12 left-0 right-0 bg-white shadow-md rounded-lg p-2 z-20 max-h-48 overflow-y-auto' },
-                  suggestions.map((suggestion, index) => 
-                    React.createElement('div', {
-                      key: index,
-                      className: 'p-2 hover:bg-gray-100 cursor-pointer text-sm',
-                      onClick: function() { handleSuggestionClick(suggestion); }
-                    }, suggestion)
-                  )
+                  })),
+                  searchQuery && React.createElement('button', {
+                    onClick: clearSearchAndFilters,
+                    className: 'absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-blue-600 hover:underline',
+                    'aria-label': 'Clear search and filters'
+                  }, 'Clear')
                 )
               ),
-              React.createElement('div', { className: 'flex items-center justify-center gap-2 w-full' },
+              React.createElement('div', { className: 'flex justify-between items-center' },
                 React.createElement('button', {
                   onClick: function() {
                     const newZip = prompt('Enter your ZIP code:', zipCode || '');
@@ -765,261 +548,62 @@ if (!window.compareQuoteApp) {
                       showToast('Invalid ZIP code', true);
                     }
                   },
-                  className: 'text-sm text-gray-600 hover:underline'
-                }, zipCode ? `Region: ${regionName}` : 'Set ZIP Code')
+                  className: 'text-sm text-gray-600 hover:underline',
+                  'aria-label': 'Set ZIP code'
+                }, zipCode ? `Region: ${regionName}` : 'Set ZIP Code'),
+                totalSqFt && filteredResults.length > 0 && React.createElement('p', { className: 'text-sm text-gray-600' }, `Found ${filteredResults.length} options`)
               )
             )
           ),
 
-          React.createElement('main', { className: 'flex-1 pt-32 pb-20 px-4 max-w-6xl mx-auto w-full' },
-            React.createElement('div', {
-              className: `transition-opacity duration-300 ${currentTab === 'search' ? 'opacity-100' : 'opacity-0 hidden'}`,
-              style: { opacity: isTabLoading ? 0.5 : 1 }
-            },
-              currentTab === 'search' && React.createElement('div', { className: 'flex flex-col gap-4' },
-                React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-4 flex flex-wrap gap-4 justify-center relative' },
-                  React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Vendor'),
-                    React.createElement('select', {
-                      value: filters.vendor,
-                      onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', color: 'All Colors', thickness: 'All Thicknesses' }); },
-                      className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      'aria-label': 'Filter by vendor'
-                    },
-                      vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Material'),
-                    React.createElement('select', {
-                      value: filters.material,
-                      onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: 'All Colors', thickness: 'All Thicknesses' }); },
-                      className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      'aria-label': 'Filter by material'
-                    },
-                      availableMaterials.map(function(material) { 
-                        return React.createElement('option', { key: material, value: material }, material);
-                      })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Color'),
-                    React.createElement('select', {
-                      value: filters.color,
-                      onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: 'All Thicknesses' }); },
-                      className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      'aria-label': 'Filter by color'
-                    },
-                      availableColors.map(function(color) { 
-                        return React.createElement('option', { key: color, value: color }, color);
-                      })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Thickness'),
-                    React.createElement('select', {
-                      value: filters.thickness,
-                      onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
-                      className: 'p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      'aria-label': 'Filter by thickness'
-                    },
-                      availableThicknesses.map(function(thickness) { 
-                        return React.createElement('option', { key: thickness, value: thickness }, thickness);
-                      })
-                    )
-                  ),
-                  activeFiltersCount > 0 && React.createElement('span', {
-                    className: 'absolute top-2 right-2 bg-blue-600 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full'
-                  }, activeFiltersCount)
-                ),
-
-                filteredResults.length > 0 && React.createElement('p', { className: 'text-sm text-gray-600 text-center' }, `Found ${filteredResults.length} result${filteredResults.length === 1 ? '' : 's'}`),
-
-                isLoading ? 
-                  React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading countertops...') :
-                  isSearchLoading ?
-                    React.createElement('p', { className: 'text-center text-gray-600' }, 'Searching...') :
-                  !filteredResults ?
-                    React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading results...') :
-                  filteredResults.length === 0 ?
-                    React.createElement('p', { className: 'text-center text-gray-600' }, searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or select a vendor') :
-                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' },
-                      filteredResults.map(function(item, index) {
-                        return React.createElement(CountertopCard, {
-                          key: item.id,
-                          item: item,
-                          isInCart: quote.some(function(q) { return q.id === item.id; }),
-                          addToQuote: addToQuote,
-                          removeFromQuote: removeFromQuote,
-                          updateTempSqFt: updateTempSqFt,
-                          tempSqFt: tempSqFt,
-                          setTempSqFt: setTempSqFt,
-                          toggleCard: toggleCard,
-                          isExpanded: expandedCard === index,
-                          index: index,
-                          totalCartCost: totalCartCost,
-                          highlightText: searchQuery
-                        });
-                      })
-                    )
-              )
-            ),
-
-            React.createElement('div', {
-              className: `transition-opacity duration-300 ${currentTab === 'cart' ? 'opacity-100' : 'opacity-0 hidden'}`,
-              style: { opacity: isTabLoading ? 0.5 : 1 }
-            },
-              currentTab === 'cart' && React.createElement('div', { className: 'flex flex-col gap-4' },
-                React.createElement('h2', { className: 'text-2xl font-semibold text-gray-800 text-center' }, 'Your Cart'),
-                quote.length === 0 ?
-                  React.createElement('p', { className: 'text-center text-gray-600' }, 'Your cart is empty') :
-                  React.createElement('div', { className: 'flex flex-col gap-4' },
-                    React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-4 flex justify-between items-center' },
-                      React.createElement('p', { className: 'text-lg font-semibold text-gray-800' }, `Items: ${quote.length} | Total: $${totalCartCost}`),
-                      React.createElement('button', {
-                        onClick: clearCart,
-                        className: 'px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors duration-200',
-                        'aria-label': 'Clear cart'
-                      }, 'Clear Cart')
+          React.createElement('main', { className: 'flex-1 pt-36 pb-8 px-4 max-w-6xl mx-auto w-full' },
+            isLoading ? 
+              React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading countertops...') :
+              isSearchLoading ?
+                React.createElement('p', { className: 'text-center text-gray-600' }, 'Searching...') :
+              !filteredResults ?
+                React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading results...') :
+              filteredResults.length === 0 ?
+                React.createElement('p', { className: 'text-center text-gray-600' }, searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or apply filters') :
+                React.createElement('div', { className: 'bg-white shadow-md rounded-lg overflow-x-auto' },
+                  React.createElement('table', { className: 'min-w-full divide-y divide-gray-200' },
+                    React.createElement('thead', { className: 'bg-gray-50' },
+                      React.createElement('tr', null,
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Color'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Material'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Vendor'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Thickness'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Slabs Needed'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Cost/Sq Ft'),
+                        React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Total Cost')
+                      )
                     ),
-                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' },
-                      quote.map(function(item, index) {
-                        return React.createElement(CountertopCard, {
-                          key: item.id,
-                          item: item,
-                          isInCart: true,
-                          removeFromQuote: removeFromQuote,
-                          updateTempSqFt: updateTempSqFt,
-                          tempSqFt: item.sqFt,
-                          setTempSqFt: setTempSqFt,
-                          clearSqFt: clearSqFt,
-                          index: index,
-                          totalCartCost: totalCartCost,
-                          highlightText: searchQuery
-                        });
+                    React.createElement('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                      filteredResults.map(function(item) {
+                        return React.createElement('tr', { key: item.id, className: item.isRecommended ? 'bg-blue-50' : '' },
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap flex items-center gap-2' },
+                            React.createElement('div', {
+                              className: 'w-6 h-6 rounded-full border border-gray-300',
+                              style: { backgroundColor: getColorSwatch(item.colorName) }
+                            }),
+                            React.createElement('span', { className: 'text-sm font-medium text-gray-900' }, item.colorName),
+                            item.isRecommended && React.createElement('span', { className: 'text-xs bg-blue-600 text-white px-2 py-1 rounded' }, 'Recommended')
+                          ),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, item.material),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, item.vendorName),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, item.thickness),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, item.slabsNeeded || 'N/A'),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, `$${item.costPerSqFt.toFixed(2)}`),
+                          React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, `$${item.totalCost}`)
+                        );
                       })
-                    ),
-                    React.createElement('button', {
-                      onClick: function() { handleTabChange('quote'); },
-                      className: 'mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium mx-auto block',
-                      'aria-label': 'Confirm quote'
-                    }, 'Confirm Quote')
+                    )
                   )
-              )
-            ),
-
-            React.createElement('div', {
-              className: `transition-opacity duration-300 ${currentTab === 'quote' ? 'opacity-100' : 'opacity-0 hidden'}`,
-              style: { opacity: isTabLoading ? 0.5 : 1 }
-            },
-              currentTab === 'quote' && React.createElement('div', { className: 'flex flex-col gap-4' },
-                React.createElement('h2', { className: 'text-2xl font-semibold text-gray-800 text-center' }, 'Get Your Quote (Total: $', totalCartCost, ')'),
-                React.createElement('form', { onSubmit: handleQuoteSubmit, className: 'flex flex-col gap-4 max-w-md mx-auto w-full bg-white shadow-md rounded-lg p-4' },
-                  React.createElement('div', { className: 'flex flex-col gap-2' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Name *'),
-                    React.createElement('input', {
-                      type: 'text',
-                      name: 'name',
-                      className: `p-3 border rounded-lg text-sm ${formErrors.name ? 'border-red-500' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500`,
-                      required: true,
-                      onChange: function(e) { setFormErrors({ ...formErrors, name: '' }); },
-                      'aria-label': 'Enter your name'
-                    }),
-                    formErrors.name && React.createElement('p', { className: 'text-red-500 text-xs' }, formErrors.name)
-                  ),
-                  React.createElement('div', { className: 'flex flex-col gap-2' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Email *'),
-                    React.createElement('input', {
-                      type: 'email',
-                      name: 'email',
-                      className: `p-3 border rounded-lg text-sm ${formErrors.email ? 'border-red-500' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500`,
-                      required: true,
-                      onChange: function(e) { setFormErrors({ ...formErrors, email: '' }); },
-                      'aria-label': 'Enter your email'
-                    }),
-                    formErrors.email && React.createElement('p', { className: 'text-red-500 text-xs' }, formErrors.email)
-                  ),
-                  React.createElement('div', { className: 'flex flex-col gap-2' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Phone (Optional)'),
-                    React.createElement('input', {
-                      type: 'tel',
-                      name: 'phone',
-                      className: 'p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      'aria-label': 'Enter your phone number'
-                    })
-                  ),
-                  React.createElement('div', { className: 'flex flex-col gap-2' },
-                    React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Notes'),
-                    React.createElement('textarea', {
-                      name: 'notes',
-                      className: 'p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      rows: '4',
-                      'aria-label': 'Enter additional notes'
-                    })
-                  ),
-                  React.createElement('button', {
-                    type: 'submit',
-                    disabled: isLoading,
-                    className: 'px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors duration-200',
-                    'aria-label': 'Submit quote'
-                  }, isLoading ? 'Submitting...' : 'Submit Quote')
                 )
-              )
-            )
-          ),
-
-          React.createElement('nav', { 
-            className: 'fixed bottom-0 left-0 right-0 bg-white shadow-t-lg z-10 p-4 flex justify-around'
-          },
-            React.createElement('button', {
-              onClick: function() { handleTabChange('search'); },
-              className: `flex flex-col items-center gap-1 ${currentTab === 'search' ? 'text-blue-600' : 'text-gray-600'}`,
-              'aria-label': 'Go to search tab'
-            },
-              React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
-              ),
-              React.createElement('span', { className: 'text-sm' }, 'Search')
-            ),
-            React.createElement('button', {
-              onClick: function() { handleTabChange('cart'); },
-              className: `relative flex flex-col items-center gap-1 ${currentTab === 'cart' ? 'text-blue-600' : 'text-gray-600'}`,
-              'aria-label': 'Go to cart tab'
-            },
-              React.createElement('span', { className: 'relative' },
-                React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-                  React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' })
-                ),
-                quote.length > 0 && React.createElement('span', { 
-                  className: 'absolute -top-1 -right-1 bg-blue-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full'
-                }, quote.length)
-              ),
-              React.createElement('span', { className: 'text-sm' }, 'Cart')
-            ),
-            React.createElement('button', {
-              onClick: function() { handleTabChange('quote'); },
-              className: `flex flex-col items-center gap-1 ${currentTab === 'quote' ? 'text-blue-600' : 'text-gray-600'}`,
-              'aria-label': 'Go to quote tab'
-            },
-              React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M3 3h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })
-              ),
-              React.createElement('span', { className: 'text-sm' }, 'Quote')
-            )
-          ),
-
-          React.createElement('button', {
-            onClick: scrollToTop,
-            className: `fixed bottom-16 right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-opacity duration-200 ${showBackToTop ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
-            'aria-label': 'Scroll to top'
-          },
-            React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
-              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M5 15l7-7 7 7' })
-            )
           ),
 
           React.createElement('div', {
-            className: `fixed bottom-16 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white text-sm ${toast.isError ? 'bg-red-500' : 'bg-green-500'} ${toast.show ? 'opacity-100' : 'opacity-0'} transition-opacity`,
+            className: `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white text-sm ${toast.isError ? 'bg-red-500' : 'bg-green-500'} ${toast.show ? 'opacity-100' : 'opacity-0'} transition-opacity`,
             style: { zIndex: 1000 }
           }, toast.message)
         );
