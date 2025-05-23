@@ -5,7 +5,7 @@ if (!window.compareQuoteApp) {
     console.error('Script error:', { message, source, lineno, colno, error: error ? error.stack : 'No error stack available' });
     const errorElement = document.getElementById('error');
     if (errorElement) {
-      errorElement.textContent = `Error loading app: ${message} at ${source}:${lineno}:${colno}. Please refresh.`;
+      errorElement.textContent = `Error loading app: ${message} at ${source}:${lineno}:${colno}. Please refresh or check the console for details.`;
       errorElement.classList.remove('hidden');
     }
     return true;
@@ -107,14 +107,15 @@ if (!window.compareQuoteApp) {
 
   function waitForReact(callback, retries = 50, interval = 1000) {
     console.log('waitForReact called, retries:', retries);
-    if (window.React && window.ReactDOM && window.Papa && window.Fuse) {
-      console.log('React, ReactDOM, PapaParse, and Fuse.js found, calling callback');
+    if (window.React && window.ReactDOM && window.Papa && window.Fuse && window.jspdf) {
+      console.log('React, ReactDOM, PapaParse, Fuse.js, and jsPDF found, calling callback');
       callback();
     } else {
       if (!window.React) console.log('React not found');
       if (!window.ReactDOM) console.log('ReactDOM not found');
       if (!window.Papa) console.log('PapaParse not found');
       if (!window.Fuse) console.log('Fuse.js not found');
+      if (!window.jspdf) console.log('jsPDF not found');
       if (retries > 0) {
         setTimeout(function() { waitForReact(callback, retries - 1, interval); }, interval);
       } else {
@@ -413,6 +414,50 @@ if (!window.compareQuoteApp) {
 
         const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
 
+        function exportToPDF() {
+          if (!totalSqFt || filteredResults.length === 0) {
+            showToast('Please enter square footage and ensure results are available.', true);
+            return;
+          }
+
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+
+          doc.setFontSize(16);
+          doc.text('Surprise Granite Countertop Quote', 20, 20);
+          doc.setFontSize(12);
+          doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
+          doc.text(`Total Square Footage: ${totalSqFt} sq ft`, 20, 40);
+          doc.text(`Budget: $${budget || 'Not specified'}`, 20, 50);
+          doc.text(`Region: ${regionName}`, 20, 60);
+
+          doc.setFontSize(14);
+          doc.text('Countertop Options:', 20, 80);
+
+          const tableData = filteredResults.map((item, index) => [
+            item.colorName,
+            item.material,
+            item.vendorName,
+            item.thickness,
+            item.slabsNeeded.toString(),
+            `$${item.costPerSqFt.toFixed(2)}`,
+            `$${item.totalCost}`
+          ]);
+
+          doc.autoTable({
+            startY: 90,
+            head: [['Color', 'Material', 'Vendor', 'Thickness', 'Slabs Needed', 'Cost/Sq Ft', 'Total Cost']],
+            body: tableData,
+            theme: 'grid',
+            styles: { fontSize: 10, cellPadding: 2 },
+            headStyles: { fillColor: [37, 99, 235] },
+            alternateRowStyles: { fillColor: [240, 240, 240] }
+          });
+
+          doc.save(`Surprise_Granite_Quote_${new Date().toISOString().split('T')[0]}.pdf`);
+          showToast('Quote exported as PDF.');
+        }
+
         return React.createElement('div', { className: 'min-h-screen bg-gray-50 flex flex-col' },
           React.createElement('header', { className: 'fixed top-0 left-0 right-0 bg-white shadow-md z-10 p-4 flex flex-col gap-4' },
             React.createElement('div', { className: 'max-w-6xl mx-auto w-full flex items-center justify-between' },
@@ -454,7 +499,7 @@ if (!window.compareQuoteApp) {
                   })
                 ),
                 React.createElement('div', { className: 'flex flex-col gap-2 w-full sm:w-40' },
-                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Budget ($)')},
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Budget ($)'),
                   React.createElement('input', {
                     type: 'number',
                     value: budget,
@@ -599,7 +644,12 @@ if (!window.compareQuoteApp) {
                       })
                     )
                   )
-                )
+                ),
+            filteredResults.length > 0 && React.createElement('button', {
+              onClick: exportToPDF,
+              className: 'mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors duration-200 mx-auto block',
+              'aria-label': 'Export quote to PDF'
+            }, 'Export to PDF')
           ),
 
           React.createElement('div', {
@@ -615,7 +665,7 @@ if (!window.compareQuoteApp) {
       console.error('App error:', err);
       const errorElement = document.getElementById('error');
       if (errorElement) {
-        errorElement.textContent = `App error: ${err.message}. Please refresh.`;
+        errorElement.textContent = `App error: ${err.message}. Please refresh or check the console for details.`;
         errorElement.classList.remove('hidden');
       }
     }
