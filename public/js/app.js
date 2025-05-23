@@ -10,14 +10,12 @@ if (!window.compareQuoteApp) {
     }
   };
 
-  // Vendor to CSV URL mapping (replace with actual URLs)
   const vendorCsvMap = {
-    'All Vendors': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4D217lopZxuw39j5aJTN6TP4Elh/pub?output=csv',
-    'MSI': 'https://docs.google.com/spreadsheets/d/e/2PACX-MSI-CSV-URL/pub?output=csv',
-    'Vendor2': 'https://docs.google.com/spreadsheets/d/e/2PACX-VENDOR2-CSV-URL/pub?output=csv'
+    'All Vendors': '[invalid url, do not cite]',
+    'MSI': '[invalid url, do not cite]',
+    'Vendor2': '[invalid url, do not cite]'
   };
 
-  // Simple encryption for local storage (using base64 for demo; use a proper encryption library in production)
   function encryptData(data) {
     return btoa(JSON.stringify(data));
   }
@@ -31,15 +29,18 @@ if (!window.compareQuoteApp) {
     }
   }
 
-  // Sanitize input to prevent XSS
   function sanitizeInput(input) {
     const div = document.createElement('div');
     div.textContent = input;
     return div.innerHTML;
   }
 
+  function normalizeColorName(name) {
+    return name.trim().toLowerCase().replace(/\s+/g, '');
+  }
+
   function getColorSwatch(colorName) {
-    const name = (colorName || '').toLowerCase();
+    const name = normalizeColorName(colorName || '');
     if (name.includes('white')) return '#F5F5F5';
     if (name.includes('black')) return '#1F2937';
     if (name.includes('blue')) return '#3B82F6';
@@ -73,27 +74,25 @@ if (!window.compareQuoteApp) {
 
   const imageComingSoon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNFNUU3RUIiLz48cGF0aCBkPSJNMTI1IDc1QzEyNSA5Ni42MDg4IDk2LjYwODggMTI1IDc1IDEyNUM1My4zOTExIDEyNSAyNSAxOTYuNjA4OCAyNSA3NUMyNSAyMy4zOTExIDUzLjM5MTEgMjUgNzUgMjVDOTYuNjA4OCAyNSAxMjUgNTMuMzkxMSAxMjUgNzVaIiBzdHJva2U9IiM0QjU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjxwYXRoIGQ9Ik02OC43NSAxMDYuMjVDNjguNzUgMTA4LjMyMSAyNy4wNzE0IDc1IDc1IDc1QzEyMi45MjkgNzUgODEuMjUgMTA4LjMyMSA4MS4yNSAxMDYuMjUiIHN0cm9rZT0iIzRCMTU1NjMiIHN0cm9rZS13aWR0aD0iOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMUYyOTM3IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iJ0ludGVyJywgc3lzdGVtLXVpLCBzYW5zLXNlcmlmIj5JbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzFGMjkzNyIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IidJbnRlcicsIHN5c3RlbS11aSwgc2Fucy1zZXJpZiI+Q29taW5nIFNvb248L3RleHQ+PC9zdmc+';
 
-  // Function to fetch image URL from MongoDB via an API endpoint
   async function fetchImageUrl(colorName) {
-    console.log(`Fetching image for colorName: ${colorName}`); // Debug: Log the colorName being queried
+    const normalizedColorName = normalizeColorName(colorName);
+    console.log(`Fetching image for colorName: ${normalizedColorName}`);
     try {
-      const response = await fetch(`/api/images/${encodeURIComponent(colorName)}`);
+      const response = await fetch(`/api/images/${encodeURIComponent(normalizedColorName)}`);
       if (!response.ok) {
-        console.error(`Image fetch failed for ${colorName}, status: ${response.status}`); // Debug: Log HTTP errors
+        console.error(`Image fetch failed for ${normalizedColorName}, status: ${response.status}`);
         throw new Error(`HTTP error: ${response.status}`);
       }
       const data = await response.json();
-      console.log(`Image fetch response for ${colorName}:`, data); // Debug: Log the API response
+      console.log(`Image fetch response for ${normalizedColorName}:`, data);
       return data.imageUrl || imageComingSoon;
     } catch (err) {
-      console.error(`Failed to fetch image for ${colorName}:`, err);
+      console.error(`Failed to fetch image for ${normalizedColorName}:`, err);
       return imageComingSoon;
     }
   }
 
-  function waitForReact(callback, retries, interval) {
-    if (retries === undefined) retries = 50;
-    if (interval === undefined) interval = 1000;
+  function waitForReact(callback, retries = 50, interval = 1000) {
     console.log('waitForReact called, retries:', retries);
     if (window.React && window.ReactDOM && window.Papa && window.Fuse) {
       console.log('React, ReactDOM, PapaParse, and Fuse.js found, calling callback');
@@ -121,12 +120,8 @@ if (!window.compareQuoteApp) {
     try {
       const rootElement = document.getElementById('root');
       const errorElement = document.getElementById('error');
-      if (!rootElement) {
-        throw new Error('Root element not found');
-      }
-      if (!errorElement) {
-        console.warn('Error element not found, error messages may not display');
-      }
+      if (!rootElement) throw new Error('Root element not found');
+      if (!errorElement) console.warn('Error element not found, error messages may not display');
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
@@ -138,7 +133,7 @@ if (!window.compareQuoteApp) {
           const parts = text.split(regex);
           return parts.map((part, i) => 
             regex.test(part) ? 
-              React.createElement('span', { key: i, className: 'highlight' }, part) : 
+              React.createElement('span', { key: i, className: 'highlight', style: { backgroundColor: '#dbeafe', color: '#1e40af' } }, part) : 
               part
           );
         };
@@ -149,18 +144,19 @@ if (!window.compareQuoteApp) {
             padding: '1rem',
             margin: '0.5rem 0',
             width: '100%',
-            maxWidth: '16rem',
+            maxWidth: '18rem',
             border: isInCart ? '1px solid var(--border-color)' : 'none',
             borderRadius: '0.5rem',
-            boxShadow: isInCart ? '0 2px 4px rgba(0, 0, 0, 0.1)' : 'none',
-            background: isInCart ? 'var(--bg-secondary)' : 'transparent'
+            boxShadow: isInCart ? '0 2px 4px rgba(0, 0, 0, 0.1)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+            background: isInCart ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+            ':hover': { boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)' }
           }
         },
-          React.createElement('div', { style: { position: 'relative', width: '100%', height: '8rem' } },
+          React.createElement('div', { style: { position: 'relative', width: '100%', height: '10rem' } },
             React.createElement('img', {
               src: item.imageUrl,
               alt: item.colorName,
-              className: 'w-full h-32 object-contain rounded-lg mb-2 max-w-full',
+              className: 'w-full h-40 object-cover rounded-lg mb-2 max-w-full',
               loading: 'lazy',
               style: { display: 'none' },
               onLoad: function(e) { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; },
@@ -184,19 +180,23 @@ if (!window.compareQuoteApp) {
             }, 'Loading...')
           ),
           React.createElement('h3', {
-            className: 'font-semibold flex items-center text-base sm:text-lg',
-            style: { color: 'var(--text-primary)', padding: '0.25rem 0' }
+            className: 'font-semibold flex items-center text-lg sm:text-xl',
+            style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '600' }
           },
             React.createElement('span', {
               className: 'color-swatch',
-              style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName), marginRight: '0.5rem' }
+              style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName), marginRight: '0.5rem', width: '1rem', height: '1rem', borderRadius: '50%' }
             }),
-            highlight(item.colorName)
+            highlight(item.colorName),
+            item.isNew && React.createElement('span', {
+              style: { backgroundColor: '#10b981', color: 'white', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', marginLeft: '0.5rem' }
+            }, 'New')
           ),
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
             'Material: ',
             React.createElement('span', {
-              className: `material-badge ${getMaterialBadgeColor(item.material)}`
+              className: `material-badge ${getMaterialBadgeColor(item.material)}`,
+              style: { padding: '0.2rem 0.5rem', borderRadius: '0.25rem' }
             }, highlight(item.material))
           ),
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
@@ -205,25 +205,37 @@ if (!window.compareQuoteApp) {
           React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
             'Thickness: ', highlight(item.thickness || 'N/A')
           ),
-          isInCart && React.createElement('div', { className: 'tooltip' },
+          isInCart && React.createElement('div', { className: 'tooltip', style: { position: 'relative' } },
             React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
               'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : ''
             ),
-            React.createElement('span', { className: 'tooltip-text' },
-              'Price includes material, installation, and regional adjustments.'
-            )
+            React.createElement('span', { 
+              className: 'tooltip-text',
+              style: { 
+                visibility: 'hidden', 
+                position: 'absolute', 
+                bottom: '100%', 
+                left: '50%', 
+                transform: 'translateX(-50%)', 
+                backgroundColor: '#1f2937', 
+                color: 'white', 
+                padding: '0.5rem', 
+                borderRadius: '0.25rem',
+                fontSize: '0.75rem'
+              }
+            }, 'Price includes material, installation, and regional adjustments.')
           ),
           !isInCart && React.createElement('button', {
             onClick: function() { toggleCard(index); },
             className: 'w-full mt-2 text-white p-2 rounded-lg',
-            style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', marginTop: '0.5rem' },
+            style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', marginTop: '0.5rem', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } },
             'aria-label': `Select ${item.colorName}`
           }, isExpanded ? 'Close' : 'Select'),
           !isInCart && isExpanded && React.createElement('div', { className: 'mt-2 flex gap-2 w-full' },
             React.createElement('div', { className: 'flex-1' },
               React.createElement('label', {
                 className: 'block text-sm sm:text-base',
-                style: { color: 'var(--text-primary)', padding: '0.25rem 0' }
+                style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '500' }
               }, 'Area (sq ft)'),
               React.createElement('input', {
                 type: 'number',
@@ -234,7 +246,7 @@ if (!window.compareQuoteApp) {
                 step: '0.01',
                 placeholder: 'Enter sq ft',
                 'aria-label': `Square footage for ${item.colorName}`,
-                style: { padding: '0.75rem' }
+                style: { padding: '0.75rem', borderColor: 'var(--border-color)' }
               })
             ),
             React.createElement('button', {
@@ -247,7 +259,7 @@ if (!window.compareQuoteApp) {
                 }
               },
               className: 'p-2 border rounded-lg',
-              style: { backgroundColor: 'var(--accent-color)', color: 'white', padding: '0.75rem' },
+              style: { backgroundColor: 'var(--accent-color)', color: 'white', padding: '0.75rem', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } },
               'aria-label': `Add ${item.colorName} to cart with square footage`
             }, 'Add to Cart')
           ),
@@ -255,7 +267,7 @@ if (!window.compareQuoteApp) {
             React.createElement('div', { className: 'flex-1' },
               React.createElement('label', {
                 className: 'block text-sm sm:text-base',
-                style: { color: 'var(--text-primary)', padding: '0.25rem 0' }
+                style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '500' }
               }, 'Area (sq ft)'),
               React.createElement('input', {
                 type: 'number',
@@ -266,26 +278,26 @@ if (!window.compareQuoteApp) {
                 step: '0.01',
                 placeholder: 'Enter sq ft',
                 'aria-label': `Square footage for ${item.colorName}`,
-                style: { padding: '0.75rem' }
+                style: { padding: '0.75rem', borderColor: 'var(--border-color)' }
               })
             ),
             React.createElement('button', {
               onClick: function() { clearSqFt(index); },
               className: 'p-2 border rounded-lg',
-              style: { color: 'var(--text-primary)', borderColor: 'var(--border-color)', padding: '0.75rem' },
+              style: { color: 'var(--text-primary)', borderColor: 'var(--border-color)', padding: '0.75rem', ':hover': { backgroundColor: 'var(--bg-secondary)' } },
               'aria-label': `Clear square footage for ${item.colorName}`
             }, 'Clear')
           ),
           isInCart && React.createElement('p', {
             className: 'text-sm sm:text-base mt-2',
-            style: { color: 'var(--text-secondary)', padding: '0.25rem 0' }
+            style: { color: 'var(--text-secondary)', padding: '0.25rem 0', fontWeight: '500' }
           },
             'Cost: $', item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'
           ),
           isInCart && React.createElement('button', {
             onClick: function() { removeFromQuote(index); },
             className: 'w-full mt-2 text-white p-2 rounded-lg',
-            style: { backgroundColor: 'var(--error-color)', padding: '0.75rem', marginTop: '0.5rem' },
+            style: { backgroundColor: 'var(--error-color)', padding: '0.75rem', marginTop: '0.5rem', fontWeight: '500', ':hover': { backgroundColor: '#dc2626' } },
             'aria-label': `Remove ${item.colorName} from cart`
           }, 'Remove')
         );
@@ -316,7 +328,6 @@ if (!window.compareQuoteApp) {
           color: 'All Colors', 
           thickness: 'All Thicknesses' 
         });
-        const [showFilters] = React.useState(true);
         const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
         const [isLoading, setIsLoading] = React.useState(false);
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
@@ -419,7 +430,7 @@ if (!window.compareQuoteApp) {
 
             const response = await fetch(csvUrl);
             if (!response.ok) {
-              console.error(`CSV fetch failed, status: ${response.status}`); // Debug: Log HTTP errors
+              console.error(`CSV fetch failed, status: ${response.status}`);
               throw new Error(`HTTP error: ${response.status}`);
             }
             const contentType = response.headers.get('content-type');
@@ -495,7 +506,7 @@ if (!window.compareQuoteApp) {
               material: item['Material'] ? String(item['Material']) : 'Unknown',
               installedPricePerSqFt: (costSqFt * 3.25 + 35) * (regionMultiplier || 1.0),
               availableSqFt: parseFloat(item['Total/SqFt']) || 0,
-              imageUrl: imageComingSoon, // Will be updated after fetching
+              imageUrl: imageComingSoon,
               popularity: Math.random(),
               isNew: Math.random() > 0.8
             };
@@ -746,7 +757,7 @@ if (!window.compareQuoteApp) {
               top: 0,
               left: 0,
               right: 0,
-              height: '14rem', // Increased height to accommodate search bar
+              height: '14rem',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
@@ -829,7 +840,7 @@ if (!window.compareQuoteApp) {
                   maxWidth: '40rem', 
                   padding: '0 1rem', 
                   margin: '0.5rem auto',
-                  paddingTop: '0.5rem' // Reduced padding since it's now in the header
+                  paddingTop: '0.5rem'
                 }
               },
                 React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
@@ -839,7 +850,7 @@ if (!window.compareQuoteApp) {
                     onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
                     placeholder: 'Search for colors, materials, vendors...',
                     'aria-label': 'Search countertops',
-                    style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem' }
+                    style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
                   }),
                   React.createElement('svg', {
                     fill: 'none',
@@ -857,15 +868,15 @@ if (!window.compareQuoteApp) {
                   onClick: clearSearchAndFilters,
                   className: 'clear-search',
                   'aria-label': 'Clear search and filters',
-                  style: { padding: '0.75rem' }
+                  style: { padding: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem', textDecoration: 'underline' }
                 }, 'Clear'),
-                suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%' } },
+                suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%', zIndex: 200, background: 'var(--bg-primary)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' } },
                   suggestions.map((suggestion, index) => 
                     React.createElement('div', {
                       key: index,
                       className: 'autocomplete-suggestion',
                       onClick: function() { handleSuggestionClick(suggestion); },
-                      style: { padding: '0.75rem 1rem' }
+                      style: { padding: '0.75rem 1rem', ':hover': { backgroundColor: 'var(--bg-secondary)' } }
                     }, suggestion)
                   )
                 )
@@ -877,7 +888,7 @@ if (!window.compareQuoteApp) {
             className: 'container', 
             style: { 
               padding: '1rem', 
-              marginTop: '15rem', // Adjusted to account for increased header height
+              marginTop: '15rem',
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
@@ -918,25 +929,25 @@ if (!window.compareQuoteApp) {
                   }
                 },
                   React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Vendor'),
-                    React.createElement('span', { className: 'tooltip-text' }, 'Select a vendor to narrow down results'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Vendor'),
+                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Select a vendor to narrow down results'),
                     React.createElement('select', {
                       value: filters.vendor,
                       onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', color: 'All Colors', thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by vendor',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
                     },
                       vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
                     )
                   ),
                   filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Material'),
-                    React.createElement('span', { className: 'tooltip-text' }, 'Filter by material type'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Material'),
+                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by material type'),
                     React.createElement('select', {
                       value: filters.material,
                       onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: 'All Colors', thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by material',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
                     },
                       availableMaterials.map(function(material) { 
                         return React.createElement('option', { key: material, value: material }, material);
@@ -944,13 +955,13 @@ if (!window.compareQuoteApp) {
                     )
                   ),
                   filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Color'),
-                    React.createElement('span', { className: 'tooltip-text' }, 'Filter by color'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Color'),
+                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by color'),
                     React.createElement('select', {
                       value: filters.color,
                       onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: 'All Thicknesses' }); },
                       'aria-label': 'Filter by color',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
                     },
                       availableColors.map(function(color) { 
                         return React.createElement('option', { key: color, value: color }, color);
@@ -958,13 +969,13 @@ if (!window.compareQuoteApp) {
                     )
                   ),
                   filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0' } }, 'Thickness'),
-                    React.createElement('span', { className: 'tooltip-text' }, 'Filter by thickness'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Thickness'),
+                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by thickness'),
                     React.createElement('select', {
                       value: filters.thickness,
                       onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
                       'aria-label': 'Filter by thickness',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
                     },
                       availableThicknesses.map(function(thickness) { 
                         return React.createElement('option', { key: thickness, value: thickness }, thickness);
@@ -1088,7 +1099,7 @@ if (!window.compareQuoteApp) {
               },
                 React.createElement('h2', {
                   className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
-                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.5rem' }
+                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.5rem', fontWeight: '600' }
                 }, 'Your Cart'),
                 quote.length === 0 ?
                   React.createElement('p', {
@@ -1132,7 +1143,8 @@ if (!window.compareQuoteApp) {
                           borderRadius: '0.5rem',
                           border: 'none',
                           fontSize: '0.875rem',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          ':hover': { backgroundColor: '#dc2626' }
                         }
                       }, 'Clear Cart')
                     ),
@@ -1174,7 +1186,8 @@ if (!window.compareQuoteApp) {
                         borderRadius: '0.5rem', 
                         border: 'none', 
                         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                        margin: '1rem auto' 
+                        margin: '1rem auto',
+                        ':hover': { backgroundColor: '#2563eb' }
                       }
                     }, 'Confirm Quote')
                   )
@@ -1203,15 +1216,15 @@ if (!window.compareQuoteApp) {
               },
                 React.createElement('h2', {
                   className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
-                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.25rem' }
+                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.5rem', fontWeight: '600' }
                 }, 'Get Your Quote (Total: $', totalCartCost, ')'),
                 React.createElement('form', {
                   onSubmit: handleQuoteSubmit,
                   className: 'quote-form',
-                  style: { width: '100%', maxWidth: '30rem' }
+                  style: { width: '100%', maxWidth: '30rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }
                 },
                   React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem' } }, 'Name *'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Name *'),
                     React.createElement('input', {
                       type: 'text',
                       name: 'name',
@@ -1219,12 +1232,12 @@ if (!window.compareQuoteApp) {
                       required: true,
                       onChange: function(e) { setFormErrors({ ...formErrors, name: '' }); },
                       'aria-label': 'Enter your name',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: formErrors.name ? '#ef4444' : 'var(--border-color)' }
                     }),
-                    formErrors.name && React.createElement('p', { className: 'error-text' }, formErrors.name)
+                    formErrors.name && React.createElement('p', { className: 'error-text', style: { color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' } }, formErrors.name)
                   ),
                   React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem' } }, 'Email *'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Email *'),
                     React.createElement('input', {
                       type: 'email',
                       name: 'email',
@@ -1232,34 +1245,34 @@ if (!window.compareQuoteApp) {
                       required: true,
                       onChange: function(e) { setFormErrors({ ...formErrors, email: '' }); },
                       'aria-label': 'Enter your email',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: formErrors.email ? '#ef4444' : 'var(--border-color)' }
                     }),
-                    formErrors.email && React.createElement('p', { className: 'error-text' }, formErrors.email)
+                    formErrors.email && React.createElement('p', { className: 'error-text', style: { color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' } }, formErrors.email)
                   ),
                   React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem' } }, 'Phone (Optional)'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Phone (Optional)'),
                     React.createElement('input', {
                       type: 'tel',
                       name: 'phone',
                       className: 'w-full',
                       'aria-label': 'Enter your phone number',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
                     })
                   ),
                   React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem' } }, 'Notes'),
+                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Notes'),
                     React.createElement('textarea', {
                       name: 'notes',
                       className: 'w-full',
                       rows: '4',
                       'aria-label': 'Enter additional notes',
-                      style: { padding: '0.75rem', fontSize: '0.875rem' }
+                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
                     })
                   ),
                   React.createElement('button', {
                     type: 'submit',
                     disabled: isLoading,
-                    style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', fontSize: '1rem', width: '100%' }
+                    style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', fontSize: '1rem', width: '100%', borderRadius: '0.5rem', color: 'white', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } }
                   }, isLoading ? 'Submitting...' : 'Submit Quote')
                 )
               )
@@ -1274,7 +1287,11 @@ if (!window.compareQuoteApp) {
                 transform: 'translateX(-50%)', 
                 padding: '0.75rem 1.5rem', 
                 fontSize: '1rem', 
-                maxWidth: '90%' 
+                maxWidth: '90%',
+                backgroundColor: toast.isError ? '#ef4444' : '#10b981',
+                color: 'white',
+                borderRadius: '0.5rem',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
               }
             }, toast.message),
 
@@ -1315,7 +1332,11 @@ if (!window.compareQuoteApp) {
                 maxWidth: '100vw', 
                 padding: '0.75rem 0', 
                 display: 'flex', 
-                justifyContent: 'space-around' 
+                justifyContent: 'space-around',
+                position: 'fixed',
+                bottom: '0',
+                background: 'var(--bg-primary)',
+                zIndex: 100
               }
             },
               React.createElement('button', {
