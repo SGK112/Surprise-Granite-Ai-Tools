@@ -45,17 +45,14 @@ if (!window.compareQuoteApp) {
     if (name.includes('black')) return '#1F2937';
     if (name.includes('blue')) return '#3B82F6';
     if (name.includes('gray')) return '#6B7280';
+    if (name.includes('brown')) return '#8B4513';
+    if (name.includes('green')) return '#10B981';
+    if (name.includes('gold')) return '#DAA520';
+    if (name.includes('pearl')) return '#E6E0FA';
+    if (name.includes('montreal')) return '#D3D3D3';
+    if (name.includes('fantasy')) return '#A0522D';
+    if (name.includes('calacatta')) return '#F0F0F0';
     return '#D1D5DB';
-  }
-
-  function getMaterialBadgeColor(material) {
-    const m = (material || '').toLowerCase();
-    if (m.includes('granite')) return 'bg-green-600';
-    if (m.includes('quartz')) return 'bg-blue-600';
-    if (m.includes('quartzite')) return 'bg-purple-600';
-    if (m.includes('dekton')) return 'bg-gray-600';
-    if (m.includes('porcelain')) return 'bg-red-600';
-    return 'bg-gray-500';
   }
 
   function getWasteFactor(sqFt) {
@@ -125,8 +122,10 @@ if (!window.compareQuoteApp) {
       console.log('Root element found:', rootElement);
       console.log('Attempting ReactDOM.render');
 
-      const CountertopCard = React.memo(function({ item, isInCart, addToQuote, removeFromQuote, updateTempSqFt, tempSqFt, setTempSqFt, toggleCard, isExpanded, index, totalCartCost, highlightText }) {
+      const CountertopCard = React.memo(function({ item, addToQuote, quote, updateTempSqFt, tempSqFtInputs, setTempSqFtInputs, index, highlightText }) {
         const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
+        const isInQuote = quote.some(q => q.id === item.id);
+        const tempSqFt = tempSqFtInputs[index] || '';
         const highlight = (text) => {
           if (!highlightText || !text) return text;
           const regex = new RegExp(`(${highlightText})`, 'gi');
@@ -138,168 +137,54 @@ if (!window.compareQuoteApp) {
           );
         };
         return React.createElement('div', { 
-          className: 'card',
-          style: { 
-            transition: 'all 0.3s ease',
-            padding: '1rem',
-            margin: '0.5rem 0',
-            width: '100%',
-            maxWidth: '18rem',
-            border: isInCart ? '1px solid var(--border-color)' : 'none',
-            borderRadius: '0.5rem',
-            boxShadow: isInCart ? '0 2px 4px rgba(0, 0, 0, 0.1)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
-            background: isInCart ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-            ':hover': { boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)' }
-          }
+          className: 'card bg-white shadow-md rounded-lg p-4 flex flex-col gap-2 max-w-sm w-full',
+          style: { border: isInQuote ? '2px solid #3b82f6' : 'none' }
         },
-          React.createElement('div', { style: { position: 'relative', width: '100%', height: '10rem' } },
-            React.createElement('img', {
-              src: item.imageUrl,
-              alt: item.colorName,
-              className: 'w-full h-40 object-cover rounded-lg mb-2 max-w-full',
-              loading: 'lazy',
-              style: { display: 'none' },
-              onLoad: function(e) { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; },
-              onError: function(e) { 
-                console.error(`Failed to load image for ${item.colorName}: ${item.imageUrl}`);
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'block';
-                e.target.src = imageComingSoon; 
-              }
-            }),
+          React.createElement('div', { className: 'flex items-center gap-2' },
             React.createElement('div', {
-              style: {
-                display: 'block',
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                color: 'var(--text-secondary)',
-                fontSize: '0.875rem'
-              }
-            }, 'Loading...')
-          ),
-          React.createElement('h3', {
-            className: 'font-semibold flex items-center text-lg sm:text-xl',
-            style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '600' }
-          },
-            React.createElement('span', {
-              className: 'color-swatch',
-              style: { borderColor: 'var(--border-color)', backgroundColor: getColorSwatch(item.colorName), marginRight: '0.5rem', width: '1rem', height: '1rem', borderRadius: '50%' }
+              className: 'w-8 h-8 rounded-full border border-gray-300',
+              style: { backgroundColor: getColorSwatch(item.colorName) }
             }),
-            highlight(item.colorName),
-            item.isNew && React.createElement('span', {
-              style: { backgroundColor: '#10b981', color: 'white', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', marginLeft: '0.5rem' }
-            }, 'New')
+            React.createElement('h3', { className: 'text-lg font-semibold text-gray-800' }, highlight(item.colorName)),
+            item.isNew && React.createElement('span', { className: 'bg-green-500 text-white text-xs px-2 py-1 rounded' }, 'New')
           ),
-          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
+          React.createElement('p', { className: 'text-sm text-gray-600' },
             'Material: ',
-            React.createElement('span', {
-              className: `material-badge ${getMaterialBadgeColor(item.material)}`,
-              style: { padding: '0.2rem 0.5rem', borderRadius: '0.25rem' }
-            }, highlight(item.material))
+            React.createElement('span', { className: `px-2 py-1 rounded text-white ${getMaterialBadgeColor(item.material)}` }, highlight(item.material))
           ),
-          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
-            'Vendor: ', highlight(item.vendorName)
-          ),
-          React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
-            'Thickness: ', highlight(item.thickness || 'N/A')
-          ),
-          isInCart && React.createElement('div', { className: 'tooltip', style: { position: 'relative' } },
-            React.createElement('p', { className: 'text-sm sm:text-base', style: { color: 'var(--text-secondary)', padding: '0.25rem 0' } },
-              'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : ''
-            ),
-            React.createElement('span', { 
-              className: 'tooltip-text',
-              style: { 
-                visibility: 'hidden', 
-                position: 'absolute', 
-                bottom: '100%', 
-                left: '50%', 
-                transform: 'translateX(-50%)', 
-                backgroundColor: '#1f2937', 
-                color: 'white', 
-                padding: '0.5rem', 
-                borderRadius: '0.25rem',
-                fontSize: '0.75rem'
-              }
-            }, 'Price includes material, installation, and regional adjustments.')
-          ),
-          !isInCart && React.createElement('button', {
-            onClick: function() { toggleCard(index); },
-            className: 'w-full mt-2 text-white p-2 rounded-lg',
-            style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', marginTop: '0.5rem', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } },
-            'aria-label': `Select ${item.colorName}`
-          }, isExpanded ? 'Close' : 'Select'),
-          !isInCart && isExpanded && React.createElement('div', { className: 'mt-2 flex gap-2 w-full' },
-            React.createElement('div', { className: 'flex-1' },
-              React.createElement('label', {
-                className: 'block text-sm sm:text-base',
-                style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '500' }
-              }, 'Area (sq ft)'),
-              React.createElement('input', {
-                type: 'number',
-                value: tempSqFt,
-                onChange: function(e) { updateTempSqFt(e.target.value); },
-                className: 'w-full p-2 border rounded-lg',
-                min: '0',
-                step: '0.01',
-                placeholder: 'Enter sq ft',
-                'aria-label': `Square footage for ${item.colorName}`,
-                style: { padding: '0.75rem', borderColor: 'var(--border-color)' }
-              })
-            ),
-            React.createElement('button', {
-              onClick: function() { 
-                if (tempSqFt && parseFloat(tempSqFt) > 0) {
-                  addToQuote({ ...item, sqFt: tempSqFt });
-                  setTempSqFt('');
-                } else {
-                  showToast('Please enter a valid square footage', true);
-                }
+          React.createElement('p', { className: 'text-sm text-gray-600' }, 'Vendor: ', highlight(item.vendorName)),
+          React.createElement('p', { className: 'text-sm text-gray-600' }, 'Thickness: ', highlight(item.thickness || 'N/A')),
+          React.createElement('p', { className: 'text-sm text-gray-600' }, 'Price: $', price.toFixed(2), '/sq ft', price === 0 ? ' (Estimated)' : ''),
+          React.createElement('div', { className: 'flex flex-col gap-2 mt-2' },
+            React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Area (sq ft)'),
+            React.createElement('input', {
+              type: 'number',
+              value: tempSqFt,
+              onChange: function(e) { 
+                const newInputs = [...tempSqFtInputs];
+                newInputs[index] = e.target.value;
+                setTempSqFtInputs(newInputs);
               },
-              className: 'p-2 border rounded-lg',
-              style: { backgroundColor: 'var(--accent-color)', color: 'white', padding: '0.75rem', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } },
-              'aria-label': `Add ${item.colorName} to cart with square footage`
-            }, 'Add to Cart')
+              className: 'p-2 border rounded-lg w-full',
+              min: '0',
+              step: '0.01',
+              placeholder: 'Enter sq ft',
+              'aria-label': `Square footage for ${item.colorName}`,
+              style: { borderColor: '#d1d5db' }
+            })
           ),
-          isInCart && React.createElement('div', { className: 'mt-2 flex gap-2 w-full' },
-            React.createElement('div', { className: 'flex-1' },
-              React.createElement('label', {
-                className: 'block text-sm sm:text-base',
-                style: { color: 'var(--text-primary)', padding: '0.25rem 0', fontWeight: '500' }
-              }, 'Area (sq ft)'),
-              React.createElement('input', {
-                type: 'number',
-                value: item.sqFt,
-                onChange: function(e) { updateTempSqFt(e.target.value); },
-                className: 'w-full p-2 border rounded-lg',
-                min: '0',
-                step: '0.01',
-                placeholder: 'Enter sq ft',
-                'aria-label': `Square footage for ${item.colorName}`,
-                style: { padding: '0.75rem', borderColor: 'var(--border-color)' }
-              })
-            ),
-            React.createElement('button', {
-              onClick: function() { clearSqFt(index); },
-              className: 'p-2 border rounded-lg',
-              style: { color: 'var(--text-primary)', borderColor: 'var(--border-color)', padding: '0.75rem', ':hover': { backgroundColor: 'var(--bg-secondary)' } },
-              'aria-label': `Clear square footage for ${item.colorName}`
-            }, 'Clear')
-          ),
-          isInCart && React.createElement('p', {
-            className: 'text-sm sm:text-base mt-2',
-            style: { color: 'var(--text-secondary)', padding: '0.25rem 0', fontWeight: '500' }
-          },
-            'Cost: $', item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'
-          ),
-          isInCart && React.createElement('button', {
-            onClick: function() { removeFromQuote(index); },
-            className: 'w-full mt-2 text-white p-2 rounded-lg',
-            style: { backgroundColor: 'var(--error-color)', padding: '0.75rem', marginTop: '0.5rem', fontWeight: '500', ':hover': { backgroundColor: '#dc2626' } },
-            'aria-label': `Remove ${item.colorName} from cart`
-          }, 'Remove')
+          React.createElement('button', {
+            onClick: function() { 
+              if (tempSqFt && parseFloat(tempSqFt) > 0) {
+                addToQuote({ ...item, sqFt: tempSqFt });
+              } else {
+                showToast('Please enter a valid square footage', true);
+              }
+            },
+            className: `w-full py-2 rounded-lg text-white font-medium ${isInQuote ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`,
+            disabled: isInQuote,
+            'aria-label': `Add ${item.colorName} to quote`
+          }, isInQuote ? 'Added' : 'Add to Quote')
         );
       });
 
@@ -316,8 +201,8 @@ if (!window.compareQuoteApp) {
         });
         const [searchQuery, setSearchQuery] = React.useState('');
         const [searchResults, setSearchResults] = React.useState([]);
-        const [currentTab, setCurrentTab] = React.useState('search');
-        const [isTabLoading, setIsTabLoading] = React.useState(false);
+        const [currentStep, setCurrentStep] = React.useState(1);
+        const [isLoading, setIsLoading] = React.useState(false);
         const [isSearchLoading, setIsSearchLoading] = React.useState(false);
         const [zipCode, setZipCode] = React.useState('');
         const [regionMultiplier, setRegionMultiplier] = React.useState(1.0);
@@ -329,11 +214,9 @@ if (!window.compareQuoteApp) {
           thickness: 'All Thicknesses' 
         });
         const [toast, setToast] = React.useState({ message: '', show: false, isError: false });
-        const [isLoading, setIsLoading] = React.useState(false);
         const [formErrors, setFormErrors] = React.useState({ name: '', email: '' });
-        const [showBackToTop, setShowBackToTop] = React.useState(false);
-        const [expandedCard, setExpandedCard] = React.useState(null);
-        const [tempSqFt, setTempSqFt] = React.useState('');
+        const [showFilters, setShowFilters] = React.useState(false);
+        const [tempSqFtInputs, setTempSqFtInputs] = React.useState([]);
         const [suggestions, setSuggestions] = React.useState([]);
 
         const totalCartCost = React.useMemo(() => {
@@ -354,16 +237,7 @@ if (!window.compareQuoteApp) {
         }, [filters]);
 
         React.useEffect(function() {
-          console.log('useEffect: Setting theme');
           document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
-
-          function handleScroll() {
-            const viewportHeight = window.innerHeight;
-            setShowBackToTop(window.scrollY > viewportHeight);
-          }
-
-          window.addEventListener('scroll', handleScroll);
-          return function() { window.removeEventListener('scroll', handleScroll); };
         }, []);
 
         React.useEffect(() => {
@@ -419,11 +293,7 @@ if (!window.compareQuoteApp) {
             if (cachedData) {
               console.log('Using cached price data');
               const data = decryptData(cachedData);
-              const updatedData = await Promise.all(data.map(async (item) => {
-                const imageUrl = await fetchImageUrl(item.colorName);
-                return { ...item, imageUrl };
-              }));
-              setPriceData(updatedData);
+              setPriceData(data);
               setIsLoading(false);
               return;
             }
@@ -454,12 +324,8 @@ if (!window.compareQuoteApp) {
                   setIsLoading(false);
                   return;
                 }
-                const updatedData = await Promise.all(processedData.map(async (item) => {
-                  const imageUrl = await fetchImageUrl(item.colorName);
-                  return { ...item, imageUrl };
-                }));
-                setPriceData(updatedData);
-                localStorage.setItem(cacheKey, encryptData(updatedData));
+                setPriceData(processedData);
+                localStorage.setItem(cacheKey, encryptData(processedData));
                 setIsLoading(false);
               },
               error: function(error) {
@@ -549,59 +415,28 @@ if (!window.compareQuoteApp) {
         }, [filters.vendor]);
 
         const addToQuote = React.useCallback(function(item) {
-          if (quote.some(function(q) { return q.id === item.id; })) {
-            showToast(`${item.colorName} is already in cart`, true);
+          if (quote.some(q => q.id === item.id)) {
+            showToast(`${item.colorName} is already in your quote`, true);
             return;
           }
           const newQuote = [...quote, { ...item }];
           setQuote(newQuote);
-          setExpandedCard(null);
-          setTempSqFt('');
           localStorage.setItem('quote', encryptData(newQuote));
-          showToast(`${item.colorName} added to cart`);
-          handleTabChange('cart');
+          showToast(`${item.colorName} added to quote`);
         }, [quote]);
 
-        const removeFromQuote = React.useCallback(function(index) {
-          const newQuote = quote.filter(function(_, i) { return i !== index; });
-          setQuote(newQuote);
-          if (expandedCard === index) {
-            setExpandedCard(null);
-            setTempSqFt('');
-          }
-          localStorage.setItem('quote', encryptData(newQuote));
-          showToast('Item removed from cart');
-        }, [quote, expandedCard]);
-
-        const clearCart = React.useCallback(function() {
-          setQuote([]);
-          setExpandedCard(null);
-          setTempSqFt('');
-          localStorage.setItem('quote', encryptData([]));
-          showToast('Cart cleared');
-        }, []);
-
-        const updateTempSqFt = React.useCallback(function(value) {
-          setTempSqFt(value);
-        }, []);
-
-        const clearSqFt = React.useCallback(function(index) {
-          const newQuote = [...quote];
-          newQuote[index].sqFt = '';
+        const removeFromQuote = React.useCallback(function(id) {
+          const newQuote = quote.filter(item => item.id !== id);
           setQuote(newQuote);
           localStorage.setItem('quote', encryptData(newQuote));
-          showToast('Square footage cleared');
+          showToast('Item removed from quote');
         }, [quote]);
 
-        const toggleCard = React.useCallback(function(index) {
-          if (expandedCard === index) {
-            setExpandedCard(null);
-            setTempSqFt('');
-          } else {
-            setExpandedCard(index);
-            setTempSqFt('');
-          }
-        }, [expandedCard]);
+        const updateTempSqFt = React.useCallback(function(index, value) {
+          const newInputs = [...tempSqFtInputs];
+          newInputs[index] = value;
+          setTempSqFtInputs(newInputs);
+        }, [tempSqFtInputs]);
 
         function clearSearchAndFilters() {
           setSearchQuery('');
@@ -613,6 +448,7 @@ if (!window.compareQuoteApp) {
           });
           setSearchResults([]);
           setSuggestions([]);
+          setShowFilters(false);
         }
 
         function handleSuggestionClick(suggestion) {
@@ -648,7 +484,7 @@ if (!window.compareQuoteApp) {
 
           if (quote.length === 0) {
             setIsLoading(false);
-            showToast('Please add items to your cart', true);
+            showToast('Please add items to your quote', true);
             return;
           }
 
@@ -687,7 +523,7 @@ if (!window.compareQuoteApp) {
             e.target.reset();
             setQuote([]);
             localStorage.setItem('quote', encryptData([]));
-            setCurrentTab('search');
+            setCurrentStep(1);
             setFormErrors({ name: '', email: '' });
           } catch (err) {
             console.error('Quote submission error:', err);
@@ -698,14 +534,6 @@ if (!window.compareQuoteApp) {
         }
 
         const debouncedSetSearchQuery = React.useCallback(debounce(setSearchQuery, 500), []);
-
-        function handleTabChange(tab) {
-          setIsTabLoading(true);
-          setTimeout(function() {
-            setCurrentTab(tab);
-            setIsTabLoading(false);
-          }, 300);
-        }
 
         const vendors = React.useMemo(function() {
           return ['All Vendors', ...new Set(priceData.map(function(item) { return item.vendorName; }))].sort();
@@ -746,117 +574,91 @@ if (!window.compareQuoteApp) {
           });
         }, [searchQuery, searchResults, filters, priceData]);
 
-        function scrollToTop() {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        return React.createElement('div', { className: 'app-container', style: { paddingBottom: '5rem', paddingTop: '0' } },
-          React.createElement('div', {
-            style: {
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '14rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              background: 'var(--bg-primary)',
-              zIndex: 100,
-              padding: '0.5rem 0'
-            }
-          },
-            React.createElement('header', { style: { width: '100%', maxWidth: '90rem', textAlign: 'center' } },
-              React.createElement('img', {
-                src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
-                alt: 'Surprise Granite Logo',
-                style: { height: '3rem', margin: '0 auto' }
-              }),
-              React.createElement('h1', { style: { fontSize: '1.5rem', color: 'var(--accent-color)', margin: '0.5rem 0' } }, 'Surprise Granite Quote'),
-              React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' } },
-                React.createElement('button', {
-                  onClick: toggleTheme,
-                  className: 'theme-toggle',
-                  'aria-label': 'Switch theme',
-                  style: { padding: '0.5rem', width: '2rem', height: '2rem' }
-                },
-                  (localStorage.getItem('theme') || 'light') === 'light' ?
-                    React.createElement('svg', {
-                      fill: 'none',
-                      viewBox: '0 0 24 24',
-                      stroke: 'currentColor',
-                      style: { width: '1.25rem', height: '1.25rem' }
-                    }, React.createElement('path', {
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                      strokeWidth: '2',
-                      d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'
-                    })) :
-                    React.createElement('svg', {
-                      fill: 'none',
-                      viewBox: '0 0 24 24',
-                      stroke: 'currentColor',
-                      style: { width: '1.25rem', height: '1.25rem' }
-                    }, React.createElement('path', {
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                      strokeWidth: '2',
-                      d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'
-                    }))
-                ),
-                React.createElement('button', {
-                  onClick: function() {
-                    const newZip = prompt('Enter your ZIP code:', zipCode || '');
-                    if (newZip && /^\d{5}$/.test(newZip)) {
-                      setZipCode(newZip);
-                      const region = newZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
-                                     newZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
-                                     newZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
-                                     newZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
-                                     { name: 'Southeast', multiplier: 1.05 };
-                      setRegionName(region.name);
-                      setRegionMultiplier(region.multiplier);
-                      fetchPriceList();
-                      showToast(`Region set to ${region.name}`);
-                    } else if (newZip) {
-                      showToast('Invalid ZIP code', true);
-                    }
-                  },
-                  style: { 
-                    padding: '0.5rem', 
-                    fontSize: '0.875rem', 
-                    color: 'var(--text-secondary)', 
-                    background: 'transparent', 
-                    border: 'none',
-                    textDecoration: 'underline'
-                  }
-                }, zipCode ? `Region: ${regionName}` : 'Set ZIP Code')
+        return React.createElement('div', { className: 'app-container min-h-screen bg-gray-100 flex flex-col' },
+          React.createElement('header', { className: 'fixed top-0 left-0 right-0 bg-white shadow-md z-10 p-4 flex flex-col gap-2' },
+            React.createElement('div', { className: 'flex items-center justify-between max-w-6xl mx-auto w-full' },
+              React.createElement('div', { className: 'flex items-center gap-2' },
+                React.createElement('img', {
+                  src: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
+                  alt: 'Surprise Granite Logo',
+                  className: 'h-10'
+                }),
+                React.createElement('h1', { className: 'text-xl font-semibold text-gray-800' }, 'Granite Quote Wizard')
               ),
-              React.createElement('div', { 
-                className: 'search-container', 
-                style: { 
-                  width: '100%', 
-                  maxWidth: '40rem', 
-                  padding: '0 1rem', 
-                  margin: '0.5rem auto',
-                  paddingTop: '0.5rem'
-                }
+              React.createElement('button', {
+                onClick: toggleTheme,
+                className: 'p-2 rounded-full hover:bg-gray-200',
+                'aria-label': 'Switch theme'
               },
-                React.createElement('div', { className: 'search-bar', style: { position: 'relative', width: '100%' } },
+                (localStorage.getItem('theme') || 'light') === 'light' ?
+                  React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' })
+                  ) :
+                  React.createElement('svg', { className: 'w-6 h-6', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
+                  )
+              )
+            ),
+            React.createElement('div', { className: 'flex items-center justify-between max-w-6xl mx-auto w-full' },
+              React.createElement('div', { className: 'flex items-center gap-2' },
+                React.createElement('button', {
+                  onClick: function() { setCurrentStep(1); },
+                  className: `text-sm font-medium ${currentStep === 1 ? 'text-blue-600' : 'text-gray-500'}`,
+                  disabled: currentStep === 1
+                }, '1. Search'),
+                React.createElement('span', { className: 'text-gray-400' }, '→'),
+                React.createElement('button', {
+                  onClick: function() { setCurrentStep(2); },
+                  className: `text-sm font-medium ${currentStep === 2 ? 'text-blue-600' : 'text-gray-500'}`,
+                  disabled: currentStep === 2 || priceData.length === 0
+                }, '2. Select'),
+                React.createElement('span', { className: 'text-gray-400' }, '→'),
+                React.createElement('button', {
+                  onClick: function() { setCurrentStep(3); },
+                  className: `text-sm font-medium ${currentStep === 3 ? 'text-blue-600' : 'text-gray-500'}`,
+                  disabled: currentStep === 3 || quote.length === 0
+                }, '3. Review')
+              ),
+              React.createElement('button', {
+                onClick: function() {
+                  const newZip = prompt('Enter your ZIP code:', zipCode || '');
+                  if (newZip && /^\d{5}$/.test(newZip)) {
+                    setZipCode(newZip);
+                    const region = newZip.startsWith('85') ? { name: 'Southwest', multiplier: 1.0 } :
+                                   newZip.startsWith('1') ? { name: 'Northeast', multiplier: 1.25 } :
+                                   newZip.startsWith('9') ? { name: 'West Coast', multiplier: 1.2 } :
+                                   newZip.startsWith('6') ? { name: 'Midwest', multiplier: 1.1 } :
+                                   { name: 'Southeast', multiplier: 1.05 };
+                    setRegionName(region.name);
+                    setRegionMultiplier(region.multiplier);
+                    fetchPriceList();
+                    showToast(`Region set to ${region.name}`);
+                  } else if (newZip) {
+                    showToast('Invalid ZIP code', true);
+                  }
+                },
+                className: 'text-sm text-gray-600 hover:underline'
+              }, zipCode ? `Region: ${regionName}` : 'Set ZIP Code')
+            )
+          ),
+
+          React.createElement('main', { className: 'flex-1 pt-32 pb-8 px-4 max-w-6xl mx-auto w-full' },
+            currentStep === 1 && React.createElement('div', { className: 'flex flex-col gap-4' },
+              React.createElement('div', { className: 'flex items-center gap-2' },
+                React.createElement('div', { className: 'relative flex-1' },
                   React.createElement('input', {
                     type: 'search',
                     value: searchQuery,
                     onChange: function(e) { debouncedSetSearchQuery(e.target.value); },
                     placeholder: 'Search for colors, materials, vendors...',
-                    'aria-label': 'Search countertops',
-                    style: { padding: '0.75rem 2.5rem 0.75rem 3rem', fontSize: '1rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
+                    className: 'w-full p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'aria-label': 'Search countertops'
                   }),
                   React.createElement('svg', {
+                    className: 'absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500',
                     fill: 'none',
                     viewBox: '0 0 24 24',
-                    stroke: 'currentColor',
-                    style: { position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '1.5rem', height: '1.5rem' }
+                    stroke: 'currentColor'
                   }, React.createElement('path', {
                     strokeLinecap: 'round',
                     strokeLinejoin: 'round',
@@ -864,577 +666,240 @@ if (!window.compareQuoteApp) {
                     d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
                   }))
                 ),
-                searchQuery && React.createElement('button', {
-                  onClick: clearSearchAndFilters,
-                  className: 'clear-search',
-                  'aria-label': 'Clear search and filters',
-                  style: { padding: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem', textDecoration: 'underline' }
-                }, 'Clear'),
-                suggestions.length > 0 && React.createElement('div', { className: 'autocomplete-suggestions', style: { width: '100%', zIndex: 200, background: 'var(--bg-primary)', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' } },
-                  suggestions.map((suggestion, index) => 
-                    React.createElement('div', {
-                      key: index,
-                      className: 'autocomplete-suggestion',
-                      onClick: function() { handleSuggestionClick(suggestion); },
-                      style: { padding: '0.75rem 1rem', ':hover': { backgroundColor: 'var(--bg-secondary)' } }
-                    }, suggestion)
+                React.createElement('button', {
+                  onClick: function() { setShowFilters(!showFilters); },
+                  className: 'p-3 bg-gray-200 rounded-lg hover:bg-gray-300 relative',
+                  'aria-label': 'Toggle filters'
+                },
+                  React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707v3.586a1 1 0 01-.293.707l-2 2A1 1 0 0111 21v-5.586a1 1 0 00-.293-.707L4.293 8.293A1 1 0 014 7.586V4z' })
+                  ),
+                  activeFiltersCount > 0 && React.createElement('span', { className: 'absolute top-1 right-1 bg-blue-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full' }, activeFiltersCount)
+                )
+              ),
+              showFilters && React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-4 flex flex-col gap-4 md:absolute md:top-20 md:left-4 md:w-64' },
+                React.createElement('div', { className: 'flex justify-between items-center' },
+                  React.createElement('h3', { className: 'text-lg font-semibold text-gray-800' }, 'Filters'),
+                  React.createElement('button', {
+                    onClick: clearSearchAndFilters,
+                    className: 'text-sm text-blue-600 hover:underline',
+                    'aria-label': 'Clear filters'
+                  }, 'Clear All')
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Vendor'),
+                  React.createElement('select', {
+                    value: filters.vendor,
+                    onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', color: 'All Colors', thickness: 'All Thicknesses' }); },
+                    className: 'p-2 border rounded-lg text-sm',
+                    'aria-label': 'Filter by vendor'
+                  },
+                    vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
                   )
+                ),
+                filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Material'),
+                  React.createElement('select', {
+                    value: filters.material,
+                    onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: 'All Colors', thickness: 'All Thicknesses' }); },
+                    className: 'p-2 border rounded-lg text-sm',
+                    'aria-label': 'Filter by material'
+                  },
+                    availableMaterials.map(function(material) { 
+                      return React.createElement('option', { key: material, value: material }, material);
+                    })
+                  )
+                ),
+                filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Color'),
+                  React.createElement('select', {
+                    value: filters.color,
+                    onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: 'All Thicknesses' }); },
+                    className: 'p-2 border rounded-lg text-sm',
+                    'aria-label': 'Filter by color'
+                  },
+                    availableColors.map(function(color) { 
+                      return React.createElement('option', { key: color, value: color }, color);
+                    })
+                  )
+                ),
+                filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Thickness'),
+                  React.createElement('select', {
+                    value: filters.thickness,
+                    onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
+                    className: 'p-2 border rounded-lg text-sm',
+                    'aria-label': 'Filter by thickness'
+                  },
+                    availableThicknesses.map(function(thickness) { 
+                      return React.createElement('option', { key: thickness, value: thickness }, thickness);
+                    })
+                  )
+                )
+              ),
+              suggestions.length > 0 && React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-2 absolute top-20 left-4 right-4 z-20' },
+                suggestions.map((suggestion, index) => 
+                  React.createElement('div', {
+                    key: index,
+                    className: 'p-2 hover:bg-gray-100 cursor-pointer text-sm',
+                    onClick: function() { handleSuggestionClick(suggestion); }
+                  }, suggestion)
+                )
+              ),
+              filteredResults.length > 0 && React.createElement('p', { className: 'text-sm text-gray-600 text-center' }, `Found ${filteredResults.length} result${filteredResults.length === 1 ? '' : 's'}`),
+              isLoading ? 
+                React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading countertops...') :
+                isSearchLoading ?
+                  React.createElement('p', { className: 'text-center text-gray-600' }, 'Searching...') :
+                !filteredResults ?
+                  React.createElement('p', { className: 'text-center text-gray-600' }, 'Loading results...') :
+                filteredResults.length === 0 ?
+                  React.createElement('p', { className: 'text-center text-gray-600' }, searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or apply filters') :
+                  React.createElement('div', { className: 'flex flex-col gap-4 items-center' },
+                    filteredResults.map(function(item, index) {
+                      return React.createElement(CountertopCard, {
+                        key: item.id,
+                        item: item,
+                        addToQuote: addToQuote,
+                        quote: quote,
+                        updateTempSqFt: updateTempSqFt,
+                        tempSqFtInputs: tempSqFtInputs,
+                        setTempSqFtInputs: setTempSqFtInputs,
+                        index: index,
+                        highlightText: searchQuery
+                      });
+                    })
+                  ),
+              filteredResults.length > 0 && React.createElement('button', {
+                onClick: function() { setCurrentStep(2); },
+                className: 'mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium',
+                disabled: quote.length === 0,
+                'aria-label': 'Proceed to selection'
+              }, 'Next: Select Countertops')
+            ),
+
+            currentStep === 2 && React.createElement('div', { className: 'flex flex-col gap-4' },
+              React.createElement('h2', { className: 'text-2xl font-semibold text-gray-800 text-center' }, 'Select Your Countertops'),
+              quote.length === 0 ?
+                React.createElement('p', { className: 'text-center text-gray-600' }, 'No countertops selected. Go back to search.') :
+                React.createElement('div', { className: 'flex flex-col gap-4 items-center' },
+                  quote.map(function(item) {
+                    const price = typeof item.installedPricePerSqFt === 'number' && !isNaN(item.installedPricePerSqFt) ? item.installedPricePerSqFt : 0;
+                    return React.createElement('div', { 
+                      key: item.id,
+                      className: 'bg-white shadow-md rounded-lg p-4 flex items-center justify-between max-w-sm w-full'
+                    },
+                      React.createElement('div', { className: 'flex items-center gap-2' },
+                        React.createElement('div', {
+                          className: 'w-8 h-8 rounded-full border border-gray-300',
+                          style: { backgroundColor: getColorSwatch(item.colorName) }
+                        }),
+                        React.createElement('div', { className: 'flex flex-col' },
+                          React.createElement('h3', { className: 'text-lg font-semibold text-gray-800' }, item.colorName),
+                          React.createElement('p', { className: 'text-sm text-gray-600' }, `Area: ${item.sqFt} sq ft`),
+                          React.createElement('p', { className: 'text-sm text-gray-600' }, `Cost: $${item.sqFt && price ? (item.sqFt * getWasteFactor(item.sqFt) * price).toFixed(2) : 'N/A'}`)
+                        )
+                      ),
+                      React.createElement('button', {
+                        onClick: function() { removeFromQuote(item.id); },
+                        className: 'p-2 bg-red-500 text-white rounded-lg hover:bg-red-600',
+                        'aria-label': `Remove ${item.colorName} from quote`
+                      },
+                        React.createElement('svg', { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M6 18L18 6M6 6l12 12' })
+                        )
+                      )
+                    );
+                  })
+                ),
+              React.createElement('div', { className: 'flex gap-4 mt-4' },
+                React.createElement('button', {
+                  onClick: function() { setCurrentStep(1); },
+                  className: 'px-6 py-3 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-medium',
+                  'aria-label': 'Go back to search'
+                }, 'Back'),
+                React.createElement('button', {
+                  onClick: function() { setCurrentStep(3); },
+                  className: 'px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium',
+                  disabled: quote.length === 0,
+                  'aria-label': 'Proceed to review'
+                }, 'Next: Review & Submit')
+              )
+            ),
+
+            currentStep === 3 && React.createElement('div', { className: 'flex flex-col gap-4' },
+              React.createElement('h2', { className: 'text-2xl font-semibold text-gray-800 text-center' }, 'Review & Submit Your Quote'),
+              React.createElement('div', { className: 'bg-white shadow-md rounded-lg p-4 max-w-sm w-full' },
+                React.createElement('h3', { className: 'text-lg font-semibold text-gray-800 mb-2' }, 'Quote Summary'),
+                React.createElement('p', { className: 'text-sm text-gray-600' }, `Total Items: ${quote.length}`),
+                React.createElement('p', { className: 'text-sm text-gray-600' }, `Total Cost: $${totalCartCost}`),
+                React.createElement('p', { className: 'text-sm text-gray-600' }, `Region: ${regionName}`)
+              ),
+              React.createElement('form', { onSubmit: handleQuoteSubmit, className: 'flex flex-col gap-4 max-w-sm w-full' },
+                React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Name *'),
+                  React.createElement('input', {
+                    type: 'text',
+                    name: 'name',
+                    className: `p-3 border rounded-lg text-sm ${formErrors.name ? 'border-red-500' : ''}`,
+                    required: true,
+                    onChange: function(e) { setFormErrors({ ...formErrors, name: '' }); },
+                    'aria-label': 'Enter your name'
+                  }),
+                  formErrors.name && React.createElement('p', { className: 'text-red-500 text-xs' }, formErrors.name)
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Email *'),
+                  React.createElement('input', {
+                    type: 'email',
+                    name: 'email',
+                    className: `p-3 border rounded-lg text-sm ${formErrors.email ? 'border-red-500' : ''}`,
+                    required: true,
+                    onChange: function(e) { setFormErrors({ ...formErrors, email: '' }); },
+                    'aria-label': 'Enter your email'
+                  }),
+                  formErrors.email && React.createElement('p', { className: 'text-red-500 text-xs' }, formErrors.email)
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Phone (Optional)'),
+                  React.createElement('input', {
+                    type: 'tel',
+                    name: 'phone',
+                    className: 'p-3 border rounded-lg text-sm',
+                    'aria-label': 'Enter your phone number'
+                  })
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2' },
+                  React.createElement('label', { className: 'text-sm font-medium text-gray-700' }, 'Notes'),
+                  React.createElement('textarea', {
+                    name: 'notes',
+                    className: 'p-3 border rounded-lg text-sm',
+                    rows: '4',
+                    'aria-label': 'Enter additional notes'
+                  })
+                ),
+                React.createElement('div', { className: 'flex gap-4' },
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: function() { setCurrentStep(2); },
+                    className: 'flex-1 px-6 py-3 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-medium',
+                    'aria-label': 'Go back to selection'
+                  }, 'Back'),
+                  React.createElement('button', {
+                    type: 'submit',
+                    disabled: isLoading,
+                    className: 'flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium',
+                    'aria-label': 'Submit quote'
+                  }, isLoading ? 'Submitting...' : 'Submit Quote')
                 )
               )
             )
           ),
 
-          React.createElement('div', { 
-            className: 'container', 
-            style: { 
-              padding: '1rem', 
-              marginTop: '15rem',
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              width: '100%' 
-            } 
-          },
-            React.createElement('div', {
-              className: `fade-transition ${currentTab === 'search' ? '' : 'hidden'}`,
-              style: { 
-                opacity: isTabLoading ? 0.5 : 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                width: '100%' 
-              }
-            },
-              currentTab === 'search' && React.createElement('div', { 
-                className: 'animate-slide-up', 
-                style: { 
-                  width: '100%', 
-                  maxWidth: '90rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center' 
-                } 
-              },
-                React.createElement('div', { 
-                  className: 'filter-panel', 
-                  style: { 
-                    width: '100%', 
-                    maxWidth: '60rem', 
-                    display: 'flex', 
-                    flexWrap: 'wrap', 
-                    justifyContent: 'center', 
-                    gap: '1rem', 
-                    marginBottom: '1.5rem', 
-                    position: 'relative' 
-                  }
-                },
-                  React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Vendor'),
-                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Select a vendor to narrow down results'),
-                    React.createElement('select', {
-                      value: filters.vendor,
-                      onChange: function(e) { setFilters({ ...filters, vendor: e.target.value, material: 'All Materials', color: 'All Colors', thickness: 'All Thicknesses' }); },
-                      'aria-label': 'Filter by vendor',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
-                    },
-                      vendors.map(function(vendor) { return React.createElement('option', { key: vendor, value: vendor }, vendor); })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Material'),
-                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by material type'),
-                    React.createElement('select', {
-                      value: filters.material,
-                      onChange: function(e) { setFilters({ ...filters, material: e.target.value, color: 'All Colors', thickness: 'All Thicknesses' }); },
-                      'aria-label': 'Filter by material',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
-                    },
-                      availableMaterials.map(function(material) { 
-                        return React.createElement('option', { key: material, value: material }, material);
-                      })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Color'),
-                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by color'),
-                    React.createElement('select', {
-                      value: filters.color,
-                      onChange: function(e) { setFilters({ ...filters, color: e.target.value, thickness: 'All Thicknesses' }); },
-                      'aria-label': 'Filter by color',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
-                    },
-                      availableColors.map(function(color) { 
-                        return React.createElement('option', { key: color, value: color }, color);
-                      })
-                    )
-                  ),
-                  filters.vendor !== 'All Vendors' && React.createElement('div', { className: 'tooltip', style: { width: '100%', maxWidth: '12rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontWeight: '500' } }, 'Thickness'),
-                    React.createElement('span', { className: 'tooltip-text', style: { visibility: 'hidden', position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#1f2937', color: 'white', padding: '0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem' } }, 'Filter by thickness'),
-                    React.createElement('select', {
-                      value: filters.thickness,
-                      onChange: function(e) { setFilters({ ...filters, thickness: e.target.value }); },
-                      'aria-label': 'Filter by thickness',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)', width: '100%' }
-                    },
-                      availableThicknesses.map(function(thickness) { 
-                        return React.createElement('option', { key: thickness, value: thickness }, thickness);
-                      })
-                    )
-                  ),
-                  activeFiltersCount > 0 && React.createElement('span', {
-                    style: {
-                      position: 'absolute',
-                      top: '0',
-                      right: '0',
-                      background: 'var(--accent-color)',
-                      color: 'white',
-                      borderRadius: '9999px',
-                      fontSize: '0.75rem',
-                      width: '1.5rem',
-                      height: '1.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }
-                  }, activeFiltersCount)
-                ),
-
-                filteredResults.length > 0 && React.createElement('p', {
-                  style: {
-                    color: 'var(--text-secondary)',
-                    padding: '0.5rem 0',
-                    fontSize: '0.875rem',
-                    textAlign: 'center'
-                  }
-                }, `Found ${filteredResults.length} result${filteredResults.length === 1 ? '' : 's'}`),
-
-                isLoading ? 
-                  React.createElement('p', { 
-                    className: 'text-center', 
-                    style: { 
-                      color: 'var(--text-secondary)', 
-                      padding: '1rem 0', 
-                      fontSize: '1rem' 
-                    } 
-                  }, 'Loading countertops...') :
-                  isSearchLoading ?
-                    React.createElement('p', { 
-                      className: 'text-center', 
-                      style: { 
-                        color: 'var(--text-secondary)', 
-                        padding: '1rem 0', 
-                        fontSize: '1rem' 
-                      } 
-                    }, 'Searching...') :
-                  !filteredResults ?
-                    React.createElement('p', { 
-                      className: 'text-center', 
-                      style: { 
-                        color: 'var(--text-secondary)', 
-                        padding: '1rem 0', 
-                        fontSize: '1rem' 
-                      } 
-                    }, 'Loading results...') :
-                  filteredResults.length === 0 ?
-                    React.createElement('p', { 
-                      className: 'text-center', 
-                      style: { 
-                        color: 'var(--text-secondary)', 
-                        padding: '1rem 0', 
-                        fontSize: '1rem' 
-                      } 
-                    }, searchQuery || filters.vendor !== 'All Vendors' ? 'No countertops found' : 'Please enter a search query or select a vendor') :
-                    React.createElement('div', { 
-                      className: 'card-grid', 
-                      style: { 
-                        width: '100%', 
-                        maxWidth: '90rem', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        gap: '1rem' 
-                      } 
-                    },
-                      filteredResults.map(function(item, index) {
-                        return React.createElement(CountertopCard, {
-                          key: item.id,
-                          item: item,
-                          isInCart: quote.some(function(q) { return q.id === item.id; }),
-                          addToQuote: addToQuote,
-                          removeFromQuote: removeFromQuote,
-                          updateTempSqFt: updateTempSqFt,
-                          tempSqFt: tempSqFt,
-                          setTempSqFt: setTempSqFt,
-                          toggleCard: toggleCard,
-                          isExpanded: expandedCard === index,
-                          index: index,
-                          totalCartCost: totalCartCost,
-                          highlightText: searchQuery
-                        });
-                      })
-                    )
-              )
-            ),
-
-            React.createElement('div', {
-              className: `fade-transition ${currentTab === 'cart' ? '' : 'hidden'}`,
-              style: { 
-                opacity: isTabLoading ? 0.5 : 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                width: '100%' 
-              }
-            },
-              currentTab === 'cart' && React.createElement('div', { 
-                className: 'animate-slide-up', 
-                style: { 
-                  width: '100%', 
-                  maxWidth: '90rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center' 
-                } 
-              },
-                React.createElement('h2', {
-                  className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
-                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.5rem', fontWeight: '600' }
-                }, 'Your Cart'),
-                quote.length === 0 ?
-                  React.createElement('p', {
-                    className: 'text-center',
-                    style: { color: 'var(--text-secondary)', padding: '1rem 0', fontSize: '1rem' }
-                  }, 'Your cart is empty') :
-                  React.createElement('div', { 
-                    style: { 
-                      width: '100%', 
-                      maxWidth: '90rem', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      gap: '1rem' 
-                    } 
-                  },
-                    React.createElement('div', {
-                      style: {
-                        width: '100%',
-                        maxWidth: '40rem',
-                        padding: '1rem',
-                        background: 'var(--bg-secondary)',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--border-color)',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                        marginBottom: '1rem',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }
-                    },
-                      React.createElement('p', {
-                        style: { color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 'bold' }
-                      }, `Items: ${quote.length} | Total: $${totalCartCost}`),
-                      React.createElement('button', {
-                        onClick: clearCart,
-                        style: {
-                          padding: '0.5rem 1rem',
-                          backgroundColor: 'var(--error-color)',
-                          color: 'white',
-                          borderRadius: '0.5rem',
-                          border: 'none',
-                          fontSize: '0.875rem',
-                          cursor: 'pointer',
-                          ':hover': { backgroundColor: '#dc2626' }
-                        }
-                      }, 'Clear Cart')
-                    ),
-                    React.createElement('div', { 
-                      className: 'card-grid', 
-                      style: { 
-                        width: '100%', 
-                        maxWidth: '90rem', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        gap: '1rem' 
-                      } 
-                    },
-                      quote.map(function(item, index) {
-                        return React.createElement(CountertopCard, {
-                          key: item.id,
-                          item: item,
-                          isInCart: true,
-                          removeFromQuote: removeFromQuote,
-                          updateTempSqFt: updateTempSqFt,
-                          tempSqFt: item.sqFt,
-                          setTempSqFt: setTempSqFt,
-                          clearSqFt: clearSqFt,
-                          index: index,
-                          totalCartCost: totalCartCost,
-                          highlightText: searchQuery
-                        });
-                      })
-                    ),
-                    React.createElement('button', {
-                      onClick: function() { handleTabChange('quote'); },
-                      className: 'w-full max-w-md mx-auto text-white p-2 rounded-lg mt-6 block',
-                      style: { 
-                        backgroundColor: 'var(--accent-color)', 
-                        padding: '1rem', 
-                        fontSize: '1.25rem', 
-                        fontWeight: 'bold', 
-                        borderRadius: '0.5rem', 
-                        border: 'none', 
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                        margin: '1rem auto',
-                        ':hover': { backgroundColor: '#2563eb' }
-                      }
-                    }, 'Confirm Quote')
-                  )
-              )
-            ),
-
-            React.createElement('div', {
-              className: `fade-transition ${currentTab === 'quote' ? '' : 'hidden'}`,
-              style: { 
-                opacity: isTabLoading ? 0.5 : 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                width: '100%' 
-              }
-            },
-              currentTab === 'quote' && React.createElement('div', { 
-                className: 'animate-slide-up', 
-                style: { 
-                  width: '100%', 
-                  maxWidth: '90rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center' 
-                } 
-              },
-                React.createElement('h2', {
-                  className: 'text-xl sm:text-2xl font-bold mb-4 text-center',
-                  style: { color: 'var(--text-primary)', padding: '0.5rem 0', fontSize: '1.5rem', fontWeight: '600' }
-                }, 'Get Your Quote (Total: $', totalCartCost, ')'),
-                React.createElement('form', {
-                  onSubmit: handleQuoteSubmit,
-                  className: 'quote-form',
-                  style: { width: '100%', maxWidth: '30rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }
-                },
-                  React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Name *'),
-                    React.createElement('input', {
-                      type: 'text',
-                      name: 'name',
-                      className: `w-full ${formErrors.name ? 'input-error' : ''}`,
-                      required: true,
-                      onChange: function(e) { setFormErrors({ ...formErrors, name: '' }); },
-                      'aria-label': 'Enter your name',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: formErrors.name ? '#ef4444' : 'var(--border-color)' }
-                    }),
-                    formErrors.name && React.createElement('p', { className: 'error-text', style: { color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' } }, formErrors.name)
-                  ),
-                  React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Email *'),
-                    React.createElement('input', {
-                      type: 'email',
-                      name: 'email',
-                      className: `w-full ${formErrors.email ? 'input-error' : ''}`,
-                      required: true,
-                      onChange: function(e) { setFormErrors({ ...formErrors, email: '' }); },
-                      'aria-label': 'Enter your email',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: formErrors.email ? '#ef4444' : 'var(--border-color)' }
-                    }),
-                    formErrors.email && React.createElement('p', { className: 'error-text', style: { color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' } }, formErrors.email)
-                  ),
-                  React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Phone (Optional)'),
-                    React.createElement('input', {
-                      type: 'tel',
-                      name: 'phone',
-                      className: 'w-full',
-                      'aria-label': 'Enter your phone number',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
-                    })
-                  ),
-                  React.createElement('div', { style: { marginBottom: '1rem' } },
-                    React.createElement('label', { style: { padding: '0.25rem 0', fontSize: '0.875rem', fontWeight: '500' } }, 'Notes'),
-                    React.createElement('textarea', {
-                      name: 'notes',
-                      className: 'w-full',
-                      rows: '4',
-                      'aria-label': 'Enter additional notes',
-                      style: { padding: '0.75rem', fontSize: '0.875rem', borderRadius: '0.5rem', borderColor: 'var(--border-color)' }
-                    })
-                  ),
-                  React.createElement('button', {
-                    type: 'submit',
-                    disabled: isLoading,
-                    style: { backgroundColor: 'var(--accent-color)', padding: '0.75rem', fontSize: '1rem', width: '100%', borderRadius: '0.5rem', color: 'white', fontWeight: '500', ':hover': { backgroundColor: '#2563eb' } }
-                  }, isLoading ? 'Submitting...' : 'Submit Quote')
-                )
-              )
-            ),
-
-            React.createElement('div', {
-              className: `toast ${toast.show ? 'show' : ''} ${toast.isError ? 'error' : ''}`,
-              style: { 
-                opacity: toast.show ? 1 : 0, 
-                bottom: '6rem', 
-                left: '50%', 
-                transform: 'translateX(-50%)', 
-                padding: '0.75rem 1.5rem', 
-                fontSize: '1rem', 
-                maxWidth: '90%',
-                backgroundColor: toast.isError ? '#ef4444' : '#10b981',
-                color: 'white',
-                borderRadius: '0.5rem',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-              }
-            }, toast.message),
-
-            React.createElement('button', {
-              onClick: scrollToTop,
-              className: `back-to-top ${showBackToTop ? 'show' : ''}`,
-              'aria-label': 'Scroll to top',
-              style: { 
-                left: '50%', 
-                transform: 'translateX(-50%)', 
-                right: 'auto', 
-                bottom: '6rem', 
-                padding: '0.75rem', 
-                borderRadius: '50%', 
-                background: 'var(--accent-color)', 
-                color: 'white', 
-                border: 'none',
-                display: showBackToTop ? 'block' : 'none' 
-              }
-            },
-              React.createElement('svg', {
-                fill: 'none',
-                viewBox: '0 0 24 24',
-                stroke: 'currentColor',
-                style: { width: '1.5rem', height: '1.5rem' }
-              }, React.createElement('path', {
-                strokeLinecap: 'round',
-                strokeLinejoin: 'round',
-                strokeWidth: '2',
-                d: 'M5 15l7-7 7 7'
-              }))
-            ),
-
-            React.createElement('nav', { 
-              className: 'bottom-nav', 
-              style: { 
-                width: '100%', 
-                maxWidth: '100vw', 
-                padding: '0.75rem 0', 
-                display: 'flex', 
-                justifyContent: 'space-around',
-                position: 'fixed',
-                bottom: '0',
-                background: 'var(--bg-primary)',
-                zIndex: 100
-              }
-            },
-              React.createElement('button', {
-                onClick: function() { handleTabChange('search'); },
-                className: `${currentTab === 'search' ? 'text-blue-600' : ''}`,
-                style: { 
-                  color: currentTab === 'search' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  gap: '0.25rem', 
-                  fontSize: '0.875rem' 
-                }
-              },
-                React.createElement('svg', {
-                  fill: 'none',
-                  viewBox: '0 0 24 24',
-                  stroke: 'currentColor',
-                  style: { width: '1.5rem', height: '1.5rem' }
-                }, React.createElement('path', {
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                  strokeWidth: '2',
-                  d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-                })),
-                '1. Search'
-              ),
-              React.createElement('button', {
-                onClick: function() { handleTabChange('quote'); },
-                className: `${currentTab === 'quote' ? 'text-blue-600' : ''}`,
-                style: { 
-                  color: currentTab === 'quote' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  gap: '0.25rem', 
-                  fontSize: '0.875rem' 
-                }
-              },
-                React.createElement('svg', {
-                  fill: 'none',
-                  viewBox: '0 0 24 24',
-                  stroke: 'currentColor',
-                  style: { width: '1.5rem', height: '1.5rem' }
-                }, React.createElement('path', {
-                  strokeLinecap: 'round',
-                  strokeLinejoin: 'round',
-                  strokeWidth: '2',
-                  d: 'M3 3h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
-                })),
-                '2. Quote'
-              ),
-              React.createElement('button', {
-                onClick: function() { handleTabChange('cart'); },
-                className: `relative ${currentTab === 'cart' ? 'text-blue-600' : ''}`,
-                style: { 
-                  color: currentTab === 'cart' ? 'var(--accent-color)' : 'var(--text-secondary)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  gap: '0.25rem', 
-                  fontSize: '0.875rem' 
-                }
-              },
-                React.createElement('span', { style: { position: 'relative' } },
-                  React.createElement('svg', {
-                    fill: 'none',
-                    viewBox: '0 0 24 24',
-                    stroke: 'currentColor',
-                    style: { width: '1.5rem', height: '1.5rem' }
-                  }, React.createElement('path', {
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round',
-                    strokeWidth: '2',
-                    d: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'
-                  })),
-                  quote.length > 0 && React.createElement('span', { 
-                    className: 'cart-badge',
-                    style: {
-                      position: 'absolute',
-                      top: '-0.5rem',
-                      right: '-0.5rem',
-                      background: 'var(--accent-color)',
-                      color: 'white',
-                      borderRadius: '9999px',
-                      fontSize: '0.75rem',
-                      width: '1.25rem',
-                      height: '1.25rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }
-                  }, quote.length)
-                ),
-                '3. Cart'
-              )
-            )
-          )
+          React.createElement('div', {
+            className: `fixed bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white text-sm ${toast.isError ? 'bg-red-500' : 'bg-green-500'} ${toast.show ? 'opacity-100' : 'opacity-0'} transition-opacity`,
+            style: { zIndex: 1000 }
+          }, toast.message)
         );
       }
 
