@@ -2,11 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Surprise Granite AI Chatbot</title>
-  <!-- (Use the previously provided HTML/JS, but add sessionId handling and contact form support) -->
-  <!-- ... -->
+  <title>Surprise Granite Chatbot</title>
+  <style>
+    body { font-family: sans-serif; background: #f9f9f9; }
+    #chat { max-width: 500px; margin: 2em auto; background: #fff; border-radius: 8px; box-shadow: 0 0 8px #ccc; padding: 1em; }
+    .msg { margin-bottom: 1em; }
+    .msg.user { text-align: right; }
+    .msg.ai { text-align: left; }
+    .msg img { max-width: 120px; max-height: 120px; display: block; margin: 0.5em 0; }
+    #input-area { display: flex; gap: 0.5em; }
+    input[type="file"] { display: none; }
+    #send { background: #05668d; color: #fff; border: none; padding: 0.5em 1em; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div id="chat"></div>
+  <form id="input-area">
+    <input id="text" autocomplete="off" placeholder="Type a message..." />
+    <label for="attach" style="cursor:pointer;">📎</label>
+    <input type="file" id="attach" multiple accept="image/*" />
+    <button id="send" type="submit">Send</button>
+  </form>
+  <button id="contact-btn">Contact Us</button>
   <script>
-    // Add simple session handling
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('input-area');
+    const input = document.getElementById('text');
+    const attachInput = document.getElementById('attach');
+    const contactBtn = document.getElementById('contact-btn');
+    let attachedFiles = [];
+
     function getSessionId() {
       let sid = localStorage.getItem('sg_chatbot_sid');
       if (!sid) {
@@ -16,8 +41,25 @@
       return sid;
     }
 
-    // (In your send logic, include sessionId)
-    // ...
+    function addMessage(msg, who, images=[]) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + who;
+      div.textContent = msg;
+      images.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        div.appendChild(img);
+      });
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    attachInput.onchange = function() {
+      attachedFiles = Array.from(this.files);
+      if (attachedFiles.length) {
+        addMessage(`Attached ${attachedFiles.length} file(s)`, 'user');
+      }
+    };
     form.onsubmit = async function(e) {
       e.preventDefault();
       const text = input.value.trim();
@@ -36,19 +78,36 @@
           body: formData
         });
         const data = await res.json();
-        // ... (handle response as before)
+        chat.removeChild(chat.lastChild);
+        addMessage(data.message, "ai", data.images || []);
       } catch (err) {
-        // ...
+        chat.removeChild(chat.lastChild);
+        addMessage("Failed to send, try again.", "ai");
       }
       input.value = "";
       attachedFiles = [];
       attachInput.value = "";
     };
-    // Add a button/option for the user to send the chat as a contact form or request follow-up.
-    // ...
+
+    // Contact form/email trigger
+    contactBtn.onclick = async function() {
+      const name = prompt("Your name:");
+      const email = prompt("Your email:");
+      const message = prompt("Your message:");
+      if (!name || !email || !message) return;
+      addMessage("Sending contact info...", "user");
+      const body = new FormData();
+      body.append("sessionId", getSessionId());
+      body.append("action", "contactForm");
+      body.append("contact", JSON.stringify({ name, email, message }));
+      try {
+        const res = await fetch("/api/chat", { method: "POST", body });
+        const data = await res.json();
+        addMessage(data.message, "ai");
+      } catch {
+        addMessage("Failed to send contact form.", "ai");
+      }
+    };
   </script>
-</head>
-<body>
-  <!-- ... -->
 </body>
 </html>
