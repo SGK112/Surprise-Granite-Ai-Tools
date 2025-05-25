@@ -1,318 +1,217 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Countertop Price Sheet & Estimator | Surprise Granite</title>
-    <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Surprise Granite AI Chatbot</title>
+  <meta name="description" content="Get countertop design, fabrication, contracting, and customer service help from Surprise Granite's AI assistant." />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* --- Chatbot Widget Styles (add to main stylesheet in production) --- */
+    #chatbot-widget {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      font-family: inherit;
+    }
+    #chatbot-open-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 20px;
+      font-size: 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #chatbot-open-btn:active { background: #1d4ed8; }
+    #chatbot-window {
+      display: flex;
+      flex-direction: column;
+      width: 95vw;
+      max-width: 370px;
+      height: 70vh;
+      max-height: 520px;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 6px 32px rgba(0,0,0,0.25);
+      position: absolute;
+      bottom: 60px;
+      right: 0;
+      overflow: hidden;
+    }
+    #chatbot-header {
+      padding: 12px 18px;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #chatbot-close-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+    }
+    .chat-output {
+      flex: 1;
+      padding: 12px 15px;
+      overflow-y: auto;
+      background: #f5f5f5;
+      font-size: 16px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .chat-controls {
+      display: flex;
+      gap: 7px;
+      padding: 10px;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+    }
+    #chatInput {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    #sendButton, #recordButton {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0 14px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      min-width: 50px;
+    }
+    #sendButton:active, #recordButton:active { background: #1d4ed8; }
+    @media (max-width: 600px) {
+      #chatbot-window {
+        width: 98vw;
+        height: 82vh;
+        right: 0;
+        bottom: 60px;
+        max-width: none;
+        max-height: none;
+      }
+    }
+    /* --- Main page basic styles for demo purpose --- */
+    body {
+      font-family: 'Inter', system-ui, Arial, sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+      color: #1f2937;
+    }
+    header {
+      background: #fff;
+      padding: 28px 0 18px 0;
+      text-align: center;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    header img {
+      max-height: 65px;
+    }
+    main {
+      padding: 28px 0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      margin: 40px 0 0 0;
+      list-style: none;
+      padding: 0;
+    }
+    .feature-list li {
+      background: #fff;
+      padding: 18px 22px;
+      border-radius: 14px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+      font-size: 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+    }
+    .feature-list li span {
+      font-size: 22px;
+      margin-top: 2px;
+    }
+    @media (max-width: 700px) {
+      main { padding: 18px 2vw; }
+      .feature-list li { font-size: 16px; }
+    }
+  </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading-screen">
-        <div class="loading-content">
-            <img src="favicon.png" alt="Surprise Granite Logo" class="loading-logo">
-            <h2>Surprise Granite</h2>
-            <div class="loading-spinner"></div>
-            <p>Loading your countertop estimator...</p>
-        </div>
+  <header>
+    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/673d648c63aa43897b141484_Surprise%20Granite%20Lockup%20Horizontal%20Small%20MIGA.svg" alt="Surprise Granite Logo" />
+    <h1>Surprise Granite AI Assistant</h1>
+    <div style="color:#2563eb;font-weight:600;">Design • Fabrication • Customer Service</div>
+  </header>
+  <main>
+    <p>Welcome! Get instant help with:</p>
+    <ul class="feature-list">
+      <li><span>🎨</span> Countertop design & color ideas</li>
+      <li><span>⚒️</span> Fabrication or contractor questions</li>
+      <li><span>💬</span> Customer service & contact requests</li>
+      <li><span>🤖</span> All powered by AI & real Surprise Granite data</li>
+    </ul>
+    <p style="margin-top:40px;">Tap the <b>chat bubble</b> at the bottom right to get started!</p>
+  </main>
+
+  <!-- --- Chatbot Widget --- -->
+  <div id="chatbot-widget">
+    <button id="chatbot-open-btn" aria-label="Open Chatbot">
+      💬 Chat
+    </button>
+    <div id="chatbot-window" class="hidden">
+      <div id="chatbot-header">
+        <span>Surprise Granite AI Chat</span>
+        <button id="chatbot-close-btn" aria-label="Close Chatbot">&times;</button>
+      </div>
+      <div id="chatOutput" class="chat-output"></div>
+      <div class="chat-controls">
+        <input id="chatInput" type="text" placeholder="Type your message..." autocomplete="off" />
+        <button id="sendButton" aria-label="Send Message">Send</button>
+        <button id="recordButton" aria-label="Voice Input">🎤</button>
+      </div>
     </div>
+  </div>
+  <!-- --- End Chatbot Widget --- -->
 
-    <!-- Main Application -->
-    <div id="app" class="hidden">
-        <header>
-            <div class="header-container">
-                <div class="logo-container">
-                    <img src="favicon.png" alt="Surprise Granite Logo">
-                    <h1>Surprise Granite</h1>
-                </div>
-                <h2>Countertop Price Sheet & Estimator</h2>
-            </div>
-        </header>
-
-        <main>
-            <section class="intro-section">
-                <h3>Welcome to the Countertop Estimator</h3>
-                <p>This tool helps you find the perfect countertop for your project and provides an instant price estimate. Follow the steps below to get started.</p>
-                <div class="steps-container">
-                    <div class="step">
-                        <div class="step-number">1</div>
-                        <div class="step-content">
-                            <h4>Select Materials</h4>
-                            <p>Choose your preferred countertop material, color, and thickness</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">2</div>
-                        <div class="step-content">
-                            <h4>Enter Dimensions</h4>
-                            <p>Provide your countertop measurements and specifications</p>
-                        </div>
-                    </div>
-                    <div class="step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <h4>Get Estimate</h4>
-                            <p>Receive your detailed price estimate and project visualization</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="estimator-container">
-                <div class="form-container">
-                    <form id="estimator-form">
-                        <div class="form-section">
-                            <h3>Material Selection</h3>
-                            <div class="form-group">
-                                <label for="material">Material Type</label>
-                                <select id="material" name="material" required>
-                                    <option value="" disabled selected>Select Material</option>
-                                    <option value="Quartz">Quartz</option>
-                                    <option value="Granite">Granite</option>
-                                    <option value="Marble">Marble</option>
-                                    <option value="Quartzite">Quartzite</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="vendor">Vendor</label>
-                                <select id="vendor" name="vendor" required>
-                                    <option value="" disabled selected>Select Vendor</option>
-                                    <!-- Will be populated dynamically -->
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="color">Color</label>
-                                <select id="color" name="color" required>
-                                    <option value="" disabled selected>Select Color</option>
-                                    <!-- Will be populated dynamically -->
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="thickness">Thickness</label>
-                                <select id="thickness" name="thickness" required>
-                                    <option value="" disabled selected>Select Thickness</option>
-                                    <!-- Will be populated dynamically -->
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="size">Slab Size</label>
-                                <select id="size" name="size" required>
-                                    <option value="" disabled selected>Select Size</option>
-                                    <!-- Will be populated dynamically -->
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <h3>Project Dimensions</h3>
-                            <div class="form-group">
-                                <label for="project-type">Project Type</label>
-                                <select id="project-type" name="project-type" required>
-                                    <option value="" disabled selected>Select Project Type</option>
-                                    <option value="kitchen">Kitchen</option>
-                                    <option value="bathroom">Bathroom</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="square-feet">Total Square Feet</label>
-                                <input type="number" id="square-feet" name="square-feet" min="1" step="0.01" placeholder="Enter total square feet" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="linear-feet">Linear Feet (for edges)</label>
-                                <input type="number" id="linear-feet" name="linear-feet" min="0" step="0.01" placeholder="Enter linear feet" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="edge-profile">Edge Profile</label>
-                                <select id="edge-profile" name="edge-profile" required>
-                                    <option value="" disabled selected>Select Edge Profile</option>
-                                    <option value="straight">Straight</option>
-                                    <option value="beveled">Beveled</option>
-                                    <option value="bullnose">Bullnose</option>
-                                    <option value="ogee">Ogee</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="cutouts">Number of Cutouts</label>
-                                <input type="number" id="cutouts" name="cutouts" min="0" value="0" required>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <h3>Contact Information</h3>
-                            <div class="form-group">
-                                <label for="name">Full Name</label>
-                                <input type="text" id="name" name="name" placeholder="Enter your full name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="email">Email Address</label>
-                                <input type="email" id="email" name="email" placeholder="Enter your email address" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="phone">Phone Number</label>
-                                <input type="tel" id="phone" name="phone" placeholder="(XXX) XXX-XXXX" pattern="^\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$" title="Please enter a valid phone number" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="address">Project Address</label>
-                                <textarea id="address" name="address" placeholder="Enter the project address" rows="3" required></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="notes">Additional Notes</label>
-                                <textarea id="notes" name="notes" placeholder="Enter any special requirements, measurements, or other details for your estimate" rows="4"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="submit" id="calculate-btn" class="primary-btn">Calculate Estimate</button>
-                            <button type="reset" class="secondary-btn">Reset Form</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="visualization-container">
-                    <h3>Countertop Visualization</h3>
-                    <div class="visualization-placeholder">
-                        <div id="countertop-preview">
-                            <div class="preview-message">
-                                <i class="fas fa-eye"></i>
-                                <p>Select materials to preview your countertop</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="material-info hidden" id="material-info">
-                        <h4>Material Information</h4>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <span class="info-label">Material:</span>
-                                <span class="info-value" id="info-material">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Color:</span>
-                                <span class="info-value" id="info-color">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Thickness:</span>
-                                <span class="info-value" id="info-thickness">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Price Group:</span>
-                                <span class="info-value" id="info-price-group">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Cost/SqFt:</span>
-                                <span class="info-value" id="info-cost">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Slab Size:</span>
-                                <span class="info-value" id="info-size">-</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="results-container hidden" id="results-container">
-                <h3>Your Countertop Estimate</h3>
-                <div class="results-grid">
-                    <div class="result-card">
-                        <div class="result-header">
-                            <i class="fas fa-calculator"></i>
-                            <h4>Material Cost</h4>
-                        </div>
-                        <div class="result-value" id="material-cost">$0.00</div>
-                        <div class="result-details">
-                            <p><span id="sqft-amount">0</span> sq ft at <span id="cost-per-sqft">$0.00</span>/sq ft</p>
-                        </div>
-                    </div>
-                    <div class="result-card">
-                        <div class="result-header">
-                            <i class="fas fa-tools"></i>
-                            <h4>Fabrication & Installation</h4>
-                        </div>
-                        <div class="result-value" id="fabrication-cost">$0.00</div>
-                        <div class="result-details">
-                            <p>Includes cutting, edging, and installation</p>
-                        </div>
-                    </div>
-                    <div class="result-card">
-                        <div class="result-header">
-                            <i class="fas fa-cut"></i>
-                            <h4>Edge Treatment</h4>
-                        </div>
-                        <div class="result-value" id="edge-cost">$0.00</div>
-                        <div class="result-details">
-                            <p><span id="linear-ft-amount">0</span> linear ft of <span id="edge-type">straight</span> edge</p>
-                        </div>
-                    </div>
-                    <div class="result-card">
-                        <div class="result-header">
-                            <i class="fas fa-sink"></i>
-                            <h4>Cutouts</h4>
-                        </div>
-                        <div class="result-value" id="cutout-cost">$0.00</div>
-                        <div class="result-details">
-                            <p><span id="cutout-amount">0</span> cutouts at $75.00 each</p>
-                        </div>
-                    </div>
-                    <div class="result-card total-card">
-                        <div class="result-header">
-                            <i class="fas fa-tag"></i>
-                            <h4>Total Estimate</h4>
-                        </div>
-                        <div class="result-value" id="total-cost">$0.00</div>
-                        <div class="result-details">
-                            <p>This is an estimate. Final price may vary.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="estimate-actions">
-                    <button id="email-estimate" class="primary-btn"><i class="fas fa-envelope"></i> Email My Estimate</button>
-                    <button id="print-estimate" class="secondary-btn"><i class="fas fa-print"></i> Print Estimate</button>
-                    <button id="new-estimate" class="secondary-btn"><i class="fas fa-redo"></i> New Estimate</button>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <div class="footer-container">
-                <div class="footer-logo">
-                    <img src="favicon.png" alt="Surprise Granite Logo">
-                    <p>Surprise Granite</p>
-                </div>
-                <div class="footer-contact">
-                    <p><i class="fas fa-map-marker-alt"></i> 11560 N Dysart rd #112, Surprise, AZ 85379</p>
-                    <p><i class="fas fa-phone"></i> (602) 833-3189</p>
-                    <p><i class="fas fa-envelope"></i> info@surprisegranite.com</p>
-                </div>
-                <div class="footer-copyright">
-                    <p>&copy; 2025 Surprise Granite. All rights reserved.</p>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Email Modal -->
-    <div id="email-modal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h3>Send Estimate</h3>
-            <p>Your estimate will be sent to the email address provided.</p>
-            <form id="email-form">
-                <div id="email-status" class="hidden"></div>
-                <div class="modal-actions">
-                    <button type="submit" id="confirm-email" class="primary-btn">Send Estimate</button>
-                    <button type="button" id="cancel-email" class="secondary-btn">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="js/data.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/printable-estimate.js"></script>
+  <!-- Chatbot Widget Controller -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const openBtn = document.getElementById("chatbot-open-btn");
+      const closeBtn = document.getElementById("chatbot-close-btn");
+      const windowEl = document.getElementById("chatbot-window");
+      openBtn.addEventListener("click", () => {
+        windowEl.classList.remove("hidden");
+        openBtn.style.display = "none";
+        setTimeout(() => {
+          document.getElementById("chatInput").focus();
+        }, 250);
+      });
+      closeBtn.addEventListener("click", () => {
+        windowEl.classList.add("hidden");
+        openBtn.style.display = "";
+      });
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") windowEl.classList.add("hidden"), openBtn.style.display = "";
+      });
+    });
+  </script>
+  <!-- Your existing chat.js must be included after this! -->
+  <script src="chat.js"></script>
 </body>
 </html>
