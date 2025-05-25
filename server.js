@@ -5,56 +5,40 @@ import mongoose from 'mongoose';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import streamifier from 'streamifier';
-import nodemailer from 'nodemailer';
 import { OpenAI } from 'openai';
 
-// ====== MONGODB SETUP ======
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true, useUnifiedTopology: true
-}).then(() => console.log('MongoDB connected')).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
+const app = express();
+app.use(express.json());
 
+// Allow CORS from your Webflow site or domain
+app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*' }));
+
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+// Simple chat message schema
 const ChatMessageSchema = new mongoose.Schema({
   sessionId: String,
   from: String,
   message: String,
-  files: [{
-    url: String,
-    public_id: String,
-    originalname: String,
-    mimetype: String,
-    uploadedAt: { type: Date, default: Date.now }
-  }],
+  files: [Object],
   createdAt: { type: Date, default: Date.now }
 });
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
 
-// ====== EXPRESS APP ======
-const app = express();
-app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-
-// ====== MULTER (MEMORY STORAGE) ======
+// Multer setup for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ====== CLOUDINARY CONFIG ======
+// Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// ====== NODEMAILER CONFIG ======
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-});
-
-// ====== OPENAI CONFIG ======
+// OpenAI config
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ====== UTILS ======
 async function uploadToCloudinary(file) {
   return new Promise((resolve, reject) => {
     let upload_stream = cloudinary.uploader.upload_stream(
@@ -73,109 +57,43 @@ async function uploadToCloudinary(file) {
   });
 }
 
-async function getSessionTranscript(sessionId) {
-  const messages = await ChatMessage.find({ sessionId }).sort({ createdAt: 1 });
-  let transcript = '';
-  messages.forEach(msg => {
-    transcript += `[${msg.from}] ${msg.message || ''}\n`;
-    if (msg.files?.length) {
-      msg.files.forEach(f => {
-        transcript += `  [file: ${f.originalname}] (${f.url})\n`;
-      });
-    }
-  });
-  return transcript;
-}
-
-// ====== MAIN CHAT ENDPOINT ======
+// Main chat endpoint
 app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   try {
-    const { message, sessionId, action, contact } = req.body;
+    const { message, sessionId } = req.body;
     let files = [];
     if (req.files && req.files.length) {
       files = await Promise.all(req.files.map(uploadToCloudinary));
     }
-
     // Save user message
-    if (message || files.length) {
-      await new ChatMessage({
-        sessionId,
-        from: 'user',
-        message,
-        files
-      }).save();
-    }
+    await new ChatMessage({ sessionId, from: 'user', message, files }).save();
 
-    // AI response with Vision support
-    let aiResponse = '';
-    if ((message || files.length) && (!action || action === 'chat')) {
-      const systemMsg = {
-        role: "system",
-        content: "You are a helpful assistant for Surprise Granite. If the user uploads a photo, describe what's in it and offer relevant advice or pricing info if requested."
-      };
-      const userContent = [];
-      if (message) userContent.push({ type: "text", text: message });
-      if (files.length > 0) {
-        files.forEach(f => userContent.push({
-          type: "image_url",
-          image_url: { url: f.url }
-        }));
-      }
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          systemMsg,
-          {
-            role: "user",
-            content: userContent.length > 0 ? userContent : [{ type: "text", text: "(See attached images)" }]
-          }
-        ],
-        max_tokens: 1024
-      });
-      aiResponse = completion.choices[0].message.content;
-      await new ChatMessage({
-        sessionId,
-        from: 'ai',
-        message: aiResponse
-      }).save();
-    }
-
-    // Handle contact form/email
-    if (action === 'sendEmail' || action === 'contactForm') {
-      let emailText = '';
-      let contactObj = contact;
-      if (contact) {
-        if (typeof contact === "string") {
-          try { contactObj = JSON.parse(contact); } catch {}
-        }
-        emailText = `Contact Request:\nFrom: ${contactObj.name}\nEmail: ${contactObj.email}\nMessage: ${contactObj.message}\n\n`;
-      }
-      emailText += await getSessionTranscript(sessionId);
-      await transporter.sendMail({
-        from: `"Surprise Granite Bot" <${process.env.EMAIL_USER}>`,
-        to: process.env.CONTACT_EMAIL || process.env.EMAIL_USER,
-        subject: contactObj ? `Contact Form - ${contactObj.name}` : 'New Chatbot Session',
-        text: emailText
-      });
-      return res.json({ message: "Your message has been sent! We will contact you soon.", sent: true });
-    }
-
-    res.json({
-      message: aiResponse,
-      images: files.map(f => f.url),
-      saved: true
+    // Prepare OpenAI Vision request
+    const userContent = [];
+    if (message) userContent.push({ type: "text", text: message });
+    files.forEach(f => userContent.push({ type: "image_url", image_url: { url: f.url }}));
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "You are a helpful granite countertop assistant. Analyze images if provided." },
+        { role: "user", content: userContent.length > 0 ? userContent : [{ type: "text", text: "(See attached images)" }] }
+      ],
+      max_tokens: 1024
     });
+    const aiResponse = completion.choices[0].message.content;
+
+    // Save AI response
+    await new ChatMessage({ sessionId, from: 'ai', message: aiResponse }).save();
+
+    res.json({ message: aiResponse, images: files.map(f => f.url) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// ====== FETCH CHAT HISTORY (OPTIONAL) ======
-app.get('/api/chats/:sessionId', async (req, res) => {
-  const messages = await ChatMessage.find({ sessionId: req.params.sessionId }).sort({ createdAt: 1 });
-  res.json(messages);
-});
+// Serve static files (for the widget)
+app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Surprise Granite Chatbot running on port ${PORT}`));
