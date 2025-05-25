@@ -23,9 +23,14 @@
     }
     #chatbot-header {
       background: #2563eb; color: #fff; font-weight: 600; font-size: 19px;
-      padding: 13px 22px; display: flex; justify-content: space-between; align-items: center;
+      padding: 13px 22px; display: flex; justify-content: flex-start; align-items: center; gap: 10px;
     }
-    #chatbot-close-btn { background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; }
+    #chatbot-logo {
+      height: 38px; width: 38px; margin-right: 7px;
+      background: #fff; border-radius: 50%; object-fit: contain; border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    #chatbot-close-btn { background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; margin-left: auto;}
     #chatbot-body { display: flex; flex-direction: column; height: 430px; }
     #chatOutput {
       flex: 1; padding: 14px 17px; overflow-y: auto; background: #f1f5f9; font-size: 16px;
@@ -78,7 +83,11 @@
       margin-left: 7px; width: 22px; height: 22px; border: 3px solid #b3baff; border-radius: 50%;
       border-top: 3px solid #2563eb; animation: spin 0.7s linear infinite; display: none;
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+    #chatbot-footer {
+      background: #f1f5f9; font-size: 13px; color: #666; text-align: center; padding: 8px 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+    #chatbot-footer a { color: #2563eb; text-decoration: none; }
     @media (max-width: 600px) {
       #chatbot-widget { right: 0; left: 0; width: 99vw; max-width: none; }
       #chatbot-body { height: 56vh; }
@@ -91,6 +100,7 @@
   </button>
   <div id="chatbot-widget">
     <div id="chatbot-header">
+      <img id="chatbot-logo" src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo" />
       Surprise Granite AI
       <button id="chatbot-close-btn" title="Close chat">&times;</button>
     </div>
@@ -107,6 +117,11 @@
       <button id="sendButton" type="submit">Send</button>
       <div id="chatbot-spinner"></div>
     </form>
+    <div id="chatbot-footer">
+      11560 N Dysart Rd. #112, Surprise, AZ 85379 &bull; (602) 833-3189<br>
+      Mon-Fri: 8am-5pm &bull; Sat: 10am-2pm &bull;
+      <a href="https://www.surprisegranite.com" target="_blank">surprisegranite.com</a>
+    </div>
   </div>
   <script src="chat.js"></script>
 </body>
