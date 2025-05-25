@@ -3,15 +3,14 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import nodemailer from 'nodemailer';
 import { OpenAI } from 'openai';
+import { v2 as cloudinary } from 'cloudinary';
+import streamifier from 'streamifier';
 
 const app = express();
-const __dirname = path.resolve();
 app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.static('public'));
 
 // MongoDB connection
@@ -26,28 +25,25 @@ const ChatMessageSchema = new mongoose.Schema({
   from: String,
   message: String,
   files: [{
-    filename: String,
+    url: String,
+    public_id: String,
     originalname: String,
     mimetype: String,
-    path: String,
     uploadedAt: { type: Date, default: Date.now }
   }],
   createdAt: { type: Date, default: Date.now }
 });
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
 
-// Multer setup
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+// Multer setup (memory storage for cloud upload)
+const upload = multer({ storage: multer.memoryStorage() });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, ''))
+// Cloudinary setup
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
-const upload = multer({ storage });
-
-// Serve uploaded files
-app.use('/uploads', express.static(uploadDir));
 
 // Nodemailer setup
 const transporter = nodemailer.createTransport({
@@ -55,8 +51,8 @@ const transporter = nodemailer.createTransport({
   port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -71,23 +67,40 @@ async function getSessionTranscript(sessionId) {
     transcript += `[${msg.from}] ${msg.message || ''}\n`;
     if (msg.files?.length) {
       msg.files.forEach(f => {
-        transcript += `  [file: ${f.originalname}] (${f.path})\n`;
+        transcript += `  [file: ${f.originalname}] (${f.url})\n`;
       });
     }
   });
   return transcript;
 }
 
+// Helper: Upload one file buffer to Cloudinary & return {url, public_id, ...}
+async function uploadToCloudinary(file) {
+  return new Promise((resolve, reject) => {
+    let cld_upload_stream = cloudinary.uploader.upload_stream(
+      { folder: "sg_chatbot_uploads" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve({
+          url: result.secure_url,
+          public_id: result.public_id,
+          originalname: file.originalname,
+          mimetype: file.mimetype
+        });
+      }
+    );
+    streamifier.createReadStream(file.buffer).pipe(cld_upload_stream);
+  });
+}
+
 // Chat endpoint
 app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   try {
     const { message, sessionId, action, contact } = req.body;
-    const files = (req.files || []).map(file => ({
-      filename: file.filename,
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      path: `/uploads/${file.filename}`
-    }));
+    let files = [];
+    if (req.files && req.files.length) {
+      files = await Promise.all(req.files.map(uploadToCloudinary));
+    }
 
     // Save user message
     if (message || files.length) {
@@ -126,12 +139,17 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     if (action === 'sendEmail' || action === 'contactForm') {
       let emailText = '';
       if (contact) {
-        emailText = `Contact Request:\nFrom: ${contact.name}\nEmail: ${contact.email}\nMessage: ${contact.message}\n\n`;
+        // If contact is JSON stringified
+        let contactObj = contact;
+        if (typeof contact === "string") {
+          try { contactObj = JSON.parse(contact); } catch {}
+        }
+        emailText = `Contact Request:\nFrom: ${contactObj.name}\nEmail: ${contactObj.email}\nMessage: ${contactObj.message}\n\n`;
       }
       emailText += await getSessionTranscript(sessionId);
       await transporter.sendMail({
-        from: `"Surprise Granite Bot" <${process.env.SMTP_USER}>`,
-        to: process.env.CONTACT_EMAIL || process.env.SMTP_USER,
+        from: `"Surprise Granite Bot" <${process.env.EMAIL_USER}>`,
+        to: process.env.CONTACT_EMAIL || process.env.EMAIL_USER,
         subject: contact ? `Contact Form - ${contact.name}` : 'New Chatbot Session',
         text: emailText
       });
@@ -140,7 +158,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
 
     res.json({
       message: aiResponse,
-      images: files.map(f => f.path),
+      images: files.map(f => f.url),
       saved: true
     });
   } catch (err) {
