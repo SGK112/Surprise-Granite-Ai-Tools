@@ -10,17 +10,8 @@ const attachInput = document.getElementById("attachInput");
 const imagePreview = document.getElementById("imagePreview");
 let attachedImage = null;
 
-// Welcome message with guard rails/company info
-const welcomeMsg = `Welcome to Surprise Granite! How can I help you today?
-We are a full-service, licensed General Contractor in Arizona specializing in countertops, tile, and semi-custom cabinetry for residential and commercial projects. Our showroom is open to the public.<br>
-<b>COMPANY INFO:</b><br>
-Website: <a href="https://www.surprisegranite.com" target="_blank">www.surprisegranite.com</a><br>
-Phone: (602) 833-3189<br>
-Email: info@surprisegranite.com<br>
-Address: 11560 N Dysart Rd. #112, Surprise, AZ 85379<br>
-Showroom hours: Mon-Fri 8am–5pm, Sat 10am–2pm<br>
-Social: Facebook & Instagram @SurpriseGranite
-`;
+// Dynamic AI welcome message
+const welcomeMsg = `👋 Hi! I'm the Surprise Granite virtual assistant. Ask me anything about our products, services, pricing, or to get started on your project.`;
 
 function scrollToBottom() {
   chatOutput.scrollTop = chatOutput.scrollHeight;
@@ -46,7 +37,7 @@ function appendMessage(role, text, imgUrl) {
     bubble.appendChild(imgElem);
   }
   chatOutput.appendChild(bubble);
-  scrollToBottom();
+  setTimeout(scrollToBottom, 80);
 }
 
 function setChatbotLoading(isLoading) {
