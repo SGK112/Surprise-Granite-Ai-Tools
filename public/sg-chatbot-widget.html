@@ -205,7 +205,10 @@
     <button id="sg-chatbot-contact" type="button">Contact Us</button>
   </div>
   <script>
-    const API_URL = "/api/chat";
+    // ====== CONFIG ======
+    // Change to your Render/production backend!
+    const API_URL = "https://YOUR_RENDER_URL/api/chat";
+    // ====================
     const bubble = document.getElementById('sg-chatbot-bubble');
     const windowEl = document.getElementById('sg-chatbot-window');
     const closeBtn = document.getElementById('sg-chatbot-close');
