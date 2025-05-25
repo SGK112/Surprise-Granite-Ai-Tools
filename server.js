@@ -8,11 +8,7 @@ import streamifier from 'streamifier';
 import nodemailer from 'nodemailer';
 import { OpenAI } from 'openai';
 
-const app = express();
-app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-
-// MongoDB
+// ====== MONGODB SETUP ======
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true, useUnifiedTopology: true
 }).then(() => console.log('MongoDB connected')).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
@@ -32,17 +28,22 @@ const ChatMessageSchema = new mongoose.Schema({
 });
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
 
-// Multer (memory for cloud upload)
+// ====== EXPRESS APP ======
+const app = express();
+app.use(express.json());
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+
+// ====== MULTER (MEMORY STORAGE) ======
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Cloudinary
+// ====== CLOUDINARY CONFIG ======
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Nodemailer
+// ====== NODEMAILER CONFIG ======
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT) || 587,
@@ -50,24 +51,10 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
 });
 
-// OpenAI
+// ====== OPENAI CONFIG ======
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Utilities
-async function getSessionTranscript(sessionId) {
-  const messages = await ChatMessage.find({ sessionId }).sort({ createdAt: 1 });
-  let transcript = '';
-  messages.forEach(msg => {
-    transcript += `[${msg.from}] ${msg.message || ''}\n`;
-    if (msg.files?.length) {
-      msg.files.forEach(f => {
-        transcript += `  [file: ${f.originalname}] (${f.url})\n`;
-      });
-    }
-  });
-  return transcript;
-}
-
+// ====== UTILS ======
 async function uploadToCloudinary(file) {
   return new Promise((resolve, reject) => {
     let upload_stream = cloudinary.uploader.upload_stream(
@@ -86,7 +73,21 @@ async function uploadToCloudinary(file) {
   });
 }
 
-// Main chat endpoint
+async function getSessionTranscript(sessionId) {
+  const messages = await ChatMessage.find({ sessionId }).sort({ createdAt: 1 });
+  let transcript = '';
+  messages.forEach(msg => {
+    transcript += `[${msg.from}] ${msg.message || ''}\n`;
+    if (msg.files?.length) {
+      msg.files.forEach(f => {
+        transcript += `  [file: ${f.originalname}] (${f.url})\n`;
+      });
+    }
+  });
+  return transcript;
+}
+
+// ====== MAIN CHAT ENDPOINT ======
 app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   try {
     const { message, sessionId, action, contact } = req.body;
@@ -142,8 +143,8 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     // Handle contact form/email
     if (action === 'sendEmail' || action === 'contactForm') {
       let emailText = '';
+      let contactObj = contact;
       if (contact) {
-        let contactObj = contact;
         if (typeof contact === "string") {
           try { contactObj = JSON.parse(contact); } catch {}
         }
@@ -153,7 +154,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
       await transporter.sendMail({
         from: `"Surprise Granite Bot" <${process.env.EMAIL_USER}>`,
         to: process.env.CONTACT_EMAIL || process.env.EMAIL_USER,
-        subject: contact ? `Contact Form - ${contactObj.name}` : 'New Chatbot Session',
+        subject: contactObj ? `Contact Form - ${contactObj.name}` : 'New Chatbot Session',
         text: emailText
       });
       return res.json({ message: "Your message has been sent! We will contact you soon.", sent: true });
@@ -170,7 +171,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   }
 });
 
-// Fetch chat history (optional)
+// ====== FETCH CHAT HISTORY (OPTIONAL) ======
 app.get('/api/chats/:sessionId', async (req, res) => {
   const messages = await ChatMessage.find({ sessionId: req.params.sessionId }).sort({ createdAt: 1 });
   res.json(messages);
