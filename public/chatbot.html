@@ -6,12 +6,11 @@
   <style>
     :root {
       --sg-blue: #05668d;
-      --sg-light: #f3f8fa;
+      --sg-yellow: #ffe066;
+      --sg-bg: #f3f8fa;
       --sg-white: #fff;
-      --sg-gray: #ededed;
-      --sg-user: #d9f99d;
+      --sg-user: #ffe066;
       --sg-ai: #fff;
-      --sg-shadow: 0 8px 32px rgba(0,0,0,0.18);
       --sg-radius: 18px;
     }
     #sg-chatbot-bubble {
@@ -23,12 +22,11 @@
       height: 64px;
       background: var(--sg-blue);
       border-radius: 50%;
-      box-shadow: var(--sg-shadow);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: box-shadow 0.2s;
     }
     #sg-chatbot-bubble img {
       width: 38px;
@@ -50,7 +48,7 @@
       height: 520px;
       background: var(--sg-white);
       border-radius: var(--sg-radius);
-      box-shadow: var(--sg-shadow);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
       overflow: hidden;
     }
     #sg-chatbot-header {
@@ -82,7 +80,7 @@
     #sg-chatbot-messages {
       flex: 1 1 0;
       overflow-y: auto;
-      background: var(--sg-light);
+      background: var(--sg-bg);
       padding: 1em 1em 0.5em 1em;
       display: flex;
       flex-direction: column;
@@ -105,7 +103,6 @@
       background: var(--sg-ai);
       color: #333;
       position: relative;
-      transition: background 0.2s;
     }
     .sg-msg-row.user .sg-msg-bubble {
       background: var(--sg-user);
@@ -131,7 +128,7 @@
       display: flex;
       align-items: center;
       gap: 0.5em;
-      background: var(--sg-gray);
+      background: #ededed;
       padding: 0.65em 0.7em;
       border-top: 1px solid #e0e0e0;
     }
@@ -152,9 +149,7 @@
       opacity: 0.85;
       margin-right: 0.2em;
     }
-    #sg-chatbot-attach {
-      display: none;
-    }
+    #sg-chatbot-attach { display: none; }
     #sg-chatbot-send {
       border: none;
       background: var(--sg-blue);
@@ -191,14 +186,12 @@
   </style>
 </head>
 <body>
-  <!-- Floating Chat Bubble -->
   <div id="sg-chatbot-bubble">
-    <img src="logo.png" alt="Surprise Granite Chatbot" />
+    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Chatbot" />
   </div>
-  <!-- Chatbot Window -->
   <div id="sg-chatbot-window">
     <div id="sg-chatbot-header">
-      <img src="logo.png" alt="Surprise Granite" />
+      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite" />
       Surprise Granite Chat
       <span id="sg-chatbot-close" title="Close">&times;</span>
     </div>
@@ -212,10 +205,7 @@
     <button id="sg-chatbot-contact" type="button">Contact Us</button>
   </div>
   <script>
-    // Config
-    const API_URL = "/api/chat"; // Change if your API is on a different domain
-
-    // Elements
+    const API_URL = "/api/chat";
     const bubble = document.getElementById('sg-chatbot-bubble');
     const windowEl = document.getElementById('sg-chatbot-window');
     const closeBtn = document.getElementById('sg-chatbot-close');
@@ -226,15 +216,12 @@
     const contactBtn = document.getElementById('sg-chatbot-contact');
     let attachedFiles = [];
 
-    // Widget open/close
     bubble.onclick = () => { windowEl.style.display = "flex"; bubble.style.display = "none"; scrollDown(); };
     closeBtn.onclick = () => { windowEl.style.display = "none"; bubble.style.display = "flex"; };
-    // Optional: ESC closes chat
     window.addEventListener('keydown', e => {
       if (e.key === "Escape") { windowEl.style.display = "none"; bubble.style.display = "flex"; }
     });
 
-    // Session id for tracking
     function getSessionId() {
       let sid = localStorage.getItem('sg_chatbot_sid');
       if (!sid) {
@@ -243,13 +230,9 @@
       }
       return sid;
     }
-
-    // Scroll to bottom
     function scrollDown() {
       setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 50);
     }
-
-    // Add a message bubble
     function addMessage(msg, who, images=[]) {
       const row = document.createElement('div');
       row.className = 'sg-msg-row ' + who;
@@ -265,33 +248,31 @@
       messages.appendChild(row);
       scrollDown();
     }
-
-    // File attach
     attachInput.onchange = function() {
       attachedFiles = Array.from(this.files);
       if (attachedFiles.length) {
         addMessage(`Attached ${attachedFiles.length} image(s)`, 'user');
       }
     };
-
-    // Send message
     form.onsubmit = async function(e) {
       e.preventDefault();
       const text = input.value.trim();
       if (!text && attachedFiles.length === 0) return;
       addMessage(text, "user");
       addMessage("...", "ai");
-
       const formData = new FormData();
       formData.append("message", text);
       formData.append("sessionId", getSessionId());
       attachedFiles.forEach(file => formData.append("attachments", file));
-
       try {
         const res = await fetch(API_URL, { method: "POST", body: formData });
         const data = await res.json();
-        messages.removeChild(messages.lastChild); // Remove "..." bubble
-        addMessage(data.message, "ai", data.images || []);
+        messages.removeChild(messages.lastChild);
+        if (data.error) {
+          addMessage("Sorry, there was an error: " + data.error, "ai");
+        } else {
+          addMessage(data.message, "ai", data.images || []);
+        }
       } catch (err) {
         messages.removeChild(messages.lastChild);
         addMessage("Failed to send, try again.", "ai");
@@ -300,8 +281,6 @@
       attachedFiles = [];
       attachInput.value = "";
     };
-
-    // Contact form/email trigger
     contactBtn.onclick = async function() {
       const name = prompt("Your name:");
       const email = prompt("Your email:");
