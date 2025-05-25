@@ -1,70 +1,84 @@
 import express from 'express';
-import mongoose from 'mongoose';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
-import { parse } from 'csv-parse/sync';
-import { OpenAI } from 'openai';
+import cors from 'cors';
 import { config } from 'dotenv';
+import { OpenAI } from 'openai';
+import multer from 'multer';
+import path from 'path';
 
-config(); // Loads env variables from .env if running locally
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = join(__filename, '..');
-
+// ENV
+config();
 const app = express();
+const upload = multer({ dest: 'uploads/' });
 
-app.use(express.static(join(__dirname, 'public')));
+// Serve static files
+app.use(express.static('public'));
+app.use(cors());
 app.use(express.json());
 
-// --- CSV Fetch Utility ---
-async function fetchAndParseCsv(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch CSV');
-  const text = await response.text();
-  return parse(text, { columns: true });
-}
+// --- GUARD RAILS PROMPT ---
+const COMPANY_INFO = `
+You are Surprise Granite’s online assistant, representing a full-service, licensed General Contractor (GC) in Arizona. We specialize in countertops, tile, and semi-custom cabinetry for both residential and commercial projects. Our showroom is open to the public.
 
-// --- Chatbot API with Pricing Context ---
-app.post('/api/chat', async (req, res) => {
-  const userMsg = req.body.message;
+COMPANY INFO:
+- Website: www.surprisegranite.com
+- Phone: (602) 833-3189
+- Email: info@surprisegranite.com
+- Address: 11560 N Dysart Rd. #112, Surprise, AZ 85379
+- Showroom hours: Mon-Fri 8am–5pm, Sat 10am–2pm, closed Sun
+- Social: Facebook and Instagram @SurpriseGranite
+
+RULES/GUARDRAILS:
+- Only answer questions related to Surprise Granite’s services (countertops, tile, cabinetry, remodeling, residential & commercial contracting, estimates, appointments, etc.) or company info.
+- If asked for company hours, location, contact, or social, provide the full details above.
+- If a question is not about our business or services, politely say: "I'm here to help with Surprise Granite's products and services only."
+- Never provide medical, legal, financial, or personal advice.
+- If asked for a quote, appointment, or visit, offer to connect the user to a team member by providing the phone number, website, or email.
+- Always be polite, concise, and professional.
+
+Begin every new chat with: "Welcome to Surprise Granite! How can I help you today?"
+
+If the user asks something outside these boundaries, remind them: "I'm here as your Surprise Granite assistant and can only help with our products, services, or company information."
+`;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+app.post('/api/chat', upload.single('image'), async (req, res) => {
+  const userMsg = req.body.message || '';
+  // Optionally, handle req.file (the uploaded image) as needed.
+  // You could send it to an image-to-text API if you wish,
+  // or simply acknowledge receipt for now.
+  // This example does NOT process the image further.
+
   try {
-    // Fetch CSVs from ENV URLs
-    const [prices, labor] = await Promise.all([
-      fetchAndParseCsv(process.env.PRICE_CSV_URL),
-      fetchAndParseCsv(process.env.LABOR_CSV_URL)
-    ]);
+    const systemPrompt = COMPANY_INFO;
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMsg }
+    ];
 
-    // Optionally: Find relevant rows if possible (for big CSVs), else use a sample
-    const csvContext = `
-Granite Price List (sample):
-${prices.slice(0, 6).map(row => JSON.stringify(row)).join('\n')}
-Labor Price List (sample):
-${labor.slice(0, 6).map(row => JSON.stringify(row)).join('\n')}
-`;
+    // Optionally, you can mention if an image was attached
+    if (req.file) {
+      messages.push({
+        role: "user",
+        content: "I have attached a photo for reference."
+      });
+    }
 
-    // Prompt for OpenAI with context
-    const prompt = `
-You are a countertop estimator assistant. Use the following price and labor lists to answer questions accurately and concisely. If the user asks for a price or labor rate, look it up in the data provided. Keep answers short and precise. If you can't find an exact answer, say "Sorry, I don't have that information."
-
-${csvContext}
-
-User: ${userMsg}
-Assistant:
-`;
-
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
-      messages: [{ role: 'system', content: prompt }]
+      messages
     });
 
     const botReply = response.choices[0].message.content;
     res.json({ message: botReply });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to process chat or price list." });
+    res.status(500).json({ error: "Failed to process chat or get AI response." });
   }
 });
 
-// ...rest of your server.js code...
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Surprise Granite AI server running on port ${PORT}`);
+});
