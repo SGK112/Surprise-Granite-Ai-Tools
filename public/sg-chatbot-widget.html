@@ -14,171 +14,44 @@
       --sg-radius: 18px;
     }
     #sg-chatbot-bubble {
-      position: fixed;
-      z-index: 9999;
-      bottom: 32px;
-      right: 32px;
-      width: 64px;
-      height: 64px;
-      background: var(--sg-blue);
-      border-radius: 50%;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
+      position: fixed; z-index: 9999; bottom: 32px; right: 32px;
+      width: 64px; height: 64px; background: var(--sg-blue); border-radius: 50%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18); display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
     #sg-chatbot-bubble img {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      object-fit: contain;
-      background: #fff;
-      box-shadow: 0 0 6px #ddd;
+      width: 38px; height: 38px; border-radius: 50%; object-fit: contain; background: #fff; box-shadow: 0 0 6px #ddd;
     }
     #sg-chatbot-window {
-      display: none;
-      flex-direction: column;
-      position: fixed;
-      z-index: 99999;
-      bottom: 110px;
-      right: 32px;
-      width: 360px;
-      max-width: 95vw;
-      height: 520px;
-      background: var(--sg-white);
-      border-radius: var(--sg-radius);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-      overflow: hidden;
+      display: none; flex-direction: column; position: fixed; z-index: 99999;
+      bottom: 110px; right: 32px; width: 360px; max-width: 95vw; height: 520px;
+      background: var(--sg-white); border-radius: var(--sg-radius); box-shadow: 0 8px 32px rgba(0,0,0,0.18); overflow: hidden;
     }
     #sg-chatbot-header {
-      background: var(--sg-blue);
-      color: var(--sg-white);
-      padding: 1em;
-      display: flex;
-      align-items: center;
-      gap: 0.7em;
-      font-size: 1.1em;
-      font-weight: 600;
-      justify-content: space-between;
+      background: var(--sg-blue); color: var(--sg-white); padding: 1em;
+      display: flex; align-items: center; gap: 0.7em; font-size: 1.1em; font-weight: 600; justify-content: space-between;
     }
-    #sg-chatbot-header img {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      object-fit: contain;
-      background: #fff;
-    }
-    #sg-chatbot-close {
-      cursor: pointer;
-      font-size: 1.25em;
-      margin-left: auto;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-    #sg-chatbot-close:hover { opacity: 1; }
-    #sg-chatbot-messages {
-      flex: 1 1 0;
-      overflow-y: auto;
-      background: var(--sg-bg);
-      padding: 1em 1em 0.5em 1em;
-      display: flex;
-      flex-direction: column;
-    }
-    .sg-msg-row {
-      display: flex;
-      margin-bottom: 0.5em;
-      align-items: flex-end;
-      gap: 0.5em;
-    }
+    #sg-chatbot-header img { width: 38px; height: 38px; border-radius: 50%; }
+    #sg-chatbot-close { cursor: pointer; font-size: 1.25em; margin-left: auto; opacity: 0.8; }
+    #sg-chatbot-messages { flex: 1 1 0; overflow-y: auto; background: var(--sg-bg); padding: 1em 1em 0.5em 1em; display: flex; flex-direction: column; }
+    .sg-msg-row { display: flex; margin-bottom: 0.5em; align-items: flex-end; gap: 0.5em; }
     .sg-msg-row.user { justify-content: flex-end; }
     .sg-msg-row.ai { justify-content: flex-start; }
     .sg-msg-bubble {
-      max-width: 74%;
-      padding: 0.7em 1em;
-      border-radius: var(--sg-radius);
-      font-size: 1em;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      word-break: break-word;
-      background: var(--sg-ai);
-      color: #333;
-      position: relative;
+      max-width: 74%; padding: 0.7em 1em; border-radius: var(--sg-radius); font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      word-break: break-word; background: var(--sg-ai); color: #333; position: relative;
     }
-    .sg-msg-row.user .sg-msg-bubble {
-      background: var(--sg-user);
-      color: #195106;
-      border-bottom-right-radius: 4px;
-      border-bottom-left-radius: var(--sg-radius);
-    }
-    .sg-msg-row.ai .sg-msg-bubble {
-      background: var(--sg-white);
-      color: #222;
-      border-bottom-left-radius: 4px;
-      border-bottom-right-radius: var(--sg-radius);
-    }
-    .sg-msg-bubble img {
-      display: block;
-      max-width: 180px;
-      max-height: 120px;
-      margin-top: 8px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px #ccc;
-    }
-    #sg-chatbot-input-area {
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      background: #ededed;
-      padding: 0.65em 0.7em;
-      border-top: 1px solid #e0e0e0;
-    }
-    #sg-chatbot-text {
-      flex: 1 1 0;
-      border: none;
-      border-radius: 100px;
-      padding: 0.7em 1em;
-      font-size: 1em;
-      background: #fff;
-      outline: none;
-      margin-right: 0.2em;
-    }
-    #sg-chatbot-attach-label {
-      cursor: pointer;
-      font-size: 1.22em;
-      color: var(--sg-blue);
-      opacity: 0.85;
-      margin-right: 0.2em;
-    }
+    .sg-msg-row.user .sg-msg-bubble { background: var(--sg-user); color: #195106; border-bottom-right-radius: 4px; border-bottom-left-radius: var(--sg-radius); }
+    .sg-msg-row.ai .sg-msg-bubble { background: var(--sg-white); color: #222; border-bottom-left-radius: 4px; border-bottom-right-radius: var(--sg-radius); }
+    .sg-msg-bubble img { display: block; max-width: 180px; max-height: 120px; margin-top: 8px; border-radius: 10px; box-shadow: 0 2px 5px #ccc; }
+    #sg-chatbot-input-area { display: flex; align-items: center; gap: 0.5em; background: #ededed; padding: 0.65em 0.7em; border-top: 1px solid #e0e0e0; }
+    #sg-chatbot-text { flex: 1 1 0; border: none; border-radius: 100px; padding: 0.7em 1em; font-size: 1em; background: #fff; outline: none; margin-right: 0.2em; }
+    #sg-chatbot-attach-label { cursor: pointer; font-size: 1.22em; color: var(--sg-blue); opacity: 0.85; margin-right: 0.2em; }
     #sg-chatbot-attach { display: none; }
     #sg-chatbot-send {
-      border: none;
-      background: var(--sg-blue);
-      color: #fff;
-      font-size: 1em;
-      font-weight: bold;
-      border-radius: 50%;
-      width: 39px;
-      height: 39px;
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-      box-shadow: 0 1px 3px #ccc;
-      transition: background 0.2s;
+      border: none; background: var(--sg-blue); color: #fff; font-size: 1em; font-weight: bold; border-radius: 50%;
+      width: 39px; height: 39px; display: grid; place-items: center; cursor: pointer; box-shadow: 0 1px 3px #ccc;
     }
     #sg-chatbot-send:active { background: #034c6e; }
-    #sg-chatbot-contact {
-      display: block;
-      width: 100%;
-      background: transparent;
-      color: var(--sg-blue);
-      border: none;
-      padding: 0.7em;
-      text-align: center;
-      font-size: 0.95em;
-      cursor: pointer;
-      transition: color 0.2s;
-    }
-    #sg-chatbot-contact:hover { color: #034c6e; }
     @media (max-width: 500px) {
       #sg-chatbot-window { width: 99vw; right: 0; bottom: 0; border-radius: 0; height: 99vh; }
       #sg-chatbot-bubble { right: 8px; bottom: 8px; }
@@ -202,13 +75,10 @@
       <input type="file" id="sg-chatbot-attach" multiple accept="image/*" />
       <button id="sg-chatbot-send" type="submit" title="Send">&#9658;</button>
     </form>
-    <button id="sg-chatbot-contact" type="button">Contact Us</button>
   </div>
   <script>
-    // ====== CONFIG ======
-    // Change to your Render/production backend!
+    // IMPORTANT: Set this to your Render deployment backend URL!
     const API_URL = "https://YOUR_RENDER_URL/api/chat";
-    // ====================
     const bubble = document.getElementById('sg-chatbot-bubble');
     const windowEl = document.getElementById('sg-chatbot-window');
     const closeBtn = document.getElementById('sg-chatbot-close');
@@ -216,47 +86,22 @@
     const form = document.getElementById('sg-chatbot-input-area');
     const input = document.getElementById('sg-chatbot-text');
     const attachInput = document.getElementById('sg-chatbot-attach');
-    const contactBtn = document.getElementById('sg-chatbot-contact');
     let attachedFiles = [];
-
     bubble.onclick = () => { windowEl.style.display = "flex"; bubble.style.display = "none"; scrollDown(); };
     closeBtn.onclick = () => { windowEl.style.display = "none"; bubble.style.display = "flex"; };
-    window.addEventListener('keydown', e => {
-      if (e.key === "Escape") { windowEl.style.display = "none"; bubble.style.display = "flex"; }
-    });
-
     function getSessionId() {
       let sid = localStorage.getItem('sg_chatbot_sid');
-      if (!sid) {
-        sid = Math.random().toString(36).slice(2) + Date.now();
-        localStorage.setItem('sg_chatbot_sid', sid);
-      }
+      if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem('sg_chatbot_sid', sid); }
       return sid;
     }
-    function scrollDown() {
-      setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 50);
-    }
+    function scrollDown() { setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 50); }
     function addMessage(msg, who, images=[]) {
-      const row = document.createElement('div');
-      row.className = 'sg-msg-row ' + who;
-      const bubble = document.createElement('div');
-      bubble.className = 'sg-msg-bubble';
-      bubble.innerText = msg;
-      images.forEach(url => {
-        const img = document.createElement('img');
-        img.src = url;
-        bubble.appendChild(img);
-      });
-      row.appendChild(bubble);
-      messages.appendChild(row);
-      scrollDown();
+      const row = document.createElement('div'); row.className = 'sg-msg-row ' + who;
+      const bubble = document.createElement('div'); bubble.className = 'sg-msg-bubble'; bubble.innerText = msg;
+      images.forEach(url => { const img = document.createElement('img'); img.src = url; bubble.appendChild(img); });
+      row.appendChild(bubble); messages.appendChild(row); scrollDown();
     }
-    attachInput.onchange = function() {
-      attachedFiles = Array.from(this.files);
-      if (attachedFiles.length) {
-        addMessage(`Attached ${attachedFiles.length} image(s)`, 'user');
-      }
-    };
+    attachInput.onchange = function() { attachedFiles = Array.from(this.files); };
     form.onsubmit = async function(e) {
       e.preventDefault();
       const text = input.value.trim();
@@ -283,24 +128,6 @@
       input.value = "";
       attachedFiles = [];
       attachInput.value = "";
-    };
-    contactBtn.onclick = async function() {
-      const name = prompt("Your name:");
-      const email = prompt("Your email:");
-      const message = prompt("Your message:");
-      if (!name || !email || !message) return;
-      addMessage("Sending contact info...", "user");
-      const body = new FormData();
-      body.append("sessionId", getSessionId());
-      body.append("action", "contactForm");
-      body.append("contact", JSON.stringify({ name, email, message }));
-      try {
-        const res = await fetch(API_URL, { method: "POST", body });
-        const data = await res.json();
-        addMessage(data.message, "ai");
-      } catch {
-        addMessage("Failed to send contact form.", "ai");
-      }
     };
   </script>
 </body>
