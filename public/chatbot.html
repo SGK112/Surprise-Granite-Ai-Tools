@@ -74,6 +74,11 @@
       margin-left: 7px; width: 22px; height: 22px; border: 3px solid #b3baff; border-radius: 50%;
       border-top: 3px solid #2563eb; animation: spin 0.7s linear infinite; display: none;
     }
+    #chatbot-footer {
+      background: #f1f5f9; font-size: 13px; color: #666; text-align: center; padding: 8px 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+    #chatbot-footer a { color: #2563eb; text-decoration: none; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     @media (max-width: 600px) {
       #chatbot-widget { right: 0; left: 0; width: 99vw; max-width: none; }
@@ -103,125 +108,15 @@
       <button id="sendButton" type="submit">Send</button>
       <div id="chatbot-spinner"></div>
     </form>
+    <div id="chatbot-footer">
+      Surprise Granite • (602) 833-3189 • info@surprisegranite.com<br>
+      11560 N Dysart Rd. #112, Surprise, AZ 85379<br>
+      Mon-Fri: 8am-5pm, Sat: 10am-2pm •
+      <a href="https://www.surprisegranite.com" target="_blank">Website</a>
+      <br>
+      Facebook & Instagram: @SurpriseGranite
+    </div>
   </div>
-  <script>
-    const floatBtn = document.getElementById("chatbot-float-btn");
-    const widget = document.getElementById("chatbot-widget");
-    const closeBtn = document.getElementById("chatbot-close-btn");
-    const chatOutput = document.getElementById("chatOutput");
-    const chatInput = document.getElementById("chatInput");
-    const sendButton = document.getElementById("sendButton");
-    const spinner = document.getElementById("chatbot-spinner");
-    const chatForm = document.getElementById("chatbot-controls");
-    const attachInput = document.getElementById("attachInput");
-    const imagePreview = document.getElementById("imagePreview");
-    let attachedImage = null;
-
-    floatBtn.onclick = function() {
-      widget.style.display = "flex";
-      floatBtn.style.display = "none";
-      setTimeout(scrollToBottom, 120);
-    };
-    closeBtn.onclick = function() {
-      widget.style.display = "none";
-      floatBtn.style.display = "flex";
-    };
-
-    attachInput.addEventListener('change', function(e) {
-      const file = this.files[0];
-      if (file) {
-        attachedImage = file;
-        imagePreview.src = URL.createObjectURL(file);
-        imagePreview.style.display = "inline-block";
-      } else {
-        attachedImage = null;
-        imagePreview.src = "";
-        imagePreview.style.display = "none";
-      }
-    });
-
-    function scrollToBottom() {
-      chatOutput.scrollTop = chatOutput.scrollHeight;
-    }
-
-    function appendMessage(role, text, imgUrl) {
-      const bubble = document.createElement("div");
-      bubble.className = `bubble ${role}`;
-      if (role === "ai") {
-        const avatar = document.createElement("div");
-        avatar.className = "bubble-avatar";
-        avatar.textContent = "🤖";
-        bubble.appendChild(avatar);
-      }
-      const textDiv = document.createElement("div");
-      textDiv.className = "bubble-text";
-      textDiv.textContent = text;
-      bubble.appendChild(textDiv);
-      if (imgUrl) {
-        const imgElem = document.createElement("img");
-        imgElem.className = "bubble-image";
-        imgElem.src = imgUrl;
-        bubble.appendChild(imgElem);
-      }
-      chatOutput.appendChild(bubble);
-      scrollToBottom();
-    }
-
-    function setChatbotLoading(isLoading) {
-      spinner.style.display = isLoading ? "inline-block" : "none";
-      sendButton.disabled = isLoading;
-      chatInput.disabled = isLoading;
-    }
-
-    function showError(text) {
-      appendMessage("ai", "⚠️ " + text);
-    }
-
-    async function sendMessage(message, imageFile) {
-      appendMessage("user", message, imageFile ? URL.createObjectURL(imageFile) : null);
-      setChatbotLoading(true);
-      try {
-        let response;
-        if (imageFile) {
-          const formData = new FormData();
-          formData.append("message", message);
-          formData.append("image", imageFile);
-          response = await fetch("/api/chat", {
-            method: "POST",
-            body: formData
-          });
-        } else {
-          response = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message })
-          });
-        }
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          showError(err.error || "AI backend error.");
-          setChatbotLoading(false);
-          return;
-        }
-        const data = await response.json();
-        appendMessage("ai", data.message);
-      } catch (e) {
-        showError("Could not reach the server. Please try again.");
-      }
-      setChatbotLoading(false);
-      imagePreview.style.display = "none";
-      imagePreview.src = "";
-      attachedImage = null;
-      attachInput.value = "";
-    }
-
-    chatForm.addEventListener("submit", e => {
-      e.preventDefault();
-      const msg = chatInput.value.trim();
-      if (!msg && !attachedImage) return;
-      chatInput.value = "";
-      sendMessage(msg, attachedImage);
-    });
-  </script>
+  <script src="chat.js"></script>
 </body>
 </html>
