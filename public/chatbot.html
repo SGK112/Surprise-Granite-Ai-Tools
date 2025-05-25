@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Surprise Granite AI Chatbot</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    #chatbot-widget { position: fixed; bottom: 20px; right: 20px; z-index: 9999; font-family: inherit; }
+    #chatbot-window { display: flex; flex-direction: column; width: 95vw; max-width: 370px; height: 70vh; max-height: 520px; background: #fff; border-radius: 18px; box-shadow: 0 6px 32px rgba(0,0,0,0.25); position: absolute; bottom: 60px; right: 0; overflow: hidden; }
+    #chatbot-header { padding: 12px 18px; background: #2563eb; color: #fff; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    #chatbot-close-btn { background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; }
+    .chat-output { flex: 1; padding: 12px 15px; overflow-y: auto; background: #f5f5f5; font-size: 16px; line-height: 1.6; word-break: break-word; }
+    .chat-controls { display: flex; gap: 7px; padding: 10px; background: #fff; border-top: 1px solid #e5e7eb; }
+    #chatInput { flex: 1; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 16px; }
+    #sendButton, #recordButton { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0 14px; font-size: 16px; cursor: pointer; transition: background 0.2s; min-width: 50px; }
+    #sendButton:active, #recordButton:active { background: #1d4ed8; }
+    @media (max-width: 600px) { #chatbot-window { width: 99vw; height: 82vh; right: 0; bottom: 60px; max-width: none; max-height: none; } }
+  </style>
+</head>
+<body>
+  <div id="chatbot-widget">
+    <div id="chatbot-window">
+      <div id="chatbot-header">
+        <span>Granite AI Chat</span>
+        <button id="chatbot-close-btn" aria-label="Close Chatbot">&times;</button>
+      </div>
+      <div id="chatOutput" class="chat-output"></div>
+      <div class="chat-controls">
+        <input id="chatInput" type="text" placeholder="Type your message..." autocomplete="off" />
+        <button id="sendButton" type="button" aria-label="Send Message">Send</button>
+        <button id="recordButton" type="button" aria-label="Record Voice">🎤</button>
+      </div>
+    </div>
+  </div>
+  <script src="/chat.js"></script>
+  <script>
+    document.getElementById('chatbot-close-btn').onclick = () => {
+      document.getElementById('chatbot-window').style.display = 'none';
+    };
+  </script>
+</body>
+</html>
