@@ -1,23 +1,29 @@
-require('dotenv').config();
-const express = require('express');
-const multer = require('multer');
-const mongoose = require('mongoose');
-const path = require('path');
-const fs = require('fs');
-const nodemailer = require('nodemailer');
-const { OpenAI } = require('openai');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import nodemailer from 'nodemailer';
+import { OpenAI } from 'openai';
 
 const app = express();
+const __dirname = path.resolve();
 app.use(express.json());
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.static('public'));
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/surprisegranite', { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true, useUnifiedTopology: true
+}).then(() => console.log('MongoDB connected'))
+  .catch(err => { console.error('MongoDB error:', err); process.exit(1); });
 
-// Mongoose schema
+// Schema and Model
 const ChatMessageSchema = new mongoose.Schema({
-  sessionId: String, // to group messages by session/user
-  from: String,      // 'user' or 'ai' or 'system'
+  sessionId: String,
+  from: String,
   message: String,
   files: [{
     filename: String,
@@ -30,7 +36,7 @@ const ChatMessageSchema = new mongoose.Schema({
 });
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
 
-// Multer storage on disk
+// Multer setup
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
@@ -40,16 +46,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Serve uploads
+// Serve uploaded files
 app.use('/uploads', express.static(uploadDir));
-
-// OpenAI setup
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Nodemailer setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
+  port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -57,13 +60,16 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Utility: get all messages for a session
+// OpenAI setup
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Helper: Get session transcript
 async function getSessionTranscript(sessionId) {
   const messages = await ChatMessage.find({ sessionId }).sort({ createdAt: 1 });
   let transcript = '';
   messages.forEach(msg => {
     transcript += `[${msg.from}] ${msg.message || ''}\n`;
-    if (msg.files && msg.files.length) {
+    if (msg.files?.length) {
       msg.files.forEach(f => {
         transcript += `  [file: ${f.originalname}] (${f.path})\n`;
       });
@@ -93,10 +99,9 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
       }).save();
     }
 
-    // AI response (simple, can expand to use OpenAI with files)
+    // AI response (with OpenAI)
     let aiResponse = '';
     if (message && (!action || action === 'chat')) {
-      // Call OpenAI for response if enabled
       if (process.env.OPENAI_API_KEY) {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -107,9 +112,8 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
         });
         aiResponse = completion.choices[0].message.content;
       } else {
-        aiResponse = "AI is not connected. Please contact us for more info.";
+        aiResponse = "AI not available.";
       }
-
       // Save AI message
       await new ChatMessage({
         sessionId,
@@ -118,9 +122,8 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
       }).save();
     }
 
-    // Handle sending chat/contact via email (action: "sendEmail")
+    // Send email on request (e.g. contact form or chat end)
     if (action === 'sendEmail' || action === 'contactForm') {
-      // Compose transcript or contact form
       let emailText = '';
       if (contact) {
         emailText = `Contact Request:\nFrom: ${contact.name}\nEmail: ${contact.email}\nMessage: ${contact.message}\n\n`;
@@ -129,7 +132,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
       await transporter.sendMail({
         from: `"Surprise Granite Bot" <${process.env.SMTP_USER}>`,
         to: process.env.CONTACT_EMAIL || process.env.SMTP_USER,
-        subject: contact ? `Contact Form Submission - ${contact.name}` : 'New Chatbot Session',
+        subject: contact ? `Contact Form - ${contact.name}` : 'New Chatbot Session',
         text: emailText
       });
       return res.json({ message: "Your message has been sent! We will contact you soon.", sent: true });
@@ -146,7 +149,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   }
 });
 
-// (Optional) Endpoint to fetch previous chats by sessionId (for admin/future use)
+// For chat history (admin or user)
 app.get('/api/chats/:sessionId', async (req, res) => {
   const messages = await ChatMessage.find({ sessionId: req.params.sessionId }).sort({ createdAt: 1 });
   res.json(messages);
