@@ -9,43 +9,30 @@ import { OpenAI } from 'openai';
 import fetch from 'node-fetch';
 import { parse } from 'csv-parse/sync';
 
-// --- Google Sheets CSV URLs from .env ---
+// -- CONFIG --
 const CSV_MATERIALS_URL = process.env.PUBLISHED_CSV_MATERIALS;
 const CSV_LABOR_URL = process.env.PUBLISHED_CSV_LABOR;
 
-// --- Load CSVs from Google Sheets ---
+// -- LOAD DATA FROM GOOGLE SHEETS --
 let materialsData = [];
 let laborData = [];
-
 async function fetchCsvData(url) {
   const res = await fetch(url);
   const text = await res.text();
   return parse(text, { columns: true });
 }
-
 async function refreshAllData() {
   if (CSV_MATERIALS_URL) {
-    try {
-      materialsData = await fetchCsvData(CSV_MATERIALS_URL);
-      console.log("Loaded materialsData from Google Sheets.");
-    } catch (e) {
-      console.error("Error loading materialsData", e);
-    }
+    try { materialsData = await fetchCsvData(CSV_MATERIALS_URL); } catch (e) { console.error("Error loading materialsData", e); }
   }
   if (CSV_LABOR_URL) {
-    try {
-      laborData = await fetchCsvData(CSV_LABOR_URL);
-      console.log("Loaded laborData from Google Sheets.");
-    } catch (e) {
-      console.error("Error loading laborData", e);
-    }
+    try { laborData = await fetchCsvData(CSV_LABOR_URL); } catch (e) { console.error("Error loading laborData", e); }
   }
 }
-// Initial load and refresh every hour
 await refreshAllData();
-setInterval(refreshAllData, 60 * 60 * 1000);
+setInterval(refreshAllData, 60 * 60 * 1000); // refresh every hour
 
-// --- MongoDB setup ---
+// -- MONGODB --
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 const ChatMessageSchema = new mongoose.Schema({
   sessionId: String,
@@ -56,25 +43,20 @@ const ChatMessageSchema = new mongoose.Schema({
 });
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
 
-// --- App setup ---
+// -- EXPRESS --
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*' }));
 
-// --- Multer setup ---
+// -- MULTER FOR FILE UPLOADS --
 const upload = multer({ storage: multer.memoryStorage() });
 
-// --- Cloudinary config ---
+// -- CLOUDINARY --
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-
-// --- OpenAI config ---
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// --- Image upload helper ---
 async function uploadToCloudinary(file) {
   return new Promise((resolve, reject) => {
     let upload_stream = cloudinary.uploader.upload_stream(
@@ -93,7 +75,10 @@ async function uploadToCloudinary(file) {
   });
 }
 
-// --- Main chat endpoint ---
+// -- OPENAI --
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// -- CHAT ENDPOINT --
 app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   try {
     const { message, sessionId } = req.body;
@@ -101,28 +86,27 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     if (req.files && req.files.length) {
       files = await Promise.all(req.files.map(uploadToCloudinary));
     }
-    // Save user message
     await new ChatMessage({ sessionId, from: 'user', message, files }).save();
 
-    // --- SYSTEM PROMPT with live Google Sheets data ---
+    // SYSTEM PROMPT with live pricing/labor from Google Sheets
     const systemPrompt = `
-You are a friendly, expert project estimator and assistant for Surprise Granite.
-Here is our current price list for materials (CSV as array of objects):
+You are a friendly, expert estimator for Surprise Granite.
+Here is our current product price list:
 ${JSON.stringify(materialsData)}
-And here are our labor rates (CSV as array of objects):
+And our labor rates:
 ${JSON.stringify(laborData)}
-When a user asks for a quote, help them select a material, estimate based on dimensions (if given), and explain the price calculation using both material and labor rates.
+When a user asks for a quote, help them select a material, estimate based on dimensions (if given), and explain the price breakdown using both material and labor.
 If they upload an image, analyze it for material type or room context.
-If unsure, ask clarifying questions, then give a ballpark estimate using the price list.
-Always be friendly and helpful, and only use these prices and rates for calculations.
+If unsure, ask clarifying questions, then give a ballpark estimate using this data.
+Always be helpful, and ONLY use these prices and rates for your answers.
     `.trim();
 
-    // --- User content for OpenAI Vision ---
+    // User content for OpenAI Vision
     const userContent = [];
     if (message) userContent.push({ type: "text", text: message });
     files.forEach(f => userContent.push({ type: "image_url", image_url: { url: f.url }}));
 
-    // --- OpenAI Vision call ---
+    // OpenAI Vision call
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -133,7 +117,6 @@ Always be friendly and helpful, and only use these prices and rates for calculat
     });
     const aiResponse = completion.choices[0].message.content;
 
-    // Save AI response
     await new ChatMessage({ sessionId, from: 'ai', message: aiResponse }).save();
 
     res.json({ message: aiResponse, images: files.map(f => f.url) });
@@ -143,7 +126,7 @@ Always be friendly and helpful, and only use these prices and rates for calculat
   }
 });
 
-// --- Serve static files (widget) ---
+// -- STATIC FILES (WIDGET) --
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
