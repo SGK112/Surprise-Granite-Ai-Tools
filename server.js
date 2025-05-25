@@ -33,7 +33,7 @@ await refreshAllData();
 setInterval(refreshAllData, 60 * 60 * 1000); // refresh every hour
 
 // -- MONGODB --
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(process.env.MONGODB_URI);
 const ChatMessageSchema = new mongoose.Schema({
   sessionId: String,
   from: String,
@@ -78,6 +78,17 @@ async function uploadToCloudinary(file) {
 // -- OPENAI --
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// -- Helper: Filter relevant rows from materials/labor based on user query --
+function filterRelevantRows(data, message) {
+  if (!data || !message) return [];
+  // Simple keyword match: look for any row where any value includes a word from the user's message
+  const keywords = message.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+  return data.filter(row =>
+    Object.values(row)
+      .some(val => keywords.some(kw => String(val).toLowerCase().includes(kw)))
+  );
+}
+
 // -- CHAT ENDPOINT --
 app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   try {
@@ -88,13 +99,21 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     }
     await new ChatMessage({ sessionId, from: 'user', message, files }).save();
 
-    // SYSTEM PROMPT with live pricing/labor from Google Sheets
+    // ----- Smart: Only send relevant or a small sample of the data to OpenAI -----
+    const MAX_SAMPLE_ROWS = 8;
+    let relevantMaterials = filterRelevantRows(materialsData, message);
+    let relevantLabor = filterRelevantRows(laborData, message);
+
+    // If no relevant matches, send a small sample to show the structure
+    if (relevantMaterials.length === 0) relevantMaterials = materialsData.slice(0, MAX_SAMPLE_ROWS);
+    if (relevantLabor.length === 0) relevantLabor = laborData.slice(0, MAX_SAMPLE_ROWS);
+
     const systemPrompt = `
 You are a friendly, expert estimator for Surprise Granite.
-Here is our current product price list:
-${JSON.stringify(materialsData)}
-And our labor rates:
-${JSON.stringify(laborData)}
+Here is the current product price list sample or matches for the user's inquiry:
+${JSON.stringify(relevantMaterials)}
+And the labor rates sample or matches:
+${JSON.stringify(relevantLabor)}
 When a user asks for a quote, help them select a material, estimate based on dimensions (if given), and explain the price breakdown using both material and labor.
 If they upload an image, analyze it for material type or room context.
 If unsure, ask clarifying questions, then give a ballpark estimate using this data.
@@ -128,6 +147,7 @@ Always be helpful, and ONLY use these prices and rates for your answers.
 
 // -- STATIC FILES (WIDGET) --
 app.use(express.static('public'));
+app.get('/health', (req, res) => res.send('OK'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Surprise Granite Chatbot running on port ${PORT}`));
