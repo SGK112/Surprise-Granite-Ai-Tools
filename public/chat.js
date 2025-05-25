@@ -1,123 +1,119 @@
-const floatBtn = document.getElementById("chatbot-float-btn");
-const widget = document.getElementById("chatbot-widget");
-const closeBtn = document.getElementById("chatbot-close-btn");
-const chatOutput = document.getElementById("chatOutput");
-const chatInput = document.getElementById("chatInput");
-const sendButton = document.getElementById("sendButton");
-const spinner = document.getElementById("chatbot-spinner");
-const chatForm = document.getElementById("chatbot-controls");
-const attachInput = document.getElementById("attachInput");
-const imagePreview = document.getElementById("imagePreview");
-let attachedImage = null;
+import express from 'express';
+import cors from 'cors';
+import { config } from 'dotenv';
+import { OpenAI } from 'openai';
+import multer from 'multer';
+import nodemailer from 'nodemailer';
+import { parse } from 'csv-parse/sync';
 
-// Dynamic AI welcome message
-const welcomeMsg = `👋 Hi! I'm the Surprise Granite virtual assistant. Ask me anything about our products, services, pricing, or to get started on your project.`;
+config();
+const app = express();
+const upload = multer({ dest: 'uploads/' });
 
-function scrollToBottom() {
-  chatOutput.scrollTop = chatOutput.scrollHeight;
+app.use(express.static('public'));
+app.use(cors());
+app.use(express.json());
+
+function loadCsvFromEnv(envKey) {
+  const csvData = process.env[envKey] || '';
+  if (!csvData.trim()) return [];
+  return parse(csvData, { columns: true });
 }
 
-function appendMessage(role, text, imgUrl) {
-  const bubble = document.createElement("div");
-  bubble.className = `bubble ${role}`;
-  if (role === "ai") {
-    const avatar = document.createElement("div");
-    avatar.className = "bubble-avatar";
-    avatar.textContent = "🤖";
-    bubble.appendChild(avatar);
+// Give the AI a concise but complete sample of the CSVs
+function getCsvSummary(records, n = 5) {
+  if (!records || records.length === 0) return 'No data available.';
+  const headers = Object.keys(records[0]);
+  const rows = records.slice(0, n)
+    .map(row => headers.map(h => row[h]).join(' | '))
+    .join('\n');
+  return `${headers.join(' | ')}\n${rows}${records.length > n ? '\n...' : ''}`;
+}
+
+const SYSTEM_PROMPT = `
+You are a helpful virtual assistant for Surprise Granite. You can answer questions about products, services, pricing, and company information.
+You have access to the company's current materials and labor price lists below. Use these to answer pricing questions as specifically as possible.
+If a user attaches a photo, acknowledge receipt but do not attempt to analyze it. You are not able to process images, but can notify staff that a photo was received.
+If a user asks about company information, answer using your stored knowledge.
+Never provide medical, legal, or financial advice outside of Surprise Granite's services.
+`;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USERNAME,
+    pass: process.env.EMAIL_PASSWORD
   }
-  const textDiv = document.createElement("div");
-  textDiv.className = "bubble-text";
-  textDiv.innerHTML = text;
-  bubble.appendChild(textDiv);
-  if (imgUrl) {
-    const imgElem = document.createElement("img");
-    imgElem.className = "bubble-image";
-    imgElem.src = imgUrl;
-    bubble.appendChild(imgElem);
-  }
-  chatOutput.appendChild(bubble);
-  setTimeout(scrollToBottom, 80);
-}
-
-function setChatbotLoading(isLoading) {
-  spinner.style.display = isLoading ? "inline-block" : "none";
-  sendButton.disabled = isLoading;
-  chatInput.disabled = isLoading;
-}
-
-function showError(text) {
-  appendMessage("ai", "⚠️ " + text);
-}
-
-async function sendMessage(message, imageFile) {
-  appendMessage("user", message, imageFile ? URL.createObjectURL(imageFile) : null);
-  setChatbotLoading(true);
-  try {
-    let response;
-    if (imageFile) {
-      const formData = new FormData();
-      formData.append("message", message);
-      formData.append("image", imageFile);
-      response = await fetch("/api/chat", {
-        method: "POST",
-        body: formData
-      });
-    } else {
-      response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
-    }
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      showError(err.error || "AI backend error.");
-      setChatbotLoading(false);
-      return;
-    }
-    const data = await response.json();
-    appendMessage("ai", data.message);
-  } catch (e) {
-    showError("Could not reach the server. Please try again.");
-  }
-  setChatbotLoading(false);
-  imagePreview.style.display = "none";
-  imagePreview.src = "";
-  attachedImage = null;
-  attachInput.value = "";
-}
-
-chatForm.addEventListener("submit", e => {
-  e.preventDefault();
-  const msg = chatInput.value.trim();
-  if (!msg && !attachedImage) return;
-  chatInput.value = "";
-  sendMessage(msg, attachedImage);
 });
 
-floatBtn.onclick = function() {
-  widget.style.display = "flex";
-  floatBtn.style.display = "none";
-  if (!chatOutput.innerHTML) {
-    appendMessage("ai", welcomeMsg);
-  }
-  setTimeout(scrollToBottom, 120);
-};
-closeBtn.onclick = function() {
-  widget.style.display = "none";
-  floatBtn.style.display = "flex";
-};
+let chatHistory = [];
 
-attachInput.addEventListener('change', function(e) {
-  const file = this.files[0];
-  if (file) {
-    attachedImage = file;
-    imagePreview.src = URL.createObjectURL(file);
-    imagePreview.style.display = "inline-block";
-  } else {
-    attachedImage = null;
-    imagePreview.src = "";
-    imagePreview.style.display = "none";
+app.post('/api/chat', upload.single('image'), async (req, res) => {
+  const userMsg = req.body.message || '';
+  chatHistory.push({ role: "user", content: userMsg });
+
+  // Load and summarize CSVs
+  let materialsRecords = loadCsvFromEnv('PUBLISHED_CSV_MATERIALS_');
+  let laborRecords = loadCsvFromEnv('PUBLISHED_CSV_LABOR');
+  let materialsSummary = getCsvSummary(materialsRecords);
+  let laborSummary = getCsvSummary(laborRecords);
+
+  // If there's an image attached, let the AI know
+  let fileNotice = '';
+  if (req.file) {
+    fileNotice = "The user has attached a photo for this conversation. Please let them know it will be reviewed by a team member, but you cannot analyze images directly.";
   }
+
+  try {
+    const messages = [
+      { role: "system", content:
+        SYSTEM_PROMPT +
+        "\n\nMATERIALS PRICE LIST SAMPLE:\n" +
+        materialsSummary +
+        "\n\nLABOR PRICE LIST SAMPLE:\n" +
+        laborSummary +
+        (fileNotice ? "\n\n" + fileNotice : "")
+      },
+      ...chatHistory
+    ];
+    if (req.file) {
+      messages.push({ role: "user", content: "I have attached a photo for reference." });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4-turbo',
+      messages
+    });
+
+    const botReply = response.choices[0].message.content;
+    chatHistory.push({ role: "assistant", content: botReply });
+
+    // Email transcript so far
+    const mailOptions = {
+      from: process.env.EMAIL_USERNAME,
+      to: "info@surprisegranite.com",
+      subject: "New Chatbot Message from Website",
+      html: `
+        <h3>Surprise Granite Chatbot Transcript</h3>
+        ${chatHistory.map(m =>
+          `<b>${m.role === "user" ? "Visitor" : "AI"}:</b> ${m.content}<br><br>`
+        ).join('')}
+      `
+    };
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) console.error(error);
+    });
+
+    res.json({ message: botReply });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to process chat or get AI response." });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Surprise Granite AI server running on port ${PORT}`);
 });
