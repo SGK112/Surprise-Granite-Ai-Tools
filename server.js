@@ -3,18 +3,18 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { Configuration, OpenAIApi } = require('openai');
+const nodemailer = require('nodemailer');
+const { parse } = require('csv-parse/sync');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// In-memory sessions for demo (replace with Redis, etc. for production)
-const sessions = {}; // { sessionId: [ {role, content} ] }
-
-app.use(cors());
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Ensure uploads dir exists
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
@@ -27,36 +27,96 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Helper: get recent N messages for a session
+function loadCsvFromEnv(envKey) {
+  const csvData = process.env[envKey] || '';
+  if (!csvData.trim()) return [];
+  return parse(csvData, { columns: true });
+}
+
+function getCsvSummary(records, n = 5) {
+  if (!records || records.length === 0) return 'No data available.';
+  const headers = Object.keys(records[0]);
+  const rows = records.slice(0, n)
+    .map(row => headers.map(h => row[h]).join(' | '))
+    .join('\n');
+  return `${headers.join(' | ')}\n${rows}${records.length > n ? '\n...' : ''}`;
+}
+
+const SYSTEM_PROMPT = `
+You are a helpful virtual assistant for Surprise Granite. You can answer questions about products, services, pricing, and company information.
+You have access to the company's current materials and labor price lists below—use these to answer pricing questions as specifically as possible.
+If a user attaches a photo, acknowledge receipt but do not attempt to analyze it. You are not able to process images, but can notify staff that a photo was received.
+If a user asks about company information, answer using your stored knowledge.
+Never provide medical, legal, or financial advice outside of Surprise Granite's services.
+`;
+
+const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+const sessions = {};
+
 function getContext(sessionId, limit = 10) {
   if (!sessionId) return [];
   const history = sessions[sessionId] || [];
   return history.slice(-limit);
 }
 
-// Main chat endpoint
+// Chat endpoint (AI, price list context, and optional image handling)
 app.post('/api/chat', upload.single('image'), async (req, res) => {
   try {
     const sessionId = req.body.sessionId || req.headers['x-session-id'];
-    const message = req.body.message || (req.body && req.body.message) || '';
+    const userMsg = req.body.message || '';
     let imageUrl = null;
     if (req.file) imageUrl = `/uploads/${req.file.filename}`;
 
-    // Store conversation in session (if sessionId given)
+    // Track session chat history
     if (sessionId) {
       if (!sessions[sessionId]) sessions[sessionId] = [];
-      sessions[sessionId].push({ role: "user", content: message, imageUrl });
-      // Keep only last 10 exchanges
+      sessions[sessionId].push({ role: "user", content: userMsg, imageUrl });
       sessions[sessionId] = sessions[sessionId].slice(-20);
     }
 
-    // --- AI Integration Example ---
-    // You would use something like:
-    // const context = getContext(sessionId);
-    // const aiReply = await callOpenAI(context);
-    // But for now, just echo:
-    let aiReply = "You said: " + message;
-    if (imageUrl) aiReply += " (And you attached an image!)";
+    // Load and summarize CSVs
+    const materialsRecords = loadCsvFromEnv('PUBLISHED_CSV_MATERIALS');
+    const laborRecords = loadCsvFromEnv('PUBLISHED_CSV_LABOR');
+    const materialsSummary = getCsvSummary(materialsRecords);
+    const laborSummary = getCsvSummary(laborRecords);
+
+    let fileNotice = '';
+    if (imageUrl) {
+      fileNotice = "The user has attached a photo for this conversation. Please let them know it will be reviewed by a team member, but you cannot analyze images directly.";
+    }
+
+    const messages = [
+      { role: "system", content:
+        SYSTEM_PROMPT +
+        "\n\nMATERIALS PRICE LIST SAMPLE:\n" +
+        materialsSummary +
+        "\n\nLABOR PRICE LIST SAMPLE:\n" +
+        laborSummary +
+        (fileNotice ? "\n\n" + fileNotice : "")
+      },
+      ...(getContext(sessionId) ?? []).map(msg => ({
+        role: msg.role === 'ai' ? 'assistant' : 'user',
+        content: msg.content
+      })),
+      { role: "user", content: userMsg }
+    ];
+
+    const completion = await openai.createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages,
+      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 200,
+      temperature: 0.7
+    });
+    const aiReply = completion.data.choices[0].message.content.trim();
 
     if (sessionId) {
       sessions[sessionId].push({ role: "ai", content: aiReply });
@@ -65,7 +125,29 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 
     res.json({ message: aiReply, imageUrl });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "AI backend error or file upload failed." });
+  }
+});
+
+// Email estimate endpoint (send an estimate email)
+app.post('/api/send-estimate', async (req, res) => {
+  try {
+    const { email, estimate } = req.body;
+    if (!email || !estimate?.text) {
+      return res.status(400).json({ error: 'Email and estimate text are required' });
+    }
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Your Surprise Granite Countertop Estimate',
+      text: estimate.text,
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Estimate sent successfully' });
+  } catch (err) {
+    console.error('Send estimate error:', err);
+    res.status(500).json({ error: 'Failed to send estimate', details: err.message });
   }
 });
 
