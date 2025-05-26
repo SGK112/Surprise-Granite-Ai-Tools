@@ -8,34 +8,75 @@
     :root {
       --sg-blue: #1e2749;
       --sg-yellow: #feda00;
-      --background: #f4f6fa;
+      --sg-white: #fff;
+      --sg-light: #f4f6fa;
+      --sg-gray: #e3e5e9;
+      --sg-radius: 16px;
     }
     body { background: transparent; }
     #sg-chat-toggle {
       position: fixed;
       bottom: 32px; right: 32px;
-      background: var(--sg-yellow);
+      background: var(--sg-white);
       color: var(--sg-blue);
-      border: none;
-      border-radius: 50%;
-      width: 64px; height: 64px;
-      font-size: 2.4em;
-      box-shadow: 0 4px 24px rgba(30,39,73,0.17);
+      border: 2px solid var(--sg-yellow);
+      border-radius: 999px;
+      width: 120px; height: 44px;
+      font-size: 1.15em;
+      box-shadow: 0 3px 22px rgba(254,218,0,0.23), 0 3px 12px rgba(30,39,73,0.11);
       cursor: pointer;
       z-index: 1000;
-      transition: background 0.18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background 0.18s, border-color 0.18s, box-shadow 0.15s;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 0 16px;
+      /* Pulsating and glowing animation */
+      animation: sg-pulse-glow 1.5s infinite;
     }
-    #sg-chat-toggle:hover {
-      background: #ffe14d;
+    @keyframes sg-pulse-glow {
+      0% {
+        box-shadow:
+          0 0 0px 0px var(--sg-yellow),
+          0 3px 22px 0px rgba(254,218,0,0.23),
+          0 3px 12px rgba(30,39,73,0.11);
+        border-color: var(--sg-yellow);
+      }
+      50% {
+        box-shadow:
+          0 0 14px 6px var(--sg-yellow),
+          0 3px 22px 0px rgba(254,218,0,0.25),
+          0 3px 12px rgba(30,39,73,0.11);
+        border-color: #ffe361;
+      }
+      100% {
+        box-shadow:
+          0 0 0px 0px var(--sg-yellow),
+          0 3px 22px 0px rgba(254,218,0,0.23),
+          0 3px 12px rgba(30,39,73,0.11);
+        border-color: var(--sg-yellow);
+      }
+    }
+    #sg-chat-toggle .sg-pill-logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #fff;
+      object-fit: contain;
+      box-shadow: 0 1px 3px rgba(30,39,73,0.10);
+      margin-right: 3px;
     }
     #sg-chat-widget {
       position: fixed;
       bottom: 32px; right: 32px;
-      width: 400px; max-width: 98vw;
-      height: 560px;
-      background: #fff;
-      border-radius: 22px;
-      box-shadow: 0 8px 38px rgba(30,39,73,0.18);
+      width: 360px; max-width: 98vw;
+      height: 520px;
+      background: var(--sg-white);
+      border-radius: var(--sg-radius);
+      box-shadow: 0 6px 24px rgba(30,39,73,0.15);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -46,212 +87,291 @@
     #sg-chat-widget.hidden {
       opacity: 0;
       pointer-events: none;
-      transform: scale(0.98);
+      transform: scale(0.97);
     }
     .sg-chat-header {
       background: var(--sg-blue);
-      color: #fff;
-      padding: 18px 22px;
-      font-size: 1.13em;
-      font-weight: 600;
+      color: var(--sg-white);
+      height: 50px;
+      font-size: 1em;
+      font-weight: 500;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      letter-spacing: 0.5px;
+      justify-content: flex-start;
+      padding: 0 10px 0 0;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(30,39,73,0.06);
     }
-    .sg-chat-header .dot {
-      width: 13px; height: 13px;
-      background: var(--sg-yellow);
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 11px;
+    .sg-logo {
+      width: 32px;
+      height: 32px;
+      margin-left: 10px;
+      margin-right: 6px;
+      border-radius: 7px;
+      background: #fff;
+      object-fit: contain;
+      display: block;
+      box-shadow: 0 1px 3px rgba(30,39,73,0.09);
+    }
+    .sg-title {
+      font-size: 1.08em;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      color: var(--sg-yellow);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
     }
     .sg-close-btn {
+      margin-left: auto;
       background: none;
       border: none;
       color: #fff;
-      font-size: 1.7em;
+      font-size: 1.45em;
       cursor: pointer;
-      opacity: 0.67;
-      transition: opacity 0.15s;
+      opacity: 0.55;
+      transition: opacity 0.12s;
+      margin-right: 6px;
     }
     .sg-close-btn:hover { opacity: 1; }
     .sg-messages {
       flex: 1;
-      padding: 18px 13px 14px 13px;
+      padding: 13px 9px 8px 9px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 13px;
-      background: var(--background);
-      font-size: 1em;
+      gap: 8px;
+      background: var(--sg-light);
+      font-size: 0.97em;
     }
     .sg-bubble {
-      max-width: 78%;
-      padding: 14px 20px;
-      border-radius: 26px;
+      max-width: 80%;
+      padding: 8px 13px;
+      border-radius: 17px;
       font-size: 1em;
-      line-height: 1.6;
-      box-shadow: 0 2px 8px rgba(30,39,73,0.08);
+      line-height: 1.48;
+      box-shadow: 0 1px 4px rgba(30,39,73,0.05);
       word-break: break-word;
       position: relative;
       display: inline-block;
-      margin-bottom: 2px;
-      animation: popIn .23s cubic-bezier(.3,1.2,.5,1.2);
+      margin-bottom: 0;
+      animation: popIn .18s cubic-bezier(.3,1.2,.5,1.2);
     }
     @keyframes popIn {
-      from {transform: scale(0.95);}
+      from {transform: scale(0.97);}
       to {transform: scale(1);}
     }
     .sg-bubble.user {
       background: var(--sg-yellow);
       color: #1e2749;
       align-self: flex-end;
-      border-bottom-right-radius: 7px;
-      margin-right: 4px;
+      border-bottom-right-radius: 5px;
     }
     .sg-bubble.ai {
       background: var(--sg-blue);
       color: #fff;
       align-self: flex-start;
-      border-bottom-left-radius: 7px;
-      margin-left: 4px;
-    }
-    .sg-bubble img {
-      max-width: 180px; max-height: 130px; border-radius: 13px; display: block; margin: 0 auto;
-      box-shadow: 0 1px 4px rgba(30,39,73,0.13);
+      border-bottom-left-radius: 5px;
     }
     .sg-chat-input-area {
-      display: flex; align-items: center; padding: 15px; background: #fff; border-top: 1px solid #e3e5e9; gap: 9px;
+      display: flex; align-items: center; padding: 10px 9px; background: #fff; border-top: 1px solid var(--sg-gray); gap: 6px;
     }
     .sg-chat-input {
       flex: 1;
       background: #f7f8fb;
       border: none;
-      border-radius: 18px;
-      padding: 11px 15px;
+      border-radius: 14px;
+      padding: 9px 12px;
       font-size: 1em;
       outline: none;
-      margin-right: 4px;
-      box-shadow: 0 1px 2px rgba(30,39,73,0.03);
-      transition: box-shadow 0.13s;
-    }
-    .sg-attach-btn {
-      background: none;
-      border: none;
-      color: var(--sg-blue);
-      font-size: 1.28em;
-      cursor: pointer;
-      margin-right: 4px;
+      margin-right: 2px;
+      box-shadow: 0 1px 1.5px rgba(30,39,73,0.02);
+      transition: box-shadow 0.10s;
     }
     .sg-send-btn {
       background: var(--sg-yellow);
       border: none;
       color: var(--sg-blue);
-      font-size: 1.15em;
-      border-radius: 14px;
-      padding: 8px 16px;
+      font-size: 1.07em;
+      border-radius: 10px;
+      padding: 8px 13px;
       font-weight: bold;
       cursor: pointer;
-      box-shadow: 0 1px 3px rgba(30,39,73,0.08);
-      transition: background 0.15s;
+      box-shadow: 0 1px 2px rgba(30,39,73,0.07);
+      transition: background 0.13s;
+      margin-left: 1px;
     }
     .sg-send-btn:hover {
-      background: #ffe14d;
+      background: #ffe361;
     }
-    .sg-preview-img {
-      width: 44px;
-      height: 44px;
-      border-radius: 9px;
-      object-fit: cover;
-      margin-right: 7px;
-      border: 2px solid var(--sg-blue);
-    }
-    .sg-file-preview {
+    .sg-form-modal {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(30,39,73,0.20);
       display: flex;
       align-items: center;
-      margin: 0 0 8px 0;
+      justify-content: center;
+      z-index: 2000;
     }
-    .sg-contact-form {
-      background: #fffbe7;
-      border: 1px solid #feda00;
-      border-radius: 14px;
-      padding: 12px 10px 10px 10px;
-      margin: 0 0 10px 0;
-      font-size: 0.97em;
-      color: #1e2749;
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      animation: popIn .23s cubic-bezier(.3,1.2,.5,1.2);
+    .sg-form {
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 6px 28px rgba(30,39,73,0.13);
+      padding: 22px 14px 16px 14px;
+      min-width: 250px;
+      max-width: 96vw;
     }
-    .sg-contact-form label {
+    .sg-form label {
       font-weight: 500;
       margin-bottom: 2px;
+      display: block;
+      font-size: 0.97em;
     }
-    .sg-contact-form input {
-      padding: 7px 10px;
-      border-radius: 6px;
+    .sg-form input, .sg-form textarea, .sg-form select {
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 5px;
       border: 1px solid #cdd1e7;
       font-size: 1em;
-      margin-bottom: 2px;
+      margin-bottom: 7px;
     }
-    .sg-contact-form button {
-      margin-top: 7px;
+    .sg-form button {
       background: var(--sg-blue);
-      color: #fff;
+      color: var(--sg-yellow);
       border: none;
-      border-radius: 8px;
+      border-radius: 7px;
       padding: 9px 0;
       font-weight: bold;
       cursor: pointer;
+      width: 100%;
       font-size: 1em;
-      transition: background 0.13s;
+      margin-top: 5px;
     }
-    .sg-contact-form button:hover {
-      background: #35406b;
+    .sg-form .sg-close-modal-btn {
+      float: right;
+      background: none;
+      color: #1e2749;
+      font-weight: bold;
+      font-size: 1.19em;
+      border: none;
+      cursor: pointer;
+      margin-top: -17px;
+      margin-right: -7px;
+      opacity: 0.4;
+      transition: opacity 0.12s;
     }
-    @media (max-width: 600px) {
-      #sg-chat-widget { width: 99vw; height: 98vh; bottom: 0; right: 0; border-radius: 0;}
-      #sg-chat-toggle { bottom: 18px; right: 18px; }
+    .sg-form .sg-close-modal-btn:hover { opacity: 1; }
+    @media (max-width: 550px) {
+      #sg-chat-widget { width: 99vw; height: 99vh; bottom: 0; right: 0; border-radius: 0;}
+      #sg-chat-toggle { bottom: 13px; right: 13px; width: 88px; height: 38px; font-size: 1em;}
+      .sg-chat-header { height: 42px; }
+      .sg-logo { width: 23px; height: 23px; margin-left: 4px; }
+      .sg-title { font-size: 0.98em; }
+      .sg-bubble { font-size: 0.98em; }
     }
   </style>
 </head>
 <body>
-  <!-- Floating Button to Open Widget -->
-  <button id="sg-chat-toggle" title="Open Chat">💬</button>
+  <!-- Floating Pill Chat Toggle Button -->
+  <button id="sg-chat-toggle" title="Open Chat">
+    <img src="https://www.surprisegranite.com/logo192.png" alt="Surprise Granite Logo" class="sg-pill-logo" />
+    Chat
+  </button>
 
   <!-- Chat Widget -->
   <div id="sg-chat-widget" class="hidden">
     <div class="sg-chat-header">
-      <span><span class="dot"></span> Surprise Granite Assistant</span>
+      <img src="https://www.surprisegranite.com/logo192.png" alt="Surprise Granite Logo" class="sg-logo" />
+      <span class="sg-title">Surprise Granite Assistant</span>
       <button class="sg-close-btn" id="sg-close-chat-widget" title="Close">&times;</button>
     </div>
     <div class="sg-messages" id="sg-messages"></div>
-    <form class="sg-contact-form" id="sg-contact-form" style="display:none">
-      <div style="font-weight:600;font-size:1em;">Get in touch for a quote or callback</div>
-      <label>Name:<br><input type="text" id="sg-contact-name" required autocomplete="name"></label>
-      <label>Email:<br><input type="email" id="sg-contact-email" required autocomplete="email"></label>
-      <label>Phone:<br><input type="tel" id="sg-contact-phone" autocomplete="tel"></label>
-      <button type="submit">Send</button>
-    </form>
     <form class="sg-chat-input-area" id="sg-chat-form" autocomplete="off">
-      <input type="file" id="sg-file-input" style="display:none" accept="image/*" multiple>
-      <button type="button" class="sg-attach-btn" id="sg-attach-btn" title="Attach image">&#128206;</button>
-      <div id="sg-file-preview"></div>
-      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type your message..." required>
+      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type your question..." required>
       <button type="submit" class="sg-send-btn">Send</button>
     </form>
   </div>
+
+  <!-- Modal for scheduling forms -->
+  <div id="sg-form-modal" class="sg-form-modal" style="display:none;">
+    <form class="sg-form" id="sg-appointment-form">
+      <button type="button" class="sg-close-modal-btn" id="sg-close-modal-btn">&times;</button>
+      <h3 style="margin-top:0;color:#1e2749;" id="sg-form-title">Schedule</h3>
+      <input type="hidden" id="sg-type">
+      <label>Your Name:
+        <input type="text" id="sg-name" required autocomplete="name">
+      </label>
+      <label>Email:
+        <input type="email" id="sg-email" required autocomplete="email">
+      </label>
+      <label>Phone:
+        <input type="tel" id="sg-phone" autocomplete="tel">
+      </label>
+      <label>Preferred Date:
+        <input type="date" id="sg-date" required>
+      </label>
+      <label>Preferred Time:
+        <input type="time" id="sg-time" required>
+      </label>
+      <label>Notes:
+        <textarea id="sg-notes" rows="2" placeholder="What would you like to discuss?"></textarea>
+      </label>
+      <button type="submit">Request Appointment</button>
+    </form>
+  </div>
+
   <script>
     // Widget open/close logic
     const widgetToggle = document.getElementById('sg-chat-toggle');
     const widgetBox = document.getElementById('sg-chat-widget');
     widgetToggle.onclick = () => { widgetBox.classList.remove('hidden'); widgetToggle.style.display='none'; };
-    document.getElementById('sg-close-chat-widget').onclick = () => { widgetBox.classList.add('hidden'); widgetToggle.style.display='block'; };
+    document.getElementById('sg-close-chat-widget').onclick = () => { widgetBox.classList.add('hidden'); widgetToggle.style.display='flex'; };
+
+    function showForm(type) {
+      document.getElementById('sg-type').value = type;
+      document.getElementById('sg-form-title').textContent = {
+        callback: "Schedule a Call Back",
+        estimate: "Schedule an Estimate",
+        video: "Request a Video Call",
+        chat: "Chat with an Expert"
+      }[type] || "Schedule";
+      document.getElementById('sg-form-modal').style.display = 'flex';
+    }
+    document.getElementById('sg-close-modal-btn').onclick = () => {
+      document.getElementById('sg-form-modal').style.display = 'none';
+    };
+
+    // Scheduling form submit logic
+    document.getElementById('sg-appointment-form').onsubmit = async function(e) {
+      e.preventDefault();
+      const type = document.getElementById('sg-type').value;
+      const name = document.getElementById('sg-name').value.trim();
+      const email = document.getElementById('sg-email').value.trim();
+      const phone = document.getElementById('sg-phone').value.trim();
+      const date = document.getElementById('sg-date').value;
+      const time = document.getElementById('sg-time').value;
+      const notes = document.getElementById('sg-notes').value.trim();
+      if (!name || !email || !date || !time) return;
+      try {
+        await fetch('/api/appointment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: getSessionId(),
+            type, name, email, phone, date, time, notes
+          })
+        });
+        appendBubble('user', `I'd like to schedule a ${type === 'callback' ? "call back" : type === 'estimate' ? "estimate" : type === 'video' ? "video call" : "chat"} on ${date} at ${time}.\nName: ${name}\nEmail: ${email}${phone ? "\nPhone: " + phone : ""}${notes ? "\nNotes: " + notes : ""}`);
+        appendBubble('ai', "Thank you! Your request has been sent. We'll follow up soon.");
+        document.getElementById('sg-form-modal').style.display = 'none';
+      } catch (err) {
+        appendBubble('ai', "Sorry, something went wrong with your request.");
+      }
+    };
 
     // Chat bubble helper
-    function appendBubble(who, text, images) {
+    function appendBubble(who, text) {
       const messages = document.getElementById('sg-messages');
       if (text && text.trim()) {
         const bubble = document.createElement('div');
@@ -259,88 +379,45 @@
         bubble.innerText = text;
         messages.appendChild(bubble);
       }
-      if (images && images.length) {
-        images.forEach(url => {
-          const bubble = document.createElement('div');
-          bubble.className = `sg-bubble ${who}`;
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = "Attachment";
-          bubble.appendChild(img);
-          messages.appendChild(bubble);
-        });
-      }
       messages.scrollTop = messages.scrollHeight;
     }
-
-    // File preview logic
-    let selectedFiles = [];
-    const fileInput = document.getElementById('sg-file-input');
-    document.getElementById('sg-attach-btn').onclick = () => fileInput.click();
-    fileInput.onchange = function () {
-      selectedFiles = Array.from(fileInput.files);
-      const previewDiv = document.getElementById('sg-file-preview');
-      previewDiv.innerHTML = '';
-      selectedFiles.forEach(file => {
-        if (file.type.startsWith('image/')) {
-          const img = document.createElement('img');
-          img.className = 'sg-preview-img';
-          img.src = URL.createObjectURL(file);
-          previewDiv.appendChild(img);
-        }
-      });
-    };
 
     // Chat send logic
     document.getElementById('sg-chat-form').onsubmit = async function(e) {
       e.preventDefault();
       const input = document.getElementById('sg-chat-input');
       const text = input.value;
-      if (!text && !selectedFiles.length) return;
-      appendBubble('user', text, selectedFiles.map(f => URL.createObjectURL(f)));
-      const formData = new FormData();
-      formData.append('message', text);
-      formData.append('sessionId', getSessionId());
-      selectedFiles.forEach(f => formData.append('attachments', f));
+      if (!text) return;
+      appendBubble('user', text);
       input.value = '';
-      selectedFiles = [];
-      document.getElementById('sg-file-preview').innerHTML = '';
-      fileInput.value = '';
+      // Detect requests for scheduling and show form if needed (purely frontend fallback, backend AI should handle too)
+      const lower = text.toLowerCase();
+      let type = null;
+      if (/(call\s?back|phone call|speak to|talk to|someone call|schedule.*call)/.test(lower)) type = "callback";
+      else if (/(estimate|quote|in-home|schedule.*estimate)/.test(lower)) type = "estimate";
+      else if (/(video call|zoom|facetime|google meet|teams|video appointment)/.test(lower)) type = "video";
+      if (type) {
+        setTimeout(()=>showForm(type), 700);
+      }
+      // Always send to backend AI for response
       try {
-        const res = await fetch('/api/chat', { method: 'POST', body: formData });
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {},
+          body: (() => {
+            const fd = new FormData();
+            fd.append('message', text);
+            fd.append('sessionId', getSessionId());
+            return fd;
+          })()
+        });
         const data = await res.json();
-        appendBubble('ai', data.message, data.images);
-        // If AI asks for contact info, show the contact form
-        if (data.message && /contact|email|phone|reach\s?you|get in touch|quote|callback/i.test(data.message)) {
-          document.getElementById('sg-contact-form').style.display = 'flex';
+        appendBubble('ai', data.message);
+        if (data.triggerForm && ["callback","estimate","video"].includes(data.triggerForm)) {
+          showForm(data.triggerForm);
         }
       } catch (err) {
         appendBubble('ai', "Sorry, the server is currently unavailable.");
-      }
-    };
-
-    // Contact form logic
-    document.getElementById('sg-contact-form').onsubmit = async function(e) {
-      e.preventDefault();
-      const name = document.getElementById('sg-contact-name').value.trim();
-      const email = document.getElementById('sg-contact-email').value.trim();
-      const phone = document.getElementById('sg-contact-phone').value.trim();
-      if (!name || !email) return;
-      // Send to backend contact API
-      try {
-        await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId: getSessionId(),
-            name, email, phone
-          })
-        });
-        appendBubble('user', `My name is ${name}, my email is ${email}${phone ? ', phone: ' + phone : ''}.`);
-        appendBubble('ai', "Thank you for your info! Our team will reach out soon.");
-        document.getElementById('sg-contact-form').style.display = 'none';
-      } catch (err) {
-        appendBubble('ai', "Sorry, something went wrong with sending your info.");
       }
     };
 
@@ -354,15 +431,15 @@
       return sid;
     }
 
-    // Welcome message
+    // Smart Welcome message
     window.addEventListener('DOMContentLoaded', () => {
       if (!localStorage.getItem('sgchat-welcomed')) {
         setTimeout(() => {
           widgetBox.classList.remove('hidden');
           widgetToggle.style.display='none';
-          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. Ask me about our products, colors, availability, or request a callback. I can also help you shop or check what's in stock!");
+          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. How can I help you today? Ask me anything about countertops, scheduling, or getting an estimate.");
           localStorage.setItem('sgchat-welcomed', 'true');
-        }, 1000);
+        }, 700);
       }
     });
   </script>
