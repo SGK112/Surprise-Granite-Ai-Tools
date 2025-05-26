@@ -15,25 +15,61 @@ const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN; // e.g. "yourshop.myshopify.c
 const SHOPIFY_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN; // Private app admin API access token
 const CSV_MATERIALS_URL = process.env.PUBLISHED_CSV_MATERIALS;
 const CSV_LABOR_URL = process.env.PUBLISHED_CSV_LABOR;
-const COMPANY_INFO_PATH = './companyInfo.json'; // Optional
+const COMPANY_INFO_PATH = './public/companyInfo.json'; // Updated path for company info in public folder
 
-// --- LOAD COMPANY INFO & DESIGN TIPS ---
+// --- LOAD COMPANY INFO & TIPS ---
 let companyInfo = {};
 try {
   companyInfo = JSON.parse(fs.readFileSync(COMPANY_INFO_PATH, 'utf-8'));
 } catch (e) {
   companyInfo = {
     name: "Surprise Granite",
-    phone: "(480) 555-1234",
-    email: "sales@surprisegranite.com",
-    address: "123 Granite Way, Surprise, AZ",
-    about: "Leading granite, quartz, and marble fabricator and installer in the West Valley.",
+    phone: "(602) 833-3189",
+    email: "info@surprisegranite.com",
+    address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+    website: "https://www.surprisegranite.com",
+    store: "https://www.store.surprisegranite.com",
+    about: "Surprise Granite is a licensed, bonded, and insured leader in commercial and residential countertops, cabinets, and tile wall installations. Serving the West Valley and beyond, we specialize in granite, quartz, and marble fabrication and installation. Our team delivers top-quality craftsmanship, professional service, and expert design guidance for every project.",
+    credentials: [
+      "Licensed, bonded, and insured",
+      "Serving commercial and residential clients"
+    ],
+    services: [
+      "Countertops (granite, quartz, marble, and more)",
+      "Cabinet installation",
+      "Tile wall installation"
+    ],
     designTips: [
-      "Light colors make small kitchens feel larger.",
-      "Matte finishes hide fingerprints and smudges.",
-      "Coordinate your backsplash and countertop for a finished look.",
-      "Edge style and sink cutouts affect price and style."
-    ]
+      "Light colors help make small kitchens feel larger and brighter.",
+      "Matte finishes are great for hiding fingerprints and smudges.",
+      "Coordinate your backsplash and countertop for a complete, polished look.",
+      "Edge style and sink cutouts can impact both the price and the overall style of your countertops.",
+      "Choose materials that match your lifestyle and maintenance preferences.",
+      "Use contrasting colors for cabinets and counters to create a modern statement."
+    ],
+    fabricationTips: [
+      "Always inspect your stone slab in person before fabrication to check color, veining, and quality.",
+      "Plan your countertop layout to minimize seams and maximize the beauty of natural patterns.",
+      "Request digital or physical templates to ensure a precise fit before cutting begins.",
+      "Discuss edge profiles and cutout requirements (sink, faucet, cooktop) with your fabricator.",
+      "Allow for proper overhangs and support—especially with natural stone, which can be heavy.",
+      "Seal natural stone surfaces after installation to protect against stains and moisture.",
+      "Ask about reinforcement for fragile or narrow areas, such as around sinks or cooktops."
+    ],
+    orderingTips: [
+      "Measure your space carefully and bring your dimensions for accurate estimates.",
+      "Order extra material if possible, especially for natural stone, to ensure color and pattern consistency.",
+      "Confirm lead times with your supplier—natural stone and quartz availability can vary.",
+      "Ask for samples to view in your space under your lighting before making your final selection.",
+      "Review your quote for all details: stone type, edge style, cutouts, and installation fees.",
+      "For quartz, clarify warranty terms and any special care instructions.",
+      "Natural stone is unique—expect minor variations and embrace them as part of its natural beauty."
+    ],
+    contact: {
+      address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+      phone: "(602) 833-3189",
+      email: "info@surprisegranite.com"
+    }
   };
 }
 
@@ -54,7 +90,7 @@ async function refreshAllData() {
   }
 }
 await refreshAllData();
-setInterval(refreshAllData, 60 * 60 * 1000); // refresh every hour
+setInterval(refreshAllData, 60 * 60 * 1000);
 
 // --- MONGODB ---
 mongoose.connect(process.env.MONGODB_URI);
@@ -139,10 +175,20 @@ Name: ${companyInfo.name}
 Phone: ${companyInfo.phone}
 Email: ${companyInfo.email}
 Address: ${companyInfo.address}
+Website: ${companyInfo.website || ""}
+Store: ${companyInfo.store || ""}
 About: ${companyInfo.about}
+Credentials: ${(companyInfo.credentials || []).join(', ')}
+Services: ${(companyInfo.services || []).join(', ')}
 
 Design Tips:
-${companyInfo.designTips.join('\n')}
+${(companyInfo.designTips || []).join('\n')}
+
+Stone Fabrication Tips:
+${(companyInfo.fabricationTips || []).join('\n')}
+
+Ordering Tips for Natural Stone & Quartz:
+${(companyInfo.orderingTips || []).join('\n')}
 
 Materials Sample Relevant to User:
 ${JSON.stringify(relevantMaterials)}
@@ -158,7 +204,7 @@ Instructions:
 - If user asks about a product, find it in the Shopify catalog and share price, stock, and details.
 - If user wants to add to cart, do so and confirm.
 - If user wants a professional estimate, use real pricing/labor and write a clear, helpful, detailed response.
-- Offer design tips as needed.
+- Offer design, fabrication, and ordering tips as needed.
 - If user has design or install questions, answer with expertise.
 - Always include company contact info for follow-up.
 - NEVER make up info; always use live data provided.
@@ -177,7 +223,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     }
     await new ChatMessage({ sessionId, from: 'user', message, files }).save();
 
-    // 1. Optionally fetch Shopify data
+    // Optionally fetch Shopify data
     let shopifyContext = {};
     if (shopifyAction === 'get_cart' && cartId) {
       shopifyContext.cart = await shopifyFetch(`carts/${cartId}.json`);
@@ -186,20 +232,17 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     } else if (shopifyAction === 'list_products') {
       shopifyContext.products = await shopifyFetch('products.json?limit=10');
     } else if (shopifyAction === 'add_to_cart' && cartId && productId && quantity) {
-      // NOTE: Shopify Storefront API is recommended for carts; this is a simplified example.
-      // You may need to adapt for client-side cart management if not using Plus.
-      // Here we just simulate it for the AI prompt.
       shopifyContext.added = { cartId, productId, quantity };
     }
 
-    // 2. Find relevant material/labor rows for the user's message
+    // Find relevant material/labor rows for the user's message
     const MAX_SAMPLE_ROWS = 7;
     let relevantMaterials = filterRelevantRows(materialsData, message);
     let relevantLabor = filterRelevantRows(laborData, message);
     if (relevantMaterials.length === 0) relevantMaterials = materialsData.slice(0, MAX_SAMPLE_ROWS);
     if (relevantLabor.length === 0) relevantLabor = laborData.slice(0, MAX_SAMPLE_ROWS);
 
-    // 3. Build system prompt
+    // Build system prompt
     const systemPrompt = buildSystemPrompt({
       userMsg: message,
       relevantMaterials,
@@ -208,7 +251,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
       shopifyContext
     });
 
-    // 4. Pass estimator form data to the AI too, if present
+    // Pass estimator form data to the AI too, if present
     let userContent = [];
     if (message) userContent.push({ type: "text", text: message });
     if (estimator) {
@@ -216,7 +259,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
     }
     files.forEach(f => userContent.push({ type: "image_url", image_url: { url: f.url }}));
 
-    // 5. Call OpenAI
+    // Call OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -235,7 +278,7 @@ app.post('/api/chat', upload.array('attachments'), async (req, res) => {
   }
 });
 
-// --- OPTIONAL: Shopfiy product listing endpoint (for frontend dropdowns/autocomplete) ---
+// --- OPTIONAL: Shopify product listing endpoint (for frontend dropdowns/autocomplete) ---
 app.get('/api/shopify/products', async (req, res) => {
   try {
     const products = await shopifyFetch('products.json?limit=20');
