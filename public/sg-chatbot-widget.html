@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Surprise Granite Chatbot Widget</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surprise Granite Classic Chatbot</title>
   <style>
     :root {
       --sg-blue: #1e2749;
@@ -11,240 +11,233 @@
       --sg-white: #fff;
       --sg-light: #f4f6fa;
       --sg-gray: #e3e5e9;
-      --sg-radius: 14px;
-      --sg-border: 2.2px solid var(--sg-blue);
-      --sg-shadow: 0 8px 24px rgba(30,39,73,0.14);
     }
-    body { background: transparent; margin: 0; }
+    body {
+      margin: 0;
+      background: transparent;
+      font-family: Arial, sans-serif;
+    }
 
-    /* Pill Chat Toggle */
+    /* Chat Toggle Button */
     #sg-chat-toggle {
       position: fixed;
-      bottom: 32px; right: 32px;
+      bottom: 20px;
+      right: 20px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 138px; height: 46px;
-      padding: 0 20px;
+      gap: 8px;
+      padding: 10px 15px;
       background: var(--sg-white);
       color: var(--sg-blue);
-      border: var(--sg-border);
-      border-radius: 32px;
-      box-shadow: var(--sg-shadow);
-      font-size: 1.15em;
+      border: none;
+      border-radius: 25px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+      font-size: 1em;
       font-weight: 600;
-      letter-spacing: 0.01em;
       cursor: pointer;
       z-index: 1010;
-      transition: background 0.18s, border-color 0.18s, box-shadow 0.15s, color 0.17s;
-      outline: none;
-      border-bottom: 3.5px solid var(--sg-yellow);
-      border-right: 3.5px solid var(--sg-yellow);
+      transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
     }
-    #sg-chat-toggle .sg-pill-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      background: #fff;
-      object-fit: contain;
-      box-shadow: 0 1px 6px rgba(30,39,73,0.12);
-      margin-right: 5px;
-      border: 1.5px solid var(--sg-blue);
-      display: block;
+    #sg-chat-toggle img {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
     }
-    #sg-chat-toggle:hover, #sg-chat-toggle:focus {
+    #sg-chat-toggle:hover {
       background: var(--sg-blue);
       color: var(--sg-yellow);
-      border-color: var(--sg-yellow);
-      box-shadow: 0 3px 18px rgba(30,39,73,0.18);
+      transform: scale(1.05);
     }
 
     /* Chat Window */
     #sg-chat-widget {
       position: fixed;
-      bottom: 32px; right: 32px;
-      width: 375px; max-width: 98vw;
-      height: 540px;
+      bottom: 20px;
+      right: 20px;
+      width: 340px;
+      height: 480px;
       background: var(--sg-white);
-      border-radius: var(--sg-radius);
-      border: var(--sg-border);
-      box-shadow: var(--sg-shadow);
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
       z-index: 1011;
       opacity: 1;
-      transition: opacity .18s, transform .18s;
+      transition: opacity 0.3s ease, transform 0.3s ease;
     }
     #sg-chat-widget.hidden {
       opacity: 0;
       pointer-events: none;
-      transform: scale(0.98);
+      transform: translateY(20px);
     }
     .sg-chat-header {
       background: var(--sg-blue);
       color: var(--sg-yellow);
-      height: 54px;
+      padding: 12px 15px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      border-bottom: 2px solid var(--sg-yellow);
+      gap: 10px;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+    }
+    .sg-chat-header img {
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+    }
+    .sg-chat-header span {
+      font-size: 1.1em;
       font-weight: 600;
-      letter-spacing: 0.01em;
-      box-shadow: 0 1px 10px rgba(30,39,73,0.10);
     }
-    .sg-logo {
-      width: 36px;
-      height: 36px;
-      margin-left: 16px;
-      margin-right: 8px;
-      border-radius: 7px;
-      background: #fff;
-      object-fit: contain;
-      display: block;
-      box-shadow: 0 1px 4px rgba(30,39,73,0.12);
-      border: 1.5px solid var(--sg-yellow);
-    }
-    .sg-title {
-      font-size: 1.14em;
-      font-weight: 700;
-      color: var(--sg-yellow);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 185px;
-      padding-top: 2px;
-      letter-spacing: 0.01em;
-    }
-    .sg-close-btn {
+    .sg-chat-header button {
       margin-left: auto;
       background: none;
       border: none;
       color: var(--sg-yellow);
-      font-size: 1.6em;
+      font-size: 1.5em;
       cursor: pointer;
-      opacity: 0.68;
-      transition: opacity 0.12s, color 0.15s;
-      margin-right: 13px;
-      outline: none;
+      opacity: 0.7;
+      transition: opacity 0.3s ease, transform 0.2s ease;
     }
-    .sg-close-btn:hover, .sg-close-btn:focus { opacity: 1; color: #fff; }
+    .sg-chat-header button:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
 
+    /* Chat Messages */
     .sg-messages {
       flex: 1;
-      padding: 15px 13px 13px 13px;
+      padding: 15px;
       overflow-y: auto;
+      background: var(--sg-light);
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      background: var(--sg-light);
-      font-size: 0.98em;
+      gap: 12px;
     }
     .sg-bubble {
-      max-width: 85%;
-      padding: 11px 16px;
-      border-radius: 19px;
-      font-size: 1.03em;
-      line-height: 1.55;
-      box-shadow: 0 1px 6px rgba(30,39,73,0.06);
-      word-break: break-word;
+      max-width: 80%;
+      padding: 10px 15px;
+      border-radius: 18px;
+      font-size: 1em;
+      line-height: 1.5;
       position: relative;
       display: inline-block;
-      margin-bottom: 0;
-      border: 1.6px solid var(--sg-blue);
-      background: var(--sg-white);
-      font-weight: 500;
-      letter-spacing: 0.01em;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s ease;
     }
     .sg-bubble.user {
       background: var(--sg-yellow);
       color: var(--sg-blue);
-      border-radius: 19px 19px 6px 19px;
-      border: 1.8px solid var(--sg-yellow);
+      border-radius: 18px 18px 5px 18px;
       align-self: flex-end;
-      box-shadow: 0 1px 6px rgba(254,218,0,0.11);
+    }
+    .sg-bubble.user::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      right: 10px;
+      border: 6px solid transparent;
+      border-top-color: var(--sg-yellow);
+      border-right: 0;
+      filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.1));
     }
     .sg-bubble.ai {
       background: var(--sg-blue);
-      color: #fff;
-      border-radius: 19px 19px 19px 6px;
-      border: 1.8px solid var(--sg-blue);
+      color: var(--sg-white);
+      border-radius: 18px 18px 18px 5px;
       align-self: flex-start;
-      box-shadow: 0 1px 7px rgba(30,39,73,0.13);
     }
+    .sg-bubble.ai::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 10px;
+      border: 6px solid transparent;
+      border-top-color: var(--sg-blue);
+      border-left: 0;
+      filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.1));
+    }
+    .sg-bubble:hover {
+      transform: scale(1.02);
+    }
+
+    /* Chat Input */
     .sg-chat-input-area {
       display: flex;
-      align-items: center;
-      padding: 13px 13px 13px 13px;
-      background: #fff;
-      border-top: 1.6px solid var(--sg-gray);
-      gap: 7px;
+      padding: 12px 15px;
+      background: var(--sg-white);
+      border-top: 1px solid var(--sg-gray);
+      gap: 8px;
+      border-bottom-left-radius: 15px;
+      border-bottom-right-radius: 15px;
     }
     .sg-chat-input {
       flex: 1;
-      background: #f7f8fb;
-      border: 1.7px solid var(--sg-blue);
-      border-radius: 12px;
-      padding: 11px 14px;
-      font-size: 1.03em;
+      padding: 10px 15px;
+      border: 1px solid var(--sg-gray);
+      border-radius: 20px;
+      font-size: 1em;
       outline: none;
-      margin-right: 2px;
-      box-shadow: 0 1px 1.5px rgba(30,39,73,0.02);
-      transition: box-shadow 0.10s, border 0.13s;
+      transition: border 0.3s ease, box-shadow 0.3s ease;
     }
     .sg-chat-input:focus {
-      border-color: var(--sg-yellow);
-      box-shadow: 0 2px 5px rgba(254,218,0,0.09);
+      border-color: var(--sg-blue);
+      box-shadow: 0 0 5px rgba(30, 39, 73, 0.2);
     }
     .sg-send-btn {
       background: var(--sg-blue);
-      border: none;
       color: var(--sg-yellow);
-      font-size: 1.05em;
-      border-radius: 10px;
-      padding: 8px 17px;
-      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 1em;
+      font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 1px 2px rgba(30,39,73,0.07);
-      transition: background 0.13s, color 0.13s;
-      margin-left: 2px;
-      outline: none;
-      border-bottom: 2px solid var(--sg-yellow);
+      transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
     }
-    .sg-send-btn:hover, .sg-send-btn:focus {
-      background: var(--sg-yellow); color: var(--sg-blue);
-      border-bottom: 2px solid var(--sg-blue);
+    .sg-send-btn:hover {
+      background: var(--sg-yellow);
+      color: var(--sg-blue);
+      transform: scale(1.05);
     }
+
     @media (max-width: 600px) {
-      #sg-chat-widget { width: 99vw; height: 99vh; bottom: 0; right: 0; border-radius: 0; }
-      #sg-chat-toggle { bottom: 13px; right: 13px; width: 98px; height: 38px; font-size: 1em;}
-      .sg-chat-header { height: 44px; }
-      .sg-logo { width: 24px; height: 24px; margin-left: 4px; }
-      .sg-title { font-size: 0.98em; }
-      .sg-bubble { font-size: 0.98em; }
+      #sg-chat-widget {
+        width: 100%;
+        height: 100vh;
+        bottom: 0;
+        right: 0;
+        border-radius: 0;
+      }
+      #sg-chat-toggle {
+        bottom: 10px;
+        right: 10px;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Pill Chat Toggle Button -->
-  <button id="sg-chat-toggle" title="Open Chat" aria-label="Open chat with Surprise Granite Assistant">
-    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo" class="sg-pill-logo" />
+  <!-- Chat Toggle Button -->
+  <button id="sg-chat-toggle" title="Open Chat">
+    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" />
     Chat
   </button>
 
   <!-- Chat Window -->
-  <div id="sg-chat-widget" class="hidden" role="dialog" aria-modal="true" aria-label="Surprise Granite Assistant Chat">
+  <div id="sg-chat-widget" class="hidden">
     <div class="sg-chat-header">
-      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo" class="sg-logo" />
-      <span class="sg-title">Surprise Granite Assistant</span>
-      <button class="sg-close-btn" id="sg-close-chat-widget" title="Close" aria-label="Close chat">&times;</button>
+      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" />
+      <span>Surprise Granite Chat</span>
+      <button id="sg-close-chat-widget" title="Close">×</button>
     </div>
-    <div class="sg-messages" id="sg-messages"></div>
-    <form class="sg-chat-input-area" id="sg-chat-form" autocomplete="off">
-      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type your question..." aria-label="Type your question" required>
-      <button type="submit" class="sg-send-btn" aria-label="Send message">Send</button>
-    </form>
+    <div class="sg-messages" id="sg-messages">
+      <div class="sg-bubble ai">Hello! Welcome to Surprise Granite. How can I help you today?</div>
+    </div>
+    <div class="sg-chat-input-area">
+      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type a message...">
+      <button class="sg-send-btn" onclick="sendMessage()">Send</button>
+    </div>
   </div>
 
   <script>
@@ -253,81 +246,54 @@
     const widgetBox = document.getElementById('sg-chat-widget');
     widgetToggle.onclick = () => {
       widgetBox.classList.remove('hidden');
-      widgetToggle.style.display='none';
+      widgetToggle.style.display = 'none';
       document.getElementById('sg-chat-input').focus();
     };
     document.getElementById('sg-close-chat-widget').onclick = () => {
       widgetBox.classList.add('hidden');
-      widgetToggle.style.display='flex';
-      widgetToggle.focus();
+      widgetToggle.style.display = 'flex';
     };
 
     // Keyboard accessibility (Esc to close)
-    document.addEventListener('keydown', function(e) {
-      if (!widgetBox.classList.contains('hidden') && (e.key === "Escape" || e.key === "Esc")) {
+    document.addEventListener('keydown', (e) => {
+      if (!widgetBox.classList.contains('hidden') && e.key === 'Escape') {
         widgetBox.classList.add('hidden');
-        widgetToggle.style.display='flex';
-        widgetToggle.focus();
+        widgetToggle.style.display = 'flex';
       }
     });
 
-    // Bubbles
-    function appendBubble(who, text) {
+    // Send message logic
+    function sendMessage() {
+      const input = document.getElementById('sg-chat-input');
       const messages = document.getElementById('sg-messages');
-      if (text && text.trim()) {
-        const bubble = document.createElement('div');
-        bubble.className = `sg-bubble ${who}`;
-        bubble.innerText = text;
-        messages.appendChild(bubble);
-      }
+      const text = input.value.trim();
+
+      if (!text) return;
+
+      // User message
+      const userBubble = document.createElement('div');
+      userBubble.className = 'sg-bubble user';
+      userBubble.innerText = text;
+      messages.appendChild(userBubble);
+
+      // Bot response
+      setTimeout(() => {
+        const botBubble = document.createElement('div');
+        botBubble.className = 'sg-bubble ai';
+        botBubble.innerText = 'Thanks for your message! How can I assist with your granite needs?';
+        messages.appendChild(botBubble);
+        messages.scrollTop = messages.scrollHeight;
+      }, 500);
+
+      input.value = '';
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // Chat send logic (server connectivity)
-    document.getElementById('sg-chat-form').onsubmit = async function(e) {
-      e.preventDefault();
-      const input = document.getElementById('sg-chat-input');
-      const text = input.value;
-      if (!text) return;
-      appendBubble('user', text);
-      input.value = '';
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: {},
-          body: (() => {
-            const fd = new FormData();
-            fd.append('message', text);
-            fd.append('sessionId', getSessionId());
-            return fd;
-          })()
-        });
-        const data = await res.json();
-        appendBubble('ai', data.message);
-      } catch (err) {
-        appendBubble('ai', "Sorry, the server is currently unavailable.");
-      }
-    };
-
-    // Session ID
-    function getSessionId() {
-      let sid = localStorage.getItem('sgchat-sid');
-      if (!sid) {
-        sid = 'sg-' + Math.random().toString(36).substring(2,12);
-        localStorage.setItem('sgchat-sid', sid);
-      }
-      return sid;
-    }
-
-    // Smart Welcome message
-    window.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('sgchat-welcomed')) {
-        setTimeout(() => {
-          widgetBox.classList.remove('hidden');
-          widgetToggle.style.display='none';
-          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. How can I help you today?");
-          localStorage.setItem('sgchat-welcomed', 'true');
-        }, 700);
+    // Enter key to send
+    document.getElementById('sg-chat-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
       }
     });
   </script>
