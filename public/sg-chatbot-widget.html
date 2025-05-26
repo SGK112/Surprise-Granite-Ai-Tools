@@ -211,6 +211,40 @@
     .sg-contact-form button:hover {
       background: #35406b;
     }
+    .sg-product-search {
+      margin-bottom: 7px;
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+    .sg-product-search input {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #cdd1e7;
+      font-size: 1em;
+      margin-right: 4px;
+    }
+    .sg-product-dropdown {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      max-height: 170px;
+      overflow-y: auto;
+      width: 95%;
+      margin-top: 2px;
+      z-index: 1002;
+      box-shadow: 0 2px 12px rgba(30,39,73,0.09);
+    }
+    .sg-product-dropdown-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f4f6fa;
+      font-size: 0.98em;
+    }
+    .sg-product-dropdown-item:last-child { border-bottom:none; }
+    .sg-product-dropdown-item:hover { background: #feda00; color:#1e2749; }
     @media (max-width: 600px) {
       #sg-chat-widget { width: 99vw; height: 98vh; bottom: 0; right: 0; border-radius: 0;}
       #sg-chat-toggle { bottom: 18px; right: 18px; }
@@ -228,6 +262,11 @@
       <button class="sg-close-btn" id="sg-close-chat-widget" title="Close">&times;</button>
     </div>
     <div class="sg-messages" id="sg-messages"></div>
+    <!-- Shopify Product Search (optional, can hide) -->
+    <div class="sg-product-search" style="position:relative;">
+      <input type="text" id="sg-product-search" placeholder="Find a product..." autocomplete="off">
+      <div id="sg-product-dropdown" class="sg-product-dropdown" style="display:none;"></div>
+    </div>
     <form class="sg-contact-form" id="sg-contact-form" style="display:none">
       <div style="font-weight:600;font-size:1em;">Get in touch for a quote or callback</div>
       <label>Name:<br><input type="text" id="sg-contact-name" required autocomplete="name"></label>
@@ -344,6 +383,43 @@
       }
     };
 
+    // Shopify Product Search logic
+    const prodInput = document.getElementById('sg-product-search');
+    const prodDropdown = document.getElementById('sg-product-dropdown');
+    let prodTimeout;
+    prodInput.oninput = function () {
+      clearTimeout(prodTimeout);
+      const val = prodInput.value.trim();
+      if (!val) { prodDropdown.style.display = 'none'; return; }
+      prodTimeout = setTimeout(async () => {
+        const res = await fetch('/api/shopify/products?q=' + encodeURIComponent(val));
+        const products = await res.json();
+        prodDropdown.innerHTML = '';
+        if (products.length) {
+          products.forEach(prod => {
+            const item = document.createElement('div');
+            item.className = 'sg-product-dropdown-item';
+            item.innerHTML = `<b>${prod.title}</b>${prod.variants && prod.variants[0] ? ' – $' + prod.variants[0].price : ''}`;
+            item.onclick = () => {
+              appendBubble('user', `Tell me about "${prod.title}"`);
+              prodInput.value = '';
+              prodDropdown.style.display = 'none';
+              // Optionally, trigger AI chat with product info
+              document.getElementById('sg-chat-input').value = `Tell me about "${prod.title}"`;
+              document.getElementById('sg-chat-form').dispatchEvent(new Event('submit', {cancelable: true}));
+            };
+            prodDropdown.appendChild(item);
+          });
+          prodDropdown.style.display = 'block';
+        } else {
+          prodDropdown.style.display = 'none';
+        }
+      }, 350);
+    };
+    document.body.onclick = function(e) {
+      if (!prodDropdown.contains(e.target) && e.target !== prodInput) prodDropdown.style.display = 'none';
+    };
+
     // Session ID for chat context
     function getSessionId() {
       let sid = localStorage.getItem('sgchat-sid');
@@ -360,7 +436,7 @@
         setTimeout(() => {
           widgetBox.classList.remove('hidden');
           widgetToggle.style.display='none';
-          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. Ask any question about our products, colors, availability, or request a callback!");
+          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. Ask about our products, colors, availability, or request a callback. You can even search our store below!");
           localStorage.setItem('sgchat-welcomed', 'true');
         }, 1000);
       }
