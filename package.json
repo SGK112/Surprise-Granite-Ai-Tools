@@ -2,7 +2,6 @@
   "name": "surprise-granite-ai-tools",
   "version": "1.0.0",
   "description": "Branded Surprise Granite AI chatbot with image analysis, OpenAI Vision, Cloudinary, and MongoDB.",
-  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
