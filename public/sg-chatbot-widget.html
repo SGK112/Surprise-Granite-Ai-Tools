@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Surprise Granite Assistant</title>
+  <title>Surprise Granite Chatbot Widget</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     :root {
@@ -11,366 +11,267 @@
       --sg-white: #fff;
       --sg-light: #f4f6fa;
       --sg-gray: #e3e5e9;
-      --sg-radius: 16px;
+      --sg-radius: 14px;
+      --sg-border: 2.2px solid var(--sg-blue);
+      --sg-shadow: 0 8px 24px rgba(30,39,73,0.14);
     }
     body { background: transparent; margin: 0; }
+
+    /* Pill Chat Toggle */
     #sg-chat-toggle {
       position: fixed;
       bottom: 32px; right: 32px;
-      background: var(--sg-white);
-      color: var(--sg-blue);
-      border: 2px solid var(--sg-yellow);
-      border-radius: 999px;
-      width: 120px; height: 44px;
-      font-size: 1.15em;
-      box-shadow: 0 3px 22px rgba(254,218,0,0.23), 0 3px 12px rgba(30,39,73,0.11);
-      cursor: pointer;
-      z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      transition: background 0.18s, border-color 0.18s, box-shadow 0.15s;
+      width: 138px; height: 46px;
+      padding: 0 20px;
+      background: var(--sg-white);
+      color: var(--sg-blue);
+      border: var(--sg-border);
+      border-radius: 32px;
+      box-shadow: var(--sg-shadow);
+      font-size: 1.15em;
       font-weight: 600;
-      letter-spacing: 0.03em;
-      padding: 0 16px;
-      animation: sg-pulse-glow 1.5s infinite;
-    }
-    @keyframes sg-pulse-glow {
-      0% {
-        box-shadow:
-          0 0 0px 0px var(--sg-yellow),
-          0 3px 22px 0px rgba(254,218,0,0.23),
-          0 3px 12px rgba(30,39,73,0.11);
-        border-color: var(--sg-yellow);
-      }
-      50% {
-        box-shadow:
-          0 0 14px 6px var(--sg-yellow),
-          0 3px 22px 0px rgba(254,218,0,0.25),
-          0 3px 12px rgba(30,39,73,0.11);
-        border-color: #ffe361;
-      }
-      100% {
-        box-shadow:
-          0 0 0px 0px var(--sg-yellow),
-          0 3px 22px 0px rgba(254,218,0,0.23),
-          0 3px 12px rgba(30,39,73,0.11);
-        border-color: var(--sg-yellow);
-      }
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      z-index: 1010;
+      transition: background 0.18s, border-color 0.18s, box-shadow 0.15s, color 0.17s;
+      outline: none;
+      border-bottom: 3.5px solid var(--sg-yellow);
+      border-right: 3.5px solid var(--sg-yellow);
     }
     #sg-chat-toggle .sg-pill-logo {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
       background: #fff;
       object-fit: contain;
-      box-shadow: 0 1px 3px rgba(30,39,73,0.10);
-      margin-right: 3px;
+      box-shadow: 0 1px 6px rgba(30,39,73,0.12);
+      margin-right: 5px;
+      border: 1.5px solid var(--sg-blue);
+      display: block;
     }
+    #sg-chat-toggle:hover, #sg-chat-toggle:focus {
+      background: var(--sg-blue);
+      color: var(--sg-yellow);
+      border-color: var(--sg-yellow);
+      box-shadow: 0 3px 18px rgba(30,39,73,0.18);
+    }
+
+    /* Chat Window */
     #sg-chat-widget {
       position: fixed;
       bottom: 32px; right: 32px;
-      width: 360px; max-width: 98vw;
-      height: 520px;
+      width: 375px; max-width: 98vw;
+      height: 540px;
       background: var(--sg-white);
       border-radius: var(--sg-radius);
-      box-shadow: 0 6px 24px rgba(30,39,73,0.15);
+      border: var(--sg-border);
+      box-shadow: var(--sg-shadow);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      z-index: 1001;
+      z-index: 1011;
       opacity: 1;
       transition: opacity .18s, transform .18s;
     }
     #sg-chat-widget.hidden {
       opacity: 0;
       pointer-events: none;
-      transform: scale(0.97);
+      transform: scale(0.98);
     }
     .sg-chat-header {
       background: var(--sg-blue);
-      color: var(--sg-white);
-      height: 50px;
-      font-size: 1em;
-      font-weight: 500;
+      color: var(--sg-yellow);
+      height: 54px;
       display: flex;
       align-items: center;
-      justify-content: flex-start;
-      padding: 0 10px 0 0;
-      gap: 10px;
-      box-shadow: 0 2px 8px rgba(30,39,73,0.06);
+      gap: 12px;
+      border-bottom: 2px solid var(--sg-yellow);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      box-shadow: 0 1px 10px rgba(30,39,73,0.10);
     }
     .sg-logo {
-      width: 32px;
-      height: 32px;
-      margin-left: 10px;
-      margin-right: 6px;
+      width: 36px;
+      height: 36px;
+      margin-left: 16px;
+      margin-right: 8px;
       border-radius: 7px;
       background: #fff;
       object-fit: contain;
       display: block;
-      box-shadow: 0 1px 3px rgba(30,39,73,0.09);
+      box-shadow: 0 1px 4px rgba(30,39,73,0.12);
+      border: 1.5px solid var(--sg-yellow);
     }
     .sg-title {
-      font-size: 1.08em;
-      font-weight: 600;
-      letter-spacing: 0.2px;
+      font-size: 1.14em;
+      font-weight: 700;
       color: var(--sg-yellow);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 180px;
+      max-width: 185px;
+      padding-top: 2px;
+      letter-spacing: 0.01em;
     }
     .sg-close-btn {
       margin-left: auto;
       background: none;
       border: none;
-      color: #fff;
-      font-size: 1.45em;
+      color: var(--sg-yellow);
+      font-size: 1.6em;
       cursor: pointer;
-      opacity: 0.55;
-      transition: opacity 0.12s;
-      margin-right: 6px;
+      opacity: 0.68;
+      transition: opacity 0.12s, color 0.15s;
+      margin-right: 13px;
+      outline: none;
     }
-    .sg-close-btn:hover { opacity: 1; }
+    .sg-close-btn:hover, .sg-close-btn:focus { opacity: 1; color: #fff; }
+
     .sg-messages {
       flex: 1;
-      padding: 13px 9px 8px 9px;
+      padding: 15px 13px 13px 13px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       background: var(--sg-light);
-      font-size: 0.97em;
+      font-size: 0.98em;
     }
     .sg-bubble {
-      max-width: 80%;
-      padding: 8px 13px;
-      border-radius: 17px;
-      font-size: 1em;
-      line-height: 1.48;
-      box-shadow: 0 1px 4px rgba(30,39,73,0.05);
+      max-width: 85%;
+      padding: 11px 16px;
+      border-radius: 19px;
+      font-size: 1.03em;
+      line-height: 1.55;
+      box-shadow: 0 1px 6px rgba(30,39,73,0.06);
       word-break: break-word;
       position: relative;
       display: inline-block;
       margin-bottom: 0;
-      animation: popIn .18s cubic-bezier(.3,1.2,.5,1.2);
-    }
-    @keyframes popIn {
-      from {transform: scale(0.97);}
-      to {transform: scale(1);}
+      border: 1.6px solid var(--sg-blue);
+      background: var(--sg-white);
+      font-weight: 500;
+      letter-spacing: 0.01em;
     }
     .sg-bubble.user {
       background: var(--sg-yellow);
-      color: #1e2749;
+      color: var(--sg-blue);
+      border-radius: 19px 19px 6px 19px;
+      border: 1.8px solid var(--sg-yellow);
       align-self: flex-end;
-      border-bottom-right-radius: 5px;
+      box-shadow: 0 1px 6px rgba(254,218,0,0.11);
     }
     .sg-bubble.ai {
       background: var(--sg-blue);
       color: #fff;
+      border-radius: 19px 19px 19px 6px;
+      border: 1.8px solid var(--sg-blue);
       align-self: flex-start;
-      border-bottom-left-radius: 5px;
+      box-shadow: 0 1px 7px rgba(30,39,73,0.13);
     }
     .sg-chat-input-area {
-      display: flex; align-items: center; padding: 10px 9px; background: #fff; border-top: 1px solid var(--sg-gray); gap: 6px;
+      display: flex;
+      align-items: center;
+      padding: 13px 13px 13px 13px;
+      background: #fff;
+      border-top: 1.6px solid var(--sg-gray);
+      gap: 7px;
     }
     .sg-chat-input {
       flex: 1;
       background: #f7f8fb;
-      border: none;
-      border-radius: 14px;
-      padding: 9px 12px;
-      font-size: 1em;
+      border: 1.7px solid var(--sg-blue);
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 1.03em;
       outline: none;
       margin-right: 2px;
       box-shadow: 0 1px 1.5px rgba(30,39,73,0.02);
-      transition: box-shadow 0.10s;
+      transition: box-shadow 0.10s, border 0.13s;
+    }
+    .sg-chat-input:focus {
+      border-color: var(--sg-yellow);
+      box-shadow: 0 2px 5px rgba(254,218,0,0.09);
     }
     .sg-send-btn {
-      background: var(--sg-yellow);
+      background: var(--sg-blue);
       border: none;
-      color: var(--sg-blue);
-      font-size: 1.07em;
+      color: var(--sg-yellow);
+      font-size: 1.05em;
       border-radius: 10px;
-      padding: 8px 13px;
+      padding: 8px 17px;
       font-weight: bold;
       cursor: pointer;
       box-shadow: 0 1px 2px rgba(30,39,73,0.07);
-      transition: background 0.13s;
-      margin-left: 1px;
+      transition: background 0.13s, color 0.13s;
+      margin-left: 2px;
+      outline: none;
+      border-bottom: 2px solid var(--sg-yellow);
     }
-    .sg-send-btn:hover {
-      background: #ffe361;
+    .sg-send-btn:hover, .sg-send-btn:focus {
+      background: var(--sg-yellow); color: var(--sg-blue);
+      border-bottom: 2px solid var(--sg-blue);
     }
-    .sg-form-modal {
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(30,39,73,0.20);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-    }
-    .sg-form {
-      background: #fff;
-      border-radius: 15px;
-      box-shadow: 0 6px 28px rgba(30,39,73,0.13);
-      padding: 22px 14px 16px 14px;
-      min-width: 250px;
-      max-width: 96vw;
-    }
-    .sg-form label {
-      font-weight: 500;
-      margin-bottom: 2px;
-      display: block;
-      font-size: 0.97em;
-    }
-    .sg-form input, .sg-form textarea, .sg-form select {
-      width: 100%;
-      padding: 6px 9px;
-      border-radius: 5px;
-      border: 1px solid #cdd1e7;
-      font-size: 1em;
-      margin-bottom: 7px;
-    }
-    .sg-form button {
-      background: var(--sg-blue);
-      color: var(--sg-yellow);
-      border: none;
-      border-radius: 7px;
-      padding: 9px 0;
-      font-weight: bold;
-      cursor: pointer;
-      width: 100%;
-      font-size: 1em;
-      margin-top: 5px;
-    }
-    .sg-form .sg-close-modal-btn {
-      float: right;
-      background: none;
-      color: #1e2749;
-      font-weight: bold;
-      font-size: 1.19em;
-      border: none;
-      cursor: pointer;
-      margin-top: -17px;
-      margin-right: -7px;
-      opacity: 0.4;
-      transition: opacity 0.12s;
-    }
-    .sg-form .sg-close-modal-btn:hover { opacity: 1; }
-    @media (max-width: 550px) {
-      #sg-chat-widget { width: 99vw; height: 99vh; bottom: 0; right: 0; border-radius: 0;}
-      #sg-chat-toggle { bottom: 13px; right: 13px; width: 88px; height: 38px; font-size: 1em;}
-      .sg-chat-header { height: 42px; }
-      .sg-logo { width: 23px; height: 23px; margin-left: 4px; }
+    @media (max-width: 600px) {
+      #sg-chat-widget { width: 99vw; height: 99vh; bottom: 0; right: 0; border-radius: 0; }
+      #sg-chat-toggle { bottom: 13px; right: 13px; width: 98px; height: 38px; font-size: 1em;}
+      .sg-chat-header { height: 44px; }
+      .sg-logo { width: 24px; height: 24px; margin-left: 4px; }
       .sg-title { font-size: 0.98em; }
       .sg-bubble { font-size: 0.98em; }
     }
   </style>
 </head>
 <body>
-  <!-- Floating Pill Chat Toggle Button -->
-  <button id="sg-chat-toggle" title="Open Chat">
+  <!-- Pill Chat Toggle Button -->
+  <button id="sg-chat-toggle" title="Open Chat" aria-label="Open chat with Surprise Granite Assistant">
     <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo" class="sg-pill-logo" />
     Chat
   </button>
 
-  <!-- Chat Widget -->
-  <div id="sg-chat-widget" class="hidden">
+  <!-- Chat Window -->
+  <div id="sg-chat-widget" class="hidden" role="dialog" aria-modal="true" aria-label="Surprise Granite Assistant Chat">
     <div class="sg-chat-header">
-      <img src="https://www.surprisegranite.com/logo192.png" alt="Surprise Granite Logo" class="sg-logo" />
+      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo" class="sg-logo" />
       <span class="sg-title">Surprise Granite Assistant</span>
-      <button class="sg-close-btn" id="sg-close-chat-widget" title="Close">&times;</button>
+      <button class="sg-close-btn" id="sg-close-chat-widget" title="Close" aria-label="Close chat">&times;</button>
     </div>
     <div class="sg-messages" id="sg-messages"></div>
     <form class="sg-chat-input-area" id="sg-chat-form" autocomplete="off">
-      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type your question..." required>
-      <button type="submit" class="sg-send-btn">Send</button>
-    </form>
-  </div>
-
-  <!-- Modal for scheduling forms -->
-  <div id="sg-form-modal" class="sg-form-modal" style="display:none;">
-    <form class="sg-form" id="sg-appointment-form">
-      <button type="button" class="sg-close-modal-btn" id="sg-close-modal-btn">&times;</button>
-      <h3 style="margin-top:0;color:#1e2749;" id="sg-form-title">Schedule</h3>
-      <input type="hidden" id="sg-type">
-      <label>Your Name:
-        <input type="text" id="sg-name" required autocomplete="name">
-      </label>
-      <label>Email:
-        <input type="email" id="sg-email" required autocomplete="email">
-      </label>
-      <label>Phone:
-        <input type="tel" id="sg-phone" autocomplete="tel">
-      </label>
-      <label>Preferred Date:
-        <input type="date" id="sg-date" required>
-      </label>
-      <label>Preferred Time:
-        <input type="time" id="sg-time" required>
-      </label>
-      <label>Notes:
-        <textarea id="sg-notes" rows="2" placeholder="What would you like to discuss?"></textarea>
-      </label>
-      <button type="submit">Request Appointment</button>
+      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type your question..." aria-label="Type your question" required>
+      <button type="submit" class="sg-send-btn" aria-label="Send message">Send</button>
     </form>
   </div>
 
   <script>
-    // Widget open/close logic
+    // Open/close logic
     const widgetToggle = document.getElementById('sg-chat-toggle');
     const widgetBox = document.getElementById('sg-chat-widget');
-    widgetToggle.onclick = () => { widgetBox.classList.remove('hidden'); widgetToggle.style.display='none'; };
-    document.getElementById('sg-close-chat-widget').onclick = () => { widgetBox.classList.add('hidden'); widgetToggle.style.display='flex'; };
-
-    // Show/hide the scheduling form modal
-    function showForm(type) {
-      document.getElementById('sg-type').value = type;
-      document.getElementById('sg-form-title').textContent = {
-        callback: "Schedule a Call Back",
-        estimate: "Schedule an Estimate",
-        video: "Request a Video Call",
-        chat: "Chat with an Expert"
-      }[type] || "Schedule";
-      document.getElementById('sg-form-modal').style.display = 'flex';
-    }
-    document.getElementById('sg-close-modal-btn').onclick = () => {
-      document.getElementById('sg-form-modal').style.display = 'none';
+    widgetToggle.onclick = () => {
+      widgetBox.classList.remove('hidden');
+      widgetToggle.style.display='none';
+      document.getElementById('sg-chat-input').focus();
+    };
+    document.getElementById('sg-close-chat-widget').onclick = () => {
+      widgetBox.classList.add('hidden');
+      widgetToggle.style.display='flex';
+      widgetToggle.focus();
     };
 
-    // Scheduling form submit logic
-    document.getElementById('sg-appointment-form').onsubmit = async function(e) {
-      e.preventDefault();
-      const type = document.getElementById('sg-type').value;
-      const name = document.getElementById('sg-name').value.trim();
-      const email = document.getElementById('sg-email').value.trim();
-      const phone = document.getElementById('sg-phone').value.trim();
-      const date = document.getElementById('sg-date').value;
-      const time = document.getElementById('sg-time').value;
-      const notes = document.getElementById('sg-notes').value.trim();
-      if (!name || !email || !date || !time) return;
-      try {
-        await fetch('/api/appointment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId: getSessionId(),
-            type, name, email, phone, date, time, notes
-          })
-        });
-        appendBubble('user', `I'd like to schedule a ${type === 'callback' ? "call back" : type === 'estimate' ? "estimate" : type === 'video' ? "video call" : "chat"} on ${date} at ${time}.\nName: ${name}\nEmail: ${email}${phone ? "\nPhone: " + phone : ""}${notes ? "\nNotes: " + notes : ""}`);
-        appendBubble('ai', "Thank you! Your request has been sent. We'll follow up soon.");
-        document.getElementById('sg-form-modal').style.display = 'none';
-      } catch (err) {
-        appendBubble('ai', "Sorry, something went wrong with your request.");
+    // Keyboard accessibility (Esc to close)
+    document.addEventListener('keydown', function(e) {
+      if (!widgetBox.classList.contains('hidden') && (e.key === "Escape" || e.key === "Esc")) {
+        widgetBox.classList.add('hidden');
+        widgetToggle.style.display='flex';
+        widgetToggle.focus();
       }
-    };
+    });
 
-    // Chat bubble helper
+    // Bubbles
     function appendBubble(who, text) {
       const messages = document.getElementById('sg-messages');
       if (text && text.trim()) {
@@ -382,7 +283,7 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // Chat send logic
+    // Chat send logic (server connectivity)
     document.getElementById('sg-chat-form').onsubmit = async function(e) {
       e.preventDefault();
       const input = document.getElementById('sg-chat-input');
@@ -390,16 +291,6 @@
       if (!text) return;
       appendBubble('user', text);
       input.value = '';
-      // Detect requests for scheduling and show form if needed (purely frontend fallback, backend AI should handle too)
-      const lower = text.toLowerCase();
-      let type = null;
-      if (/(call\s?back|phone call|speak to|talk to|someone call|schedule.*call)/.test(lower)) type = "callback";
-      else if (/(estimate|quote|in-home|schedule.*estimate)/.test(lower)) type = "estimate";
-      else if (/(video call|zoom|facetime|google meet|teams|video appointment)/.test(lower)) type = "video";
-      if (type) {
-        setTimeout(()=>showForm(type), 700);
-      }
-      // Always send to backend AI for response
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -413,15 +304,12 @@
         });
         const data = await res.json();
         appendBubble('ai', data.message);
-        if (data.triggerForm && ["callback","estimate","video"].includes(data.triggerForm)) {
-          showForm(data.triggerForm);
-        }
       } catch (err) {
         appendBubble('ai', "Sorry, the server is currently unavailable.");
       }
     };
 
-    // Session ID for chat context
+    // Session ID
     function getSessionId() {
       let sid = localStorage.getItem('sgchat-sid');
       if (!sid) {
@@ -437,7 +325,7 @@
         setTimeout(() => {
           widgetBox.classList.remove('hidden');
           widgetToggle.style.display='none';
-          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. How can I help you today? Ask me anything about countertops, scheduling, or getting an estimate.");
+          appendBubble('ai', "👋 Hi! I'm the Surprise Granite Assistant. How can I help you today?");
           localStorage.setItem('sgchat-welcomed', 'true');
         }, 700);
       }
