@@ -3,7 +3,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai'); // Correct for openai@4.x
 const nodemailer = require('nodemailer');
 const { parse } = require('csv-parse/sync');
 require('dotenv').config();
@@ -50,13 +50,7 @@ If a user asks about company information, answer using your stored knowledge.
 Never provide medical, legal, or financial advice outside of Surprise Granite's services.
 `;
 
-const OpenAI = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const response = await openai.chat.completions.create({
-  model: "gpt-3.5-turbo",
-  messages: [{ role: "user", content: "Hello!" }]
-});
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -116,13 +110,13 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
       { role: "user", content: userMsg }
     ];
 
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages,
       max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 200,
       temperature: 0.7
     });
-    const aiReply = completion.data.choices[0].message.content.trim();
+    const aiReply = completion.choices[0].message.content.trim();
 
     if (sessionId) {
       sessions[sessionId].push({ role: "ai", content: aiReply });
