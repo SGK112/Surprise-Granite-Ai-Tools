@@ -275,7 +275,7 @@
           body: JSON.stringify({ message: text })
         });
         const data = await res.json();
-        botBubble.innerText = data.reply || "Sorry, I didn't get that. Please try again!";
+        botBubble.innerText = data.message || "Sorry, I didn't get that. Please try again!";
       } catch (e) {
         botBubble.innerText = "Sorry, there was a problem connecting. Please try again.";
       }
