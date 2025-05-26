@@ -1,296 +1,63 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import mongoose from 'mongoose';
-import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
-import streamifier from 'streamifier';
-import { OpenAI } from 'openai';
-import fetch from 'node-fetch';
-import { parse } from 'csv-parse/sync';
-import fs from 'fs';
+// Surprise Granite AI Chatbot Backend
+// Express server with file/image upload, CORS, and ready for AI integration
 
-// --- CONFIG ---
-const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN; // e.g. "yourshop.myshopify.com"
-const SHOPIFY_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN; // Private app admin API access token
-const CSV_MATERIALS_URL = process.env.PUBLISHED_CSV_MATERIALS;
-const CSV_LABOR_URL = process.env.PUBLISHED_CSV_LABOR;
-const COMPANY_INFO_PATH = './public/companyInfo.json'; // Updated path for company info in public folder
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
-// --- LOAD COMPANY INFO & TIPS ---
-let companyInfo = {};
-try {
-  companyInfo = JSON.parse(fs.readFileSync(COMPANY_INFO_PATH, 'utf-8'));
-} catch (e) {
-  companyInfo = {
-    name: "Surprise Granite",
-    phone: "(602) 833-3189",
-    email: "info@surprisegranite.com",
-    address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
-    website: "https://www.surprisegranite.com",
-    store: "https://www.store.surprisegranite.com",
-    about: "Surprise Granite is a licensed, bonded, and insured leader in commercial and residential countertops, cabinets, and tile wall installations. Serving the West Valley and beyond, we specialize in granite, quartz, and marble fabrication and installation. Our team delivers top-quality craftsmanship, professional service, and expert design guidance for every project.",
-    credentials: [
-      "Licensed, bonded, and insured",
-      "Serving commercial and residential clients"
-    ],
-    services: [
-      "Countertops (granite, quartz, marble, and more)",
-      "Cabinet installation",
-      "Tile wall installation"
-    ],
-    designTips: [
-      "Light colors help make small kitchens feel larger and brighter.",
-      "Matte finishes are great for hiding fingerprints and smudges.",
-      "Coordinate your backsplash and countertop for a complete, polished look.",
-      "Edge style and sink cutouts can impact both the price and the overall style of your countertops.",
-      "Choose materials that match your lifestyle and maintenance preferences.",
-      "Use contrasting colors for cabinets and counters to create a modern statement."
-    ],
-    fabricationTips: [
-      "Always inspect your stone slab in person before fabrication to check color, veining, and quality.",
-      "Plan your countertop layout to minimize seams and maximize the beauty of natural patterns.",
-      "Request digital or physical templates to ensure a precise fit before cutting begins.",
-      "Discuss edge profiles and cutout requirements (sink, faucet, cooktop) with your fabricator.",
-      "Allow for proper overhangs and support—especially with natural stone, which can be heavy.",
-      "Seal natural stone surfaces after installation to protect against stains and moisture.",
-      "Ask about reinforcement for fragile or narrow areas, such as around sinks or cooktops."
-    ],
-    orderingTips: [
-      "Measure your space carefully and bring your dimensions for accurate estimates.",
-      "Order extra material if possible, especially for natural stone, to ensure color and pattern consistency.",
-      "Confirm lead times with your supplier—natural stone and quartz availability can vary.",
-      "Ask for samples to view in your space under your lighting before making your final selection.",
-      "Review your quote for all details: stone type, edge style, cutouts, and installation fees.",
-      "For quartz, clarify warranty terms and any special care instructions.",
-      "Natural stone is unique—expect minor variations and embrace them as part of its natural beauty."
-    ],
-    contact: {
-      address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
-      phone: "(602) 833-3189",
-      email: "info@surprisegranite.com"
-    }
-  };
-}
-
-// --- LOAD DATA FROM GOOGLE SHEETS ---
-let materialsData = [];
-let laborData = [];
-async function fetchCsvData(url) {
-  const res = await fetch(url);
-  const text = await res.text();
-  return parse(text, { columns: true });
-}
-async function refreshAllData() {
-  if (CSV_MATERIALS_URL) {
-    try { materialsData = await fetchCsvData(CSV_MATERIALS_URL); } catch (e) { console.error("Error loading materialsData", e); }
-  }
-  if (CSV_LABOR_URL) {
-    try { laborData = await fetchCsvData(CSV_LABOR_URL); } catch (e) { console.error("Error loading laborData", e); }
-  }
-}
-await refreshAllData();
-setInterval(refreshAllData, 60 * 60 * 1000);
-
-// --- MONGODB ---
-mongoose.connect(process.env.MONGODB_URI);
-const ChatMessageSchema = new mongoose.Schema({
-  sessionId: String,
-  from: String,
-  message: String,
-  files: [Object],
-  createdAt: { type: Date, default: Date.now }
-});
-const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
-
-// --- EXPRESS ---
 const app = express();
-app.use(express.json({ limit: '4mb' }));
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*' }));
+const PORT = process.env.PORT || 3001;
 
-// --- MULTER FOR FILE UPLOADS ---
-const upload = multer({ storage: multer.memoryStorage() });
+// --- Middleware ---
+app.use(cors()); // Allow all origins (configure for prod if needed)
+app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- CLOUDINARY ---
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+// Prepare uploads directory
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Multer config for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    // Safer file naming: timestamp-originalname
+    const unique = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
+    cb(null, unique);
+  }
 });
-async function uploadToCloudinary(file) {
-  return new Promise((resolve, reject) => {
-    let upload_stream = cloudinary.uploader.upload_stream(
-      { folder: "sg_chatbot_uploads" },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve({
-          url: result.secure_url,
-          public_id: result.public_id,
-          originalname: file.originalname,
-          mimetype: file.mimetype
-        });
-      }
-    );
-    streamifier.createReadStream(file.buffer).pipe(upload_stream);
-  });
-}
+const upload = multer({ storage });
 
-// --- OPENAI ---
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// --- API Endpoints ---
 
-// --- SHOPIFY HELPER ---
-async function shopifyFetch(endpoint, method = 'GET', body = null) {
-  const url = `https://${SHOPIFY_DOMAIN}/admin/api/2023-04/${endpoint}`;
-  const headers = {
-    'X-Shopify-Access-Token': SHOPIFY_TOKEN,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`Shopify API error: ${res.status}`);
-  return res.json();
-}
-
-// --- FILTER RELEVANT ROWS ---
-function filterRelevantRows(data, message) {
-  if (!data || !message) return [];
-  const keywords = message.toLowerCase().split(/\W+/).filter(w => w.length > 2);
-  return data.filter(row =>
-    Object.values(row)
-      .some(val => keywords.some(kw => String(val).toLowerCase().includes(kw)))
-  );
-}
-
-// --- AI SYSTEM PROMPT BUILDER ---
-function buildSystemPrompt({ userMsg, relevantMaterials, relevantLabor, companyInfo, shopifyContext }) {
-  return `
-You are the Surprise Granite Assistant, a professional, friendly AI shopping assistant and design consultant.
-
-Company Info:
-Name: ${companyInfo.name}
-Phone: ${companyInfo.phone}
-Email: ${companyInfo.email}
-Address: ${companyInfo.address}
-Website: ${companyInfo.website || ""}
-Store: ${companyInfo.store || ""}
-About: ${companyInfo.about}
-Credentials: ${(companyInfo.credentials || []).join(', ')}
-Services: ${(companyInfo.services || []).join(', ')}
-
-Design Tips:
-${(companyInfo.designTips || []).join('\n')}
-
-Stone Fabrication Tips:
-${(companyInfo.fabricationTips || []).join('\n')}
-
-Ordering Tips for Natural Stone & Quartz:
-${(companyInfo.orderingTips || []).join('\n')}
-
-Materials Sample Relevant to User:
-${JSON.stringify(relevantMaterials)}
-
-Labor Rates Sample Relevant to User:
-${JSON.stringify(relevantLabor)}
-
-Shopify Context (products/cart/stock):
-${shopifyContext ? JSON.stringify(shopifyContext).slice(0, 1000) : "None"}
-
-Instructions:
-- Help users shop for granite, quartz, marble, etc. Suggest products based on needs and current stock.
-- If user asks about a product, find it in the Shopify catalog and share price, stock, and details.
-- If user wants to add to cart, do so and confirm.
-- If user wants a professional estimate, use real pricing/labor and write a clear, helpful, detailed response.
-- Offer design, fabrication, and ordering tips as needed.
-- If user has design or install questions, answer with expertise.
-- Always include company contact info for follow-up.
-- NEVER make up info; always use live data provided.
-
-Always be concise, inviting, and helpful.
-  `.trim();
-}
-
-// --- MAIN CHATBOT ENDPOINT (AI + Shopify) ---
-app.post('/api/chat', upload.array('attachments'), async (req, res) => {
+// Chat endpoint: handles text and optional image
+app.post('/api/chat', upload.single('image'), async (req, res) => {
   try {
-    const { message, sessionId, estimator, shopifyAction, cartId, productId, quantity } = req.body;
-    let files = [];
-    if (req.files && req.files.length) {
-      files = await Promise.all(req.files.map(uploadToCloudinary));
-    }
-    await new ChatMessage({ sessionId, from: 'user', message, files }).save();
-
-    // Optionally fetch Shopify data
-    let shopifyContext = {};
-    if (shopifyAction === 'get_cart' && cartId) {
-      shopifyContext.cart = await shopifyFetch(`carts/${cartId}.json`);
-    } else if (shopifyAction === 'get_product' && productId) {
-      shopifyContext.product = await shopifyFetch(`products/${productId}.json`);
-    } else if (shopifyAction === 'list_products') {
-      shopifyContext.products = await shopifyFetch('products.json?limit=10');
-    } else if (shopifyAction === 'add_to_cart' && cartId && productId && quantity) {
-      shopifyContext.added = { cartId, productId, quantity };
+    const message = req.body.message || '';
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
     }
 
-    // Find relevant material/labor rows for the user's message
-    const MAX_SAMPLE_ROWS = 7;
-    let relevantMaterials = filterRelevantRows(materialsData, message);
-    let relevantLabor = filterRelevantRows(laborData, message);
-    if (relevantMaterials.length === 0) relevantMaterials = materialsData.slice(0, MAX_SAMPLE_ROWS);
-    if (relevantLabor.length === 0) relevantLabor = laborData.slice(0, MAX_SAMPLE_ROWS);
+    // TODO: Replace this with your AI integration (OpenAI, Azure, etc.)
+    let aiReply = `You said: ${message}`;
+    if (imageUrl) aiReply += " (And you attached an image!)";
 
-    // Build system prompt
-    const systemPrompt = buildSystemPrompt({
-      userMsg: message,
-      relevantMaterials,
-      relevantLabor,
-      companyInfo,
-      shopifyContext
-    });
-
-    // Pass estimator form data to the AI too, if present
-    let userContent = [];
-    if (message) userContent.push({ type: "text", text: message });
-    if (estimator) {
-      userContent.push({ type: "text", text: `User provided estimator info: ${JSON.stringify(estimator)}` });
-    }
-    files.forEach(f => userContent.push({ type: "image_url", image_url: { url: f.url }}));
-
-    // Call OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent.length > 0 ? userContent : [{ type: "text", text: "(See attached images)" }] }
-      ],
-      max_tokens: 900
-    });
-    const aiResponse = completion.choices[0].message.content;
-
-    await new ChatMessage({ sessionId, from: 'ai', message: aiResponse }).save();
-    res.json({ message: aiResponse, images: files.map(f => f.url) });
+    // Optionally, you can return the imageUrl for frontend use
+    res.json({ message: aiReply, imageUrl });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({ error: "AI backend error or file upload failed." });
   }
 });
 
-// --- OPTIONAL: Shopify product listing endpoint (for frontend dropdowns/autocomplete) ---
-app.get('/api/shopify/products', async (req, res) => {
-  try {
-    const products = await shopifyFetch('products.json?limit=20');
-    res.json(products.products);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching products", error: err.message });
-  }
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
-// --- STATIC FILES (WIDGET) ---
-app.use(express.static('public'));
-app.get('/health', (req, res) => res.send('OK'));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Surprise Granite Assistant running on port ${PORT}`));
+// --- Start Server ---
+app.listen(PORT, () => {
+  console.log(`Surprise Granite AI Chatbot backend running at http://localhost:${PORT}`);
+});
