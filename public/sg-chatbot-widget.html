@@ -13,7 +13,7 @@
       --sg-gray: #e3e5e9;
       --sg-radius: 16px;
     }
-    body { background: transparent; }
+    body { background: transparent; margin: 0; }
     #sg-chat-toggle {
       position: fixed;
       bottom: 32px; right: 32px;
@@ -34,7 +34,6 @@
       font-weight: 600;
       letter-spacing: 0.03em;
       padding: 0 16px;
-      /* Pulsating and glowing animation */
       animation: sg-pulse-glow 1.5s infinite;
     }
     @keyframes sg-pulse-glow {
@@ -328,6 +327,7 @@
     widgetToggle.onclick = () => { widgetBox.classList.remove('hidden'); widgetToggle.style.display='none'; };
     document.getElementById('sg-close-chat-widget').onclick = () => { widgetBox.classList.add('hidden'); widgetToggle.style.display='flex'; };
 
+    // Show/hide the scheduling form modal
     function showForm(type) {
       document.getElementById('sg-type').value = type;
       document.getElementById('sg-form-title').textContent = {
