@@ -1,292 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Surprise Granite Classic Chatbot</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Surprise Granite AI Chatbot</title>
   <style>
-    :root {
-      --sg-blue: #1e2749;
-      --sg-yellow: #feda00;
-      --sg-white: #fff;
-      --sg-light: #f4f6fa;
-      --sg-gray: #e3e5e9;
+    body { font-family: 'Segoe UI', Arial, sans-serif; }
+    #chatbot-float-btn {
+      position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+      background: #2563eb; color: #fff; border: none;
+      border-radius: 30px; width: 170px; height: 56px;
+      font-size: 19px; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.13); cursor: pointer; transition: background 0.2s;
+      padding: 0 28px; gap: 12px; font-weight: 600; letter-spacing: 0.5px;
     }
-    body {
-      margin: 0;
-      background: transparent;
-      font-family: Arial, sans-serif;
+    #chatbot-float-btn span { font-size: 25px; }
+    #chatbot-widget {
+      position: fixed; bottom: 92px; right: 30px; z-index: 99999; 
+      width: 370px; max-width: 98vw; background: #fff; border-radius: 18px; 
+      box-shadow: 0 6px 32px rgba(0,0,0,0.21); display: none; flex-direction: column; overflow: hidden;
+      transition: box-shadow 0.2s;
     }
-    #sg-chat-toggle {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      display: flex;
+    #chatbot-header {
+      background: #2563eb; color: #fff; font-weight: 600; font-size: 19px;
+      padding: 13px 22px; display: flex; justify-content: space-between; align-items: center;
+    }
+    #chatbot-close-btn { background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; }
+    #chatbot-body { display: flex; flex-direction: column; height: 430px; }
+    #chatOutput {
+      flex: 1; padding: 14px 17px; overflow-y: auto; background: #f1f5f9; font-size: 16px;
+      line-height: 1.7; word-break: break-word;
+    }
+    .bubble { display: flex; margin-bottom: 13px; }
+    .bubble.user { justify-content: flex-end; }
+    .bubble.ai { justify-content: flex-start; }
+    .bubble-text {
+      max-width: 74%; padding: 12px 16px; border-radius: 14px; font-size: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      word-break: break-word;
+    }
+    .bubble.user .bubble-text { background: #2563eb; color: #fff; border-bottom-right-radius: 5px; }
+    .bubble.ai .bubble-text { background: #e6eafe; color: #222; border-bottom-left-radius: 5px; }
+    .bubble.ai .bubble-avatar {
+      width: 32px; height: 32px; border-radius: 50%; background: #2563eb;
+      color: #fff; display: flex; align-items: center; justify-content: center; margin-right: 9px;
+      font-weight: bold; font-size: 19px; flex-shrink: 0;
+    }
+    .bubble.user .bubble-avatar { display: none; }
+    .bubble-image {
+      max-width: 170px; max-height: 90px; border-radius: 8px; margin-top: 6px; margin-left: 8px;
+    }
+    #chatbot-controls {
+      display: flex; gap: 9px; padding: 12px 10px; background: #fff; border-top: 1px solid #e5e7eb;
       align-items: center;
-      gap: 8px;
-      padding: 10px 15px;
-      background: var(--sg-white);
-      color: var(--sg-blue);
-      border: none;
-      border-radius: 25px;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
-      font-size: 1em;
-      font-weight: 600;
-      cursor: pointer;
-      z-index: 1010;
-      transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
     }
-    #sg-chat-toggle img {
-      width: 24px;
-      height: 24px;
-      border-radius: 5px;
+    #chatInput {
+      flex: 1; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 16px;
     }
-    #sg-chat-toggle:hover {
-      background: var(--sg-blue);
-      color: var(--sg-yellow);
-      transform: scale(1.05);
+    #sendButton {
+      background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0 19px;
+      font-size: 17px; cursor: pointer; transition: background 0.2s; min-width: 54px; height: 40px;
     }
-    #sg-chat-widget {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 340px;
-      height: 480px;
-      background: var(--sg-white);
-      border: none;
-      border-radius: 15px;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-      display: flex;
-      flex-direction: column;
-      z-index: 1011;
-      opacity: 1;
-      transition: opacity 0.3s ease, transform 0.3s ease;
+    #sendButton:active { background: #1d4ed8; }
+    #attachLabel {
+      background: #e6eafe; border-radius: 8px; cursor: pointer; padding: 0 10px; height: 40px;
+      display: flex; align-items: center; font-size: 20px; color: #2563eb; border: 1px solid #c7d2fe;
     }
-    #sg-chat-widget.hidden {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(20px);
+    #attachInput { display: none; }
+    #imagePreview {
+      display: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid #bbb; border-radius: 8px; margin-left: 4px;
     }
-    .sg-chat-header {
-      background: var(--sg-blue);
-      color: var(--sg-yellow);
-      padding: 12px 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      border-top-left-radius: 15px;
-      border-top-right-radius: 15px;
+    #chatbot-spinner {
+      margin-left: 7px; width: 22px; height: 22px; border: 3px solid #b3baff; border-radius: 50%;
+      border-top: 3px solid #2563eb; animation: spin 0.7s linear infinite; display: none;
     }
-    .sg-chat-header img {
-      width: 30px;
-      height: 30px;
-      border-radius: 5px;
-    }
-    .sg-chat-header span {
-      font-size: 1.1em;
-      font-weight: 600;
-    }
-    .sg-chat-header button {
-      margin-left: auto;
-      background: none;
-      border: none;
-      color: var(--sg-yellow);
-      font-size: 1.5em;
-      cursor: pointer;
-      opacity: 0.7;
-      transition: opacity 0.3s ease, transform 0.2s ease;
-    }
-    .sg-chat-header button:hover {
-      opacity: 1;
-      transform: scale(1.1);
-    }
-    .sg-messages {
-      flex: 1;
-      padding: 15px;
-      overflow-y: auto;
-      background: var(--sg-light);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .sg-bubble {
-      max-width: 80%;
-      padding: 10px 15px;
-      border-radius: 18px;
-      font-size: 1em;
-      line-height: 1.5;
-      position: relative;
-      display: inline-block;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      transition: transform 0.2s ease;
-    }
-    .sg-bubble.user {
-      background: var(--sg-yellow);
-      color: var(--sg-blue);
-      border-radius: 18px 18px 5px 18px;
-      align-self: flex-end;
-    }
-    .sg-bubble.user::after {
-      content: '';
-      position: absolute;
-      bottom: -6px;
-      right: 10px;
-      border: 6px solid transparent;
-      border-top-color: var(--sg-yellow);
-      border-right: 0;
-      filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.1));
-    }
-    .sg-bubble.ai {
-      background: var(--sg-blue);
-      color: var(--sg-white);
-      border-radius: 18px 18px 18px 5px;
-      align-self: flex-start;
-    }
-    .sg-bubble.ai::after {
-      content: '';
-      position: absolute;
-      bottom: -6px;
-      left: 10px;
-      border: 6px solid transparent;
-      border-top-color: var(--sg-blue);
-      border-left: 0;
-      filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.1));
-    }
-    .sg-bubble:hover {
-      transform: scale(1.02);
-    }
-    .sg-chat-input-area {
-      display: flex;
-      padding: 12px 15px;
-      background: var(--sg-white);
-      border-top: 1px solid var(--sg-gray);
-      gap: 8px;
-      border-bottom-left-radius: 15px;
-      border-bottom-right-radius: 15px;
-    }
-    .sg-chat-input {
-      flex: 1;
-      padding: 10px 15px;
-      border: 1px solid var(--sg-gray);
-      border-radius: 20px;
-      font-size: 1em;
-      outline: none;
-      transition: border 0.3s ease, box-shadow 0.3s ease;
-    }
-    .sg-chat-input:focus {
-      border-color: var(--sg-blue);
-      box-shadow: 0 0 5px rgba(30, 39, 73, 0.2);
-    }
-    .sg-send-btn {
-      background: var(--sg-blue);
-      color: var(--sg-yellow);
-      border: none;
-      padding: 10px 20px;
-      border-radius: 20px;
-      font-size: 1em;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
-    }
-    .sg-send-btn:hover {
-      background: var(--sg-yellow);
-      color: var(--sg-blue);
-      transform: scale(1.05);
-    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
     @media (max-width: 600px) {
-      #sg-chat-widget {
-        width: 100%;
-        height: 100vh;
-        bottom: 0;
-        right: 0;
-        border-radius: 0;
-      }
-      #sg-chat-toggle {
-        bottom: 10px;
-        right: 10px;
-      }
+      #chatbot-widget { right: 0; left: 0; width: 99vw; max-width: none; }
+      #chatbot-body { height: 56vh; }
     }
   </style>
 </head>
 <body>
-  <!-- Chat Toggle Button -->
-  <button id="sg-chat-toggle" title="Open Chat">
-    <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" />
-    Chat
+  <button id="chatbot-float-btn" title="Chat with us!">
+    <span>💬</span> Chat with us
   </button>
-  <!-- Chat Window -->
-  <div id="sg-chat-widget" class="hidden">
-    <div class="sg-chat-header">
-      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" />
-      <span>Surprise Granite Chat</span>
-      <button id="sg-close-chat-widget" title="Close">×</button>
+  <div id="chatbot-widget">
+    <div id="chatbot-header">
+      Surprise Granite AI
+      <button id="chatbot-close-btn" title="Close chat">&times;</button>
     </div>
-    <div class="sg-messages" id="sg-messages">
-      <div class="sg-bubble ai">Hello! Welcome to Surprise Granite. How can I help you today?</div>
+    <div id="chatbot-body">
+      <div id="chatOutput"></div>
     </div>
-    <div class="sg-chat-input-area">
-      <input type="text" class="sg-chat-input" id="sg-chat-input" placeholder="Type a message...">
-      <button class="sg-send-btn" onclick="sendMessage()">Send</button>
-    </div>
+    <form id="chatbot-controls" autocomplete="off" enctype="multipart/form-data">
+      <label id="attachLabel" title="Attach photo">
+        📎
+        <input type="file" id="attachInput" accept="image/*" />
+        <img id="imagePreview" alt="Preview"/>
+      </label>
+      <input id="chatInput" type="text" placeholder="Type your question..." autocomplete="off" />
+      <button id="sendButton" type="submit">Send</button>
+      <div id="chatbot-spinner"></div>
+    </form>
   </div>
   <script>
-    // Open/close logic
-    const widgetToggle = document.getElementById('sg-chat-toggle');
-    const widgetBox = document.getElementById('sg-chat-widget');
-    widgetToggle.onclick = () => {
-      widgetBox.classList.remove('hidden');
-      widgetToggle.style.display = 'none';
-      document.getElementById('sg-chat-input').focus();
+    const floatBtn = document.getElementById("chatbot-float-btn");
+    const widget = document.getElementById("chatbot-widget");
+    const closeBtn = document.getElementById("chatbot-close-btn");
+    const chatOutput = document.getElementById("chatOutput");
+    const chatInput = document.getElementById("chatInput");
+    const sendButton = document.getElementById("sendButton");
+    const spinner = document.getElementById("chatbot-spinner");
+    const chatForm = document.getElementById("chatbot-controls");
+    const attachInput = document.getElementById("attachInput");
+    const imagePreview = document.getElementById("imagePreview");
+    let attachedImage = null;
+
+    floatBtn.onclick = function() {
+      widget.style.display = "flex";
+      floatBtn.style.display = "none";
+      setTimeout(scrollToBottom, 120);
     };
-    document.getElementById('sg-close-chat-widget').onclick = () => {
-      widgetBox.classList.add('hidden');
-      widgetToggle.style.display = 'flex';
+    closeBtn.onclick = function() {
+      widget.style.display = "none";
+      floatBtn.style.display = "flex";
     };
-    // Keyboard accessibility (Esc to close)
-    document.addEventListener('keydown', (e) => {
-      if (!widgetBox.classList.contains('hidden') && e.key === 'Escape') {
-        widgetBox.classList.add('hidden');
-        widgetToggle.style.display = 'flex';
+
+    attachInput.addEventListener('change', function(e) {
+      const file = this.files[0];
+      if (file) {
+        attachedImage = file;
+        imagePreview.src = URL.createObjectURL(file);
+        imagePreview.style.display = "inline-block";
+      } else {
+        attachedImage = null;
+        imagePreview.src = "";
+        imagePreview.style.display = "none";
       }
     });
-    // Send message logic
-    async function sendMessage() {
-      const input = document.getElementById('sg-chat-input');
-      const messages = document.getElementById('sg-messages');
-      const text = input.value.trim();
-      if (!text) return;
-      // User message
-      const userBubble = document.createElement('div');
-      userBubble.className = 'sg-bubble user';
-      userBubble.innerText = text;
-      messages.appendChild(userBubble);
-      messages.scrollTop = messages.scrollHeight;
-      input.value = '';
-      // Bot response (CONNECTED TO SERVER)
-      const botBubble = document.createElement('div');
-      botBubble.className = 'sg-bubble ai';
-      botBubble.innerText = '...'; // Loading indicator
-      messages.appendChild(botBubble);
-      messages.scrollTop = messages.scrollHeight;
-      try {
-        const res = await fetch("https://surprise-granite-connections-dev.onrender.com/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text })
-        });
-        const data = await res.json();
-        botBubble.innerText = data.message || "Sorry, I didn't get that. Please try again!";
-      } catch (e) {
-        botBubble.innerText = "Sorry, there was a problem connecting. Please try again.";
-      }
-      messages.scrollTop = messages.scrollHeight;
+
+    function scrollToBottom() {
+      chatOutput.scrollTop = chatOutput.scrollHeight;
     }
-    // Enter key to send
-    document.getElementById('sg-chat-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        sendMessage();
+
+    function appendMessage(role, text, imgUrl) {
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role}`;
+      if (role === "ai") {
+        const avatar = document.createElement("div");
+        avatar.className = "bubble-avatar";
+        avatar.textContent = "🤖";
+        bubble.appendChild(avatar);
       }
+      const textDiv = document.createElement("div");
+      textDiv.className = "bubble-text";
+      textDiv.textContent = text;
+      bubble.appendChild(textDiv);
+      if (imgUrl) {
+        const imgElem = document.createElement("img");
+        imgElem.className = "bubble-image";
+        imgElem.src = imgUrl;
+        bubble.appendChild(imgElem);
+      }
+      chatOutput.appendChild(bubble);
+      scrollToBottom();
+    }
+
+    function setChatbotLoading(isLoading) {
+      spinner.style.display = isLoading ? "inline-block" : "none";
+      sendButton.disabled = isLoading;
+      chatInput.disabled = isLoading;
+    }
+
+    function showError(text) {
+      appendMessage("ai", "⚠️ " + text);
+    }
+
+    async function sendMessage(message, imageFile) {
+      appendMessage("user", message, imageFile ? URL.createObjectURL(imageFile) : null);
+      setChatbotLoading(true);
+      try {
+        let response;
+        if (imageFile) {
+          const formData = new FormData();
+          formData.append("message", message);
+          formData.append("image", imageFile);
+          response = await fetch("/api/chat", {
+            method: "POST",
+            body: formData
+          });
+        } else {
+          response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message })
+          });
+        }
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          showError(err.error || "AI backend error.");
+          setChatbotLoading(false);
+          return;
+        }
+        const data = await response.json();
+        appendMessage("ai", data.message);
+      } catch (e) {
+        showError("Could not reach the server. Please try again.");
+      }
+      setChatbotLoading(false);
+      imagePreview.style.display = "none";
+      imagePreview.src = "";
+      attachedImage = null;
+      attachInput.value = "";
+    }
+
+    chatForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (!msg && !attachedImage) return;
+      chatInput.value = "";
+      sendMessage(msg, attachedImage);
     });
   </script>
 </body>
