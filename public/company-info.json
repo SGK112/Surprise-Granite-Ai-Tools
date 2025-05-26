@@ -1,0 +1,49 @@
+{
+  "name": "Surprise Granite",
+  "phone": "(602) 833-3189",
+  "email": "info@surprisegranite.com",
+  "address": "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+  "website": "https://www.surprisegranite.com",
+  "store": "https://www.store.surprisegranite.com",
+  "about": "Surprise Granite is a licensed, bonded, and insured leader in commercial and residential countertops, cabinets, and tile wall installations. Serving the West Valley and beyond, we specialize in granite, quartz, and marble fabrication and installation. Our team delivers top-quality craftsmanship, professional service, and expert design guidance for every project.",
+  "credentials": [
+    "Licensed, bonded, and insured",
+    "Serving commercial and residential clients"
+  ],
+  "services": [
+    "Countertops (granite, quartz, marble, and more)",
+    "Cabinet installation",
+    "Tile wall installation"
+  ],
+  "designTips": [
+    "Light colors help make small kitchens feel larger and brighter.",
+    "Matte finishes are great for hiding fingerprints and smudges.",
+    "Coordinate your backsplash and countertop for a complete, polished look.",
+    "Edge style and sink cutouts can impact both the price and the overall style of your countertops.",
+    "Choose materials that match your lifestyle and maintenance preferences.",
+    "Use contrasting colors for cabinets and counters to create a modern statement."
+  ],
+  "fabricationTips": [
+    "Always inspect your stone slab in person before fabrication to check color, veining, and quality.",
+    "Plan your countertop layout to minimize seams and maximize the beauty of natural patterns.",
+    "Request digital or physical templates to ensure a precise fit before cutting begins.",
+    "Discuss edge profiles and cutout requirements (sink, faucet, cooktop) with your fabricator.",
+    "Allow for proper overhangs and support—especially with natural stone, which can be heavy.",
+    "Seal natural stone surfaces after installation to protect against stains and moisture.",
+    "Ask about reinforcement for fragile or narrow areas, such as around sinks or cooktops."
+  ],
+  "orderingTips": [
+    "Measure your space carefully and bring your dimensions for accurate estimates.",
+    "Order extra material if possible, especially for natural stone, to ensure color and pattern consistency.",
+    "Confirm lead times with your supplier—natural stone and quartz availability can vary.",
+    "Ask for samples to view in your space under your lighting before making your final selection.",
+    "Review your quote for all details: stone type, edge style, cutouts, and installation fees.",
+    "For quartz, clarify warranty terms and any special care instructions.",
+    "Natural stone is unique—expect minor variations and embrace them as part of its natural beauty."
+  ],
+  "contact": {
+    "address": "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+    "phone": "(602) 833-3189",
+    "email": "info@surprisegranite.com"
+  }
+}
