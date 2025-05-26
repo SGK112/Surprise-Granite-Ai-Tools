@@ -50,7 +50,8 @@ If a user asks about company information, answer using your stored knowledge.
 Never provide medical, legal, or financial advice outside of Surprise Granite's services.
 `;
 
-const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
