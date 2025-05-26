@@ -17,8 +17,6 @@
       background: transparent;
       font-family: Arial, sans-serif;
     }
-
-    /* Chat Toggle Button */
     #sg-chat-toggle {
       position: fixed;
       bottom: 20px;
@@ -48,8 +46,6 @@
       color: var(--sg-yellow);
       transform: scale(1.05);
     }
-
-    /* Chat Window */
     #sg-chat-widget {
       position: fixed;
       bottom: 20px;
@@ -104,8 +100,6 @@
       opacity: 1;
       transform: scale(1.1);
     }
-
-    /* Chat Messages */
     .sg-messages {
       flex: 1;
       padding: 15px;
@@ -161,8 +155,6 @@
     .sg-bubble:hover {
       transform: scale(1.02);
     }
-
-    /* Chat Input */
     .sg-chat-input-area {
       display: flex;
       padding: 12px 15px;
@@ -201,7 +193,6 @@
       color: var(--sg-blue);
       transform: scale(1.05);
     }
-
     @media (max-width: 600px) {
       #sg-chat-widget {
         width: 100%;
@@ -223,7 +214,6 @@
     <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/6456ce4476abb23930fbb1f0_surprise-granite-logo-mark.svg" alt="Surprise Granite Logo" />
     Chat
   </button>
-
   <!-- Chat Window -->
   <div id="sg-chat-widget" class="hidden">
     <div class="sg-chat-header">
@@ -239,7 +229,6 @@
       <button class="sg-send-btn" onclick="sendMessage()">Send</button>
     </div>
   </div>
-
   <script>
     // Open/close logic
     const widgetToggle = document.getElementById('sg-chat-toggle');
@@ -253,7 +242,6 @@
       widgetBox.classList.add('hidden');
       widgetToggle.style.display = 'flex';
     };
-
     // Keyboard accessibility (Esc to close)
     document.addEventListener('keydown', (e) => {
       if (!widgetBox.classList.contains('hidden') && e.key === 'Escape') {
@@ -261,34 +249,38 @@
         widgetToggle.style.display = 'flex';
       }
     });
-
     // Send message logic
-    function sendMessage() {
+    async function sendMessage() {
       const input = document.getElementById('sg-chat-input');
       const messages = document.getElementById('sg-messages');
       const text = input.value.trim();
-
       if (!text) return;
-
       // User message
       const userBubble = document.createElement('div');
       userBubble.className = 'sg-bubble user';
       userBubble.innerText = text;
       messages.appendChild(userBubble);
-
-      // Bot response
-      setTimeout(() => {
-        const botBubble = document.createElement('div');
-        botBubble.className = 'sg-bubble ai';
-        botBubble.innerText = 'Thanks for your message! How can I assist with your granite needs?';
-        messages.appendChild(botBubble);
-        messages.scrollTop = messages.scrollHeight;
-      }, 500);
-
+      messages.scrollTop = messages.scrollHeight;
       input.value = '';
+      // Bot response (CONNECTED TO SERVER)
+      const botBubble = document.createElement('div');
+      botBubble.className = 'sg-bubble ai';
+      botBubble.innerText = '...'; // Loading indicator
+      messages.appendChild(botBubble);
+      messages.scrollTop = messages.scrollHeight;
+      try {
+        const res = await fetch("https://surprise-granite-connections-dev.onrender.com/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        botBubble.innerText = data.reply || "Sorry, I didn't get that. Please try again!";
+      } catch (e) {
+        botBubble.innerText = "Sorry, there was a problem connecting. Please try again.";
+      }
       messages.scrollTop = messages.scrollHeight;
     }
-
     // Enter key to send
     document.getElementById('sg-chat-input').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
