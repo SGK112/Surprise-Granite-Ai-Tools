@@ -70,11 +70,19 @@
     #imagePreview {
       display: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid #bbb; border-radius: 8px; margin-left: 4px;
     }
-    #chatbot-spinner {
-      margin-left: 7px; width: 22px; height: 22px; border: 3px solid #b3baff; border-radius: 50%;
-      border-top: 3px solid #2563eb; animation: spin 0.7s linear infinite; display: none;
+    .typing-indicator {
+      display: none; /* Hidden by default */
+      font-size: 16px; color: #222; padding: 12px 16px;
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .typing-indicator span {
+      display: inline-block; animation: blink 1s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 1; }
+    }
     @media (max-width: 600px) {
       #chatbot-widget { right: 0; left: 0; width: 99vw; max-width: none; }
       #chatbot-body { height: 56vh; }
@@ -88,10 +96,14 @@
   <div id="chatbot-widget">
     <div id="chatbot-header">
       Surprise Granite AI
-      <button id="chatbot-close-btn" title="Close chat">&times;</button>
+      <button id="chatbot-close-btn" title="Close chat">×</button>
     </div>
     <div id="chatbot-body">
       <div id="chatOutput"></div>
+      <!-- Added typing indicator -->
+      <div id="typingIndicator" class="typing-indicator">
+        <span>.</span><span>.</span><span>.</span>
+      </div>
     </div>
     <form id="chatbot-controls" autocomplete="off" enctype="multipart/form-data">
       <label id="attachLabel" title="Attach photo">
@@ -101,7 +113,7 @@
       </label>
       <input id="chatInput" type="text" placeholder="Type your question..." autocomplete="off" />
       <button id="sendButton" type="submit">Send</button>
-      <div id="chatbot-spinner"></div>
+      <!-- Removed chatbot-spinner -->
     </form>
   </div>
   <script>
@@ -111,11 +123,17 @@
     const chatOutput = document.getElementById("chatOutput");
     const chatInput = document.getElementById("chatInput");
     const sendButton = document.getElementById("sendButton");
-    const spinner = document.getElementById("chatbot-spinner");
+    const typingIndicator = document.getElementById("typingIndicator"); // Added
     const chatForm = document.getElementById("chatbot-controls");
     const attachInput = document.getElementById("attachInput");
     const imagePreview = document.getElementById("imagePreview");
     let attachedImage = null;
+    // Added sessionId
+    let sessionId = localStorage.getItem('sgChatbotSessionId');
+    if (!sessionId) {
+      sessionId = Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('sgChatbotSessionId', sessionId);
+    }
 
     floatBtn.onclick = function() {
       widget.style.display = "flex";
@@ -125,6 +143,7 @@
     closeBtn.onclick = function() {
       widget.style.display = "none";
       floatBtn.style.display = "flex";
+      window.parent.postMessage({ sgChatbotClose: true }, '*');
     };
 
     attachInput.addEventListener('change', function(e) {
@@ -155,7 +174,12 @@
       }
       const textDiv = document.createElement("div");
       textDiv.className = "bubble-text";
-      textDiv.textContent = text;
+      // Format company info response
+      if (text.includes("COMPANY INFORMATION")) {
+        textDiv.innerHTML = text.replace(/\n/g, '<br>').replace(/COMPANY INFORMATION:/, '<strong>About Surprise Granite:</strong>');
+      } else {
+        textDiv.textContent = text;
+      }
       bubble.appendChild(textDiv);
       if (imgUrl) {
         const imgElem = document.createElement("img");
@@ -168,13 +192,13 @@
     }
 
     function setChatbotLoading(isLoading) {
-      spinner.style.display = isLoading ? "inline-block" : "none";
+      typingIndicator.style.display = isLoading ? "block" : "none"; // Use typing indicator
       sendButton.disabled = isLoading;
       chatInput.disabled = isLoading;
     }
 
-    function showError(text) {
-      appendMessage("ai", "⚠️ " + text);
+    function showError(text, details) {
+      appendMessage("ai", `⚠️ ${text}${details ? ' Details: ' + details : ''}`);
     }
 
     async function sendMessage(message, imageFile) {
@@ -186,27 +210,32 @@
           const formData = new FormData();
           formData.append("message", message);
           formData.append("image", imageFile);
+          formData.append("sessionId", sessionId);
           response = await fetch("/api/chat", {
             method: "POST",
+            headers: { 'x-session-id': sessionId },
             body: formData
           });
         } else {
           response = await fetch("/api/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message })
+            headers: {
+              "Content-Type": "application/json",
+              "x-session-id": sessionId
+            },
+            body: JSON.stringify({ message, sessionId })
           });
         }
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
-          showError(err.error || "AI backend error.");
+          showError(err.error || "AI backend error.", err.details);
           setChatbotLoading(false);
           return;
         }
         const data = await response.json();
-        appendMessage("ai", data.message);
+        appendMessage("ai", data.message, data.imageUrl);
       } catch (e) {
-        showError("Could not reach the server. Please try again.");
+        showError("Could not reach the server. Please try again.", e.message);
       }
       setChatbotLoading(false);
       imagePreview.style.display = "none";
@@ -222,6 +251,9 @@
       chatInput.value = "";
       sendMessage(msg, attachedImage);
     });
+
+    // Initial welcome message
+    appendMessage("ai", "Welcome to Surprise Granite! How can I assist you today?");
   </script>
 </body>
 </html>
