@@ -3,7 +3,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const OpenAI = require('openai'); // Correct for openai@4.x
+const OpenAI = require('openai');
 const nodemailer = require('nodemailer');
 const { parse } = require('csv-parse/sync');
 require('dotenv').config();
@@ -11,6 +11,8 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
