@@ -49,7 +49,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- CSV Loader ---
+// --- CSV Loader (from ENV) ---
 function loadCsvFromEnv(envKey) {
   const csvData = process.env[envKey] || '';
   if (!csvData.trim()) return [];
@@ -65,41 +65,61 @@ function getCsvSummary(records, n = 5) {
   return `${headers.join(' | ')}\n${rows}${records.length > n ? '\n...' : ''}`;
 }
 
-// --- COMPANY INFO Loader ---
+// --- COMPANY INFO Loader (from public/companyinfo.json or fallback inline) ---
 function loadCompanyInfo() {
   try {
     const filePath = path.join(__dirname, 'public', 'companyinfo.json');
-    if (!fs.existsSync(filePath)) {
-      console.error('companyinfo.json not found at:', filePath);
-      return {};
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      const parsedData = JSON.parse(data);
+      return parsedData;
     }
-    const data = fs.readFileSync(filePath, 'utf8');
-    const parsedData = JSON.parse(data);
-    console.log('Loaded company info:', parsedData); // Debug log
-    return parsedData;
+    // Fallback: use hardcoded company info
+    return {
+      name: "Surprise Granite",
+      phone: "(602) 833-3189",
+      email: "info@surprisegranite.com",
+      address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+      website: "https://www.surprisegranite.com",
+      store: "https://www.store.surprisegranite.com",
+      about: "Surprise Granite is a licensed, bonded, and insured leader in commercial and residential countertops, cabinets, and tile wall installations. Serving the West Valley and beyond, we specialize in granite, quartz, and marble fabrication and installation. Our team delivers top-quality craftsmanship, professional service, and expert design guidance for every project.",
+      credentials: [
+        "Licensed, bonded, and insured",
+        "Serving commercial and residential clients"
+      ],
+      services: [
+        "Countertops (granite, quartz, marble, and more)",
+        "Cabinet installation",
+        "Tile wall installation"
+      ]
+    };
   } catch (e) {
-    console.error('Error loading companyinfo.json:', e.message);
-    return {};
+    // Fallback in case of error
+    return {
+      name: "Surprise Granite",
+      phone: "(602) 833-3189",
+      email: "info@surprisegranite.com",
+      address: "11560 N Dysart Rd. #112, Surprise, AZ 85379",
+      website: "https://www.surprisegranite.com",
+      store: "https://www.store.surprisegranite.com",
+      about: "Surprise Granite is a licensed, bonded, and insured leader in commercial and residential countertops, cabinets, and tile wall installations. Serving the West Valley and beyond, we specialize in granite, quartz, and marble fabrication and installation. Our team delivers top-quality craftsmanship, professional service, and expert design guidance for every project.",
+      credentials: [
+        "Licensed, bonded, and insured",
+        "Serving commercial and residential clients"
+      ],
+      services: [
+        "Countertops (granite, quartz, marble, and more)",
+        "Cabinet installation",
+        "Tile wall installation"
+      ]
+    };
   }
 }
 
-// --- Shopify Products Loader ---
+// --- Shopify Products Loader (with real API access) ---
 async function fetchShopifyProducts() {
-  // Bypassed Shopify API with hardcoded data to avoid errors
-  console.log('Using hardcoded Shopify products (bypass)');
-  return [
-    {
-      title: "Sample Granite Countertop",
-      variants: [{ price: "500.00", sku: "GRANITE001" }]
-    },
-    {
-      title: "Sample Marble Countertop",
-      variants: [{ price: "600.00", sku: "MARBLE001" }]
-    }
-  ];
-  /*
   try {
-    const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-10/products.json`;
+    const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-10/products.json?limit=10`;
     const response = await fetch(url, {
       headers: {
         'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
@@ -113,16 +133,26 @@ async function fetchShopifyProducts() {
     return data.products || [];
   } catch (e) {
     console.error('Shopify API fetch error:', e.message);
-    return [];
+    // fallback to hardcoded sample if Shopify fails
+    return [
+      {
+        title: "Sample Granite Countertop",
+        variants: [{ price: "500.00", sku: "GRANITE001" }]
+      },
+      {
+        title: "Sample Marble Countertop",
+        variants: [{ price: "600.00", sku: "MARBLE001" }]
+      }
+    ];
   }
-  */
 }
 
 // --- SYSTEM PROMPT ---
 const SYSTEM_PROMPT = `
-You are a helpful virtual assistant for Surprise Granite. You can answer questions about products, services, pricing, and company information.
-Use the company's materials and labor price lists, company info, and Shopify products provided below.
-If a user attaches a photo, acknowledge receipt but do not attempt to analyze it. You are not able to process images, but can notify staff that a photo was received.
+You are a helpful assistant, estimator, and designer for Surprise Granite.
+You answer questions about products, services, pricing, company information, and can assist with design ideas.
+You use the company's materials and labor price lists, company info, and Shopify products provided below.
+If a user attaches a photo, acknowledge receipt but do not attempt to analyze it. Notify staff and let the user know a team member will review the photo.
 Never provide medical, legal, or financial advice outside of Surprise Granite's services.
 `;
 
@@ -138,7 +168,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// --- Chat Endpoint ---
+// --- Chat Endpoint (main AI bot) ---
 app.post('/api/chat', upload.single('image'), async (req, res) => {
   try {
     // Generate or retrieve sessionId
@@ -150,16 +180,15 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     let imageUrl = null;
     if (req.file) imageUrl = `/uploads/${req.file.filename}`;
 
-    // --- MongoDB: Retrieve or Create Chat Session
+    // MongoDB: Retrieve or Create Chat Session
     let chat = await Chat.findOne({ sessionId });
     if (!chat) chat = await Chat.create({ sessionId, messages: [] });
 
-    // --- MongoDB: Save user message (+ image)
+    // Save user message (+ image)
     chat.messages.push({ role: "user", content: userMsg, imageUrl });
-    chat.messages = chat.messages.slice(-20);
+    chat.messages = chat.messages.slice(-20); // Keep last 20
     await chat.save();
 
-    // --- Save image metadata if uploaded
     if (imageUrl) {
       await Image.create({ filename: req.file.filename, url: imageUrl, sessionId });
     }
@@ -176,30 +205,13 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         Object.entries(companyInfo).map(([k, v]) =>
           `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`
         ).join('\n');
-    } else {
-      console.warn('No valid company info loaded');
-    }
-
-    // --- Check if user is asking for company info
-    const lowerMsg = userMsg.toLowerCase();
-    console.log('User query:', lowerMsg); // Debug log
-    if (lowerMsg.includes('company') || lowerMsg.includes('address') || lowerMsg.includes('info') || lowerMsg.includes('about')) { // Broadened trigger
-      const aiReply = companyInfoSummary || 'No company information available. Please contact support for assistance.';
-      console.log('Returning company info:', aiReply); // Debug log
-      
-      // --- MongoDB: Save AI response
-      chat.messages.push({ role: "ai", content: aiReply });
-      chat.messages = chat.messages.slice(-20);
-      await chat.save();
-
-      return res.json({ message: aiReply, imageUrl });
     }
 
     // --- Shopify Products
     let shopifySummary = '';
     const products = await fetchShopifyProducts();
     if (products.length) {
-      shopifySummary = '\n\nSHOPIFY PRODUCTS (sample):\n' +
+      shopifySummary = '\n\nSHOPIFY PRODUCTS:\n' +
         products.slice(0, 5).map(p =>
           `Title: ${p.title}, Price: ${p.variants[0]?.price}, SKU: ${p.variants[0]?.sku || 'n/a'}`
         ).join('\n');
@@ -216,7 +228,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     const messages = [
       { role: "system", content:
         SYSTEM_PROMPT +
-        companyInfoSummary +
+        (companyInfoSummary ? '\n\n' + companyInfoSummary : '') +
         "\n\nMATERIALS PRICE LIST SAMPLE:\n" +
         materialsSummary +
         "\n\nLABOR PRICE LIST SAMPLE:\n" +
@@ -235,12 +247,12 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages,
-      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 200,
+      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 400,
       temperature: 0.7
     });
     const aiReply = completion.choices[0].message.content.trim();
 
-    // --- MongoDB: Save AI response
+    // Save AI response
     chat.messages.push({ role: "ai", content: aiReply });
     chat.messages = chat.messages.slice(-20);
     await chat.save();
@@ -252,28 +264,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
   }
 });
 
-// --- Email Estimate Endpoint ---
-app.post('/api/send-estimate', async (req, res) => {
-  try {
-    const { email, estimate } = req.body;
-    if (!email || !estimate?.text) {
-      return res.status(400).json({ error: 'Email and estimate text are required' });
-    }
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: process.env.EMAIL_SUBJECT || 'Your Surprise Granite Countertop Estimate',
-      text: estimate.text,
-    };
-    await transporter.sendMail(mailOptions);
-    res.status(200).json({ message: 'Estimate sent successfully' });
-  } catch (err) {
-    console.error('Send estimate error:', err);
-    res.status(500).json({ error: 'Failed to send estimate', details: err.message });
-  }
-});
-
-// --- Shopify Products Endpoint ---
+// --- Shopify Products Endpoint: returns live product info
 app.get('/api/shopify-products', async (req, res) => {
   try {
     const products = await fetchShopifyProducts();
@@ -281,6 +272,77 @@ app.get('/api/shopify-products', async (req, res) => {
   } catch (err) {
     console.error('Shopify products endpoint error:', err.message);
     res.status(500).json({ error: 'Shopify fetch error', details: err.message });
+  }
+});
+
+// --- Email Estimate/Leads/Logs Endpoint: send an estimate, lead, or log by email
+app.post('/api/send-estimate', async (req, res) => {
+  try {
+    const { email, estimate, lead, chatSessionId, sendChatLog } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    let mailText = '';
+    let subject = process.env.EMAIL_SUBJECT || 'Your Surprise Granite Estimate';
+
+    if (estimate?.text) {
+      mailText += `Estimate:\n${estimate.text}\n\n`;
+      subject = 'Your Surprise Granite Countertop Estimate';
+    }
+
+    if (lead) {
+      mailText += `New Lead Details:\n${JSON.stringify(lead, null, 2)}\n\n`;
+      subject = 'New Countertop Lead Submission';
+    }
+
+    // Optionally attach chat logs
+    if (sendChatLog && chatSessionId) {
+      const chat = await Chat.findOne({ sessionId: chatSessionId });
+      if (chat && chat.messages && chat.messages.length) {
+        mailText += `Chat Log:\n` +
+          chat.messages.map(m =>
+            `[${m.role}] ${m.createdAt ? (new Date(m.createdAt)).toISOString() : ''}:\n${m.content}\n`
+          ).join('\n');
+      }
+    }
+
+    if (!mailText.trim()) {
+      return res.status(400).json({ error: 'No estimate, lead, or chat log provided.' });
+    }
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: subject,
+      text: mailText,
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Message sent successfully' });
+  } catch (err) {
+    console.error('Send estimate/log error:', err);
+    res.status(500).json({ error: 'Failed to send email', details: err.message });
+  }
+});
+
+// --- Quick Lead Submission Endpoint (for frontend forms) ---
+app.post('/api/send-lead', async (req, res) => {
+  try {
+    const { name, email, phone, message } = req.body;
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Name and email are required.' });
+    }
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.LEADS_RECEIVER || process.env.EMAIL_USER,
+      subject: 'New Countertop Lead',
+      text: `Lead:\nName: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\nMessage: ${message || 'N/A'}`
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Lead sent successfully' });
+  } catch (err) {
+    console.error('Send lead error:', err);
+    res.status(500).json({ error: 'Failed to send lead', details: err.message });
   }
 });
 
