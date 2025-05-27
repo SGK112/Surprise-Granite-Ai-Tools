@@ -1,4 +1,7 @@
 // Surprise Granite AI Estimator Backend
+
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -6,8 +9,7 @@ const { parse } = require('csv-parse/sync');
 const OpenAI = require('openai');
 const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
-const path = require('path'); // Required for serving static files
-require('dotenv').config();
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,10 +40,15 @@ const Image = mongoose.model('Image', new mongoose.Schema({
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
-app.use(express.static('public')); // <-- This serves sg-chatbot-widget.html and other static assets
+app.use(express.static('public')); // Serves sg-chatbot-widget.html and other static assets
 
 // --- Constants ---
-const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4d217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
+const GOOGLE_SHEET_CSV_URL = process.env.GOOGLE_SHEET_CSV_URL;
+
+if (!GOOGLE_SHEET_CSV_URL) {
+  console.error('FATAL: GOOGLE_SHEET_CSV_URL environment variable is not set!');
+  process.exit(1);
+}
 
 // --- Simple FAQ to Save OpenAI Calls ---
 const faqs = [
