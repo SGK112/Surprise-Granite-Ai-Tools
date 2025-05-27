@@ -68,25 +68,38 @@ function getCsvSummary(records, n = 5) {
 // --- COMPANY INFO Loader ---
 function loadCompanyInfo() {
   try {
-    const data = fs.readFileSync(path.join(__dirname, 'public', 'companyinfo.json'), 'utf8');
+    const filePath = path.join(__dirname, 'public', 'companyinfo.json');
+    if (!fs.existsSync(filePath)) {
+      console.error('companyinfo.json not found at:', filePath);
+      return {};
+    }
+    const data = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(data);
   } catch (e) {
+    console.error('Error loading companyinfo.json:', e.message);
     return {};
   }
 }
 
 // --- Shopify Products Loader ---
 async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-10/products.json`;
-  const response = await fetch(url, {
-    headers: {
-      'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-      'Content-Type': 'application/json'
+  try {
+    const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-10/products.json`;
+    const response = await fetch(url, {
+      headers: {
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Shopify API error: ${response.status} ${response.statusText}`);
     }
-  });
-  if (!response.ok) throw new Error('Shopify API error');
-  const data = await response.json();
-  return data.products || [];
+    const data = await response.json();
+    return data.products || [];
+  } catch (e) {
+    console.error('Shopify API fetch error:', e.message);
+    return []; // Return empty array to prevent blocking
+  }
 }
 
 // --- SYSTEM PROMPT ---
@@ -143,17 +156,19 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     const companyInfo = loadCompanyInfo();
     let companyInfoSummary = '';
     if (companyInfo && typeof companyInfo === 'object' && Object.keys(companyInfo).length > 0) {
-      companyInfoSummary = '\n\nCOMPANY INFORMATION:\n' +
+      companyInfoSummary = 'COMPANY INFORMATION:\n' +
         Object.entries(companyInfo).map(([k, v]) =>
           `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`
         ).join('\n');
+    } else {
+      console.warn('No valid company info loaded');
     }
 
     // --- Check if user is asking for company info
     const lowerMsg = userMsg.toLowerCase();
-    if (lowerMsg.includes('company info') || lowerMsg.includes('about the company') || lowerMsg.includes('who are you')) {
+    if (lowerMsg.includes('company info') || lowerMsg.includes('about the company') || lowerMsg.includes('who are you') || lowerMsg.includes('company address')) {
       // Format company info as a readable response
-      const aiReply = companyInfoSummary || 'No company information available.';
+      const aiReply = companyInfoSummary || 'No company information available. Please contact support for assistance.';
       
       // --- MongoDB: Save AI response
       chat.messages.push({ role: "ai", content: aiReply });
@@ -165,16 +180,14 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 
     // --- Shopify Products
     let shopifySummary = '';
-    try {
-      const products = await fetchShopifyProducts();
-      if (products.length) {
-        shopifySummary = '\n\nSHOPIFY PRODUCTS (sample):\n' +
-          products.slice(0, 5).map(p =>
-            `Title: ${p.title}, Price: ${p.variants[0]?.price}, SKU: ${p.variants[0]?.sku || 'n/a'}`
-          ).join('\n');
-      }
-    } catch (e) {
-      shopifySummary = '\n\nSHOPIFY PRODUCTS: (Could not load - API error)';
+    const products = await fetchShopifyProducts();
+    if (products.length) {
+      shopifySummary = '\n\nSHOPIFY PRODUCTS (sample):\n' +
+        products.slice(0, 5).map(p =>
+          `Title: ${p.title}, Price: ${p.variants[0]?.price}, SKU: ${p.variants[0]?.sku || 'n/a'}`
+        ).join('\n');
+    } else {
+      shopifySummary = '\n\nSHOPIFY PRODUCTS: (Could not load - API unavailable)';
     }
 
     let fileNotice = '';
@@ -217,8 +230,8 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 
     res.json({ message: aiReply, imageUrl });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI backend error or file upload failed." });
+    console.error('Chat endpoint error:', err.message);
+    res.status(500).json({ error: "AI backend error or file upload failed.", details: err.message });
   }
 });
 
@@ -249,7 +262,8 @@ app.get('/api/shopify-products', async (req, res) => {
     const products = await fetchShopifyProducts();
     res.json({ products });
   } catch (err) {
-    res.status(500).json({ error: 'Shopify fetch error' });
+    console.error('Shopify products endpoint error:', err.message);
+    res.status(500).json({ error: 'Shopify fetch error', details: err.message });
   }
 });
 
