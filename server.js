@@ -112,7 +112,11 @@ const transporter = nodemailer.createTransport({
 // --- Chat Endpoint ---
 app.post('/api/chat', upload.single('image'), async (req, res) => {
   try {
-    const sessionId = req.body.sessionId || req.headers['x-session-id'] || String(Date.now());
+    // Generate or retrieve sessionId
+    let sessionId = req.body.sessionId || req.headers['x-session-id'];
+    if (!sessionId) {
+      sessionId = String(Date.now()) + '-' + Math.random().toString(36).substr(2, 9);
+    }
     const userMsg = req.body.message || '';
     let imageUrl = null;
     if (req.file) imageUrl = `/uploads/${req.file.filename}`;
@@ -140,9 +144,23 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     let companyInfoSummary = '';
     if (companyInfo && typeof companyInfo === 'object' && Object.keys(companyInfo).length > 0) {
       companyInfoSummary = '\n\nCOMPANY INFORMATION:\n' +
-        Object.entries(companyInfo).map(([k,v]) =>
+        Object.entries(companyInfo).map(([k, v]) =>
           `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`
         ).join('\n');
+    }
+
+    // --- Check if user is asking for company info
+    const lowerMsg = userMsg.toLowerCase();
+    if (lowerMsg.includes('company info') || lowerMsg.includes('about the company') || lowerMsg.includes('who are you')) {
+      // Format company info as a readable response
+      const aiReply = companyInfoSummary || 'No company information available.';
+      
+      // --- MongoDB: Save AI response
+      chat.messages.push({ role: "ai", content: aiReply });
+      chat.messages = chat.messages.slice(-20);
+      await chat.save();
+
+      return res.json({ message: aiReply, imageUrl });
     }
 
     // --- Shopify Products
@@ -225,7 +243,7 @@ app.post('/api/send-estimate', async (req, res) => {
   }
 });
 
-// --- Shopify Products Endpoint (for widget/frontend) ---
+// --- Shopify Products Endpoint ---
 app.get('/api/shopify-products', async (req, res) => {
   try {
     const products = await fetchShopifyProducts();
