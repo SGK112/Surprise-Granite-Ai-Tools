@@ -41,7 +41,7 @@ app.use(express.json());
 app.use(express.static('public')); // <-- This serves sg-chatbot-widget.html and other static assets
 
 // --- Constants ---
-const PUBLISHED_CSV_MATERIALS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4d217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
+const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4d217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
 
 // --- Simple FAQ to Save OpenAI Calls ---
 const faqs = [
