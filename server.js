@@ -57,7 +57,7 @@ function checkFAQ(userMsg) {
 
 // --- Fetch and Parse Google Sheet CSV ---
 async function fetchPriceSheet() {
-  const response = await fetch(GOOGLE_SHEET_CSV_URL);
+  const response = await fetch(PUBLISHED_CSV_MATERIALS);
   if (!response.ok) throw new Error('Failed to fetch Google Sheet');
   const csv = await response.text();
   return parse(csv, { columns: true });
