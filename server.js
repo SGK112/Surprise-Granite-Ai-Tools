@@ -149,10 +149,11 @@ async function fetchShopifyProducts() {
 
 // --- SYSTEM PROMPT ---
 const SYSTEM_PROMPT = `
-You are a helpful assistant, estimator, and designer for Surprise Granite.
-You answer questions about products, services, pricing, company information, and can assist with design ideas.
-You use the company's materials and labor price lists, company info, and Shopify products provided below.
-If a user attaches a photo, acknowledge receipt but do not attempt to analyze it. Notify staff and let the user know a team member will review the photo.
+You are a professional assistant, estimator, and designer for Surprise Granite.
+- Always greet the customer and offer design and estimate assistance.
+- If a user shares project details, capture their name, email, phone, and project info as a lead.
+- When a photo is attached, analyze it for countertop color and material type if possible, or confirm a team member will review it.
+- Use company info, service offerings, and product lists provided below.
 Never provide medical, legal, or financial advice outside of Surprise Granite's services.
 `;
 
@@ -167,6 +168,39 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   }
 });
+
+// --- Lead Capture Helper (Nodemailer or UseBasin) ---
+async function sendLeadNotification(lead) {
+  if (process.env.USEBASIN_URL) {
+    // Send to UseBasin via HTTP POST
+    try {
+      await fetch(process.env.USEBASIN_URL, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lead)
+      });
+      return true;
+    } catch (err) {
+      console.error('UseBasin error:', err);
+      return false;
+    }
+  } else {
+    // Default: send via Nodemailer
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.LEADS_RECEIVER || process.env.EMAIL_USER,
+      subject: 'New Countertop Lead',
+      text: `Lead:\nName: ${lead.name}\nEmail: ${lead.email}\nPhone: ${lead.phone || 'N/A'}\nMessage: ${lead.message || 'N/A'}`
+    };
+    try {
+      await transporter.sendMail(mailOptions);
+      return true;
+    } catch (err) {
+      console.error('Nodemailer lead error:', err);
+      return false;
+    }
+  }
+}
 
 // --- Chat Endpoint (main AI bot) ---
 app.post('/api/chat', upload.single('image'), async (req, res) => {
@@ -219,9 +253,41 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
       shopifySummary = '\n\nSHOPIFY PRODUCTS: (Could not load)';
     }
 
-    let fileNotice = '';
+    // --- Vision Analysis if image provided and enabled
+    let visionAnalysis = '';
+    if (imageUrl && process.env.OPENAI_VISION_ENABLED === 'true') {
+      try {
+        const imageFullUrl = `${req.protocol}://${req.get('host')}${imageUrl}`;
+        const visionPrompt = "Analyze this image for countertop color and material type. Give a concise summary.";
+        const visionMessages = [
+          { role: "system", content: visionPrompt },
+          { role: "user", content: [{ type: "image_url", image_url: imageFullUrl }] }
+        ];
+        const visionReply = await openai.chat.completions.create({
+          model: "gpt-4-vision-preview",
+          messages: visionMessages,
+          max_tokens: 100,
+        });
+        visionAnalysis = visionReply.choices[0].message.content.trim();
+      } catch (err) {
+        console.error("OpenAI Vision error", err.message);
+        visionAnalysis = "Sorry, I couldn't analyze the image.";
+      }
+    }
+
+    // --- Notify customer
+    let customerNotice = '';
     if (imageUrl) {
-      fileNotice = "The user has attached a photo for this conversation. Please let them know it will be reviewed by a team member, but you cannot analyze images directly.";
+      customerNotice = "Thank you for your photo! Our team will review it and follow up. ";
+      if (visionAnalysis) {
+        customerNotice += "Here's what I see: " + visionAnalysis;
+      } else {
+        customerNotice += "If you have questions, let us know!";
+      }
+      // Save this as an AI message so it's part of the chat log
+      chat.messages.push({ role: "ai", content: customerNotice });
+      chat.messages = chat.messages.slice(-20);
+      await chat.save();
     }
 
     // --- Construct Messages for OpenAI
@@ -234,7 +300,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
         "\n\nLABOR PRICE LIST SAMPLE:\n" +
         laborSummary +
         shopifySummary +
-        (fileNotice ? "\n\n" + fileNotice : "")
+        (visionAnalysis ? ("\n\nIMAGE ANALYSIS:\n" + visionAnalysis) : "")
       },
       ...chat.messages.map(msg => ({
         role: msg.role === 'ai' ? 'assistant' : 'user',
@@ -245,7 +311,7 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
 
     // --- OpenAI Completion
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: process.env.OPENAI_VISION_ENABLED === 'true' ? "gpt-4-vision-preview" : "gpt-3.5-turbo",
       messages,
       max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 400,
       temperature: 0.7
@@ -257,7 +323,19 @@ app.post('/api/chat', upload.single('image'), async (req, res) => {
     chat.messages = chat.messages.slice(-20);
     await chat.save();
 
-    res.json({ message: aiReply, imageUrl });
+    // --- Detect and capture leads (basic: look for contact info in last user message)
+    const leadMatch = userMsg.match(/name\s*[:\-]\s*(.*)\n.*email\s*[:\-]\s*(.*)\n?.*phone\s*[:\-]?\s*(.*)?/i);
+    if (leadMatch) {
+      const lead = {
+        name: leadMatch[1] || "",
+        email: leadMatch[2] || "",
+        phone: leadMatch[3] || "",
+        message: userMsg
+      };
+      await sendLeadNotification(lead);
+    }
+
+    res.json({ message: aiReply, customerNotice, imageUrl, visionAnalysis });
   } catch (err) {
     console.error('Chat endpoint error:', err.message);
     res.status(500).json({ error: "AI backend error or file upload failed.", details: err.message });
@@ -332,13 +410,11 @@ app.post('/api/send-lead', async (req, res) => {
     if (!email || !name) {
       return res.status(400).json({ error: 'Name and email are required.' });
     }
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: process.env.LEADS_RECEIVER || process.env.EMAIL_USER,
-      subject: 'New Countertop Lead',
-      text: `Lead:\nName: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\nMessage: ${message || 'N/A'}`
-    };
-    await transporter.sendMail(mailOptions);
+    const lead = { name, email, phone, message };
+    const sent = await sendLeadNotification(lead);
+    if (!sent) {
+      return res.status(500).json({ error: 'Failed to send lead.' });
+    }
     res.status(200).json({ message: 'Lead sent successfully' });
   } catch (err) {
     console.error('Send lead error:', err);
