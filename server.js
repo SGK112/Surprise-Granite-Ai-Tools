@@ -6,6 +6,7 @@ const fetch = require('node-fetch');
 const { parse } = require('csv-parse/sync');
 const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
+const path = require('path'); // Needed for static file serving
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
+app.use(express.static('public')); // <-- THIS SERVES YOUR .html, .js, .css, etc. from ./public
 
 // --- Environment Variables ---
 const {
@@ -160,7 +162,6 @@ app.post('/api/chat', async (req, res) => {
 
     // Secretary: Leave a message
     if (lowerMsg.includes('leave a message') || lowerMsg.includes('contact') || lowerMsg.includes('message for team')) {
-      // Extract info
       const name = (userMsg.match(/name\s*[:\-]?\s*([^\n]+)/i) || [])[1];
       const email = (userMsg.match(/email\s*[:\-]?\s*([^\n]+)/i) || [])[1];
       const phone = (userMsg.match(/phone\s*[:\-]?\s*([^\n]+)/i) || [])[1];
@@ -194,12 +195,10 @@ app.post('/api/chat', async (req, res) => {
 
     // Estimator: Give a quote
     if (lowerMsg.includes('estimate') || lowerMsg.includes('quote') || lowerMsg.match(/\d+\s*(sq\s*ft|sqft|square\s*feet|sf)/)) {
-      // Try to extract material, sqft
       const sqftMatch = userMsg.match(/(\d+(\.\d+)?)\s*(sq\s*ft|sqft|square\s*feet|sf)/i);
       let requestedSqFt = sqftMatch ? parseFloat(sqftMatch[1]) : null;
       let materialName = null;
 
-      // Try to match a material name from the message
       if (/quartzite|dekton|porcelain|granite|quartz/i.test(userMsg)) {
         materialName = userMsg.match(/quartzite|dekton|porcelain|granite|quartz/i)[0];
       }
@@ -295,6 +294,11 @@ app.get('/api/shopify/samples', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// --- (Optional) Serve widget directly if needed ---
+// app.get('/sg-chatbot-widget.html', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'public', 'sg-chatbot-widget.html'));
+// });
 
 app.listen(PORT, () => {
   console.log(`Surprise Granite Assistant running at http://localhost:${PORT}`);
