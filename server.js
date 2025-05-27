@@ -6,6 +6,7 @@ const { parse } = require('csv-parse/sync');
 const OpenAI = require('openai');
 const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
+const path = require('path'); // Required for serving static files
 require('dotenv').config();
 
 const app = express();
@@ -37,6 +38,7 @@ const Image = mongoose.model('Image', new mongoose.Schema({
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
+app.use(express.static('public')); // <-- This serves sg-chatbot-widget.html and other static assets
 
 // --- Constants ---
 const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRWyYuTQxC8_fKNBg9_aJiB7NMFztw6mgdhN35lo8sRL45MvncRg4d217lopZxuw39j5aJTN6TP4Elh/pub?output=csv';
@@ -57,7 +59,7 @@ function checkFAQ(userMsg) {
 
 // --- Fetch and Parse Google Sheet CSV ---
 async function fetchPriceSheet() {
-  const response = await fetch(PUBLISHED_CSV_MATERIALS);
+  const response = await fetch(GOOGLE_SHEET_CSV_URL);
   if (!response.ok) throw new Error('Failed to fetch Google Sheet');
   const csv = await response.text();
   return parse(csv, { columns: true });
