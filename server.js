@@ -31,7 +31,8 @@ const Countertop = mongoose.model('Countertop', new mongoose.Schema({
   name: String,
   material: String,
   color: String,
-  imageUrl: String,
+  imageBase64: String,
+  filename: String,
   description: String
 }));
 
@@ -136,29 +137,26 @@ function getInstallFee(materialType) {
   return 26;
 }
 
-// --- SYSTEM_PROMPT for Assistant ---
-const SYSTEM_PROMPT = `
-You are Surprise Granite's all-in-one virtual assistant.
-
-Your roles:
-- Estimator: Calculate prices and provide estimates for countertops and surfaces, including 20% waste, $45/sq ft fabrication, and correct install fees.
-- Personal Shopper: Help customers browse and select products or samples from Shopify. Suggest options and guide through ordering or requesting samples.
-- Secretary: Take and email messages left by users.
-- Appointment Booker: Book showroom visits or phone consultations. Collect preferred dates/times and contact info, and confirm the request.
-
-Always:
-- Be friendly and concise.
-- Ask follow-up questions to clarify needs.
-- If customer asks for a quote, collect material, color, and square footage.
-- If they want to browse, offer products and samples.
-- If they want to book, ask for name, phone, email, and preferred time.
-- If they want to leave a message, collect message and contact.
-- Summarize and confirm all info you collect.
-- Use Shopify APIs for live product/sample data.
-
-Example greeting:
-"Hi! I'm your Surprise Granite assistant. I can provide quotes, help you shop, take a message, or book your visit. What can I help you with today?"
-`;
+// --- Countertop Image Endpoint (serves base64 as image) ---
+app.get('/api/countertops/image/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const countertop = await Countertop.findById(id);
+    if (!countertop || !countertop.imageBase64) {
+      return res.status(404).send('Image not found');
+    }
+    let base64 = countertop.imageBase64;
+    // Remove "data:image/jpeg;base64," if present
+    if (base64.startsWith('data:image')) {
+      base64 = base64.split(',')[1];
+    }
+    const imgBuffer = Buffer.from(base64, 'base64');
+    res.set('Content-Type', 'image/jpeg');
+    res.send(imgBuffer);
+  } catch (err) {
+    res.status(500).send('Error retrieving image');
+  }
+});
 
 // --- Main Chat Endpoint ---
 app.post('/api/chat', async (req, res) => {
@@ -234,13 +232,20 @@ app.post('/api/chat', async (req, res) => {
       if (slabs.length) {
         let responseMsg = "Here are some countertop options from our gallery:\n";
         slabs.forEach(slab => {
-          responseMsg += `- ${slab.name}${slab.material ? ` (${slab.material})` : ''}${slab.imageUrl ? `\n[Image](${slab.imageUrl})` : ''}\n`;
+          responseMsg += `- ${slab.name}${slab.material ? ` (${slab.material})` : ''}${slab._id ? `\n[Image](/api/countertops/image/${slab._id})` : ''}\n`;
         });
         responseMsg += "\nWould you like more info, a sample, or to book a visit?";
         await saveChat(sessionId, userMsg, responseMsg);
         return res.json({
           message: responseMsg,
-          countertops: slabs
+          countertops: slabs.map(ct => ({
+            _id: ct._id,
+            name: ct.name,
+            material: ct.material,
+            color: ct.color,
+            description: ct.description,
+            imageUrl: `/api/countertops/image/${ct._id}`
+          }))
         });
       }
     }
@@ -353,7 +358,7 @@ app.get('/api/shopify/samples', async (req, res) => {
   }
 });
 
-// --- Countertop Gallery Endpoint ---
+// --- Countertop Gallery Endpoint (returns imageUrl for each) ---
 app.get('/api/countertops', async (req, res) => {
   try {
     const { material, color } = req.query;
@@ -361,7 +366,15 @@ app.get('/api/countertops', async (req, res) => {
     if (material) filter.material = new RegExp(material, 'i');
     if (color) filter.color = new RegExp(color, 'i');
     const countertops = await Countertop.find(filter).limit(20);
-    res.json({ countertops });
+    const data = countertops.map(ct => ({
+      _id: ct._id,
+      name: ct.name,
+      material: ct.material,
+      color: ct.color,
+      description: ct.description,
+      imageUrl: `/api/countertops/image/${ct._id}`
+    }));
+    res.json({ countertops: data });
   } catch (err) {
     res.status(500).json({ error: "MongoDB error", details: err.message });
   }
