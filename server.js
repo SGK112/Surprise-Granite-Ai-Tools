@@ -12,6 +12,8 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
+// For PDF parsing (make sure to npm install pdf-parse if using this)
+const pdfParse = require('pdf-parse');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,7 +46,7 @@ const Countertop = mongoose.model('Countertop', new mongoose.Schema({
 
 const QuoteState = mongoose.model('QuoteState', new mongoose.Schema({
   sessionId: String,
-  step: { type: String, default: 'init' }, // init, dimensions, material, confirm
+  step: { type: String, default: 'init' },
   dimensions: { width: Number, depth: Number },
   material: String,
   lastUpdated: { type: Date, default: Date.now },
@@ -60,7 +62,7 @@ app.use(
   '/api/chat',
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests
+    max: 100,
     message: 'Too many requests, please try again later.',
   }),
 );
@@ -74,7 +76,8 @@ const {
   EMAIL_USER,
   EMAIL_PASS,
   LEADS_RECEIVER,
-  OPENAI_API_KEY, // Changed from GROK_API_KEY to OPENAI_API_KEY
+  OPENAI_API_KEY,
+  EMAIL_SUBJECT,
 } = process.env;
 
 if (
@@ -82,7 +85,7 @@ if (
   !PUBLISHED_CSV_LABOR ||
   !SHOPIFY_ACCESS_TOKEN ||
   !SHOPIFY_SHOP ||
-  !OPENAI_API_KEY // Changed to check OPENAI_API_KEY
+  !OPENAI_API_KEY
 ) {
   throw new Error('Missing required environment variables!');
 }
@@ -97,7 +100,7 @@ async function sendLeadNotification(subject, lead) {
   const mailOptions = {
     from: EMAIL_USER,
     to: LEADS_RECEIVER || EMAIL_USER,
-    subject,
+    subject: subject || EMAIL_SUBJECT || 'Lead Notification',
     text: Object.entries(lead).map(([k, v]) => `${k}: ${v}`).join('\n'),
   };
   try {
@@ -155,6 +158,24 @@ async function fetchShopifyProducts() {
   return data;
 }
 
+// --- PDF Parsing Helper: Aggregate all docs in ./docs/ as string for AI context ---
+async function getBusinessDocsText() {
+  const docsDir = path.join(__dirname, 'docs');
+  if (!fs.existsSync(docsDir)) return '';
+  const files = fs.readdirSync(docsDir).filter(f => f.endsWith('.pdf'));
+  let docsText = '';
+  for (const file of files) {
+    const dataBuffer = fs.readFileSync(path.join(docsDir, file));
+    try {
+      const pdfData = await pdfParse(dataBuffer);
+      docsText += `\n---\n[${file}]\n${pdfData.text.slice(0, 2000)}`; // limit to first 2000 chars per doc
+    } catch (err) {
+      console.error(`PDF parse error for ${file}:`, err.message);
+    }
+  }
+  return docsText;
+}
+
 // --- Countertop Image Endpoint ---
 app.get('/api/countertops/image/:id', async (req, res) => {
   try {
@@ -176,7 +197,7 @@ app.get('/api/countertops/image/:id', async (req, res) => {
   }
 });
 
-// --- Main Chat Endpoint ---
+// --- Main Chat Endpoint with System Prompt and Pricing Context ---
 app.post(
   '/api/chat',
   [
@@ -194,8 +215,6 @@ app.post(
       const sessionId =
         req.body.sessionId || Date.now() + '-' + Math.random().toString(36).substr(2, 9);
       const lowerMsg = userMsg.toLowerCase();
-
-      // Load previous chat context from MongoDB
       let chat = await Chat.findOne({ sessionId });
       const context = chat
         ? chat.messages.slice(-10).map(msg => ({
@@ -204,14 +223,87 @@ app.post(
           }))
         : [];
 
-      // Prepare OpenAI API request (replaced Grok 3 API)
+      // System prompt for AI instructions
+      const systemPrompt = {
+        role: "system",
+        content: `
+ * Surprise Granite AI Assistant Instructions (Summarized, Updated)
+ * Role: Professional, friendly countertop estimator AI for Surprise Granite.
+ * Functionality: Analyze uploaded images of stone countertop damage, suggest cleaning/repair solutions, provide instant estimates (material cost*3.25+$26.00 per sq ft), and generate leads.
+ * 
+ * 1. Image Analysis
+ * - Prompt: "Please upload a clear photo of the damage or describe it (e.g., scratch, stain)."
+ * - Identify damage: Scratches, cracks, chips, stains, etching, burn marks, seam separation.
+ * - Assess severity: Minor (repairable), moderate (professional repair), severe (replacement).
+ * - Confirm material (granite, quartz, marble) via image cues or prompt: "Could you confirm the countertop material?"
+ * - Summarize findings: "The image shows a 2-inch scratch on granite. Is this correct?"
+ * 
+ * 2. Cleaning/Repair Solutions
+ * - Cleaning (stains/etching): Suggest mild soap, baking soda poultice, or professional sealing ($100–$250).
+ * - Minor repairs (scratches, small chips): Polishing/patching, $250–$500.
+ * - Moderate repairs (cracks, seams): Epoxy/resin, $500–$1,000.
+ * - Severe damage (large cracks): Replacement, material ($40–$155/sq. ft.) + fabrication ($45/sq. ft.) + installation ($26/sq. ft., varies by complexity).
+ * - Example: "For the stain, try soap and water. If persistent, professional cleaning is $150–$250."
+ * 
+ * 3. Instant Estimates
+ * - Repairs: Job-based, $250–$2,000 (minor to complex).
+ * - Replacements: Material ($40–$155/sq. ft.) + fabrication ($45/sq. ft.) + installation ($26/sq. ft., higher for complex jobs) + $250 base.
+ *   - Example: 2 sq. ft. granite ($50/sq. ft.) + $45/sq. ft. fab + $26/sq. ft. install + $250 base = $471.
+ * - Additional fees: Sink cutouts ($80–$300), edgework ($10–$30/linear ft.), sealing ($100).
+ * - Example: "Polishing a 2-inch scratch costs $250–$350. Replacement (2 sq. ft.) is $471."
+ * 
+ * 4. Lead Generation
+ * - Prompt: "Please share your name and contact details for a detailed quote or technician visit."
+ * - Encourage action: "I can schedule a free assessment. Would you like to proceed?"
+ * - Log details (name, contact, damage, estimate) for CRM, per privacy policies.
+ * 
+ * 5. Professional Tone
+ * - Positive: "I’m excited to help restore your countertop!"
+ * - Clear: Explain terms (e.g., etching = dull spots from acid).
+ * - Proactive: Offer next steps (quote, visit).
+ * 
+ * 6. Handling Unknowns
+ * - Unclear image: "Could you upload another photo or describe the damage?"
+ * - Missing data: "I’ll connect you with our team. Please share your contact details."
+ * 
+ * 7. Documentation
+ * - Use Surprise Granite price lists, care guidelines (e.g., World Stone Group).
+ * - Example: "Avoid abrasive cleaners; use mild soap (per guidelines)."
+ * 
+ * Example Response:
+ * "The image shows a 2-inch granite scratch. Polishing costs $250–$350. Replacement (2 sq. ft.) is $471, including fabrication and installation. Please share your contact details to schedule a technician visit!
+`
+      };
+
+      // Fetch price/labor sheets and business docs (PDFs)
+      const [priceSheet, laborSheet, docsText] = await Promise.all([
+        fetchPriceSheet(),
+        fetchLaborSheet(),
+        getBusinessDocsText()
+      ]);
+
+      // Summarize or truncate for context
+      const priceSummary = priceSheet.slice(0, 5).map(p => `${p.material || p.Material || p.name}: $${p.price || p.Price || p.price_per_sqft || "?"}/sqft`).join('; ');
+      const laborSummary = laborSheet.slice(0, 3).map(l => `${l.type || l.Type}: $${l.price || l.Price}/sqft`).join('; ');
+      const docsSummary = docsText ? docsText.slice(0, 2000) : "";
+
+      const businessContext = {
+        role: "system",
+        content: `
+Current price list: ${priceSummary}
+Labor rates: ${laborSummary}
+Business documents: ${docsSummary}
+`
+      };
+
+      // Compose OpenAI request
       const openaiResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-3.5-turbo', // Use 'gpt-4' or other model if preferred
-          messages: [...context, { role: 'user', content: userMsg }],
-          temperature: 0.7,
-          max_tokens: 500,
+          model: 'gpt-3.5-turbo',
+          messages: [systemPrompt, businessContext, ...context, { role: 'user', content: userMsg }],
+          temperature: 0.6,
+          max_tokens: 600,
         },
         {
           headers: {
@@ -223,8 +315,8 @@ app.post(
 
       let aiMsg = openaiResponse.data.choices[0].message.content;
 
-      // Handle intent-specific logic
-      if (lowerMsg.includes('quote') || lowerMsg.includes('price')) {
+      // Intent-specific logic
+      if (lowerMsg.includes('quote') || lowerMsg.includes('price') || lowerMsg.includes('estimate')) {
         aiMsg = await handleQuoteRequest(userMsg, sessionId);
       } else if (lowerMsg.includes('consultation')) {
         aiMsg = await handleConsultationRequest(userMsg, sessionId);
@@ -308,12 +400,15 @@ async function handleQuoteRequest(userMsg, sessionId) {
       const laborPricePerSqFt = parseFloat(
         laborPricing.find(item => item.type === 'standard')?.price || 50,
       );
-      const Reducer = (item) => item.price * area;
       const materialCost = materialPricePerSqFt * area;
       const laborCost = laborPricePerSqFt * area;
       const totalCost = (materialCost + laborCost).toFixed(2);
 
-      return `Here’s your quote for a ${state.dimensions.width}x${state.dimensions.depth} ft countertop in ${materialType}:\n- Material: $${materialCost.toFixed(2)}\n- Labor: $${laborCost.toFixed(2)}\n- Total: $${totalCost}\nWould you like to confirm or adjust the details?`;
+      return `Here’s your quote for a ${state.dimensions.width}x${state.dimensions.depth} ft countertop in ${materialType}:
+- Material: $${materialCost.toFixed(2)}
+- Labor: $${laborCost.toFixed(2)}
+- Total: $${totalCost}
+Would you like to confirm this quote? Reply 'confirm' to proceed.`;
     }
 
     if (state.step === 'confirm') {
@@ -403,6 +498,28 @@ app.get('/api/company-info', (req, res) => {
     try {
       const companyInfo = JSON.parse(data);
       res.json(companyInfo);
+    } catch (parseErr) {
+      console.error('Error parsing companyInfo.json:', parseErr);
+      res.status(500).json({ error: 'Error parsing company information' });
+    }
+  });
+});
+
+// --- FAQ Endpoint from companyInfo.json ---
+app.get('/api/faq', (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'companyInfo.json');
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading companyInfo.json:', err);
+      return res.status(500).json({ error: 'Error reading company information' });
+    }
+    try {
+      const companyInfo = JSON.parse(data);
+      if (companyInfo.faq) {
+        res.json(companyInfo.faq);
+      } else {
+        res.json(companyInfo);
+      }
     } catch (parseErr) {
       console.error('Error parsing companyInfo.json:', parseErr);
       res.status(500).json({ error: 'Error parsing company information' });
