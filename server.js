@@ -8,14 +8,19 @@ const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
+const NodeCache = require('node-cache');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
 // --- MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
 }).then(() => {
   console.log('MongoDB connected!');
 }).catch(err => {
@@ -25,7 +30,7 @@ mongoose.connect(process.env.MONGO_URI, {
 // --- MongoDB Schemas ---
 const Chat = mongoose.model('Chat', new mongoose.Schema({
   sessionId: String,
-  messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }]
+  messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
 }, { timestamps: true }));
 
 const Countertop = mongoose.model('Countertop', new mongoose.Schema({
@@ -34,13 +39,31 @@ const Countertop = mongoose.model('Countertop', new mongoose.Schema({
   color: String,
   imageBase64: String,
   filename: String,
-  description: String
+  description: String,
+}));
+
+const QuoteState = mongoose.model('QuoteState', new mongoose.Schema({
+  sessionId: String,
+  step: { type: String, default: 'init' }, // init, dimensions, material, confirm
+  dimensions: { width: Number, depth: Number },
+  material: String,
+  lastUpdated: { type: Date, default: Date.now },
 }));
 
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 app.use(express.static('public'));
+
+// Rate limiting for /api/chat
+app.use(
+  '/api/chat',
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests
+    message: 'Too many requests, please try again later.',
+  }),
+);
 
 // --- Environment Variables ---
 const {
@@ -50,17 +73,24 @@ const {
   SHOPIFY_SHOP,
   EMAIL_USER,
   EMAIL_PASS,
-  LEADS_RECEIVER
+  LEADS_RECEIVER,
+  OPENAI_API_KEY, // Changed from GROK_API_KEY to OPENAI_API_KEY
 } = process.env;
 
-if (!GOOGLE_SHEET_CSV_URL || !PUBLISHED_CSV_LABOR || !SHOPIFY_ACCESS_TOKEN || !SHOPIFY_SHOP) {
+if (
+  !GOOGLE_SHEET_CSV_URL ||
+  !PUBLISHED_CSV_LABOR ||
+  !SHOPIFY_ACCESS_TOKEN ||
+  !SHOPIFY_SHOP ||
+  !OPENAI_API_KEY // Changed to check OPENAI_API_KEY
+) {
   throw new Error('Missing required environment variables!');
 }
 
 // --- Nodemailer Setup ---
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
 });
 
 async function sendLeadNotification(subject, lead) {
@@ -68,7 +98,7 @@ async function sendLeadNotification(subject, lead) {
     from: EMAIL_USER,
     to: LEADS_RECEIVER || EMAIL_USER,
     subject,
-    text: Object.entries(lead).map(([k, v]) => `${k}: ${v}`).join('\n')
+    text: Object.entries(lead).map(([k, v]) => `${k}: ${v}`).join('\n'),
   };
   try {
     await transporter.sendMail(mailOptions);
@@ -79,33 +109,50 @@ async function sendLeadNotification(subject, lead) {
   }
 }
 
-// --- CSV Fetch Helpers ---
+// --- CSV and Shopify Fetch Helpers ---
 async function fetchPriceSheet() {
-  const response = await fetch(GOOGLE_SHEET_CSV_URL);
-  if (!response.ok) throw new Error('Failed to fetch Google Sheet');
-  const csv = await response.text();
-  return parse(csv, { columns: true });
-}
-async function fetchLaborSheet() {
-  const response = await fetch(PUBLISHED_CSV_LABOR);
-  if (!response.ok) throw new Error('Failed to fetch Labor Sheet');
-  const csv = await response.text();
-  return parse(csv, { columns: true });
+  const cacheKey = 'priceSheet';
+  let data = cache.get(cacheKey);
+  if (!data) {
+    const response = await fetch(GOOGLE_SHEET_CSV_URL);
+    if (!response.ok) throw new Error('Failed to fetch Google Sheet');
+    const csv = await response.text();
+    data = parse(csv, { columns: true });
+    cache.set(cacheKey, data);
+  }
+  return data;
 }
 
-// --- Shopify Fetch Helpers ---
+async function fetchLaborSheet() {
+  const cacheKey = 'laborSheet';
+  let data = cache.get(cacheKey);
+  if (!data) {
+    const response = await fetch(PUBLISHED_CSV_LABOR);
+    if (!response.ok) throw new Error('Failed to fetch Labor Sheet');
+    const csv = await response.text();
+    data = parse(csv, { columns: true });
+    cache.set(cacheKey, data);
+  }
+  return data;
+}
+
 async function fetchShopifyProducts() {
-  const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags,body_html`;
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
-      'Content-Type': 'application/json'
-    }
-  });
-  if (!response.ok) throw new Error('Failed to fetch Shopify products');
-  const data = await response.json();
-  return data.products;
+  const cacheKey = 'shopifyProducts';
+  let data = cache.get(cacheKey);
+  if (!data) {
+    const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags,body_html`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) throw new Error('Failed to fetch Shopify products');
+    data = (await response.json()).products;
+    cache.set(cacheKey, data);
+  }
+  return data;
 }
 
 // --- Countertop Image Endpoint ---
@@ -130,30 +177,185 @@ app.get('/api/countertops/image/:id', async (req, res) => {
 });
 
 // --- Main Chat Endpoint ---
-app.post('/api/chat', async (req, res) => {
-  try {
-    const userMsg = req.body.message || '';
-    const sessionId = req.body.sessionId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
-    const lowerMsg = userMsg.toLowerCase();
+app.post(
+  '/api/chat',
+  [
+    body('message').trim().isLength({ max: 1000 }).withMessage('Message too long'),
+    body('sessionId').optional().isAlphanumeric().withMessage('Invalid session ID'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    const welcomeMsg = "Hi! I'm your Surprise Granite assistant. I can provide quotes, help you shop (with images!), take a message, or book your visit. What can I help you with today?";
-    await saveChat(sessionId, userMsg, welcomeMsg);
-    return res.json({ message: welcomeMsg });
+      const userMsg = req.body.message || '';
+      const sessionId =
+        req.body.sessionId || Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      const lowerMsg = userMsg.toLowerCase();
 
-  } catch (err) {
-    console.error('Chat endpoint error:', err.message);
-    res.status(500).json({ error: "AI backend error.", details: err.message });
-  }
-});
+      // Load previous chat context from MongoDB
+      let chat = await Chat.findOne({ sessionId });
+      const context = chat
+        ? chat.messages.slice(-10).map(msg => ({
+            role: msg.role,
+            content: msg.content,
+          }))
+        : [];
+
+      // Prepare OpenAI API request (replaced Grok 3 API)
+      const openaiResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-3.5-turbo', // Use 'gpt-4' or other model if preferred
+          messages: [...context, { role: 'user', content: userMsg }],
+          temperature: 0.7,
+          max_tokens: 500,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      let aiMsg = openaiResponse.data.choices[0].message.content;
+
+      // Handle intent-specific logic
+      if (lowerMsg.includes('quote') || lowerMsg.includes('price')) {
+        aiMsg = await handleQuoteRequest(userMsg, sessionId);
+      } else if (lowerMsg.includes('consultation')) {
+        aiMsg = await handleConsultationRequest(userMsg, sessionId);
+      }
+
+      // Save chat to MongoDB
+      await saveChat(sessionId, userMsg, aiMsg);
+
+      return res.json({ message: aiMsg, sessionId });
+    } catch (err) {
+      console.error('Chat endpoint error:', err.message);
+      res.status(500).json({ error: 'AI backend error.', details: err.message });
+    }
+  },
+);
 
 // --- Save Chat Helper ---
 async function saveChat(sessionId, userMsg, aiMsg) {
   let chat = await Chat.findOne({ sessionId });
   if (!chat) chat = await Chat.create({ sessionId, messages: [] });
-  chat.messages.push({ role: "user", content: userMsg });
-  chat.messages.push({ role: "ai", content: aiMsg });
-  chat.messages = chat.messages.slice(-20);
+  chat.messages.push({ role: 'user', content: userMsg });
+  chat.messages.push({ role: 'ai', content: aiMsg });
+  chat.messages = chat.messages.slice(-20); // Keep last 20 messages
   await chat.save();
+}
+
+// --- Handle Quote Request ---
+async function handleQuoteRequest(userMsg, sessionId) {
+  try {
+    let state = await QuoteState.findOne({ sessionId });
+    if (!state) {
+      state = await QuoteState.create({ sessionId, step: 'init' });
+    }
+
+    const lowerMsg = userMsg.toLowerCase();
+
+    if (state.step === 'init') {
+      await QuoteState.updateOne({ sessionId }, { step: 'dimensions' });
+      return 'Let’s get started with your quote. What are the dimensions of the countertop (e.g., 5x3 feet)?';
+    }
+
+    if (state.step === 'dimensions') {
+      const dimensionsMatch = userMsg.match(/(\d+\.?\d*)\s*(x|by)\s*(\d+\.?\d*)/i);
+      if (!dimensionsMatch) {
+        return 'Please provide valid dimensions (e.g., 5x3 feet). Try again.';
+      }
+      const width = parseFloat(dimensionsMatch[1]);
+      const depth = parseFloat(dimensionsMatch[3]);
+      await QuoteState.updateOne(
+        { sessionId },
+        { step: 'material', dimensions: { width, depth }, lastUpdated: Date.now() },
+      );
+      return 'Great! What material would you like (e.g., granite, quartz, marble)?';
+    }
+
+    if (state.step === 'material') {
+      const materialMatch = userMsg.match(/granite|quartz|marble/i);
+      if (!materialMatch) {
+        return 'Please choose a material (e.g., granite, quartz, marble). Try again.';
+      }
+      const materialType = materialMatch[0].toLowerCase();
+      await QuoteState.updateOne(
+        { sessionId },
+        { step: 'confirm', material: materialType, lastUpdated: Date.now() },
+      );
+
+      // Calculate quote
+      const area = state.dimensions.width * state.dimensions.depth;
+      const shopifyProducts = await fetchShopifyProducts();
+      const laborPricing = await fetchLaborSheet();
+
+      const material = shopifyProducts.find(product =>
+        product.title.toLowerCase().includes(materialType),
+      );
+      if (!material) {
+        await QuoteState.updateOne({ sessionId }, { step: 'material' });
+        return `Sorry, we don't have ${materialType} in our catalog. Available materials: granite, quartz, marble.`;
+      }
+
+      const materialPricePerSqFt = parseFloat(material.variants[0].price);
+      const laborPricePerSqFt = parseFloat(
+        laborPricing.find(item => item.type === 'standard')?.price || 50,
+      );
+      const Reducer = (item) => item.price * area;
+      const materialCost = materialPricePerSqFt * area;
+      const laborCost = laborPricePerSqFt * area;
+      const totalCost = (materialCost + laborCost).toFixed(2);
+
+      return `Here’s your quote for a ${state.dimensions.width}x${state.dimensions.depth} ft countertop in ${materialType}:\n- Material: $${materialCost.toFixed(2)}\n- Labor: $${laborCost.toFixed(2)}\n- Total: $${totalCost}\nWould you like to confirm or adjust the details?`;
+    }
+
+    if (state.step === 'confirm') {
+      if (lowerMsg.includes('confirm')) {
+        const area = state.dimensions.width * state.dimensions.depth;
+        const totalCost = ((area * 100) + 50).toFixed(2); // Simplified for notification
+        await sendLeadNotification('New Quote Confirmation', {
+          sessionId,
+          dimensions: `${state.dimensions.width}x${state.dimensions.depth} ft`,
+          material: state.material,
+          totalCost: `$${totalCost}`,
+        });
+        await QuoteState.deleteOne({ sessionId }); // Reset state
+        return 'Thank you! Your quote has been confirmed, and our team will contact you soon.';
+      } else {
+        await QuoteState.updateOne({ sessionId }, { step: 'init' });
+        return 'Let’s start over. What are the dimensions of the countertop (e.g., 5x3 feet)?';
+      }
+    }
+
+    return 'I’m not sure how to proceed. Please provide the requested details or type "start over" to begin again.';
+  } catch (err) {
+    console.error('Quote flow error:', err.message);
+    return 'Sorry, I couldn’t process your request. Please try again or contact support.';
+  }
+}
+
+// --- Handle Consultation Request ---
+async function handleConsultationRequest(userMsg, sessionId) {
+  try {
+    const nameMatch = userMsg.match(/my name is (\w+)/i);
+    const name = nameMatch ? nameMatch[1] : 'Unknown';
+    await sendLeadNotification('New Consultation Request', {
+      sessionId,
+      name,
+      message: userMsg,
+    });
+    return 'Thank you for requesting a consultation! Our team will reach out to you soon to schedule a free session.';
+  } catch (err) {
+    console.error('Consultation request error:', err.message);
+    return 'Sorry, I couldn’t process your consultation request. Please try again or contact support.';
+  }
 }
 
 // --- Pricing Endpoint ---
@@ -164,8 +366,12 @@ app.get('/pricing', async (req, res) => {
     const laborPricing = await fetchLaborSheet();
     const shopifyProducts = await fetchShopifyProducts();
 
-    const filteredLabor = laborType ? laborPricing.filter(item => item.type === laborType) : laborPricing;
-    const filteredMaterials = materialType ? shopifyProducts.filter(product => product.title.includes(materialType)) : shopifyProducts;
+    const filteredLabor = laborType
+      ? laborPricing.filter(item => item.type === laborType)
+      : laborPricing;
+    const filteredMaterials = materialType
+      ? shopifyProducts.filter(product => product.title.includes(materialType))
+      : shopifyProducts;
 
     const adjustedLabor = filteredLabor.map(item => ({
       ...item,
@@ -173,7 +379,7 @@ app.get('/pricing', async (req, res) => {
     }));
     const adjustedMaterials = filteredMaterials.map(product => ({
       ...product,
-      price: (parseFloat(product.price) * (1 + markup / 100)).toFixed(2),
+      price: (parseFloat(product.variants[0].price) * (1 + markup / 100)).toFixed(2),
     }));
 
     res.json({
@@ -207,6 +413,15 @@ app.get('/api/company-info', (req, res) => {
 // --- Health Check ---
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// --- Error Handling Middleware ---
+app.use((err, req, res, next) => {
+  console.error('Server error:', err.stack);
+  res.status(500).json({
+    error: 'Something went wrong!',
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+  });
 });
 
 // --- Start Server ---
