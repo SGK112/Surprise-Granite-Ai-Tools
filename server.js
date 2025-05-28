@@ -12,7 +12,6 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
-// For PDF parsing (make sure to npm install pdf-parse if using this)
 const pdfParse = require('pdf-parse');
 
 const app = express();
@@ -27,6 +26,7 @@ mongoose.connect(process.env.MONGO_URI, {
   console.log('MongoDB connected!');
 }).catch(err => {
   console.error('MongoDB connection error:', err);
+  process.exit(1);
 });
 
 // --- MongoDB Schemas ---
@@ -54,10 +54,10 @@ const QuoteState = mongoose.model('QuoteState', new mongoose.Schema({
 
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '5mb' })); // Accept bigger payloads for images if needed
 app.use(express.static('public'));
 
-// Rate limiting for /api/chat
+// --- Rate limiting for /api/chat ---
 app.use(
   '/api/chat',
   rateLimit({
@@ -92,7 +92,9 @@ if (
   !PUBLISHED_CSV_LABOR ||
   !SHOPIFY_ACCESS_TOKEN ||
   !SHOPIFY_SHOP ||
-  !OPENAI_API_KEY
+  !OPENAI_API_KEY ||
+  !EMAIL_USER ||
+  !EMAIL_PASS
 ) {
   throw new Error('Missing required environment variables!');
 }
@@ -230,11 +232,11 @@ app.post(
           }))
         : [];
 
-      // System prompt for AI instructions
+      // System prompt for AI instructions (Untruncated. Keep ALL details here.)
       const systemPrompt = {
         role: "system",
         content: `
- * Surprise Granite AI Assistant Instructions (Summarized, Updated)
+ * Surprise Granite AI Assistant Instructions (Full and Untruncated)
  * Role: Professional, friendly countertop estimator AI for Surprise Granite.
  * Functionality: Analyze uploaded images of stone countertop damage, suggest cleaning/repair solutions, provide instant estimates (material cost*3.25+$26.00 per sq ft), and generate leads.
  * 
@@ -278,7 +280,7 @@ app.post(
  * - Example: "Avoid abrasive cleaners; use mild soap (per guidelines)."
  * 
  * Example Response:
- * "The image shows a 2-inch granite scratch. Polishing costs $250–$350. Replacement (2 sq. ft.) is $471, including fabrication and installation. Please share your contact details to schedule a tech[...]
+ * "The image shows a 2-inch granite scratch. Polishing costs $250–$350. Replacement (2 sq. ft.) is $471, including fabrication and installation. Please share your contact details to schedule a technician visit."
 `
       };
 
@@ -289,7 +291,7 @@ app.post(
         getBusinessDocsText()
       ]);
 
-      // Summarize or truncate for context
+      // Summarize or truncate for context (if needed)
       const priceSummary = priceSheet.slice(0, 5).map(p => `${p.material || p.Material || p.name}: $${p.price || p.Price || p.price_per_sqft || "?"}/sqft`).join('; ');
       const laborSummary = laborSheet.slice(0, 3).map(l => `${l.type || l.Type}: $${l.price || l.Price}/sqft`).join('; ');
       const docsSummary = docsText ? docsText.slice(0, 2000) : "";
