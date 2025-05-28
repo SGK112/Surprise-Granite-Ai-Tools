@@ -6,7 +6,7 @@ const fetch = require('node-fetch');
 const { parse } = require('csv-parse/sync');
 const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
-const path = require('path'); // Needed for static file serving
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,10 +27,18 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
   messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }]
 }, { timestamps: true }));
 
+const Countertop = mongoose.model('Countertop', new mongoose.Schema({
+  name: String,
+  material: String,
+  color: String,
+  imageUrl: String,
+  description: String
+}));
+
 // --- Express Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
-app.use(express.static('public')); // <-- THIS SERVES YOUR .html, .js, .css, etc. from ./public
+app.use(express.static('public'));
 
 // --- Environment Variables ---
 const {
@@ -83,9 +91,9 @@ async function fetchLaborSheet() {
   return parse(csv, { columns: true });
 }
 
-// --- Shopify Fetch Helpers ---
+// --- Shopify Fetch Helpers (with Images) ---
 async function fetchShopifyProducts() {
-  const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250`;
+  const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags,body_html`;
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -98,7 +106,7 @@ async function fetchShopifyProducts() {
   return data.products;
 }
 async function fetchShopifySamples() {
-  const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags`;
+  const url = `https://${SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags,body_html`;
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -157,7 +165,6 @@ app.post('/api/chat', async (req, res) => {
   try {
     const userMsg = req.body.message || '';
     const sessionId = req.body.sessionId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
-
     const lowerMsg = userMsg.toLowerCase();
 
     // Secretary: Leave a message
@@ -166,7 +173,6 @@ app.post('/api/chat', async (req, res) => {
       const email = (userMsg.match(/email\s*[:\-]?\s*([^\n]+)/i) || [])[1];
       const phone = (userMsg.match(/phone\s*[:\-]?\s*([^\n]+)/i) || [])[1];
       const message = (userMsg.match(/message\s*[:\-]?\s*([\s\S]+)/i) || [])[1] || userMsg;
-
       if (name && email) {
         await sendLeadNotification("New Customer Message", { name, email, phone, message });
         await saveChat(sessionId, userMsg, "Thank you! Your message has been sent and our team will contact you soon.");
@@ -198,7 +204,6 @@ app.post('/api/chat', async (req, res) => {
       const sqftMatch = userMsg.match(/(\d+(\.\d+)?)\s*(sq\s*ft|sqft|square\s*feet|sf)/i);
       let requestedSqFt = sqftMatch ? parseFloat(sqftMatch[1]) : null;
       let materialName = null;
-
       if (/quartzite|dekton|porcelain|granite|quartz/i.test(userMsg)) {
         materialName = userMsg.match(/quartzite|dekton|porcelain|granite|quartz/i)[0];
       }
@@ -211,48 +216,92 @@ app.post('/api/chat', async (req, res) => {
       const fabricationCost = totalSqFt * 45; // $45/sqft
       const installFee = getInstallFee(materialType);
       const total = fabricationCost + installFee;
-
       const estimateSummary =
         `Estimate: $${total.toLocaleString()} for ${totalSqFt} sq ft of ${materialName} (includes 20% waste, fabrication, and installation). Would you like to see samples, book an appointment, or leave your info for follow up?`;
-
       await saveChat(sessionId, userMsg, estimateSummary);
       return res.json({ message: estimateSummary });
     }
 
-    // Personal shopper: samples/products
+    // Countertop (MongoDB) sample handling
+    if (lowerMsg.includes('countertop') || lowerMsg.includes('slab') || lowerMsg.match(/show me (.+) (samples|countertops|slabs)/i)) {
+      // Try to extract the material or color
+      let query = {};
+      const materialMatch = lowerMsg.match(/granite|quartzite|dekton|porcelain|quartz/i);
+      if (materialMatch) query.material = new RegExp(materialMatch[0], 'i');
+      const colorMatch = lowerMsg.match(/white|gray|black|blue|green|beige|brown|gold|silver|frost|navajo|calacatta|marble|onyx/i);
+      if (colorMatch) query.color = new RegExp(colorMatch[0], 'i');
+      const slabs = await Countertop.find(query).limit(8);
+      if (slabs.length) {
+        let responseMsg = "Here are some countertop options from our gallery:\n";
+        slabs.forEach(slab => {
+          responseMsg += `- ${slab.name}${slab.material ? ` (${slab.material})` : ''}${slab.imageUrl ? `\n[Image](${slab.imageUrl})` : ''}\n`;
+        });
+        responseMsg += "\nWould you like more info, a sample, or to book a visit?";
+        await saveChat(sessionId, userMsg, responseMsg);
+        return res.json({
+          message: responseMsg,
+          countertops: slabs
+        });
+      }
+    }
+
+    // Personal shopper: samples/products (with images)
     if (lowerMsg.includes('sample')) {
       const samples = await fetchShopifySamples();
-      let responseMsg;
+      let responseMsg = '';
       if (samples && samples.length > 0) {
         responseMsg = "Here are some of our available samples:\n";
         samples.slice(0, 5).forEach(sample => {
-          responseMsg += `- ${sample.title}${sample.variants[0] ? ` ($${sample.variants[0].price})` : ""}\n`;
+          const imageUrl = sample.images && sample.images.length > 0 ? sample.images[0].src : null;
+          responseMsg += `- ${sample.title}${sample.variants[0] ? ` ($${sample.variants[0].price})` : ""}${imageUrl ? `\n[Image](${imageUrl})` : ""}\n`;
         });
         responseMsg += "\nWould you like more info on any of these, or to order a sample?";
+        await saveChat(sessionId, userMsg, responseMsg);
+        return res.json({
+          message: responseMsg,
+          samples: samples.slice(0, 5).map(s => ({
+            title: s.title,
+            price: s.variants[0] ? s.variants[0].price : null,
+            image: s.images && s.images.length > 0 ? s.images[0].src : null,
+            description: s.body_html
+          }))
+        });
       } else {
         responseMsg = "Sorry, we couldn't find any sample products right now. Would you like to browse our main products instead?";
+        await saveChat(sessionId, userMsg, responseMsg);
+        return res.json({ message: responseMsg });
       }
-      await saveChat(sessionId, userMsg, responseMsg);
-      return res.json({ message: responseMsg });
     }
-    if (lowerMsg.includes('product') || lowerMsg.includes('countertop') || lowerMsg.includes('browse')) {
+
+    if (lowerMsg.includes('product') || lowerMsg.includes('browse') || lowerMsg.includes('sink') || lowerMsg.includes('faucet') || lowerMsg.includes('item')) {
       const products = await fetchShopifyProducts();
-      let responseMsg;
+      let responseMsg = '';
       if (products && products.length > 0) {
         responseMsg = "Here are some of our popular products:\n";
         products.slice(0, 5).forEach(product => {
-          responseMsg += `- ${product.title}${product.variants[0] ? ` ($${product.variants[0].price})` : ""}\n`;
+          const imageUrl = product.images && product.images.length > 0 ? product.images[0].src : null;
+          responseMsg += `- ${product.title}${product.variants[0] ? ` ($${product.variants[0].price})` : ""}${imageUrl ? `\n[Image](${imageUrl})` : ""}\n`;
         });
         responseMsg += "\nWould you like a sample of any of these, or more details?";
+        await saveChat(sessionId, userMsg, responseMsg);
+        return res.json({
+          message: responseMsg,
+          products: products.slice(0, 5).map(p => ({
+            title: p.title,
+            price: p.variants[0] ? p.variants[0].price : null,
+            image: p.images && p.images.length > 0 ? p.images[0].src : null,
+            description: p.body_html
+          }))
+        });
       } else {
         responseMsg = "Sorry, we couldn't find any products right now. Would you like to leave your info for a follow-up?";
+        await saveChat(sessionId, userMsg, responseMsg);
+        return res.json({ message: responseMsg });
       }
-      await saveChat(sessionId, userMsg, responseMsg);
-      return res.json({ message: responseMsg });
     }
 
     // General greeting/fallback
-    const welcomeMsg = "Hi! I'm your Surprise Granite assistant. I can provide quotes, help you shop, take a message, or book your visit. What can I help you with today?";
+    const welcomeMsg = "Hi! I'm your Surprise Granite assistant. I can provide quotes, help you shop (with images!), take a message, or book your visit. What can I help you with today?";
     await saveChat(sessionId, userMsg, welcomeMsg);
     return res.json({ message: welcomeMsg });
 
@@ -276,7 +325,14 @@ async function saveChat(sessionId, userMsg, aiMsg) {
 app.get('/api/shopify/products', async (req, res) => {
   try {
     const products = await fetchShopifyProducts();
-    res.json({ products });
+    res.json({
+      products: products.map(p => ({
+        title: p.title,
+        price: p.variants[0] ? p.variants[0].price : null,
+        image: p.images && p.images.length > 0 ? p.images[0].src : null,
+        description: p.body_html
+      }))
+    });
   } catch (err) {
     res.status(500).json({ error: "Shopify API error", details: err.message });
   }
@@ -284,9 +340,30 @@ app.get('/api/shopify/products', async (req, res) => {
 app.get('/api/shopify/samples', async (req, res) => {
   try {
     const samples = await fetchShopifySamples();
-    res.json({ samples });
+    res.json({
+      samples: samples.map(s => ({
+        title: s.title,
+        price: s.variants[0] ? s.variants[0].price : null,
+        image: s.images && s.images.length > 0 ? s.images[0].src : null,
+        description: s.body_html
+      }))
+    });
   } catch (err) {
     res.status(500).json({ error: "Shopify API error", details: err.message });
+  }
+});
+
+// --- Countertop Gallery Endpoint ---
+app.get('/api/countertops', async (req, res) => {
+  try {
+    const { material, color } = req.query;
+    const filter = {};
+    if (material) filter.material = new RegExp(material, 'i');
+    if (color) filter.color = new RegExp(color, 'i');
+    const countertops = await Countertop.find(filter).limit(20);
+    res.json({ countertops });
+  } catch (err) {
+    res.status(500).json({ error: "MongoDB error", details: err.message });
   }
 });
 
@@ -294,11 +371,6 @@ app.get('/api/shopify/samples', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
-
-// --- (Optional) Serve widget directly if needed ---
-// app.get('/sg-chatbot-widget.html', (req, res) => {
-//   res.sendFile(path.join(__dirname, 'public', 'sg-chatbot-widget.html'));
-// });
 
 app.listen(PORT, () => {
   console.log(`Surprise Granite Assistant running at http://localhost:${PORT}`);
