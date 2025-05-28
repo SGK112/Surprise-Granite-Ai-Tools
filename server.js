@@ -169,13 +169,7 @@ app.get('/api/countertops/image/:id', async (req, res) => {
   }
 });
 
-// --- Chat Endpoint ---
-app.get('/api/chat', (req, res) => {
-  res.status(405).json({
-    error: 'The /api/chat endpoint only supports POST requests. Please use POST.',
-  });
-});
-
+// --- Chat Endpoint with Business Context ---
 app.post('/api/chat', [
   body('message').isString().trim().isLength({ max: 1000 }),
 ], async (req, res) => {
@@ -186,9 +180,24 @@ app.post('/api/chat', [
   }
 
   try {
+    const userMessage = req.body.message;
+    const systemPrompt = {
+      role: 'system',
+      content: `
+        You are Surprise Granite's AI assistant. Your tasks include:
+        - Providing detailed countertop service information.
+        - Offering pricing estimates for granite, quartz, and marble countertops.
+        - Generating leads by requesting user contact information.
+        Always mention Surprise Granite in your responses.
+      `,
+    };
+
     const aiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: req.body.message }],
+      messages: [
+        systemPrompt,
+        { role: 'user', content: userMessage },
+      ],
       temperature: 0.6,
       max_tokens: 600,
     }, {
