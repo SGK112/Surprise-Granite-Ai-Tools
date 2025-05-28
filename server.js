@@ -67,6 +67,13 @@ app.use(
   }),
 );
 
+// --- GET handler for /api/chat (friendly error) ---
+app.get('/api/chat', (req, res) => {
+  res.status(405).json({
+    error: 'The /api/chat endpoint only supports POST requests. Please use POST with a JSON body containing at least a "message" property.'
+  });
+});
+
 // --- Environment Variables ---
 const {
   GOOGLE_SHEET_CSV_URL,
@@ -271,7 +278,7 @@ app.post(
  * - Example: "Avoid abrasive cleaners; use mild soap (per guidelines)."
  * 
  * Example Response:
- * "The image shows a 2-inch granite scratch. Polishing costs $250–$350. Replacement (2 sq. ft.) is $471, including fabrication and installation. Please share your contact details to schedule a technician visit!
+ * "The image shows a 2-inch granite scratch. Polishing costs $250–$350. Replacement (2 sq. ft.) is $471, including fabrication and installation. Please share your contact details to schedule a tech[...]
 `
       };
 
