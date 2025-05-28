@@ -169,7 +169,7 @@ app.get('/api/countertops/image/:id', async (req, res) => {
   }
 });
 
-// --- Chat Endpoint with Business Context ---
+// --- Chat Endpoint with Robust Logic ---
 app.post('/api/chat', [
   body('message').isString().trim().isLength({ max: 1000 }),
 ], async (req, res) => {
@@ -181,14 +181,21 @@ app.post('/api/chat', [
 
   try {
     const userMessage = req.body.message;
+    const pricingContext = `
+      Pricing details for Surprise Granite:
+      - Quartz countertops: $60 per square foot (material).
+      - Installation: $45 per square foot (labor).
+      - Additional features: $100 for an undermount sink cutout.
+    `;
     const systemPrompt = {
       role: 'system',
       content: `
-        You are Surprise Granite's AI assistant. Your tasks include:
-        - Providing detailed countertop service information.
-        - Offering pricing estimates for granite, quartz, and marble countertops.
+        You are Surprise Granite's AI assistant. Your primary tasks include:
+        - Providing accurate quotes for countertops.
+        - Explaining available materials (granite, quartz, marble).
         - Generating leads by requesting user contact information.
-        Always mention Surprise Granite in your responses.
+        Pricing and service details:
+        ${pricingContext}
       `,
     };
 
@@ -210,7 +217,7 @@ app.post('/api/chat', [
     res.json({ message: aiResponse.data.choices[0].message.content });
   } catch (err) {
     console.error('OpenAI API error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI backend error' });
+    res.status(500).json({ error: 'Could not reach the server. Please try again.', details: err.message });
   }
 });
 
