@@ -8,6 +8,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 // --- Initialize App ---
 const app = express();
@@ -62,6 +63,11 @@ app.use(express.json({ limit: '5mb' }));
 
 // --- Serve Static Files ---
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Default Route ---
+app.get('/', (req, res) => {
+  res.send('Welcome to the Surprise Granite API!');
+});
 
 // --- Rate Limiter ---
 app.use(
@@ -152,11 +158,6 @@ app.post(
     }
   }
 );
-
-// --- Default Route ---
-app.get('/', (req, res) => {
-  res.send('Welcome to the Surprise Granite API!');
-});
 
 // --- Catch-All Route for Undefined Paths ---
 app.use((req, res) => {
