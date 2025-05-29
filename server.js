@@ -5,8 +5,6 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const nodemailer = require('nodemailer');
@@ -51,27 +49,9 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
   messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }]
 }, { timestamps: true }));
 
-const Countertop = mongoose.model('Countertop', new mongoose.Schema({
-  name: String,
-  material: String,
-  color: String,
-  imageBase64: String,
-  filename: String,
-  description: String,
-}));
-
-const QuoteState = mongoose.model('QuoteState', new mongoose.Schema({
-  sessionId: String,
-  step: { type: String, default: 'init' },
-  dimensions: { width: Number, depth: Number },
-  material: String,
-  lastUpdated: { type: Date, default: Date.now },
-}));
-
 // --- Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static('public'));
 
 // --- Rate Limiter ---
 app.use(
@@ -83,27 +63,7 @@ app.use(
   })
 );
 
-// --- Nodemailer Setup ---
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
-
-async function sendEmailNotification(subject, content) {
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.LEADS_RECEIVER || process.env.EMAIL_USER,
-      subject,
-      text: content,
-    });
-    console.log('Email sent successfully!');
-  } catch (err) {
-    console.error('Error sending email:', err);
-  }
-}
-
-// --- Helpers for External Data Fetch ---
+// --- Fetch CSV Data ---
 async function fetchCsvData(url, cacheKey) {
   let data = cache.get(cacheKey);
   if (!data) {
@@ -115,61 +75,7 @@ async function fetchCsvData(url, cacheKey) {
   return data;
 }
 
-async function fetchShopifyProducts() {
-  const cacheKey = 'shopifyProducts';
-  let data = cache.get(cacheKey);
-
-  if (!data) {
-    const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-04/products.json?limit=250&fields=id,title,handle,variants,images,tags,body_html`;
-    
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.data || !response.data.products) {
-        throw new Error('No products found in Shopify API response');
-      }
-
-      data = response.data.products;
-      cache.set(cacheKey, data);
-    } catch (err) {
-      console.error('Error fetching Shopify products:', err.message);
-      throw new Error('Failed to fetch Shopify products');
-    }
-  }
-
-  return data;
-}
-
-// --- Countertop Image Endpoint ---
-app.get('/api/countertops/image/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const countertop = await Countertop.findById(id);
-    
-    if (!countertop || !countertop.imageBase64) {
-      return res.status(404).send('Image not found');
-    }
-
-    let base64 = countertop.imageBase64;
-    if (base64.startsWith('data:image')) {
-      base64 = base64.split(',')[1];
-    }
-
-    const imgBuffer = Buffer.from(base64, 'base64');
-    res.set('Content-Type', 'image/jpeg'); // Adjust MIME type if necessary
-    res.send(imgBuffer);
-  } catch (err) {
-    console.error('Error retrieving image:', err.message);
-    res.status(500).send('Error retrieving image');
-  }
-});
-
-// --- Chat Endpoint with Robust Logic ---
+// --- Chat Endpoint with Price Search ---
 app.post('/api/chat', [
   body('message').isString().trim().isLength({ max: 1000 }),
 ], async (req, res) => {
@@ -180,22 +86,34 @@ app.post('/api/chat', [
   }
 
   try {
-    const userMessage = req.body.message;
-    const pricingContext = `
-      Pricing details for Surprise Granite:
-      - Quartz countertops: $60 per square foot (material).
-      - Installation: $45 per square foot (labor).
-      - Additional features: $100 for an undermount sink cutout.
-    `;
+    const userMessage = req.body.message.toLowerCase();
+    const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'priceList');
+
+    // Match user query with price list
+    const matchedItem = priceList.find(item =>
+      userMessage.includes(item.material.toLowerCase()) &&
+      userMessage.includes(item.thickness.toLowerCase())
+    );
+
+    if (matchedItem) {
+      const price = matchedItem.price_per_sqft;
+      const thickness = matchedItem.thickness;
+      const material = matchedItem.material;
+
+      return res.json({
+        message: `The price for ${material} (${thickness}) is $${price} per square foot. Would you like an estimate for a specific area?`,
+      });
+    }
+
+    // Handle cases where no match is found
     const systemPrompt = {
       role: 'system',
       content: `
         You are Surprise Granite's AI assistant. Your primary tasks include:
-        - Providing accurate quotes for countertops.
-        - Explaining available materials (granite, quartz, marble).
-        - Generating leads by requesting user contact information.
-        Pricing and service details:
-        ${pricingContext}
+        - Helping users find prices for specific materials.
+        - Explaining available countertop options (granite, quartz, marble).
+        - Generating quotes based on dimensions and material choices.
+        If the material is not found, politely ask for clarification or suggest available options.
       `,
     };
 
@@ -205,7 +123,7 @@ app.post('/api/chat', [
         systemPrompt,
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.6,
+      temperature: 0.7,
       max_tokens: 600,
     }, {
       headers: {
@@ -216,8 +134,11 @@ app.post('/api/chat', [
 
     res.json({ message: aiResponse.data.choices[0].message.content });
   } catch (err) {
-    console.error('OpenAI API error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Could not reach the server. Please try again.', details: err.message });
+    console.error('Error in /api/chat:', err.message);
+    res.status(500).json({
+      error: 'An error occurred while processing your request. Please try again later.',
+      details: err.message,
+    });
   }
 });
 
