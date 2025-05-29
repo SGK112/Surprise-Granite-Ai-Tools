@@ -103,12 +103,18 @@ app.post(
     }
 
     try {
+      if (!req.body.message) {
+        return res.status(400).json({ error: 'The "message" field is required.' });
+      }
+
       const userMessage = req.body.message.toLowerCase();
       const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'priceList');
 
       // Match user query with price list
       const matchedItem = priceList.find(
         (item) =>
+          item.material &&
+          item.thickness &&
           userMessage.includes(item.material.toLowerCase()) &&
           userMessage.includes(item.thickness.toLowerCase())
       );
