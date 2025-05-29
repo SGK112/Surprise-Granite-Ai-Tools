@@ -8,6 +8,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 // --- Initialize App ---
 const app = express();
@@ -25,6 +26,8 @@ const REQUIRED_ENV_VARS = [
   'SHOPIFY_ACCESS_TOKEN',
   'SHOPIFY_SHOP',
   'OPENAI_API_KEY',
+  'EMAIL_USER',
+  'EMAIL_PASS',
 ];
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
@@ -41,6 +44,29 @@ mongoose
     console.error('MongoDB connection error:', err);
     process.exit(1);
   });
+
+// --- Define Schemas ---
+const Countertop = mongoose.model(
+  'Countertop',
+  new mongoose.Schema({
+    material: String,
+    thickness: String,
+    price_per_sqft: Number,
+    image_url: String,
+  })
+);
+
+const ChatLog = mongoose.model(
+  'ChatLog',
+  new mongoose.Schema(
+    {
+      sessionId: String,
+      messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
+      appointmentRequested: Boolean,
+    },
+    { timestamps: true }
+  )
+);
 
 // --- Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
@@ -72,6 +98,15 @@ async function fetchCsvData(url, cacheKey) {
   return data;
 }
 
+// --- Email Notifications ---
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 // --- Chat Endpoint ---
 app.post(
   '/api/chat',
@@ -84,23 +119,21 @@ app.post(
 
     try {
       const userMessage = req.body.message.toLowerCase();
+      const sessionId = req.body.sessionId || 'anonymous';
 
-      // --- Fetch Price List ---
-      const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'priceList');
-
-      // --- Match Query with Price List ---
-      const matchedItem = priceList.find(
+      // --- Fetch Countertops from MongoDB ---
+      const countertops = await Countertop.find();
+      const matchedCountertop = countertops.find(
         (item) =>
-          item.material &&
-          item.thickness &&
           userMessage.includes(item.material.toLowerCase()) &&
           userMessage.includes(item.thickness.toLowerCase())
       );
 
-      if (matchedItem) {
-        const { material, thickness, price_per_sqft: price } = matchedItem;
+      if (matchedCountertop) {
+        const { material, thickness, price_per_sqft: price, image_url } = matchedCountertop;
         return res.json({
-          message: `The price for ${material} (${thickness}) is $${price} per square foot. Would you like an estimate for a specific area?`,
+          message: `The price for ${material} (${thickness}) is $${price} per square foot.`,
+          image: image_url,
         });
       }
 
@@ -116,15 +149,22 @@ app.post(
         });
       }
 
+      // --- Save Chat Log to MongoDB ---
+      const newChatLog = new ChatLog({
+        sessionId,
+        messages: [{ role: 'user', content: userMessage }],
+      });
+      await newChatLog.save();
+
       // --- Generate AI Response ---
       const systemPrompt = {
         role: 'system',
         content: `
           You are Surprise Granite's AI assistant and personal shopper. Your tasks include:
-          - Helping users find prices for specific materials.
-          - Providing pricing and product information from the Shopify store.
+          - Helping users find prices for specific countertops.
+          - Providing product information from the Shopify store.
           - Generating quotes based on dimensions and material choices.
-          - Assisting with recommendations for countertop options.
+          - Assisting with appointment requests.
         `,
       };
 
