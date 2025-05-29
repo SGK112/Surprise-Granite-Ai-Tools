@@ -7,7 +7,7 @@ const { body, validationResult } = require('express-validator');
 const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
-const nodemailer = require('nodemailer');
+const path = require('path');
 
 // --- Initialize App ---
 const app = express();
@@ -36,22 +36,32 @@ REQUIRED_ENV_VARS.forEach((key) => {
 });
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected!'))
-  .catch(err => {
+  .catch((err) => {
     console.error('MongoDB connection error:', err);
     process.exit(1);
   });
 
 // --- Define Schemas ---
-const Chat = mongoose.model('Chat', new mongoose.Schema({
-  sessionId: String,
-  messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }]
-}, { timestamps: true }));
+const Chat = mongoose.model(
+  'Chat',
+  new mongoose.Schema(
+    {
+      sessionId: String,
+      messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
+    },
+    { timestamps: true }
+  )
+);
 
 // --- Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '5mb' }));
+
+// --- Serve Static Files ---
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Rate Limiter ---
 app.use(
@@ -75,80 +85,82 @@ async function fetchCsvData(url, cacheKey) {
   return data;
 }
 
-// --- Chat Endpoint with Price Search ---
-app.post('/api/chat', [
-  body('message').isString().trim().isLength({ max: 1000 }),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    console.error('Validation errors:', errors.array());
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const userMessage = req.body.message.toLowerCase();
-    const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'priceList');
-
-    // Match user query with price list
-    const matchedItem = priceList.find(item =>
-      userMessage.includes(item.material.toLowerCase()) &&
-      userMessage.includes(item.thickness.toLowerCase())
-    );
-
-    if (matchedItem) {
-      const price = matchedItem.price_per_sqft;
-      const thickness = matchedItem.thickness;
-      const material = matchedItem.material;
-
-      return res.json({
-        message: `The price for ${material} (${thickness}) is $${price} per square foot. Would you like an estimate for a specific area?`,
-      });
+// --- Chat Endpoint ---
+app.post(
+  '/api/chat',
+  [body('message').isString().trim().isLength({ max: 1000 })],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.error('Validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    // Handle cases where no match is found
-    const systemPrompt = {
-      role: 'system',
-      content: `
-        You are Surprise Granite's AI assistant. Your primary tasks include:
-        - Helping users find prices for specific materials.
-        - Explaining available countertop options (granite, quartz, marble).
-        - Generating quotes based on dimensions and material choices.
-        If the material is not found, politely ask for clarification or suggest available options.
-      `,
-    };
+    try {
+      const userMessage = req.body.message.toLowerCase();
+      const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'priceList');
 
-    const aiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-3.5-turbo',
-      messages: [
-        systemPrompt,
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 600,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
+      // Match user query with price list
+      const matchedItem = priceList.find(
+        (item) =>
+          userMessage.includes(item.material.toLowerCase()) &&
+          userMessage.includes(item.thickness.toLowerCase())
+      );
 
-    res.json({ message: aiResponse.data.choices[0].message.content });
-  } catch (err) {
-    console.error('Error in /api/chat:', err.message);
-    res.status(500).json({
-      error: 'An error occurred while processing your request. Please try again later.',
-      details: err.message,
-    });
+      if (matchedItem) {
+        const { material, thickness, price_per_sqft: price } = matchedItem;
+        return res.json({
+          message: `The price for ${material} (${thickness}) is $${price} per square foot. Would you like an estimate for a specific area?`,
+        });
+      }
+
+      // Generate AI Response if no match is found
+      const systemPrompt = {
+        role: 'system',
+        content: `
+          You are Surprise Granite's AI assistant. Your primary tasks include:
+          - Helping users find prices for specific materials.
+          - Explaining available countertop options (granite, quartz, marble).
+          - Generating quotes based on dimensions and material choices.
+          If the material is not found, politely ask for clarification or suggest available options.
+        `,
+      };
+
+      const aiResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-3.5-turbo',
+          messages: [systemPrompt, { role: 'user', content: userMessage }],
+          temperature: 0.7,
+          max_tokens: 600,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      res.json({ message: aiResponse.data.choices[0].message.content });
+    } catch (err) {
+      console.error('Error in /api/chat:', err.message);
+      res.status(500).json({
+        error: 'An error occurred while processing your request. Please try again later.',
+        details: err.message,
+      });
+    }
   }
+);
+
+// --- Default Route ---
+app.get('/', (req, res) => {
+  res.send('Welcome to the Surprise Granite API!');
 });
 
-// --- Error Handling ---
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(500).json({
-    error: 'Something went wrong!',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
+// --- Catch-All Route for Undefined Paths ---
+app.use((req, res) => {
+  res.status(404).send('Page not found. Make sure you are accessing the correct endpoint.');
 });
 
 // --- Start Server ---
