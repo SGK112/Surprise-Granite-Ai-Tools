@@ -146,14 +146,15 @@ function fuzzyMatch(str, pattern) {
 
 // --- Extract Dimensions ---
 function extractDimensions(message) {
-  const regex = /(\d+\.?\d*)\s*(x|by|*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
-  const match = message.match(message);
+  const regex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
+  const match = message.match(regex);
   if (match) {
     const length = parseFloat(match[1]);
     const width = parseFloat(match[3]);
     return { length, width, area: length * width };
   }
   return null;
+}
 }
 
 // --- Match Labor Cost by Material ---
