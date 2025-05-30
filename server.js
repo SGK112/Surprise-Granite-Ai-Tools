@@ -92,22 +92,47 @@ function formatPrice(value) {
   return `$${parseFloat(value).toFixed(2)} per square foot`;
 }
 
-// --- Improved Fuzzy Matching with Context ---
+// --- Improved Fuzzy Matching with Levenshtein Distance ---
 function fuzzyMatch(str, pattern, recentMaterials = []) {
-  if (!str || !pattern) return false;
-  const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!str || !pattern) return 0;
+  const cleanStr = str.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9\s]/g, '');
 
   // Prioritize recent materials
   const isRecent = recentMaterials.some((mat) =>
-    cleanStr.includes(mat.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    cleanStr.includes(mat.toLowerCase().replace(/[^a-z0-9\s]/g, ''))
   );
-  const score = isRecent ? 10 : 0;
+  let score = isRecent ? 10 : 0;
 
-  return (
-    score +
-    (cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1)
-  );
+  // Simple substring match
+  if (cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr)) {
+    score += 5;
+  }
+
+  // Levenshtein distance for partial matching
+  const levenshteinDistance = (a, b) => {
+    const matrix = Array(b.length + 1)
+      .fill()
+      .map(() => Array(a.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+    for (let j = 1; j <= b.length; j++) {
+      for (let i = 1; i <= a.length; i++) {
+        const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i] + 1,
+          matrix[j - 1][i - 1] + indicator
+        );
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+
+  const distance = levenshteinDistance(cleanStr, cleanPattern);
+  score += Math.max(0, 5 - distance); // Higher score for closer matches
+
+  return score > 0 ? score : 0;
 }
 
 // --- Validate Material Existence ---
@@ -130,12 +155,16 @@ async function validateMaterial(materialName, thickness = null) {
 
     // Check CSV
     const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
-    const csvMaterial = priceList.find(
-      (item) =>
-        fuzzyMatch(item['Color Name'], materialName) &&
-        (!thickness || item.Thickness?.toLowerCase().includes(thickness.toLowerCase()))
-    );
-    if (csvMaterial) {
+    // Sort by fuzzy match score
+    const csvMaterial = priceList
+      .map(item => ({
+        ...item,
+        score: fuzzyMatch(item['Color Name'], materialName),
+      }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (csvMaterial && (!thickness || csvMaterial.Thickness?.toLowerCase().includes(thickness.toLowerCase()))) {
       return {
         source: 'CSV',
         material: csvMaterial['Color Name'],
@@ -322,22 +351,14 @@ app.post(
       const requestedThickness = thicknessMatch ? thicknessMatch[1] + 'cm' : null;
 
       if (priceList.length > 0) {
-        matchedMaterial = priceList.find((item) => {
-          const materialName = item['Color Name'];
-          const vendorName = item['Vendor Name'];
-          if (!materialName) return false;
-
-          const matchesMaterialName = fuzzyMatch(materialName, userMessage, recentMaterials);
-          const matchesVendorName = vendorName
-            ? fuzzyMatch(vendorName, userMessage, recentMaterials)
-            : false;
-          const matchesName = matchesMaterialName || matchesVendorName;
-
-          const matchesThickness =
-            !requestedThickness || item.Thickness?.toLowerCase().includes(requestedThickness.toLowerCase());
-
-          return matchesName && matchesThickness;
-        });
+        matchedMaterial = priceList
+          .map(item => ({
+            ...item,
+            score: fuzzyMatch(item['Color Name'], userMessage, recentMaterials),
+          }))
+          .filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .find(item => !requestedThickness || item.Thickness?.toLowerCase().includes(requestedThickness.toLowerCase()));
       }
 
       // --- Cross-Reference with MongoDB ---
@@ -419,6 +440,7 @@ app.post(
           const responseMessage = `The cheapest quartz we offer is "${cheapest['Color Name']}" at ${formatPrice(
             cheapest['Cost/SqFt']
           )} (${cheapest.Thickness}, Vendor: ${cheapest['Vendor Name'] || 'unknown'}). Would you like a quote for a specific countertop size?`;
+          console.log(`AI Response: ${responseMessage}`); // Log AI response
 
           chatLog.messages.push(
             { role: 'user', content: userMessage },
@@ -451,6 +473,8 @@ app.post(
           const responseMessage = `We offer "${matchedSink.title}" for $${price.toFixed(
             2
           )}. Visit our Shopify store to purchase.`;
+          console.log(`AI Response: ${responseMessage}`); // Log AI response
+
           chatLog.messages.push(
             { role: 'user', content: userMessage },
             { role: 'assistant', content: responseMessage }
@@ -469,6 +493,8 @@ app.post(
         const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(
           2
         )}. Visit our Shopify store to purchase.`;
+        console.log(`AI Response: ${responseMessage}`); // Log AI response
+
         chatLog.messages.push(
           { role: 'user', content: userMessage },
           { role: 'assistant', content: responseMessage }
@@ -524,6 +550,7 @@ app.post(
       aiMessage = aiMessage.replace(/\$(\d+\.?\d*)\s*(\/sqft|per square foot)/gi, (match, price) =>
         formatPrice(price)
       );
+      console.log(`AI Response: ${aiMessage}`); // Log AI response
 
       // --- Update Chat Log ---
       chatLog.messages.push(
