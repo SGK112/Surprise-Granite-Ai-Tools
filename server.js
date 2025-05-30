@@ -13,10 +13,12 @@ const nodemailer = require('nodemailer');
 // --- Initialize App ---
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 1800 }); // Cache for 30 minutes
+const cache = new NodeCache({ stdTTL: 1800000 }); // Cache for 30 minutes
 
 // --- Enable Trust Proxy ---
-app.set('trust proxy', 1);
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '10mb' }));
+app.set('trust proxy', true);
 
 // --- Validate Environment Variables ---
 const REQUIRED_ENV_VARS = [
@@ -27,8 +29,9 @@ const REQUIRED_ENV_VARS = [
   'SHOPIFY_SHOP',
   'OPENAI_API_KEY',
   'EMAIL_USER',
-  'EMAIL_PASS',
+  'EMAIL_PASSWORD',
 ];
+
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
     console.error(`Missing required environment variable: ${key}`);
@@ -61,7 +64,13 @@ const ChatLog = mongoose.model(
   new mongoose.Schema(
     {
       sessionId: String,
-      messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
+      messages: [
+        {
+          role: String,
+          content: String,
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
       appointmentRequested: Boolean,
     },
     { timestamps: true }
@@ -81,7 +90,8 @@ async function fetchShopifyProducts() {
   try {
     const response = await axios.get(url, {
       headers: {
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SHOPIFY_ACCESS_TOKEN}`,
       },
       timeout: 10000,
     });
@@ -91,13 +101,13 @@ async function fetchShopifyProducts() {
     console.error('Shopify API error:', error.message);
     throw error;
   }
-}
+});
 
 // --- Fetch CSV Data ---
 async function fetchCsvData(url, cacheKey) {
   let data = cache.get(cacheKey);
   if (data) {
-    console.log(`Cache hit for ${cacheKey}, ${data.length} rows`);
+    console.log(`Cache hit for ${cacheKey}: ${data.length} rows`);
     return data;
   }
 
@@ -115,18 +125,18 @@ async function fetchCsvData(url, cacheKey) {
       throw new Error(`Empty or invalid CSV from ${url}`);
     }
     console.log(`Parsed CSV from ${url}, ${data.length} rows`);
-    console.log(`CSV columns: ${Object.keys(data).join(', ')}`);
+    console.log(`CSV columns: ${Object.keys(data[0]).join(', ')}`);
     console.log(`Sample row: ${JSON.stringify(data[0])}`);
     cache.set(cacheKey, data);
     return data;
   } catch (error) {
     console.error(`Error fetching/parsing CSV (${cacheKey}): ${error.message}`);
-    cache.del(cacheKey);
+    cache.delete(cacheKey);
     throw error;
   }
 }
 
-// --- Fuzzy Matching for Material Names ---
+// --- Fuzzy Matching ---
 function fuzzyMatch(str, pattern) {
   if (!str || !pattern) return false;
   const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -134,10 +144,10 @@ function fuzzyMatch(str, pattern) {
   return cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1;
 }
 
-// --- Extract Dimensions from Message ---
+// --- Extract Dimensions ---
 function extractDimensions(message) {
-  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
-  const match = message.match(dimensionRegex);
+  const regex = /(\d+\.?\d*)\s*(x|by|*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
+  const match = message.match(message);
   if (match) {
     const length = parseFloat(match[1]);
     const width = parseFloat(match[3]);
@@ -147,15 +157,13 @@ function extractDimensions(message) {
 }
 
 // --- Match Labor Cost by Material ---
-function getLaborCostPerSqft(laborData, material) {
-  const materialLower = material.toLowerCase();
-  const laborItem = laborData.find((item) =>
-    item['Quartz Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
-    item['Granite Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
-    item['Marble Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
-    item['Porcelain/Dekton Countertop Fabrication']?.toLowerCase().includes(materialLower)
-  );
-  return laborItem ? parseFloat(laborItem['42.00'] || laborItem['50.00'] || laborItem['60.00'] || laborItem['80.00']) : 10;
+function getLaborCostPerMaterial(laborData, materialType) {
+  const materialLower = materialType.toLowerCase();
+  const laborItem = laborData.find((item) => {
+    const description = item['Quartz Countertop Fabrication'] || '';
+    return description.toLowerCase().includes(materialLower);
+  });
+  return laborItem ? parseFloat(laborItem['42.00']) : 10; // Default $10/sqft
 }
 
 // --- Email Notifications ---
@@ -163,7 +171,7 @@ const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.PASSWORD,
   },
 });
 
@@ -182,35 +190,53 @@ app.post(
       const sessionId = req.body.sessionId || 'anonymous';
       const requestId = req.headers['x-request-id'] || 'unknown';
 
-      // --- Log Request Details ---
+      // --- Log Request ---
       console.log(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
+
+      // --- Fetch Conversation History ---
+      let chatLog = await ChatLog.findOne({ sessionId: sessionId });
+      if (!chatLog) {
+        chatLog = new ChatLog({ sessionId, messages: [] });
+      }
+      const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
 
       // --- Fetch Google Sheets Price List ---
       let priceList = [];
       try {
         priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
       } catch (error) {
-        console.error(`Failed to fetch price list: ${error.message}`);
+        console.error('Failed to fetch price list:', error.message);
       }
 
-      // --- Search for Material in Google Sheets ---
-      let matchedMaterial = priceList.find((item) => {
-        const materialName = item['Color Name'];
-        if (!materialName) return false;
-        const matchesName = fuzzyMatch(materialName, userMessage);
-        const matchesThickness = !userMessage.includes('cm') || userMessage.includes(item.Thickness?.toLowerCase() || '');
-        return matchesName && matchesThickness;
-      });
+      // --- Search for Material ---
+let matchedMaterial = priceList.find((item) => {
+  const materialName = item['Color Name'];
+  const vendorName = item['Vendor Name'];
+  if (!materialName) return false;
 
-      // --- Handle Material Price Query ---
-      if (matchedMaterial) {
-        const material = matchedMaterial['Color Name'];
-        const thickness = matchedMaterial.Thickness || 'unknown';
-        const price = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
-        const materialType = matchedMaterial.Material || 'unknown';
-        let responseMessage = `The price for ${material} (${thickness}, ${materialType}) is $${price.toFixed(2)} per square foot.`;
+  // Match by material name, vendor name, or both
+  const matchesMaterialName = fuzzyMatch(materialName, userMessage);
+  const matchesVendorName = vendorName ? fuzzyMatch(vendorName, userMessage) : false;
+  const matchesName = matchesMaterialName || matchesVendorName;
 
-        // --- Check for Dimensions and Generate Estimate ---
+  // Match thickness if specified in user message
+  const matchesThickness = !userMessage.includes('cm') || userMessage.includes(item.Thickness?.toLowerCase() || '');
+
+  return matchesName && matchesThickness;
+});
+
+// --- Handle Material Price Query ---
+if (matchedMaterial) {
+  const material = matchedMaterial['Color Name'];
+  const vendor = matchedMaterial['Vendor Name'] || 'unknown';
+  const thickness = matchedMaterial.Thickness || 'unknown';
+  const price = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
+  const materialType = matchedMaterial.Material || 'unknown';
+  let responseMessage = `The price for ${material} (${thickness}, ${materialType}, Vendor: ${vendor}) is $${price.toFixed(2)} per square foot.`;
+        // --- Generate Estimate with Dimensions ---
         const dimensions = extractDimensions(req.body.message);
         if (dimensions) {
           const { area } = dimensions;
@@ -222,7 +248,7 @@ app.post(
             const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
             laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
           } catch (error) {
-            console.error(`Failed to fetch labor costs: ${error.message}`);
+            console.error('Failed to fetch labor costs:', error.message);
           }
           const laborCost = area * laborCostPerSqft;
 
@@ -230,15 +256,12 @@ app.post(
           responseMessage += `\nFor a ${dimensions.length} x ${dimensions.width} ft countertop (${area.toFixed(2)} sqft), the estimated cost is $${totalCost.toFixed(2)} (material: $${materialCost.toFixed(2)}, labor: $${laborCost.toFixed(2)}).`;
         }
 
-        // --- Save Chat Log ---
-        const newChatLog = new ChatLog({
-          sessionId,
-          messages: [
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage },
-          ],
-        });
-        await newChatLog.save();
+        // --- Update Chat Log ---
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
 
         return res.json({
           message: responseMessage,
@@ -251,7 +274,26 @@ app.post(
       try {
         shopifyProducts = await fetchShopifyProducts();
       } catch (error) {
-        console.error(`Failed to fetch Shopify products: ${error.message}`);
+        console.error('Failed to fetch Shopify products:', error.message);
+      }
+
+      // --- Handle Sink Queries ---
+      if (userMessage.includes('sink')) {
+        const matchedSink = shopifyProducts.find((product) =>
+          product.title &&
+          fuzzyMatch(product.title, 'sink') &&
+          userMessage.includes(product.title.toLowerCase())
+        );
+        if (matchedSink) {
+          const price = parseFloat(matchedSink.variants[0].price) || 0;
+          const responseMessage = `We offer "${matchedSink.title}" for $${price.toFixed(2)}. Visit your Shopify store to buy.`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({ message: responseMessage });
+        }
       }
 
       const matchedProduct = shopifyProducts.find((product) =>
@@ -261,21 +303,15 @@ app.post(
       if (matchedProduct) {
         const price = parseFloat(matchedProduct.variants[0].price) || 0;
         const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(2)}. Visit your Shopify store to buy.`;
-
-        // --- Save Chat Log ---
-        const newChatLog = new ChatLog({
-          sessionId,
-          messages: [
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage },
-          ],
-        });
-        await newChatLog.save();
-
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
         return res.json({ message: responseMessage });
       }
 
-      // --- Fallback to AI Response ---
+      // --- Fallback to AI Response with Context ---
       const systemPrompt = {
         role: 'system',
         content: `
@@ -283,19 +319,24 @@ app.post(
           - Providing prices for countertop materials from the Google Sheets price list.
           - Offering product information from the Shopify store.
           - Generating quotes for countertops based on material prices and dimensions (e.g., 5x3 ft).
-          - Including labor costs in estimates (assume $10/sqft if unknown).
+          - Including labor costs in estimates using the labor price list (e.g., $42/sqft for Quartz).
+          - Maintaining conversation context using the provided chat history.
+          - For sinks, check Shopify products or suggest contacting support.
           - If no specific material or product is found, suggest contacting support or visiting the store.
         `,
       };
+
+      const messages = [
+        systemPrompt,
+        ...conversationHistory,
+        { role: 'user', content: req.body.message },
+      ];
 
       const aiResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: 'gpt-3.5-turbo',
-          messages: [
-            systemPrompt,
-            { role: 'user', content: req.body.message },
-          ],
+          messages,
           temperature: 0.7,
           max_tokens: 600,
         },
@@ -309,15 +350,12 @@ app.post(
 
       const aiMessage = aiResponse.data.choices[0].message.content;
 
-      // --- Save Chat Log ---
-      const newChatLog = new ChatLog({
-        sessionId,
-        messages: [
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: aiMessage },
-        ],
-      });
-      await newChatLog.save();
+      // --- Update Chat Log ---
+      chatLog.messages.push(
+        { role: 'user', content: req.body.message },
+        { role: 'assistant', content: aiMessage }
+      );
+      await chatLog.save();
 
       res.json({ message: aiMessage });
     } catch (err) {
