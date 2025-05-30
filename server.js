@@ -77,13 +77,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Shopify API Functionality ---
 async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-01/products.json`;
-  const response = await axios.get(url, {
-    headers: {
-      'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-    },
-  });
-  return response.data.products;
+  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`; // Updated to 2024-10
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+      },
+    });
+    return response.data.products;
+  } catch (error) {
+    console.error('Shopify API error:', error.message);
+    throw error;
+  }
 }
 
 // --- Fetch CSV Data ---
@@ -107,6 +112,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// --- Extract Dimensions from Message ---
+function extractDimensions(message) {
+  // Match patterns like "5x3", "5 x 3", "5 by 3", "5*3" (in feet or ft)
+  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
+  const match = message.match(dimensionRegex);
+  if (match) {
+    const length = parseFloat(match[1]);
+    const width = parseFloat(match[3]);
+    return { length, width, area: length * width };
+  }
+  return null;
+}
+
 // --- Chat Endpoint ---
 app.post(
   '/api/chat',
@@ -121,19 +139,51 @@ app.post(
       const userMessage = req.body.message.toLowerCase();
       const sessionId = req.body.sessionId || 'anonymous';
 
-      // --- Fetch Countertops from MongoDB ---
-      const countertops = await Countertop.find();
-      const matchedCountertop = countertops.find(
-        (item) =>
-          userMessage.includes(item.material.toLowerCase()) &&
-          userMessage.includes(item.thickness.toLowerCase())
+      // --- Log User Message ---
+      console.log('User message:', userMessage);
+
+      // --- Fetch Google Sheets Price List ---
+      const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+      
+      // --- Search for Material in Google Sheets ---
+      let matchedMaterial = priceList.find((item) =>
+        userMessage.includes(item.material?.toLowerCase() || '')
       );
 
-      if (matchedCountertop) {
-        const { material, thickness, price_per_sqft: price, image_url } = matchedCountertop;
+      // --- Handle Material Price Query ---
+      if (matchedMaterial) {
+        const { material, thickness, price_per_sqft, image_url } = matchedMaterial;
+        const price = parseFloat(price_per_sqft) || 0;
+        let responseMessage = `The price for ${material} (${thickness}) is $${price.toFixed(2)} per square foot.`;
+
+        // --- Check for Dimensions and Generate Estimate ---
+        const dimensions = extractDimensions(req.body.message);
+        if (dimensions) {
+          const { area } = dimensions;
+          const materialCost = area * price;
+
+          // --- Fetch Labor Costs (assuming CSV has a labor_cost_per_sqft column) ---
+          const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
+          const laborCostPerSqft = parseFloat(laborData[0]?.labor_cost_per_sqft) || 10; // Default $10/sqft if not found
+          const laborCost = area * laborCostPerSqft;
+
+          const totalCost = materialCost + laborCost;
+          responseMessage += `\nFor a ${dimensions.length} x ${dimensions.width} ft countertop (${area.toFixed(2)} sqft), the estimated cost is $${totalCost.toFixed(2)} (material: $${materialCost.toFixed(2)}, labor: $${laborCost.toFixed(2)}).`;
+        }
+
+        // --- Save Chat Log ---
+        const newChatLog = new ChatLog({
+          sessionId,
+          messages: [
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage },
+          ],
+        });
+        await newChatLog.save();
+
         return res.json({
-          message: `The price for ${material} (${thickness}) is $${price} per square foot.`,
-          image: image_url,
+          message: responseMessage,
+          image: image_url || null,
         });
       }
 
@@ -144,27 +194,33 @@ app.post(
       );
 
       if (matchedProduct) {
-        return res.json({
-          message: `You can purchase "${matchedProduct.title}" for $${matchedProduct.variants[0].price}. Here is the link to buy: ${matchedProduct.admin_graphql_api_id}`,
+        const price = parseFloat(matchedProduct.variants[0].price) || 0;
+        const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(2)}. Visit your Shopify store to buy.`;
+
+        // --- Save Chat Log ---
+        const newChatLog = new ChatLog({
+          sessionId,
+          messages: [
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage },
+          ],
         });
+        await newChatLog.save();
+
+        return res.json({ message: responseMessage });
       }
 
-      // --- Save Chat Log to MongoDB ---
-      const newChatLog = new ChatLog({
-        sessionId,
-        messages: [{ role: 'user', content: userMessage }],
-      });
-      await newChatLog.save();
-
-      // --- Generate AI Response ---
+      // --- Fallback to AI Response ---
       const systemPrompt = {
         role: 'system',
         content: `
           You are Surprise Granite's AI assistant and personal shopper. Your tasks include:
-          - Helping users find prices for specific countertops.
-          - Providing product information from the Shopify store.
-          - Generating quotes based on dimensions and material choices.
+          - Providing prices for countertop materials from the Google Sheets price list.
+          - Offering product information from the Shopify store.
+          - Generating quotes for countertops based on material prices and dimensions (e.g., 5x3 ft).
+          - Including labor costs in estimates (assume $10/sqft if unknown).
           - Assisting with appointment requests.
+          - If you don't have specific data, provide a general response and suggest contacting support.
         `,
       };
 
@@ -172,7 +228,10 @@ app.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: 'gpt-3.5-turbo',
-          messages: [systemPrompt, { role: 'user', content: userMessage }],
+          messages: [
+            systemPrompt,
+            { role: 'user', content: req.body.message },
+          ],
           temperature: 0.7,
           max_tokens: 600,
         },
@@ -184,7 +243,19 @@ app.post(
         }
       );
 
-      res.json({ message: aiResponse.data.choices[0].message.content });
+      const aiMessage = aiResponse.data.choices[0].message.content;
+
+      // --- Save Chat Log ---
+      const newChatLog = new ChatLog({
+        sessionId,
+        messages: [
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: aiMessage },
+        ],
+      });
+      await newChatLog.save();
+
+      res.json({ message: aiMessage });
     } catch (err) {
       console.error('Error in /api/chat:', err.message);
       res.status(500).json({
