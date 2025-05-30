@@ -77,7 +77,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Shopify API Functionality ---
 async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}.myshopify.com/admin/api/2023-01/products.json`;
+  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2023-01/products.json`;
   const response = await axios.get(url, {
     headers: {
       'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
