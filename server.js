@@ -7,7 +7,7 @@ const { body, validationResult } = require('express-validator');
 const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
-const path = require('path);
+const path = require('path');
 const nodemailer = require('nodemailer');
 
 // --- Initialize App ---
@@ -17,7 +17,7 @@ const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
 // --- Enable CORS ---
 app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '10mb'}));
+app.use(express.json({ limit: '10mb' }));
 app.set('trust proxy', true);
 
 // --- Validate Environment Variables ---
@@ -46,7 +46,7 @@ REQUIRED_ENV_VARS.forEach((key) => {
 // --- MongoDB Connection ---
 mongoose
   .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected!')))
+  .then(() => console.log('MongoDB connected!'))
   .catch((err) => {
     console.error('MongoDB connection error:', err.message);
     process.exit(1);
@@ -82,7 +82,7 @@ const ChatLog = mongoose.model(
 );
 
 // --- Middleware ---
-app.use(express.json({ limit: '5mb'}));
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Utility Functions ---
