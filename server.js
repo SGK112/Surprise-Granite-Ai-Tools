@@ -77,7 +77,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Shopify API Functionality ---
 async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`; // Updated to 2024-10
+  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
   try {
     const response = await axios.get(url, {
       headers: {
@@ -103,18 +103,15 @@ async function fetchCsvData(url, cacheKey) {
   return data;
 }
 
-// --- Email Notifications ---
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// --- Fuzzy Matching for Material Names ---
+function fuzzyMatch(str, pattern) {
+  const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return cleanStr.includes(cleanPattern) || cleanStr.indexOf(cleanPattern) !== -1;
+}
 
 // --- Extract Dimensions from Message ---
 function extractDimensions(message) {
-  // Match patterns like "5x3", "5 x 3", "5 by 3", "5*3" (in feet or ft)
   const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
   const match = message.match(dimensionRegex);
   if (match) {
@@ -124,6 +121,15 @@ function extractDimensions(message) {
   }
   return null;
 }
+
+// --- Email Notifications ---
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 // --- Chat Endpoint ---
 app.post(
@@ -139,15 +145,15 @@ app.post(
       const userMessage = req.body.message.toLowerCase();
       const sessionId = req.body.sessionId || 'anonymous';
 
-      // --- Log User Message ---
-      console.log('User message:', userMessage);
+      // --- Log User Message and Session ---
+      console.log(`Request ID: ${req.headers['x-request-id'] || 'unknown'}, Session ID: ${sessionId}, User message: ${userMessage}`);
 
       // --- Fetch Google Sheets Price List ---
       const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
       
-      // --- Search for Material in Google Sheets ---
+      // --- Search for Material in Google Sheets with Fuzzy Matching ---
       let matchedMaterial = priceList.find((item) =>
-        userMessage.includes(item.material?.toLowerCase() || '')
+        item.material && fuzzyMatch(item.material, userMessage)
       );
 
       // --- Handle Material Price Query ---
@@ -162,9 +168,9 @@ app.post(
           const { area } = dimensions;
           const materialCost = area * price;
 
-          // --- Fetch Labor Costs (assuming CSV has a labor_cost_per_sqft column) ---
+          // --- Fetch Labor Costs ---
           const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
-          const laborCostPerSqft = parseFloat(laborData[0]?.labor_cost_per_sqft) || 10; // Default $10/sqft if not found
+          const laborCostPerSqft = parseFloat(laborData[0]?.labor_cost_per_sqft) || 10;
           const laborCost = area * laborCostPerSqft;
 
           const totalCost = materialCost + laborCost;
@@ -190,7 +196,7 @@ app.post(
       // --- Fetch Shopify Products ---
       const shopifyProducts = await fetchShopifyProducts();
       const matchedProduct = shopifyProducts.find((product) =>
-        userMessage.includes(product.title.toLowerCase())
+        product.title && fuzzyMatch(product.title, userMessage)
       );
 
       if (matchedProduct) {
@@ -214,13 +220,12 @@ app.post(
       const systemPrompt = {
         role: 'system',
         content: `
-          You are Surprise Granite's AI assistant and personal shopper. Your tasks include:
+          You are Surprise Granite's AI assistant. Your tasks include:
           - Providing prices for countertop materials from the Google Sheets price list.
           - Offering product information from the Shopify store.
           - Generating quotes for countertops based on material prices and dimensions (e.g., 5x3 ft).
           - Including labor costs in estimates (assume $10/sqft if unknown).
-          - Assisting with appointment requests.
-          - If you don't have specific data, provide a general response and suggest contacting support.
+          - If no specific material or product is found, suggest contacting support or visiting the store.
         `,
       };
 
@@ -257,7 +262,7 @@ app.post(
 
       res.json({ message: aiMessage });
     } catch (err) {
-      console.error('Error in /api/chat:', err.message);
+      console.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}):`, err.message);
       res.status(500).json({
         error: 'An error occurred while processing your request. Please try again later.',
         details: err.message,
@@ -271,7 +276,7 @@ app.get('/', (req, res) => {
   res.send('Welcome to the Surprise Granite API!');
 });
 
-// --- Catch-All Route for Undefined Paths ---
+// --- Catch-All Route ---
 app.use((req, res) => {
   res.status(404).send('Page not found. Make sure you are accessing the correct endpoint.');
 });
