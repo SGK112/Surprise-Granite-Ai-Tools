@@ -13,7 +13,7 @@ const nodemailer = require('nodemailer');
 // --- Initialize App ---
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
+const cache = new NodeCache({ stdTTL: 1800 }); // Cache for 30 minutes
 
 // --- Enable Trust Proxy ---
 app.set('trust proxy', 1);
@@ -38,7 +38,7 @@ REQUIRED_ENV_VARS.forEach((key) => {
 
 // --- MongoDB Connection ---
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connected!'))
   .catch((err) => {
     console.error('MongoDB connection error:', err);
@@ -83,7 +83,9 @@ async function fetchShopifyProducts() {
       headers: {
         'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
       },
+      timeout: 10000,
     });
+    console.log('Shopify products fetched:', response.data.products.length);
     return response.data.products;
   } catch (error) {
     console.error('Shopify API error:', error.message);
@@ -94,20 +96,42 @@ async function fetchShopifyProducts() {
 // --- Fetch CSV Data ---
 async function fetchCsvData(url, cacheKey) {
   let data = cache.get(cacheKey);
-  if (!data) {
-    const response = await axios.get(url);
-    if (response.status !== 200) throw new Error(`Failed to fetch data from: ${url}`);
-    data = parse(response.data, { columns: true });
-    cache.set(cacheKey, data);
+  if (data) {
+    console.log(`Cache hit for ${cacheKey}, ${data.length} rows`);
+    return data;
   }
-  return data;
+
+  try {
+    console.log(`Fetching CSV from ${url}`);
+    const response = await axios.get(url, { timeout: 10000 });
+    if (response.status !== 200) {
+      throw new Error(`HTTP ${response.status}: Failed to fetch CSV from ${url}`);
+    }
+    if (!response.data || typeof response.data !== 'string') {
+      throw new Error(`Invalid CSV data from ${url}`);
+    }
+    data = parse(response.data, { columns: true, skip_empty_lines: true, trim: true });
+    if (!data || data.length === 0) {
+      throw new Error(`Empty or invalid CSV from ${url}`);
+    }
+    console.log(`Parsed CSV from ${url}, ${data.length} rows`);
+    console.log(`CSV columns: ${Object.keys(data).join(', ')}`);
+    console.log(`Sample row: ${JSON.stringify(data[0])}`);
+    cache.set(cacheKey, data);
+    return data;
+  } catch (error) {
+    console.error(`Error fetching/parsing CSV (${cacheKey}): ${error.message}`);
+    cache.del(cacheKey);
+    throw error;
+  }
 }
 
 // --- Fuzzy Matching for Material Names ---
 function fuzzyMatch(str, pattern) {
+  if (!str || !pattern) return false;
   const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
   const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return cleanStr.includes(cleanPattern) || cleanStr.indexOf(cleanPattern) !== -1;
+  return cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1;
 }
 
 // --- Extract Dimensions from Message ---
@@ -120,6 +144,18 @@ function extractDimensions(message) {
     return { length, width, area: length * width };
   }
   return null;
+}
+
+// --- Match Labor Cost by Material ---
+function getLaborCostPerSqft(laborData, material) {
+  const materialLower = material.toLowerCase();
+  const laborItem = laborData.find((item) =>
+    item['Quartz Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
+    item['Granite Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
+    item['Marble Countertop Fabrication']?.toLowerCase().includes(materialLower) ||
+    item['Porcelain/Dekton Countertop Fabrication']?.toLowerCase().includes(materialLower)
+  );
+  return laborItem ? parseFloat(laborItem['42.00'] || laborItem['50.00'] || laborItem['60.00'] || laborItem['80.00']) : 10;
 }
 
 // --- Email Notifications ---
@@ -144,23 +180,35 @@ app.post(
     try {
       const userMessage = req.body.message.toLowerCase();
       const sessionId = req.body.sessionId || 'anonymous';
+      const requestId = req.headers['x-request-id'] || 'unknown';
 
-      // --- Log User Message and Session ---
-      console.log(`Request ID: ${req.headers['x-request-id'] || 'unknown'}, Session ID: ${sessionId}, User message: ${userMessage}`);
+      // --- Log Request Details ---
+      console.log(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
 
       // --- Fetch Google Sheets Price List ---
-      const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
-      
-      // --- Search for Material in Google Sheets with Fuzzy Matching ---
-      let matchedMaterial = priceList.find((item) =>
-        item.material && fuzzyMatch(item.material, userMessage)
-      );
+      let priceList = [];
+      try {
+        priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+      } catch (error) {
+        console.error(`Failed to fetch price list: ${error.message}`);
+      }
+
+      // --- Search for Material in Google Sheets ---
+      let matchedMaterial = priceList.find((item) => {
+        const materialName = item['Color Name'];
+        if (!materialName) return false;
+        const matchesName = fuzzyMatch(materialName, userMessage);
+        const matchesThickness = !userMessage.includes('cm') || userMessage.includes(item.Thickness?.toLowerCase() || '');
+        return matchesName && matchesThickness;
+      });
 
       // --- Handle Material Price Query ---
       if (matchedMaterial) {
-        const { material, thickness, price_per_sqft, image_url } = matchedMaterial;
-        const price = parseFloat(price_per_sqft) || 0;
-        let responseMessage = `The price for ${material} (${thickness}) is $${price.toFixed(2)} per square foot.`;
+        const material = matchedMaterial['Color Name'];
+        const thickness = matchedMaterial.Thickness || 'unknown';
+        const price = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
+        const materialType = matchedMaterial.Material || 'unknown';
+        let responseMessage = `The price for ${material} (${thickness}, ${materialType}) is $${price.toFixed(2)} per square foot.`;
 
         // --- Check for Dimensions and Generate Estimate ---
         const dimensions = extractDimensions(req.body.message);
@@ -169,8 +217,13 @@ app.post(
           const materialCost = area * price;
 
           // --- Fetch Labor Costs ---
-          const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
-          const laborCostPerSqft = parseFloat(laborData[0]?.labor_cost_per_sqft) || 10;
+          let laborCostPerSqft = 10;
+          try {
+            const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
+            laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
+          } catch (error) {
+            console.error(`Failed to fetch labor costs: ${error.message}`);
+          }
           const laborCost = area * laborCostPerSqft;
 
           const totalCost = materialCost + laborCost;
@@ -189,12 +242,18 @@ app.post(
 
         return res.json({
           message: responseMessage,
-          image: image_url || null,
+          image: matchedMaterial.image_url || null,
         });
       }
 
       // --- Fetch Shopify Products ---
-      const shopifyProducts = await fetchShopifyProducts();
+      let shopifyProducts = [];
+      try {
+        shopifyProducts = await fetchShopifyProducts();
+      } catch (error) {
+        console.error(`Failed to fetch Shopify products: ${error.message}`);
+      }
+
       const matchedProduct = shopifyProducts.find((product) =>
         product.title && fuzzyMatch(product.title, userMessage)
       );
@@ -279,6 +338,26 @@ app.get('/', (req, res) => {
 // --- Catch-All Route ---
 app.use((req, res) => {
   res.status(404).send('Page not found. Make sure you are accessing the correct endpoint.');
+});
+
+// --- Handle SIGTERM ---
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM. Shutting down gracefully...');
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed.');
+    process.exit(0);
+  });
+});
+
+// --- Global Error Handling ---
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err.message);
+  process.exit(1);
 });
 
 // --- Start Server ---
