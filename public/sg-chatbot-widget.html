@@ -17,9 +17,8 @@
       --bg-message-user: #facc15;
       --bg-message-bot: #f9fafb;
       --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      --keyboard-bg: #e5e7eb;
-      --key-bg: #ffffff;
-      --key-hover: #d1d5db;
+      --border-radius: 1rem;
+      --transition: all 0.2s ease;
     }
 
     * {
@@ -36,45 +35,40 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      padding: 0;
+      padding: 1rem;
     }
 
     .chat-container {
       width: 100%;
       max-width: 450px;
       background-color: var(--text-light);
-      border-radius: 1.5rem;
+      border-radius: var(--border-radius);
       box-shadow: var(--shadow);
       overflow: hidden;
       display: flex;
       flex-direction: column;
       height: 85vh;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-      touch-action: manipulation;
-      position: relative;
-      animation: openChat 0.3s ease-out;
+      transition: var(--transition);
     }
 
     .chat-container.hidden {
       opacity: 0;
-      transform: scale(0.8);
+      transform: translateY(20px);
       display: none;
     }
 
     .chat-header {
       background: linear-gradient(135deg, var(--primary-blue), #3b82f6);
       color: var(--text-light);
-      padding: 0.75rem;
+      padding: 1rem;
       text-align: center;
       font-size: 1.25rem;
       font-weight: 600;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 0.5rem;
-      border-top-left-radius: 1.5rem;
-      border-top-right-radius: 1.5rem;
-      z-index: 10;
+      border-top-left-radius: var(--border-radius);
+      border-top-right-radius: var(--border-radius);
     }
 
     .chat-header img {
@@ -83,31 +77,23 @@
       border-radius: 50%;
     }
 
-    .chat-header .close-header {
-      display: none;
-      color: var(--text-light);
-      font-size: 1.5rem;
-      cursor: pointer;
-      padding: 0.5rem;
-    }
-
     .chat-messages {
       flex: 1;
-      padding: 0.75rem;
+      padding: 1rem;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 1rem;
       -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
     }
 
     .message {
       max-width: 80%;
-      padding: 0.5rem 0.75rem;
-      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: var(--border-radius);
       font-size: 0.95rem;
       line-height: 1.5;
-      position: relative;
       animation: fadeIn 0.3s ease;
     }
 
@@ -115,16 +101,16 @@
       background-color: var(--bg-message-user);
       color: var(--text-dark);
       align-self: flex-end;
-      border-bottom-right-radius: 0;
+      border-bottom-right-radius: 0.25rem;
     }
 
     .message.bot {
       background-color: var(--bg-message-bot);
       color: var(--text-dark);
       align-self: flex-start;
-      border-bottom-left-radius: 0;
-      box-shadow: var(--shadow);
+      border-bottom-left-radius: 0.25rem;
       border-left: 3px solid var(--primary-blue);
+      box-shadow: var(--shadow);
     }
 
     .message.bot img {
@@ -160,109 +146,107 @@
 
     .quick-replies {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      padding: 0.4rem 0.75rem;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
       background-color: var(--bg-light);
-      max-height: 40px;
-      overflow-y: auto;
-      z-index: 10;
+      overflow-x: auto;
+      white-space: nowrap;
+      scroll-behavior: smooth;
     }
 
     .quick-reply {
-      padding: 0.3rem 0.7rem;
+      padding: 0.4rem 0.8rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
-      border-radius: 0.8rem;
-      font-size: 0.75rem;
+      border-radius: var(--border-radius);
+      font-size: 0.8rem;
       cursor: pointer;
-      touch-action: manipulation;
-      transition: background-color 0.2s, transform 0.1s;
+      transition: var(--transition);
+    }
+
+    .quick-reply:hover,
+    .quick-reply:focus {
+      background-color: #1e40af;
+      transform: translateY(-2px);
     }
 
     .quick-reply:active {
       transform: scale(0.95);
     }
 
-    .quick-reply:hover {
-      background-color: #1e40af;
-    }
-
     .chat-input {
       display: flex;
-      padding: 0.5rem;
+      padding: 0.75rem;
       background-color: var(--bg-light);
       border-top: 1px solid #d1d5db;
-      z-index: 10;
     }
 
     .chat-input input {
       flex: 1;
-      padding: 0.6rem;
+      padding: 0.75rem;
       border: 1px solid #d1d5db;
-      border-radius: 1rem;
-      font-size: 0.9rem;
+      border-radius: var(--border-radius);
+      font-size: 1rem;
       outline: none;
-      touch-action: manipulation;
-      background-color: var(--text-light);
+      transition: border-color 0.2s ease;
+    }
+
+    .chat-input input:focus {
+      border-color: var(--primary-yellow);
     }
 
     .chat-input button {
-      padding: 0.6rem 1.5rem;
+      padding: 0.75rem 2rem;
       margin-left: 0.5rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
-      border-radius: 1rem;
+      border-radius: var(--border-radius);
       cursor: pointer;
-      font-size: 0.9rem;
-      min-width: 90px;
-      touch-action: manipulation;
-      transition: background-color 0.2s, transform 0.1s;
+      font-size: 1rem;
+      min-width: 100px;
+      transition: var(--transition);
+    }
+
+    .chat-input button:hover,
+    .chat-input button:focus {
+      background-color: #1e40af;
+      transform: translateY(-2px);
     }
 
     .chat-input button:active {
       transform: scale(0.95);
     }
 
-    .chat-input button:hover {
-      background-color: #1e40af;
-    }
-
     .chat-footer {
       background-color: var(--primary-blue);
-      padding: 0.5rem;
+      padding: 0.75rem;
       display: flex;
       justify-content: center;
-      gap: 1.5rem;
-      border-bottom-left-radius: 1.5rem;
-      border-bottom-right-radius: 1.5rem;
-      z-index: 10;
+      gap: 2rem;
+      border-bottom-left-radius: var(--border-radius);
+      border-bottom-right-radius: var(--border-radius);
     }
 
     .footer-icon {
       color: var(--text-light);
-      font-size: 1.25rem;
+      font-size: 1.5rem;
       text-decoration: none;
-      padding: 0.4rem;
+      padding: 0.5rem;
       border: 2px solid var(--text-light);
       border-radius: 0.5rem;
-      transition: transform 0.2s, color 0.2s, border-color 0.2s;
-      position: relative;
+      transition: var(--transition);
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
-      touch-action: manipulation;
+      width: 40px;
+      height: 40px;
+      position: relative;
     }
 
-    .footer-icon:active {
-      transform: scale(0.95);
-    }
-
-    .footer-icon:hover {
+    .footer-icon:hover,
+    .footer-icon:focus {
       color: var(--primary-yellow);
       border-color: var(--primary-yellow);
       transform: scale(1.1);
@@ -285,7 +269,8 @@
       transition: opacity 0.2s;
     }
 
-    .footer-icon:hover .tooltip {
+    .footer-icon:hover .tooltip,
+    .footer-icon:focus .tooltip {
       visibility: visible;
       opacity: 1;
     }
@@ -305,62 +290,18 @@
       font-size: 1.5rem;
       cursor: pointer;
       box-shadow: var(--shadow);
-      transition: background-color 0.2s, transform 0.2s;
+      transition: var(--transition);
       z-index: 1000;
-      touch-action: manipulation;
     }
 
-    .chat-toggle.hidden {
-      display: none;
-    }
-
-    .chat-toggle:active {
-      transform: scale(0.95);
-    }
-
-    .chat-toggle:hover {
+    .chat-toggle:hover,
+    .chat-toggle:focus {
       background-color: #1e40af;
       transform: scale(1.1);
     }
 
-    .keyboard {
-      display: none;
-      background-color: var(--keyboard-bg);
-      padding: 0.3rem;
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 20;
-      flex-wrap: wrap;
-      gap: 0.2rem;
-    }
-
-    .keyboard-key {
-      flex: 1 1 auto;
-      padding: 0.4rem;
-      background-color: var(--key-bg);
-      border: 1px solid #d1d5db;
-      border-radius: 0.25rem;
-      text-align: center;
-      font-size: 0.9rem;
-      cursor: pointer;
-      touch-action: manipulation;
-      transition: background-color 0.2s;
-      min-width: 10%;
-      max-width: 15%;
-    }
-
-    .keyboard-key:active {
-      background-color: var(--key-hover);
-    }
-
-    .keyboard-key:hover {
-      background-color: var(--key-hover);
-    }
-
-    .keyboard-key.special {
-      min-width: 20%;
+    .chat-toggle:active {
+      transform: scale(0.95);
     }
 
     .modal {
@@ -378,8 +319,8 @@
 
     .modal-content {
       background-color: var(--text-light);
-      padding: 1rem;
-      border-radius: 1rem;
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
       width: 90%;
       max-width: 400px;
       box-shadow: var(--shadow);
@@ -387,7 +328,7 @@
 
     .modal-content h2 {
       font-size: 1.25rem;
-      margin-bottom: 0.75rem;
+      margin-bottom: 1rem;
       color: var(--primary-blue);
     }
 
@@ -399,42 +340,61 @@
     }
 
     .modal-content input,
-    .modal-content select {
+    .modal-content textarea {
       width: 100%;
-      padding: 0.6rem;
-      margin-bottom: 0.75rem;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
       border: 1px solid #d1d5db;
       border-radius: 0.25rem;
-      font-size: 0.9rem;
+      font-size: 1rem;
+      transition: border-color 0.2s ease;
+    }
+
+    .modal-content input:focus,
+    .modal-content textarea:focus {
+      border-color: var(--primary-yellow);
+      outline: none;
+    }
+
+    .modal-content textarea {
+      resize: vertical;
+      min-height: 100px;
     }
 
     .modal-content button {
-      padding: 0.6rem 1.5rem;
+      padding: 0.75rem 1.5rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
       border-radius: 0.25rem;
       cursor: pointer;
-      font-size: 0.9rem;
-      transition: background-color 0.2s, transform 0.1s;
+      font-size: 1rem;
+      transition: var(--transition);
+    }
+
+    .modal-content button:hover,
+    .modal-content button:focus {
+      background-color: #1e40af;
+      transform: translateY(-2px);
     }
 
     .modal-content button:active {
       transform: scale(0.95);
     }
 
-    .modal-content button:hover {
-      background-color: #1e40af;
+    .modal-content button[type="button"] {
+      background-color: #6b7280;
+      margin-left: 0.5rem;
+    }
+
+    .modal-content button[type="button"]:hover,
+    .modal-content button[type="button"]:focus {
+      background-color: #4b5563;
     }
 
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes openChat {
-      from { opacity: 0; transform: scale(0.8); }
-      to { opacity: 1; transform: scale(1); }
     }
 
     @keyframes dots {
@@ -443,107 +403,90 @@
       66% { content: '...'; }
     }
 
-    @media (max-width: 600px) {
-      body {
-        margin: 0;
-        padding: 0;
-        height: 100vh;
-        overflow: hidden;
-      }
-
+    @media (min-width: 600px) {
       .chat-container {
-        max-width: 90vw;
-        width: 90vw;
-        height: 90vh;
-        border-radius: 1rem;
-        margin: 5vh auto;
-        padding: 0;
-        position: fixed;
-        top: 0;
-        left: 5vw;
+        max-width: 600px;
+        height: 80vh;
       }
 
       .chat-header {
-        font-size: 1rem;
-        padding: 0.5rem;
-      }
-
-      .chat-header .close-header {
-        display: block;
+        font-size: 1.5rem;
+        padding: 1.25rem;
       }
 
       .chat-messages {
-        font-size: 0.85rem;
-        padding-bottom: 120px;
+        padding: 1.5rem;
       }
 
-      .quick-replies {
-        max-height: 40px;
-        gap: 0.3rem;
-        padding: 0.3rem 0.5rem;
+      .message {
+        font-size: 1rem;
       }
 
       .quick-reply {
-        font-size: 0.7rem;
-        padding: 0.25rem 0.6rem;
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
       }
 
-      .chat-input {
-        position: fixed;
-        bottom: 150px;
-        left: 5vw;
-        right: 5vw;
-        padding: 0.4rem;
-      }
-
-      .chat-input input {
-        padding: 0.5rem;
-      }
-
+      .chat-input input,
       .chat-input button {
-        padding: 0.5rem 1.2rem;
-        min-width: 80px;
+        font-size: 1.1rem;
       }
 
       .chat-footer {
-        position: fixed;
-        bottom: 0;
-        left: 5vw;
-        right: 5vw;
-        gap: 1rem;
-        padding: 0.4rem;
+        gap: 2.5rem;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .chat-container {
+        max-width: 100%;
+        height: 90vh;
+        border-radius: 0.75rem;
+      }
+
+      .chat-header {
+        font-size: 1.1rem;
+      }
+
+      .message {
+        font-size: 0.9rem;
+      }
+
+      .quick-replies {
+        padding: 0.5rem;
+      }
+
+      .quick-reply {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+      }
+
+      .chat-input input {
+        padding: 0.6rem;
+        font-size: 0.95rem;
+      }
+
+      .chat-input button {
+        padding: 0.6rem 1.5rem;
+        min-width: 90px;
+        font-size: 0.95rem;
+      }
+
+      .chat-footer {
+        gap: 1.5rem;
       }
 
       .footer-icon {
-        font-size: 1.1rem;
-        width: 32px;
-        height: 32px;
+        font-size: 1.25rem;
+        width: 36px;
+        height: 36px;
       }
 
       .chat-toggle {
         bottom: 20px;
         right: 20px;
-      }
-
-      .chat-toggle:not(.hidden) + .chat-container:not(.hidden) ~ .chat-toggle {
-        display: none;
-      }
-
-      .keyboard {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.2rem;
-        padding: 0.3rem;
-        height: 150px;
-        position: fixed;
-        bottom: 0;
-        left: 5vw;
-        right: 5vw;
-      }
-
-      .keyboard-key {
-        font-size: 0.85rem;
-        padding: 0.3rem;
+        width: 48px;
+        height: 48px;
       }
     }
 
@@ -553,17 +496,27 @@
     .quick-reply:focus,
     .footer-icon:focus,
     .modal-content input:focus,
+    .modal-content textarea:focus,
     .modal-content button:focus,
-    .chat-toggle:focus,
-    .keyboard-key:focus,
-    .close-header:focus {
+    .chat-toggle:focus {
       outline: 2px solid var(--primary-yellow);
       outline-offset: 2px;
+    }
+
+    .quick-replies::-webkit-scrollbar,
+    .chat-messages::-webkit-scrollbar {
+      display: none;
+    }
+
+    .quick-replies,
+    .chat-messages {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
 <body>
-  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot">
+  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot" tabindex="0">
     <i class="fas fa-message"></i>
   </div>
 
@@ -571,25 +524,22 @@
     <div class="chat-header">
       <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo">
       Surprise Granite AI
-      <i class="fas fa-times close-header" onclick="toggleChat()" aria-label="Close chatbot"></i>
     </div>
     <div class="chat-messages" id="chatMessages" aria-live="polite">
       <div class="message bot">
-        Welcome to Surprise Granite! How can I assist you today? Ask about our products, explore options, or book an appointment.
+        Welcome to Surprise Granite! How can I assist you today?
         <div class="timestamp" id="welcomeTimestamp"></div>
       </div>
     </div>
     <div class="quick-replies" id="quickReplies">
-      <button class="quick-reply" onclick="sendQuickReply('Show products')">Products</button>
-      <button class="quick-reply" onclick="sendQuickReply('Explore options')">Explore</button>
+      <button class="quick-reply" onclick="sendQuickReply('Show countertop materials')">Countertops</button>
+      <button class="quick-reply" onclick="sendQuickReply('Show sinks')">Sinks</button>
+      <button class="quick-reply" onclick="openSamples()">Samples</button>
       <button class="quick-reply" onclick="openAppointmentModal()">Book Appointment</button>
     </div>
     <div class="chat-input">
       <input type="text" id="userInput" placeholder="Ask about Frost-N pricing..." aria-label="Chat input" autocomplete="off">
       <button onclick="sendMessage()" aria-label="Send message">Send</button>
-    </div>
-    <div class="keyboard" id="keyboard">
-      <!-- Populated by JavaScript -->
     </div>
     <div class="chat-footer" id="chatFooter">
       <!-- Populated by JavaScript -->
@@ -599,7 +549,7 @@
   <div class="modal" id="appointmentModal">
     <div class="modal-content">
       <h2>Book an Appointment</h2>
-      <form id="appointmentForm" action="https://usebasin.com/f/0e1679dd8d79" method="POST">
+      <form id="appointmentForm" action="https://usebasin.com/f/0e9742fed801" method="POST">
         <label for="name">Name</label>
         <input type="text" id="name" name="name" required aria-required="true">
         <label for="email">Email</label>
@@ -612,6 +562,22 @@
     </div>
   </div>
 
+  <div class="modal" id="contactModal">
+    <div class="modal-content">
+      <h2>Contact Us</h2>
+      <form id="contactForm" action="https://usebasin.com/f/0e9742fed801" method="POST">
+        <label for="contactName">Name</label>
+        <input type="text" id="contactName" name="name" required aria-required="true">
+        <label for="contactEmail">Email</label>
+        <input type="email" id="contactEmail" name="email" required aria-required="true">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" required aria-required="true"></textarea>
+        <button type="submit">Submit</button>
+        <button type="button" onclick="closeContactModal()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
   <script>
     const chatContainer = document.getElementById('chatContainer');
     const chatToggle = document.getElementById('chatToggle');
@@ -619,8 +585,8 @@
     const userInput = document.getElementById('userInput');
     const quickReplies = document.getElementById('quickReplies');
     const appointmentModal = document.getElementById('appointmentModal');
+    const contactModal = document.getElementById('contactModal');
     const chatFooter = document.getElementById('chatFooter');
-    const keyboard = document.getElementById('keyboard');
     const sessionId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     let placeholders = [
       'Ask about Frost-N pricing...',
@@ -631,16 +597,60 @@
     let placeholderIndex = 0;
     let inactivityTimer;
     let abandonTimer;
-    let isShift = false;
-    const isMobile = window.innerWidth <= 600;
 
-    // Navigation links (for quick replies only)
+    // Navigation links
     const NAV_LINKS = {
       samples: 'https://store.surprisegranite.com/collections/countertop-samples',
       vendors: 'https://www.surprisegranite.com/company/vendors-list',
       visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
       countertops: 'https://www.surprisegranite.com/materials/all-countertops',
       store: 'https://store.surprisegranite.com/'
+    };
+
+    // Dynamic quick replies based on conversation context
+    const QUICK_REPLY_SETS = {
+      default: [
+        'Countertops',
+        'Sinks',
+        'Samples',
+        'Book Appointment'
+      ],
+      countertops: [
+        'Granite Options',
+        'Quartz Options',
+        'Pricing',
+        'All Countertops'
+      ],
+      sinks: [
+        'Stainless Steel',
+        'Composite',
+        'Undermount',
+        'Pricing'
+      ],
+      samples: [
+        'Order Samples',
+        'View Samples',
+        'Visualizer',
+        'Online Store'
+      ],
+      vendors: [
+        'List Vendors',
+        'Vendor Locations',
+        'Contact Vendor',
+        'Online Store'
+      ],
+      appointment: [
+        'Book Appointment',
+        'View Availability',
+        'Contact Us',
+        'Visualizer'
+      ],
+      inactivity: [
+        'Samples',
+        'All Countertops',
+        'Vendors',
+        'Visualizer'
+      ]
     };
 
     // Load company info
@@ -653,15 +663,15 @@
         const companyInfo = await response.json();
         console.log('Company info loaded:', companyInfo);
         chatFooter.innerHTML = `
-          <a href="tel:${companyInfo.phone || '+16028333189'}" class="footer-icon" aria-label="Call us" title="Call">
+          <a href="tel:${companyInfo.phone}" class="footer-icon" aria-label="Call us" title="Call">
             <i class="fas fa-phone"></i>
             <span class="tooltip">Call Us</span>
           </a>
-          <a href="${companyInfo.messageForm || 'https://usebasin.com/f/0e1679dd8d79'}" class="footer-icon" aria-label="Message us" title="Message" target="_blank" rel="noopener noreferrer">
+          <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
             <i class="fas fa-envelope"></i>
-            <span class="tooltip">Message Us</span>
+            <span class="tooltip">Contact Us</span>
           </a>
-          <a href="${companyInfo.mapUrl || 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379'}" class="footer-icon" aria-label="Get directions" title="Directions" target="_blank" rel="noopener noreferrer">
+          <a href="${companyInfo.mapUrl}" class="footer-icon" aria-label="Get directions" title="Directions">
             <i class="fas fa-map-marker-alt"></i>
             <span class="tooltip">Get Directions</span>
           </a>
@@ -673,11 +683,11 @@
             <i class="fas fa-phone"></i>
             <span class="tooltip">Call Us</span>
           </a>
-          <a href="https://usebasin.com/f/0e1679dd8d79" class="footer-icon" aria-label="Message us" title="Message" target="_blank" rel="noopener noreferrer">
+          <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
             <i class="fas fa-envelope"></i>
-            <span class="tooltip">Message Us</span>
+            <span class="tooltip">Contact Us</span>
           </a>
-          <a href="https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379" class="footer-icon" aria-label="Get directions" title="Directions" target="_blank" rel="noopener noreferrer">
+          <a href="https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379" class="footer-icon" aria-label="Get directions" title="Directions">
             <i class="fas fa-map-marker-alt"></i>
             <span class="tooltip">Get Directions</span>
           </a>
@@ -702,9 +712,10 @@
       console.log('Samples button clicked, redirecting to:', NAV_LINKS.samples);
       try {
         window.open(NAV_LINKS.samples, '_blank');
+        updateQuickReplies('samples');
       } catch (error) {
         console.error('Failed to open samples page:', error);
-        addMessage('Sorry, I couldn’t open the samples page.', false);
+        addMessage('Sorry, I couldn’t open the samples page. Try this link: ' + NAV_LINKS.samples, false);
       }
     }
 
@@ -713,7 +724,7 @@
       clearTimeout(inactivityTimer);
       clearTimeout(abandonTimer);
       inactivityTimer = setTimeout(() => {
-        addMessage('Are you still there? Let me know how I can assist!', false, null, null, ['Products', 'Explore', 'Book Appointment']);
+        addMessage('Are you still there? Let me know how I can assist!', false, null, null, 'inactivity');
         abandonTimer = setTimeout(closeAbandonedChat, 60 * 1000);
       }, 5 * 60 * 1000);
     }
@@ -723,8 +734,6 @@
       chatContainer.classList.add('hidden');
       chatToggle.innerHTML = '<i class="fas fa-message"></i>';
       chatToggle.setAttribute('aria-label', 'Open chatbot');
-      chatToggle.classList.remove('hidden');
-      if (isMobile) keyboard.style.display = 'none';
       try {
         await fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
           method: 'POST',
@@ -742,29 +751,15 @@
     function toggleChat() {
       const isHidden = chatContainer.classList.contains('hidden');
       chatContainer.classList.toggle('hidden', !isHidden);
-      chatToggle.innerHTML = isHidden ? '<i class="fas fa-message"></i>' : '<i class="fas fa-message"></i>';
+      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
       chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
       if (isHidden) {
         userInput.focus();
-        if (isMobile) {
-          keyboard.style.display = 'flex';
-          userInput.setAttribute('readonly', 'readonly');
-          userInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          chatToggle.classList.add('hidden');
-          document.documentElement.requestFullscreen().catch(err => console.error('Fullscreen error:', err));
-        } else {
-          userInput.removeAttribute('readonly');
-          keyboard.style.display = 'none';
-        }
         resetInactivityTimer();
+        updateQuickReplies('default');
       } else {
         clearTimeout(inactivityTimer);
         clearTimeout(abandonTimer);
-        if (isMobile) {
-          keyboard.style.display = 'none';
-          chatToggle.classList.remove('hidden');
-          if (document.fullscreenElement) document.exitFullscreen();
-        }
         fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -774,13 +769,45 @@
     }
 
     chatToggle.addEventListener('click', toggleChat);
+    chatToggle.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        toggleChat();
+      }
+    });
 
-    function addMessage(content, isUser, imageUrl, productUrl, quickRepliesList) {
+    function updateQuickReplies(context) {
+      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.default;
+      quickReplies.innerHTML = replies.map(reply => {
+        let action = `sendQuickReply('${reply}')`;
+        if (reply === 'Samples' || reply === 'View Samples' || reply === 'Order Samples') action = `openSamples()`;
+        if (reply === 'All Countertops') action = `window.open('${NAV_LINKS.countertops}', '_blank')`;
+        if (reply === 'Vendors' || reply === 'List Vendors') action = `window.open('${NAV_LINKS.vendors}', '_blank')`;
+        if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer}', '_blank')`;
+        if (reply === 'Online Store') action = `window.open('${NAV_LINKS.store}', '_blank')`;
+        if (reply === 'Book Appointment') action = `openAppointmentModal()`;
+        if (reply === 'Contact Us' || reply === 'Contact Vendor') action = `openContactModal()`;
+        return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
+      }).join('');
+    }
+
+    function addMessage(content, isUser, imageUrl, productUrl, quickReplyContext) {
       const div = document.createElement('div');
       div.className = `message ${isUser ? 'user' : 'bot'}`;
       
       const contentDiv = document.createElement('div');
-      contentDiv.innerHTML = content; // Supports hyperlinks
+      
+      if (productUrl) {
+        const parts = content.split(productUrl);
+        contentDiv.textContent = parts[0];
+        const link = document.createElement('a');
+        link.href = productUrl;
+        link.textContent = productUrl;
+        link.target = '_blank';
+        contentDiv.appendChild(link);
+        contentDiv.appendChild(document.createTextNode(parts[1] || ''));
+      } else {
+        contentDiv.textContent = content;
+      }
 
       div.appendChild(contentDiv);
 
@@ -798,15 +825,9 @@
 
       chatMessages.appendChild(div);
 
-      // Update quick replies
-      if (quickRepliesList && quickRepliesList.length) {
-        quickReplies.innerHTML = quickRepliesList.map(reply => {
-          let action = `sendQuickReply('${reply}')`;
-          if (reply === 'Samples') action = `openSamples()`;
-          if (reply === 'Book Appointment') action = `openAppointmentModal()`;
-          if (reply === 'Online Store') action = `window.open('${NAV_LINKS.store}', '_blank')`;
-          return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
-        }).join('');
+      // Update quick replies based on context
+      if (quickReplyContext) {
+        updateQuickReplies(quickReplyContext);
       }
 
       chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -844,34 +865,52 @@
         });
         const data = await response.json();
         showTypingIndicator(false);
-        addMessage(data.message, false, data.image, data.productUrl, data.quickReplies || ['Products', 'Explore', 'Book Appointment']);
+        
+        // Determine quick reply context based on response
+        let context = 'default';
+        if (message.toLowerCase().includes('countertop')) context = 'countertops';
+        else if (message.toLowerCase().includes('sink')) context = 'sinks';
+        else if (message.toLowerCase().includes('vendor')) context = 'vendors';
+        else if (message.toLowerCase().includes('appointment')) context = 'appointment';
+        else if (data.quickReplies && data.quickReplies.length) context = data.quickReplies[0].toLowerCase();
+
+        addMessage(data.message, false, data.image, data.productUrl, context);
         quickReplies.style.display = 'flex';
       } catch (error) {
         console.error('Chat error:', error);
         showTypingIndicator(false);
-        addMessage('Sorry, something went wrong. Please try again.', false, null, null, ['Products', 'Explore', 'Book Appointment']);
+        addMessage('Sorry, something went wrong. Please try again.', false, null, null, 'default');
         quickReplies.style.display = 'flex';
       }
     }
 
     function sendQuickReply(message) {
-      let query = message;
-      if (message === 'Products') query = 'Show products';
-      if (message === 'Explore') query = 'Explore options';
-      userInput.value = query;
+      userInput.value = message;
       sendMessage();
     }
 
     function openAppointmentModal() {
       appointmentModal.style.display = 'flex';
       document.getElementById('name').focus();
-      if (isMobile) keyboard.style.display = 'none';
+      updateQuickReplies('appointment');
     }
 
     function closeAppointmentModal() {
       appointmentModal.style.display = 'none';
       document.getElementById('appointmentForm').reset();
-      if (isMobile) keyboard.style.display = 'flex';
+      updateQuickReplies('default');
+    }
+
+    function openContactModal() {
+      contactModal.style.display = 'flex';
+      document.getElementById('contactName').focus();
+      updateQuickReplies('default');
+    }
+
+    function closeContactModal() {
+      contactModal.style.display = 'none';
+      document.getElementById('contactForm').reset();
+      updateQuickReplies('default');
     }
 
     async function handleAppointmentSubmit(e) {
@@ -887,7 +926,7 @@
           body: new FormData(form),
         });
         if (response.ok) {
-          addMessage(`Appointment booked for ${name} on ${date}! We'll confirm via email.`, false);
+          addMessage(`Appointment booked for ${name} on ${date}! We'll confirm via email.`, false, null, null, 'appointment');
           let chatLog = await ChatLog.findOne({ sessionId });
           if (!chatLog) {
             chatLog = new ChatLog({ sessionId, messages: [] });
@@ -904,30 +943,52 @@
         closeAppointmentModal();
       } catch (error) {
         console.error('Appointment error:', error);
-        addMessage('Sorry, we couldn’t book your appointment. Please try again.', false);
+        addMessage('Sorry, we couldn’t book your appointment. Please try again.', false, null, null, 'appointment');
       }
     }
 
-    userInput.addEventListener('click', () => {
-      if (isMobile) {
-        keyboard.style.display = 'flex';
-        userInput.setAttribute('readonly', 'readonly');
-        userInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      } else {
-        userInput.removeAttribute('readonly');
-        keyboard.style.display = 'none';
+    async function handleContactSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('contactName').value;
+      const email = document.getElementById('contactEmail').value;
+      const message = document.getElementById('message').value;
+
+      try {
+        const form = document.getElementById('contactForm');
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+        });
+        if (response.ok) {
+          addMessage(`Thank you, ${name}! Your message has been sent. We'll get back to you soon.`, false, null, null, 'default');
+          let chatLog = await ChatLog.findOne({ sessionId });
+          if (!chatLog) {
+            chatLog = new ChatLog({ sessionId, messages: [] });
+          }
+          chatLog.messages.push({
+            role: 'system',
+            content: `Contact form submitted: ${name}, ${email}, ${message}`,
+          });
+          await chatLog.save();
+        } else {
+          throw new Error('Basin submission failed');
+        }
+        closeContactModal();
+      } catch (error) {
+        console.error('Contact form error:', error);
+        addMessage('Sorry, we couldn’t send your message. Please try again.', false, null, null, 'default');
       }
-    });
+    }
 
     userInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
 
     document.getElementById('appointmentForm').addEventListener('submit', handleAppointmentSubmit);
+    document.getElementById('contactForm').addEventListener('submit', handleContactSubmit);
 
-    // Initialize company info and keyboard
+    // Initialize company info
     loadCompanyInfo();
-    initKeyboard();
   </script>
 </body>
 </html>
