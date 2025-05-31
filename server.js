@@ -8,7 +8,6 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
-const nodemailer = require('nodemailer');
 
 // --- Initialize App ---
 const app = express();
@@ -26,8 +25,6 @@ const REQUIRED_ENV_VARS = [
   'SHOPIFY_ACCESS_TOKEN',
   'SHOPIFY_SHOP',
   'OPENAI_API_KEY',
-  'EMAIL_USER',
-  'EMAIL_PASS',
 ];
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
@@ -149,24 +146,19 @@ function extractDimensions(message) {
 function getLaborCostPerSqft(laborData, materialType) {
   const materialLower = materialType.toLowerCase();
   const laborItem = laborData.find((item) => {
-    const description = Object.values(item)[1] || ''; // Column 2 (e.g., "Quartz Countertop Fabrication")
+    const description = item[Object.keys(item)[1]] || ''; // Column 2 (e.g., "Quartz Countertop Fabrication")
     return description.toLowerCase().includes(materialLower);
   });
   if (laborItem) {
-    const cost = parseFloat(Object.values(laborItem)[3]); // Column 4 (e.g., 42.00)
-    return isNaN(cost) ? 10 : cost;
+    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]); // Column 4 (e.g., 42.00)
+    if (!isNaN(cost)) {
+      console.log(`Labor cost for ${materialType}: $${cost}/sqft`);
+      return cost;
+    }
   }
-  return 10; // Default $10/sqft
+  console.log(`No labor cost found for ${materialType}, using default $26/sqft`);
+  return 26; // Default $26/sqft
 }
-
-// --- Email Notifications ---
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
 
 // --- Appointment Endpoint ---
 app.post('/api/appointment', async (req, res) => {
@@ -187,17 +179,37 @@ app.post('/api/appointment', async (req, res) => {
     });
     await chatLog.save();
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: 'info@surprisegranite.com',
-      subject: 'New Appointment Request',
-      text: `Name: ${name}\nEmail: ${email}\nDate: ${date}`,
+    // Send to Basin form
+    await axios.post('https://usebasin.com/f/0e9742fed801', {
+      name,
+      email,
+      date,
     });
 
-    res.json({ message: `Appointment booked for ${name} on ${date}! We'll confirm via email.` });
+    const responseMessage = `Appointment booked for ${name} on ${date}! We'll confirm via email.`;
+    chatLog.messages.push({
+      role: 'assistant',
+      content: responseMessage,
+    });
+    await chatLog.save();
+
+    res.json({ message: responseMessage });
   } catch (error) {
     console.error('Appointment error:', error.message);
     res.status(500).json({ error: 'Failed to book appointment. Please try again.' });
+  }
+});
+
+// --- Chat Logs Endpoint ---
+app.get('/api/chatlogs', async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    const query = sessionId ? { sessionId } : {};
+    const logs = await ChatLog.find(query).limit(100).sort({ updatedAt: -1 });
+    res.json(logs);
+  } catch (error) {
+    console.error('Chat logs error:', error.message);
+    res.status(500).json({ error: 'Failed to retrieve chat logs.' });
   }
 });
 
@@ -255,7 +267,10 @@ app.post(
             { role: 'assistant', content: responseMessage }
           );
           await chatLog.save();
-          return res.json({ message: responseMessage });
+          return res.json({
+            message: responseMessage,
+            quickReplies: ['Show countertop materials', 'Show sinks', 'Contact support']
+          });
         }
 
         let responseMessage = `The price for ${material} (${thickness}, ${materialType}) is $${price.toFixed(2)} per square foot.`;
@@ -265,7 +280,7 @@ app.post(
           const { area } = dimensions;
           const materialCost = area * price;
 
-          let laborCostPerSqft = 10;
+          let laborCostPerSqft = 26;
           try {
             const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
             laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
@@ -287,6 +302,7 @@ app.post(
         return res.json({
           message: responseMessage,
           image: matchedMaterial.image_url || null,
+          quickReplies: ['Get a quote', 'Show other materials', 'Contact support']
         });
       }
 
@@ -300,18 +316,26 @@ app.post(
       if (userMessage.includes('sink')) {
         const matchedSink = shopifyProducts.find((product) =>
           product.title &&
-          fuzzyMatch(product.title, 'sink') &&
-          userMessage.includes(product.title.toLowerCase())
+          fuzzyMatch(product.title, userMessage) &&
+          userMessage.includes('sink')
         );
         if (matchedSink) {
           const price = parseFloat(matchedSink.variants[0].price) || 0;
-          const responseMessage = `We offer "${matchedSink.title}" for $${price.toFixed(2)}. Visit your Shopify store to buy.`;
+          const productUrl = matchedSink.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedSink.handle}`;
+          const imageUrl = matchedSink.image?.src || null;
+          console.log(`Matched sink: ${matchedSink.title}`);
+          const responseMessage = `We offer "${matchedSink.title}" for $${price.toFixed(2)}. View it here: ${productUrl}`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
           );
           await chatLog.save();
-          return res.json({ message: responseMessage });
+          return res.json({
+            message: responseMessage,
+            image: imageUrl,
+            productUrl,
+            quickReplies: ['Show more sinks', 'Get a quote', 'Contact support']
+          });
         }
       }
 
@@ -321,13 +345,21 @@ app.post(
 
       if (matchedProduct) {
         const price = parseFloat(matchedProduct.variants[0].price) || 0;
-        const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(2)}. Visit your Shopify store to buy.`;
+        const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
+        const imageUrl = matchedProduct.image?.src || null;
+        console.log(`Matched product: ${matchedProduct.title}`);
+        const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(2)}. View it here: ${productUrl}`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
         );
         await chatLog.save();
-        return res.json({ message: responseMessage });
+        return res.json({
+          message: responseMessage,
+          image: imageUrl,
+          productUrl,
+          quickReplies: ['Show similar products', 'Get a quote', 'Contact support']
+        });
       }
 
       const systemPrompt = {
@@ -390,7 +422,10 @@ app.post(
       );
       await chatLog.save();
 
-      res.json({ message: aiMessage });
+      res.json({
+        message: aiMessage,
+        quickReplies: ['Show countertop materials', 'Show sinks', 'Book appointment']
+      });
     } catch (err) {
       console.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}):`, err.message);
       res.status(500).json({
