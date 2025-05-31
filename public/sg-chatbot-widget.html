@@ -587,24 +587,23 @@
     };
 
     const QUICK_REPLY_SETS = {
-      initial: ['Get Estimate', 'Products', 'Explore', 'Book Appointment'],
-      countertops: ['Granite', 'Quartz', 'Other Materials', 'Get Estimate'],
+      initial: ['Countertops', 'Sinks', 'Request Sample', 'Get Quote'],
+      countertops: ['Granite', 'Quartz', 'Other Materials', 'Pricing'],
       style: ['Modern', 'Traditional', 'Rustic', 'Custom'],
-      countertop_layout: ['U-shaped', 'Galley', 'L-shape', 'Plateau', 'Bar Top'],
+      countertop_layout: ['L-Shape', 'U-Shape', 'Straight', 'Island'],
       countertop_dimensions: ['Provide Dimensions', 'Estimate', 'Skip'],
       countertop_demo: ['Demolition Needed', 'No Demolition', 'Unsure'],
       sinks: ['Stainless Steel', 'Composite', 'Undermount', 'Browse Sinks'],
       samples: ['Order Samples', 'View Samples', 'Shop Online', 'Contact Us'],
-      pricing: ['Get Estimate', 'Products', 'Explore', 'Book Appointment'],
+      pricing: ['Countertop Pricing', 'Sink Pricing', 'Repair Pricing', 'Save Quote'],
       shopify: ['Track Order', 'Shipping Info', 'Returns', 'Shop Online'],
       appointment: ['Book Appointment', 'View Availability', 'Contact Us', 'Shop Online'],
-      inactivity: ['Get Estimate', 'Products', 'Explore', 'Book Appointment'],
+      inactivity: ['Request Sample', 'Countertops', 'Sinks', 'Shop Online'],
       quote_material: ['Granite', 'Quartz', 'Other'],
       quote_backsplash: ['4 inches', '6 inches', 'Custom', 'None'],
-      quote_edge: ['Flat Polished', 'Bullnose', 'Ogee', 'Waterfall'],
+      quote_edge: ['Flat Polish', 'Bullnose', 'Ogee', 'Waterfall'],
       quote_cutouts: ['Sink', 'Faucet', 'None', 'Other'],
-      quote_demo: ['Demolition Needed', 'No Demolition'],
-      feedback: ['Great', 'High', 'Low', 'Get Estimate']
+      quote_demo: ['Demolition Needed', 'No Demolition']
     };
 
     let quoteState = {
@@ -627,7 +626,6 @@
     const sessionId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     let placeholders = ['Ask about Frost-N pricing...', 'Need a sink recommendation?', 'Get a countertop quote...', 'Request a sample...'];
     let placeholderIndex = 0;
-    const SERVER_URL = 'https://surprise-granite-connections-dev.onrender.com'; // Replace with your deployed URL
 
     // Core functions
     function sendQuickReply(message) {
@@ -658,8 +656,8 @@
         quoteWizardStage = 'lead';
         openLeadModal();
       } else {
-        quoteWizardStage = 'layout';
-        addMessage('Let’s get started on your countertop estimate! What’s the layout? Choose from U-shaped, Galley, L-shape, Plateau, or Bar Top.', false, null, 'countertop_layout');
+        quoteWizardStage = 'material';
+        sendQuickReply('Get Quote');
       }
     }
 
@@ -735,6 +733,210 @@
       if (chatContainer) chatContainer.focus();
     }
 
+    async function sendEmail(formData, type, retries = 2) {
+      console.log(`Attempting to send ${type} email`, formData);
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          const response = await fetch('https://your-nodemailer-server.com/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type,
+              data: formData,
+              to: 'your-email@surprisegranite.com',
+              from: 'noreply@surprisegranite.com'
+            })
+          });
+          if (!response.ok) throw new Error(`Nodemailer failed: ${response.status} - ${await response.text()}`);
+          console.log(`Email sent via Nodemailer (attempt ${attempt})`);
+          return true;
+        } catch (error) {
+          console.error(`Nodemailer error (attempt ${attempt}):`, error.message);
+          if (attempt === retries) {
+            try {
+              const formDataObj = new FormData();
+              for (const key in formData) {
+                formDataObj.append(key, formData[key]);
+              }
+              const basinResponse = await fetch('https://usebasin.com/f/0e9742fed801', {
+                method: 'POST',
+                body: formDataObj
+              });
+              if (!basinResponse.ok) throw new Error(`UseBasin failed: ${basinResponse.status} - ${await basinResponse.text()}`);
+              console.log('Email sent via UseBasin');
+              return true;
+            } catch (basinError) {
+              console.error('UseBasin error:', basinError.message);
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    async function verifyNodemailer() {
+      try {
+        const response = await fetch('https://your-nodemailer-server.com/verify');
+        if (!response.ok) throw new Error(`Verification failed: ${response.status} - ${await response.text()}`);
+        const result = await response.json();
+        console.log('Nodemailer settings verified:', result);
+        return true;
+      } catch (error) {
+        console.error('Nodemailer verification error:', error.message);
+        return false;
+      }
+    }
+
+    async function createCalendarEvent(formData) {
+      console.log('Creating calendar event', formData);
+      try {
+        const response = await fetch('https://your-nodemailer-server.com/calendar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summary: `Appointment with ${formData.name}`,
+            description: `Email: ${formData.email}, Phone: ${formData.phone || 'N/A'}`,
+            start: {
+              dateTime: new Date(`${formData.date}T${formData.time}:00`).toISOString(),
+              timeZone: 'America/Phoenix'
+            },
+            end: {
+              dateTime: new Date(new Date(`${formData.date}T${formData.time}:00`).setHours(new Date(`${formData.date}T${formData.time}:00`).getHours() + 1)).toISOString(),
+              timeZone: 'America/Phoenix'
+            },
+            attendees: [{ email: formData.email }]
+          })
+        });
+        if (!response.ok) throw new Error(`Calendar event creation failed: ${response.status} - ${await response.text()}`);
+        console.log('Calendar event created');
+        return true;
+      } catch (error) {
+        console.error('Calendar error:', error.message);
+        return false;
+      }
+    }
+
+    async function fetchPriceSheet() {
+      try {
+        const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/prices');
+        if (!response.ok) throw new Error(`Failed to fetch price sheet: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('Price sheet error:', error.message);
+        return {
+          materials: [
+            { type: 'Granite', costPerSqFt: 40, costPerSqFtMax: 100 },
+            { type: 'Quartz', costPerSqFt: 50, costPerSqFtMax: 120 }
+          ],
+          labor: [
+            { type: 'Fabrication', costPerSqFt: 30, costPerSqFtMax: 50 },
+            { type: 'Installation', costPerSqFt: 10, costPerSqFtMax: 30 },
+            { type: 'Demolition', costPerSqFt: 30, costPerSqFtMax: 50 }
+          ],
+          cutouts: [
+            { type: 'Sink', cost: 100 },
+            { type: 'Faucet', cost: 30 }
+          ],
+          edges: [
+            { type: 'Flat Polish', costPerLinearFt: 0 },
+            { type: 'Bullnose', costPerLinearFt: 15 },
+            { type: 'Ogee', costPerLinearFt: 25 },
+            { type: 'Waterfall', costPerLinearFt: 50 }
+          ]
+        };
+      }
+    }
+
+    function calculateQuote(priceSheet) {
+      console.log('Calculating quote', quoteState);
+      let totalCostMin = 0;
+      let totalCostMax = 0;
+      let totalSqFt = 0;
+      let totalLinearFt = 0;
+      let details = [];
+
+      quoteState.dimensions.forEach((section, index) => {
+        const length = parseFloat(section.length) || 0;
+        const width = parseFloat(section.width) || 0;
+        const sqFt = (length * width) / 144;
+        totalSqFt += sqFt;
+        totalLinearFt += length / 12;
+        details.push(`Section ${index + 1}: ${length}" x ${width}" = ${sqFt.toFixed(2)} sqft`);
+      });
+
+      totalSqFt *= 1.15;
+      details.push(`Waste (15%): ${(totalSqFt * 0.15).toFixed(2)} sqft`);
+      details.push(`Total Countertop: ${totalSqFt.toFixed(2)} sqft`);
+
+      const material = priceSheet.materials.find(m => m.type === quoteState.material) || priceSheet.materials[0];
+      const materialCostMin = totalSqFt * material.costPerSqFt;
+      const materialCostMax = totalSqFt * material.costPerSqFtMax;
+      totalCostMin += materialCostMin;
+      totalCostMax += materialCostMax;
+      details.push(`${quoteState.material} (${material.costPerSqFt}-${material.costPerSqFtMax}/sqft): $${materialCostMin.toFixed(2)}-${materialCostMax.toFixed(2)}`);
+
+      if (quoteState.backsplash.height && quoteState.backsplash.linearFeet) {
+        const backsplashSqFt = (quoteState.backsplash.height * quoteState.backsplash.linearFeet) / 12;
+        totalSqFt += backsplashSqFt;
+        const backsplashCostMin = backsplashSqFt * material.costPerSqFt;
+        const backsplashCostMax = backsplashSqFt * material.costPerSqFtMax;
+        totalCostMin += backsplashCostMin;
+        totalCostMax += backsplashCostMax;
+        details.push(`Backsplash (${quoteState.backsplash.height}" x ${quoteState.backsplash.linearFeet}'): ${backsplashSqFt.toFixed(2)} sqft, $${backsplashCostMin.toFixed(2)}-${backsplashCostMax.toFixed(2)}`);
+      }
+
+      const fabLabor = priceSheet.labor.find(l => l.type === 'Fabrication');
+      const instLabor = priceSheet.labor.find(l => l.type === 'Installation');
+      const fabCostMin = totalSqFt * fabLabor.costPerSqFt;
+      const fabCostMax = totalSqFt * fabLabor.costPerSqFtMax;
+      const instCostMin = totalSqFt * instLabor.costPerSqFt;
+      const instCostMax = totalSqFt * instLabor.costPerSqFtMax;
+      totalCostMin += fabCostMin + instCostMin;
+      totalCostMax += fabCostMax + instCostMax;
+      details.push(`Fabrication (${fabLabor.costPerSqFt}-${fabLabor.costPerSqFtMax}/sqft): $${fabCostMin.toFixed(2)}-${fabCostMax.toFixed(2)}`);
+      details.push(`Installation (${instLabor.costPerSqFt}-${instLabor.costPerSqFtMax}/sqft): $${instCostMin.toFixed(2)}-${instCostMax.toFixed(2)}`);
+
+      if (quoteState.demo === 'Demolition Needed') {
+        const demoLabor = priceSheet.labor.find(l => l.type === 'Demolition');
+        const demoCostMin = totalSqFt * demoLabor.costPerSqFt;
+        const demoCostMax = totalSqFt * demoLabor.costPerSqFtMax;
+        totalCostMin += demoCostMin;
+        totalCostMax += demoCostMax;
+        details.push(`Demolition (${demoLabor.costPerSqFt}-${demoLabor.costPerSqFtMax}/sqft): $${demoCostMin.toFixed(2)}-${demoCostMax.toFixed(2)}`);
+      }
+
+      if (quoteState.edge) {
+        const edge = priceSheet.edges.find(e => e.type === quoteState.edge) || priceSheet.edges[0];
+        const edgeCost = totalLinearFt * edge.costPerLinearFt;
+        totalCostMin += edgeCost;
+        totalCostMax += edgeCost;
+        details.push(`${quoteState.edge} Edge (${edge.costPerLinearFt}/linear ft): $${edgeCost.toFixed(2)}`);
+      }
+
+      quoteState.cutouts.forEach(cutout => {
+        const cutoutType = priceSheet.cutouts.find(c => c.type === cutout.type);
+        if (cutoutType) {
+          totalCostMin += cutoutType.cost;
+          totalCostMax += cutoutType.cost;
+          details.push(`${cutout.type} Cutout: $${cutoutType.cost.toFixed(2)}`);
+        }
+      });
+
+      const miscCostMin = totalCostMin * 0.1;
+      const miscCostMax = totalCostMax * 0.1;
+      totalCostMin += miscCostMin;
+      totalCostMax += miscCostMax;
+      details.push(`Miscellaneous (10%): $${miscCostMin.toFixed(2)}-${miscCostMax.toFixed(2)}`);
+
+      quoteState.quote = {
+        totalCostMin: totalCostMin.toFixed(2),
+        totalCostMax: totalCostMax.toFixed(2),
+        details
+      };
+
+      return quoteState.quote;
+    }
+
     async function loadCompanyInfo() {
       try {
         const response = await fetch('/public/companyInfo.json');
@@ -802,7 +1004,7 @@
         chatToggle.setAttribute('aria-label', 'Open chatbot');
       }
       try {
-        await fetch(`${SERVER_URL}/api/close-chat`, {
+        await fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, abandoned: true })
@@ -831,7 +1033,7 @@
       } else {
         clearTimeout(inactivityTimer);
         clearTimeout(abandonTimer);
-        fetch(`${SERVER_URL}/api/close-chat`, {
+        fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, abandoned: false })
@@ -846,14 +1048,14 @@
       const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
       quickReplies.innerHTML = replies.map(reply => {
         let action = `sendQuickReply('${reply}')`;
-        if (reply === 'Order Samples' || reply === 'View Samples') action = `openSamples()`;
+        if (reply === 'Request Sample' || reply === 'Order Samples' || reply === 'View Samples') action = `openSamples()`;
         if (reply === 'All Countertops' || reply === 'Other Materials') action = `window.open('${NAV_LINKS.countertops.url}', '_blank')`;
         if (reply === 'Vendors') action = `window.open('${NAV_LINKS.vendors.url}', '_blank')`;
         if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer.url}', '_blank')`;
         if (reply === 'Shop Online' || reply === 'Browse Sinks') action = `window.open('${NAV_LINKS.store.url}', '_blank')`;
         if (reply === 'Book Appointment') action = `openAppointmentModal()`;
         if (reply === 'Contact Us') action = `openContactModal()`;
-        if (reply === 'Get Estimate' || reply === 'Save Quote') action = `startQuoteWizard()`;
+        if (reply === 'Get Quote' || reply === 'Save Quote') action = `startQuoteWizard()`;
         return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
       }).join('');
     }
@@ -924,64 +1126,102 @@
 
       try {
         if (quoteWizardStage) {
-          if (quoteWizardStage === 'layout') {
-            const layouts = ['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'];
-            if (layouts.some(layout => message.toLowerCase().includes(layout))) {
-              quoteState.layout = layouts.find(layout => message.toLowerCase().includes(layout));
+          if (quoteWizardStage === 'material') {
+            if (['Granite', 'Quartz', 'Other'].includes(message)) {
+              quoteState.material = message === 'Other' ? 'Granite' : message;
               quoteWizardStage = 'dimensions';
-              responseMessage = `Got it, a ${quoteState.layout} countertop! What are the dimensions in feet? (e.g., "5x3 ft" or multiple like "5x3 ft, 4x2 ft")`;
+              responseMessage = `Great choice with ${quoteState.material}, ${quoteState.user.name || 'friend'}! Now, let’s get your countertop measurements. Please provide the length and width in inches for each section (e.g., "Section 1: 72 x 24"). If you have multiple sections like an L-shape or island, list them separately.`;
               context = 'countertop_dimensions';
             } else {
-              responseMessage = `Please specify a layout, such as U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
-              context = 'countertop_layout';
+              responseMessage = `Please select a material: Granite ($40-$100/sqft), Quartz ($50-$120/sqft), or Other.`;
+              context = 'quote_material';
             }
           } else if (quoteWizardStage === 'dimensions') {
-            const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
-            const matches = [...message.matchAll(dimensionRegex)];
-            if (matches.length > 0) {
-              quoteState.dimensions = matches.map(match => ({
-                length: parseFloat(match[1]),
-                width: parseFloat(match[3])
-              }));
-              quoteWizardStage = 'material';
-              responseMessage = `Thanks for the dimensions! Now, which material would you like? Popular choices include Sparkling White Quartz or Silver Cloud Granite. Browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
-              context = 'quote_material';
+            if (message.toLowerCase().includes('section') || message.match(/\d+\s*x\s*\d+/)) {
+              const sections = message.split(/section\s*\d+:/i).filter(s => s.trim());
+              quoteState.dimensions = sections.map(s => {
+                const [length, width] = s.trim().split('x').map(n => n.trim());
+                return { length, width };
+              });
+              quoteWizardStage = 'backsplash';
+              responseMessage = `Thanks! Do you want a backsplash? Options are 4 inches, 6 inches, custom height, or none. If choosing a height, please provide the linear feet (e.g., "4 inches, 10 linear feet").`;
+              context = 'quote_backsplash';
             } else {
-              responseMessage = `Please provide dimensions in feet, like "5x3 ft" or multiple sections like "5x3 ft, 4x2 ft".`;
+              responseMessage = `Please provide measurements for each countertop section in inches (e.g., "Section 1: 72 x 24"). List multiple sections if needed.`;
               context = 'countertop_dimensions';
             }
-          } else if (quoteWizardStage === 'material') {
-            try {
-              const response = await fetch(`${SERVER_URL}/api/estimate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  layout: quoteState.layout,
-                  dimensions: quoteState.dimensions,
-                  material: message,
-                  sessionId
-                })
-              });
-              const data = await response.json();
-              if (response.ok) {
-                responseMessage = data.message;
-                context = 'feedback';
-                quoteWizardStage = null;
-              } else {
-                responseMessage = `I couldn’t find that material. Try a name like "Sparkling White" or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>. What material are you thinking of?`;
-                context = 'quote_material';
+          } else if (quoteWizardStage === 'backsplash') {
+            if (message.toLowerCase().includes('inch') || message.toLowerCase().includes('none')) {
+              if (!message.toLowerCase().includes('none')) {
+                const heightMatch = message.match(/(\d+)\s*inch/i);
+                const linearFeetMatch = message.match(/(\d+)\s*linear\s*feet/i);
+                quoteState.backsplash.height = heightMatch ? parseInt(heightMatch[1]) : null;
+                quoteState.backsplash.linearFeet = linearFeetMatch ? parseInt(linearFeetMatch[1]) : null;
               }
-            } catch (error) {
-              console.error('Estimate error:', error);
-              responseMessage = `Sorry, I couldn’t process the estimate. Please try again or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
-              context = 'quote_material';
+              quoteWizardStage = 'edge';
+              responseMessage = `Got it! What edge treatment would you like? Options are Flat Polished, Bullnose, Ogee, or Waterfall.`;
+              context = 'quote_edge';
+            } else {
+              responseMessage = `Please specify a backsplash height (e.g., "4 inches, 10 linear feet") or choose "None".`;
+              context = 'quote_backsplash';
+            }
+          } else if (quoteWizardStage === 'edge') {
+            if (['Flat Polished', 'Bullnose', 'Ogee', 'Waterfall'].includes(message)) {
+              quoteState.edge = message;
+              quoteWizardStage = 'cutouts';
+              responseMessage = `Nice, ${quoteState.edge} edge selected! Do you need any cutouts, like for a sink or faucet? Choose Sink, Faucet, None, or Other.`;
+              context = 'quote_cutouts';
+            } else {
+              responseMessage = `Please select an edge treatment: Flat Polished, Bullnose, Ogee, or Waterfall.`;
+              context = 'quote_edge';
+            }
+          } else if (quoteWizardStage === 'cutouts') {
+            if (['Sink', 'Faucet', 'None', 'Other'].includes(message)) {
+              if (message !== 'None') {
+                quoteState.cutouts.push({ type: message === 'Other' ? 'Sink' : message });
+              }
+              quoteWizardStage = message === 'None' ? 'demo' : 'more_cutouts';
+              responseMessage = message === 'None' ? 
+                `Okay, no cutouts. Do you need demolition services for an existing countertop?` : 
+                `Added a ${message} cutout. Any more cutouts needed? Choose Sink, Faucet, None, or Other.`;
+              context = message === 'None' ? 'quote_demo' : 'quote_cutouts';
+            } else {
+              responseMessage = `Please select a cutout type: Sink, Faucet, None, or Other.`;
+              context = 'quote_cutouts';
+            }
+          } else if (quoteWizardStage === 'more_cutouts') {
+            if (['Sink', 'Faucet', 'None', 'Other'].includes(message)) {
+              if (message !== 'None') {
+                quoteState.cutouts.push({ type: message === 'Other' ? 'Sink' : message });
+                responseMessage = `Added another ${message} cutout. Any more cutouts needed? Choose Sink, Faucet, None, or Other.`;
+                context = 'quote_cutouts';
+              } else {
+                quoteWizardStage = 'demo';
+                responseMessage = `Okay, no more cutouts. Do you need demolition services for an existing countertop?`;
+                context = 'quote_demo';
+              }
+            } else {
+              responseMessage = `Please select a cutout type: Sink, Faucet, None, or Other.`;
+              context = 'quote_cutouts';
+            }
+          } else if (quoteWizardStage === 'demo') {
+            if (['Demolition Needed', 'No Demolition'].includes(message)) {
+              quoteState.demo = message;
+              quoteWizardStage = 'finalize';
+              const priceSheet = await fetchPriceSheet();
+              const quote = calculateQuote(priceSheet);
+              responseMessage = `Here’s your countertop quote, ${quoteState.user.name || 'friend'}! Estimated cost: $${quote.totalCostMin}-$${quote.totalCostMax} for ${quoteState.material} countertops in Arizona (3-5 weeks lead time). Details:\n${quote.details.join('\n')}\nNote: This is an estimate; final pricing depends on a field visit. Want to save this quote or <a href="${NAV_LINKS.store.url}" target="_blank">shop now</a>?`;
+              context = 'pricing';
+              await sendEmail({ ...quoteState, quote }, 'quote');
+            } else {
+              responseMessage = `Please choose: Demolition Needed or No Demolition.`;
+              context = 'quote_demo';
             }
           }
-        } else if (!quoteState.user.email && ['get estimate', 'products', 'explore', 'book appointment'].includes(message.toLowerCase())) {
-          responseMessage = 'Awesome! To get started, may I have your name and email? I’ll send you a free sample as a thank you! 😊';
+        } else if (!quoteState.user.email && ['Countertops', 'Sinks', 'Request Sample', 'Get Quote'].includes(message)) {
+          responseMessage = 'Awesome! To get started with your quote, may I have your name and email? I’ll send you a free sample as a thank you! 😊';
           context = 'initial';
           conversationStage = 'collect_lead';
-          if (message.toLowerCase() === 'get estimate') quoteWizardStage = 'lead';
         } else if (conversationStage === 'collect_lead' && message.includes('@')) {
           const emailMatch = message.match(/\b[\w\.-]+@[\w\.-]+\.\w+\b/);
           const name = message.replace(emailMatch[0], '').trim() || 'Customer';
@@ -990,33 +1230,90 @@
           context = 'countertops';
           conversationStage = 'countertop_material';
           await sendEmail({ ...quoteState.user, status: 'lead_collected' }, 'lead');
-          if (quoteWizardStage === 'lead') {
-            quoteWizardStage = 'layout';
-            responseMessage = `Thanks, ${name}! What’s the layout of your countertop? Choose from U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
-            context = 'countertop_layout';
-          }
+        } else if (message.toLowerCase().includes('countertop') || message === 'Countertops') {
+          responseMessage = `Fantastic choice, ${quoteState.user.name || 'friend'}! Let’s design your countertop. In Arizona, fabrication takes 3-5 weeks. Granite is super durable ($40-$100/sqft), perfect for heavy use. Quartz is low-maintenance ($50-$120/sqft), ideal for a modern vibe. Pricing includes fabrication and installation, but additional charges (e.g., cutouts) may apply. Estimates are preliminary; final pricing requires a field visit. Browse options at <a href="${NAV_LINKS.countertops.url}" target="_blank">${NAV_LINKS.countertops.text}</a>.`;
+          context = 'countertops';
+          conversationStage = 'countertop_material';
+        } else if (message === 'Granite' && conversationStage === 'countertop_material') {
+          quoteState.material = 'Granite';
+          quoteState.preferences.durable = true;
+          responseMessage = `Love that, ${quoteState.user.name || 'friend'}! Granite’s strength is perfect for Arizona kitchens, and we use CNC machines for precise cuts (3-5 weeks lead time). Try a bold black for a modern look or beige for rustic charm. What’s your kitchen layout?`;
+          context = 'countertop_layout';
+          conversationStage = 'countertop_layout';
+        } else if (message === 'Quartz' && conversationStage === 'countertop_material') {
+          quoteState.material = 'Quartz';
+          quoteState.preferences.lowMaintenance = true;
+          responseMessage = `Great pick, ${quoteState.user.name || 'friend'}! Quartz is low-maintenance and perfect for a sleek Arizona home (3-5 weeks fabrication). A white quartz could elevate your space! What’s your countertop layout?`;
+          context = 'countertop_layout';
+          conversationStage = 'countertop_layout';
+        } else if (['L-Shape', 'U-Shape', 'Straight', 'Island'].includes(message) && conversationStage === 'countertop_layout') {
+          quoteState.layout = message;
+          responseMessage = `Nice, a ${message} layout! For your ${quoteState.material} countertop, what are the approximate dimensions (e.g., length x width in feet)? Our team ensures a perfect fit, and we can coordinate installation in Arizona. Or I can estimate for you.`;
+          context = 'countertop_dimensions';
+          conversationStage = 'countertop_dimensions';
+        } else if ((message.toLowerCase().includes('dimension') || message === 'Provide Dimensions') && conversationStage === 'countertop_dimensions') {
+          quoteState.dimensions = message === 'Provide Dimensions' ? 'User will provide' : message;
+          responseMessage = `Got it! Do you need demolition services for an existing countertop? Our Arizona team can handle everything, ensuring a smooth install (3-5 weeks lead time).`;
+          context = 'countertop_demo';
+          conversationStage = 'countertop_demo';
+        } else if (['Demolition Needed', 'No Demolition', 'Unsure'].includes(message) && conversationStage === 'countertop_demo') {
+          quoteState.demo = message;
+          let priceRange = quoteState.material === 'Granite' ? '$40-$100/sqft' : '$50-$120/sqft';
+          let laborCost = quoteState.demo === 'Demolition Needed' ? 'plus $30-$50/sqft for demolition (based on labor rates)' : '';
+          let recommendation = quoteState.preferences.durable 
+            ? `${quoteState.material} is ideal for durability. Consider a polished finish for a classic Arizona kitchen.`
+            : `${quoteState.material} fits your low-maintenance needs. A matte finish could add a modern touch.`;
+          responseMessage = `You’re all set, ${quoteState.user.name || 'friend'}! For a ${quoteState.layout} ${quoteState.material} countertop${quoteState.demo === 'Demolition Needed' ? ' with demolition' : ''} in Arizona, the estimated range is ${priceRange} ${laborCost}, including fabrication and installation (3-5 weeks lead time). Additional charges (e.g., cutouts, edge profiles) may apply, and final pricing depends on a field visit. ${recommendation} Want to save this quote or browse <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>?`;
+          context = 'pricing';
+          conversationStage = 'quote_complete';
+        } else if (message === 'Sinks') {
+          responseMessage = `Sweet! A new sink can transform your Arizona kitchen. We offer stainless steel, composite, and undermount options. Check them out at <a href="${NAV_LINKS.sinks.url}" target="_blank">${NAV_LINKS.sinks.text}</a>. A stainless steel sink pairs great with ${quoteState.material || 'any countertop'}! Want an estimate or design tips?`;
+          context = 'sinks';
+          conversationStage = 'sinks';
+        } else if (message === 'Request Sample') {
+          responseMessage = `Perfect! Samples let you feel the quality. Browse our collection at <a href="${NAV_LINKS.samples.url}" target="_blank">${NAV_LINKS.samples.text}</a>. Want a free sample, ${quoteState.user.name || 'friend'}? Share your email if you haven’t already!`;
+          context = 'samples';
+          conversationStage = 'samples';
+        } else if (message.toLowerCase().includes('repair') || message === 'Repair Pricing') {
+          responseMessage = `Countertop repairs in Arizona range from $250-$2500+, depending on damage (e.g., cracks, chips). Labor rates are sourced from our pricing data, typically $30-$50/sqft for related tasks. Learn more at <a href="${NAV_LINKS.repairs.url}" target="_blank">${NAV_LINKS.repairs.text}</a>. Want a repair quote, ${quoteState.user.name || 'friend'}?`;
+          context = 'pricing';
+          conversationStage = 'pricing';
+        } else if (message.toLowerCase().includes('pricing') || message === 'Pricing' || message === 'Countertop Pricing') {
+          responseMessage = `Let’s talk pricing, ${quoteState.user.name || 'friend'}! Granite is $40-$100/sqft, Quartz is $50-$120/sqft, and sinks start at $200. In Arizona, fabrication takes 3-5 weeks. Pricing includes fabrication and installation (labor at $30-$50/sqft), but extras like edge profiles or cutouts may add costs. This is an estimate; final pricing comes after a field visit. Browse at <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> or save a quote!`;
+          context = 'pricing';
+          conversationStage = 'pricing';
+        } else if (message.toLowerCase().includes('shipping') || message === 'Shipping Info') {
+          responseMessage = `Shipping questions? Items from <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> ship in 3-5 business days to Arizona and nationwide. Samples are $5-$10 to ship, countertops vary by location. Need help with a specific product, ${quoteState.user.name || 'friend'}?`;
+          context = 'shopify';
+          conversationStage = 'shopify';
+        } else if (message.toLowerCase().includes('return') || message === 'Returns') {
+          responseMessage = `Our return policy is hassle-free! Unopened items from <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> can be returned within 30 days. Need help with a return, ${quoteState.user.name || 'friend'}?`;
+          context = 'shopify';
+          conversationStage = 'shopify';
+        } else if (message.toLowerCase().includes('design') || message.toLowerCase().includes('style')) {
+          responseMessage = `Let’s design your Arizona space, ${quoteState.user.name || 'friend'}! For a modern vibe, try white Quartz with a stainless sink. Rustic? Go for Granite with warm tones. Use our <a href="${NAV_LINKS.visualizer.url}" target="_blank">${NAV_LINKS.visualizer.text}</a> for inspiration. What’s your style?`;
+          context = 'style';
+          conversationStage = 'style';
+        } else if (message.toLowerCase().includes('get quote')) {
+          startQuoteWizard();
+          showTypingIndicator(false);
+          return;
         } else {
           try {
-            const response = await fetch(`${SERVER_URL}/api/chat`, {
+            const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ message, sessionId })
             });
+            if (!response.ok) throw new Error(`API error: ${response.status} - ${await response.text()}`);
             const data = await response.json();
-            if (response.ok) {
-              responseMessage = data.message;
-              context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
-              if (data.image) {
-                addMessage(responseMessage, false, data.image, context);
-                showTypingIndicator(false);
-                return;
-              }
-            } else {
-              responseMessage = `Sorry, I couldn’t process that. Try asking about countertops, sinks, or <a href="${NAV_LINKS.store.url}" target="_blank">browse our store</a>!`;
-              context = 'initial';
-            }
+            responseMessage = data.message.replace(
+              /(https?:\/\/[^\s]+)/g,
+              url => `<a href="${url}" target="_blank">${url.includes('store.surprisegranite') ? 'our store' : 'this link'}</a>`
+            );
+            context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
           } catch (error) {
-            console.error('Chat error:', error);
+            console.error('Chat error:', error.message);
             responseMessage = `Hmm, something went wrong, ${quoteState.user.name || 'friend'}. Let’s try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>!`;
             context = 'initial';
           }
@@ -1026,26 +1323,9 @@
         addMessage(responseMessage, false, null, context);
         if (quickReplies) quickReplies.style.display = 'flex';
       } catch (error) {
-        console.error('Send message error:', error);
+        console.error('Send message error:', error.message);
         showTypingIndicator(false);
         addMessage(`Sorry, something went wrong. Please try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
-      }
-    }
-
-    async function sendEmail(formData, type) {
-      console.log(`Sending ${type} email`, formData);
-      try {
-        const response = await fetch('https://usebasin.com/f/0e9742fed801', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        if (!response.ok) throw new Error(`UseBasin failed: ${response.status}`);
-        console.log('Email sent via UseBasin');
-        return true;
-      } catch (error) {
-        console.error('Email error:', error);
-        return false;
       }
     }
 
@@ -1061,16 +1341,16 @@
       try {
         const formData = { name, email, phone, quote: JSON.stringify(quoteState) };
         const success = await sendEmail(formData, 'lead');
-        if (!success) throw new Error('Email failed');
+        if (!success) throw new Error('Both Nodemailer and UseBasin failed');
 
         quoteState.user = { name, email, phone };
-        addMessage(`Thanks, ${name}! Your details are saved. We’ll send a summary to ${email}. Let’s pick a countertop layout: U-shaped, Galley, L-shape, Plateau, or Bar Top?`, false, null, 'countertop_layout');
+        addMessage(`Thanks, ${name}! Your details are saved. We’ll send a summary to ${email}. Let’s pick a countertop material: Granite ($40-$100/sqft) or Quartz ($50-$120/sqft)? Check out <a href="${NAV_LINKS.countertops.url}" target="_blank">${NAV_LINKS.countertops.text}</a>!`, false, null, 'quote_material');
         closeLeadModal();
-        quoteWizardStage = 'layout';
-        conversationStage = 'countertop_layout';
+        quoteWizardStage = 'material';
+        conversationStage = 'countertop_material';
       } catch (error) {
-        console.error('Lead form error:', error);
-        addMessage(`Sorry, ${name}, we couldn’t save your quote. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+        console.error('Lead form error:', error.message);
+        addMessage(`Sorry, ${name}, we couldn’t save your quote due to an email issue. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
@@ -1085,18 +1365,16 @@
       if (!name || !email || !date || !time) return;
 
       try {
-        const response = await fetch(`${SERVER_URL}/api/appointment`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, date, time, sessionId })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error('Appointment failed');
-        addMessage(data.message, false, null, 'appointment');
+        const formData = { name, email, date, time };
+        const emailSuccess = await sendEmail(formData, 'appointment');
+        const calendarSuccess = await createCalendarEvent(formData);
+        if (!emailSuccess && !calendarSuccess) throw new Error('Both email and calendar failed');
+
+        addMessage(`You’re all set, ${name}! We’ve requested your appointment for ${date} at ${time}. Check ${email} for confirmation. Want to browse <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>?`, false, null, 'appointment');
         closeAppointmentModal();
       } catch (error) {
-        console.error('Appointment error:', error);
-        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'appointment');
+        console.error('Appointment error:', error.message);
+        addMessage(`Sorry, ${name}, we couldn’t book your appointment due to an email or calendar issue. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'appointment');
       }
     }
 
@@ -1112,13 +1390,13 @@
       try {
         const formData = { name, email, message };
         const success = await sendEmail(formData, 'contact');
-        if (!success) throw new Error('Email failed');
+        if (!success) throw new Error('Both Nodemailer and UseBasin failed');
 
         addMessage(`Thanks for reaching out, ${name}! We’ve got your message and will reply to ${email} soon. Check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> in the meantime!`, false, null, 'initial');
         closeContactModal();
       } catch (error) {
-        console.error('Contact form error:', error);
-        addMessage(`Sorry, ${name}, we couldn’t send your message. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+        console.error('Contact form error:', error.message);
+        addMessage(`Sorry, ${name}, we couldn’t send your message due to an email issue. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
@@ -1168,6 +1446,7 @@
       if (userInput) userInput.focus();
 
       loadCompanyInfo();
+      verifyNodemailer();
       updateQuickReplies('initial');
     });
   </script>
