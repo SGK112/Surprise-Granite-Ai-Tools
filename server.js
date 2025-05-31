@@ -8,11 +8,12 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 // --- Initialize App ---
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 1800 }); // Cache for 30 minutes
+const cache = new NodeCache({ stdTTL: 1800 });
 
 // --- Enable Trust Proxy ---
 app.set('trust proxy', 1);
@@ -25,6 +26,8 @@ const REQUIRED_ENV_VARS = [
   'SHOPIFY_ACCESS_TOKEN',
   'SHOPIFY_SHOP',
   'OPENAI_API_KEY',
+  'EMAIL_USER',
+  'EMAIL_PASS',
 ];
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
@@ -60,10 +63,82 @@ const ChatLog = mongoose.model(
       sessionId: String,
       messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
       appointmentRequested: Boolean,
+      bids: [{
+        layout: String,
+        dimensions: [{ length: Number, width: Number }],
+        material: String,
+        wasteFactor: Number,
+        fabricationCost: Number,
+        installationCost: Number,
+        materialCost: Number,
+        totalCost: Number,
+        margin: Number,
+        createdAt: { type: Date, default: Date.now }
+      }],
+      feedback: [{ question: String, response: String, createdAt: { type: Date, default: Date.now } }],
+      abandoned: { type: Boolean, default: false },
+      lastActivity: { type: Date, default: Date.now }
     },
     { timestamps: true }
   )
 );
+
+// --- Nodemailer Setup ---
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// --- Send Chat Transcript ---
+async function sendChatTranscript(chatLog) {
+  const messages = chatLog.messages.map(msg => `${msg.role.toUpperCase()} (${msg.createdAt.toLocaleString()}): ${msg.content}`).join('\n');
+  const bids = chatLog.bids?.map(bid => 
+    `Bid (${bid.createdAt.toLocaleString()}):\n` +
+    `- Layout: ${bid.layout}\n` +
+    `- Dimensions: ${bid.dimensions.map(d => `${d.length}x${d.width} ft`).join(', ')}\n` +
+    `- Material: ${bid.material}\n` +
+    `- Waste Factor: ${(bid.wasteFactor * 100).toFixed(0)}%\n` +
+    `- Material Cost: $${bid.materialCost.toFixed(2)}\n` +
+    `- Fabrication: $${bid.fabricationCost.toFixed(2)}\n` +
+    `- Installation: $${bid.installationCost.toFixed(2)}\n` +
+    `- Total: $${bid.totalCost.toFixed(2)}\n` +
+    `- Margin: ${(bid.margin * 100).toFixed(0)}%`
+  ).join('\n\n') || 'No bids';
+  const feedback = chatLog.feedback?.map(fb => 
+    `Feedback (${fb.createdAt.toLocaleString()}): ${fb.question} -> ${fb.response}`
+  ).join('\n') || 'No feedback';
+
+  const emailContent = `
+Chat Transcript (Session ID: ${chatLog.sessionId})
+Status: ${chatLog.abandoned ? 'Abandoned' : 'Closed'}
+Last Activity: ${chatLog.lastActivity.toLocaleString()}
+Appointment Requested: ${chatLog.appointmentRequested ? 'Yes' : 'No'}
+
+Messages:
+${messages}
+
+Bids:
+${bids}
+
+Feedback:
+${feedback}
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: 'info@surprisegranite.com',
+      subject: `Chat Transcript ${chatLog.sessionId} (${chatLog.abandoned ? 'Abandoned' : 'Closed'})`,
+      text: emailContent,
+    });
+    console.log(`Transcript sent for session ${chatLog.sessionId}`);
+  } catch (error) {
+    console.error(`Failed to send transcript for session ${chatLog.sessionId}:`, error.message);
+  }
+}
 
 // --- Middleware ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
@@ -132,33 +207,61 @@ function fuzzyMatch(str, pattern) {
 
 // --- Extract Dimensions ---
 function extractDimensions(message) {
-  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/i;
-  const match = message.match(dimensionRegex);
-  if (match) {
-    const length = parseFloat(match[1]);
-    const width = parseFloat(match[3]);
-    return { length, width, area: length * width };
-  }
-  return null;
+  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
+  const matches = [...message.matchAll(dimensionRegex)];
+  return matches.map(match => ({
+    length: parseFloat(match[1]),
+    width: parseFloat(match[3]),
+    area: parseFloat(match[1]) * parseFloat(match[3])
+  }));
 }
 
 // --- Match Labor Cost ---
 function getLaborCostPerSqft(laborData, materialType) {
   const materialLower = materialType.toLowerCase();
   const laborItem = laborData.find((item) => {
-    const description = item[Object.keys(item)[1]] || ''; // Column 2 (e.g., "Quartz Countertop Fabrication")
+    const description = item[Object.keys(item)[1]] || '';
     return description.toLowerCase().includes(materialLower);
   });
   if (laborItem) {
-    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]); // Column 4 (e.g., 42.00)
+    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]);
     if (!isNaN(cost)) {
       console.log(`Labor cost for ${materialType}: $${cost}/sqft`);
       return cost;
     }
   }
-  console.log(`No labor cost found for ${materialType}, using default $26/sqft`);
-  return 26; // Default $26/sqft
+  console.log(`No labor cost found for ${materialType}, using default $65/sqft`);
+  return 65; // $50 fabrication + $15 installation
 }
+
+// --- Vendor Data ---
+const VENDORS = {
+  'arizona tile': {
+    materials: {
+      Granite: { count: 70, examples: ['Silver Cloud Satin', 'Volcano', 'Alpine White'] },
+      Quartz: { count: 60, examples: ['Arabescato Como', 'Montenegro', 'Calacatta Doria'] },
+      'Natural Stone': { count: 300, examples: ['Marble', 'Quartzite', 'Limestone', 'Travertine'] }
+    },
+    description: 'Arizona Tile offers over 70 Granite varieties, 60+ Quartz colors, and 300+ natural stone options, including Marble, Quartzite, Limestone, and Travertine, sourced globally for premium quality.'
+  },
+  'kibi': {
+    materials: {
+      Granite: { count: 50, examples: ['Black Galaxy', 'Ubatuba', 'Santa Cecilia'] },
+      Quartz: { count: 40, examples: ['Calacatta Laza', 'Carrara Mist', 'Stellar White'] },
+      'Natural Stone': { count: 100, examples: ['Marble', 'Soapstone', 'Onyx'] }
+    },
+    description: 'Kibi provides a diverse selection of Granite, Quartz, and natural stone, with 50 Granite colors, 40 Quartz options, and various stones like Marble and Soapstone, ideal for custom projects.'
+  }
+};
+
+// --- Navigation Links ---
+const NAV_LINKS = {
+  samples: 'https://store.surprisegranite.com/collections/countertop-samples',
+  vendors: 'https://www.surprisegranite.com/company/vendors-list',
+  visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
+  countertops: 'https://www.surprisegranite.com/materials/all-countertops',
+  store: 'https://store.surprisegranite.com/'
+};
 
 // --- Appointment Endpoint ---
 app.post('/api/appointment', async (req, res) => {
@@ -177,9 +280,9 @@ app.post('/api/appointment', async (req, res) => {
       role: 'system',
       content: `Appointment requested: ${name}, ${email}, ${date}`,
     });
+    chatLog.lastActivity = new Date();
     await chatLog.save();
 
-    // Send to Basin form
     await axios.post('https://usebasin.com/f/0e9742fed801', {
       name,
       email,
@@ -213,6 +316,26 @@ app.get('/api/chatlogs', async (req, res) => {
   }
 });
 
+// --- Close Chat Endpoint ---
+app.post('/api/close-chat', async (req, res) => {
+  const { sessionId, abandoned } = req.body;
+  try {
+    const chatLog = await ChatLog.findOne({ sessionId });
+    if (chatLog) {
+      chatLog.abandoned = abandoned || false;
+      chatLog.lastActivity = new Date();
+      await chatLog.save();
+      await sendChatTranscript(chatLog);
+      res.json({ message: 'Chat closed and transcript sent.' });
+    } else {
+      res.status(404).json({ error: 'Chat session not found.' });
+    }
+  } catch (error) {
+    console.error('Close chat error:', error.message);
+    res.status(500).json({ error: 'Failed to close chat.' });
+  }
+});
+
 // --- Chat Endpoint ---
 app.post(
   '/api/chat',
@@ -234,65 +357,176 @@ app.post(
       if (!chatLog) {
         chatLog = new ChatLog({ sessionId, messages: [] });
       }
+      chatLog.lastActivity = new Date();
       const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      let priceList = [];
-      try {
-        priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
-      } catch (error) {
-        console.error(`Failed to fetch price list: ${error.message}`);
+      // Handle vendor list request
+      if (userMessage.includes('list vendors') || userMessage.includes('our vendors')) {
+        const vendorList = Object.keys(VENDORS).map(v => v.toUpperCase()).join(', ');
+        const responseMessage = `Our vendors include: ${vendorList}.\nAsk about a specific vendor (e.g., "What does Arizona Tile offer?") or explore: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}).`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
+        });
       }
 
-      let matchedMaterial = priceList.find((item) => {
-        const materialName = item['Color Name'];
-        if (!materialName) return false;
-        const matchesName = fuzzyMatch(materialName, userMessage);
-        const matchesThickness = !userMessage.includes('cm') || userMessage.includes(item.Thickness?.toLowerCase() || '');
-        return matchesName && matchesThickness;
-      });
+      // Handle vendor product query
+      const vendorMatch = Object.keys(VENDORS).find(v => userMessage.includes(v.toLowerCase()));
+      if (vendorMatch) {
+        const vendor = VENDORS[vendorMatch];
+        const materials = Object.entries(vendor.materials).map(([type, data]) =>
+          `${type}: ${data.count} colors available, including ${data.examples.join(', ')}.`
+        ).join('\n');
+        const responseMessage = `${vendor.description}\nAvailable products:\n${materials}\nExplore more: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}).`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
+        });
+      }
 
-      if (matchedMaterial) {
-        const material = matchedMaterial['Color Name'];
-        const thickness = matchedMaterial.Thickness || 'unknown';
-        const price = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
-        const materialType = matchedMaterial.Material || 'unknown';
-        if (!material || price === 0) {
-          console.log(`Invalid material data: ${JSON.stringify(matchedMaterial)}`);
-          const responseMessage = `Sorry, I couldn’t find pricing for "${req.body.message}". Try another material or check our store!`;
+      // Handle samples request
+      if (userMessage.includes('samples')) {
+        const responseMessage = `Explore our countertop samples here: ${NAV_LINKS.samples}\nMore options: Countertops (${NAV_LINKS.countertops}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store})`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
+        });
+      }
+
+      // Handle estimation request
+      if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop')) {
+        let responseMessage = '';
+        let quickReplies = ['Samples', 'All Countertops', 'Vendors', 'Visualizer'];
+
+        // Prompt for layout if not provided
+        if (!['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'].some(layout => userMessage.includes(layout))) {
+          responseMessage = 'What is the layout of your countertop? (e.g., U-shaped, Galley, L-shape, Plateau, Bar Top)';
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
           );
           await chatLog.save();
-          return res.json({
-            message: responseMessage,
-            quickReplies: ['Show countertop materials', 'Show sinks', 'Contact support']
-          });
+          return res.json({ message: responseMessage, quickReplies });
         }
 
-        let responseMessage = `The price for ${material} (${thickness}, ${materialType}) is $${price.toFixed(2)} per square foot.`;
+        // Extract layout
+        const layout = ['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'].find(l => userMessage.includes(l)) || 'unknown';
 
+        // Prompt for dimensions if not provided
         const dimensions = extractDimensions(req.body.message);
-        if (dimensions) {
-          const { area } = dimensions;
-          const materialCost = area * price;
-
-          let laborCostPerSqft = 26;
-          try {
-            const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
-            laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
-          } catch (error) {
-            console.error(`Failed to fetch labor costs: ${error.message}`);
-          }
-          const laborCost = area * laborCostPerSqft;
-
-          const totalCost = materialCost + laborCost;
-          responseMessage += `\nFor a ${dimensions.length} x ${dimensions.width} ft countertop (${area.toFixed(2)} sqft), the estimated cost is $${totalCost.toFixed(2)} (material: $${materialCost.toFixed(2)}, labor: $${laborCost.toFixed(2)}).`;
+        if (!dimensions.length) {
+          responseMessage = 'Please provide the dimensions of each countertop section (e.g., 5x3 ft).';
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({ message: responseMessage, quickReplies });
         }
 
+        // Prompt for material
+        let priceList = [];
+        try {
+          priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+        } catch (error) {
+          console.error(`Failed to fetch price list: ${error.message}`);
+        }
+
+        let matchedMaterial = priceList.find((item) => {
+          const materialName = item['Color Name'];
+          if (!materialName) return false;
+          return fuzzyMatch(materialName, userMessage);
+        });
+
+        if (!matchedMaterial) {
+          responseMessage = `Please specify a material (e.g., Frost-N, Calacatta Gold). See our samples: ${NAV_LINKS.samples}`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({ message: responseMessage, quickReplies });
+        }
+
+        // Calculate estimate
+        const material = matchedMaterial['Color Name'];
+        const thickness = matchedMaterial.Thickness || 'unknown';
+        const materialPrice = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
+        const materialType = matchedMaterial.Material || 'unknown';
+        if (!material || materialPrice === 0) {
+          responseMessage = `Invalid material data for "${material}". Try our samples: ${NAV_LINKS.samples}`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({ message: responseMessage, quickReplies });
+        }
+
+        const totalArea = dimensions.reduce((sum, dim) => sum + dim.area, 0);
+        let wasteFactor = 0.20;
+        if (userMessage.includes('waterfall')) wasteFactor = 0.30;
+        if (userMessage.includes('backsplash') && userMessage.includes('full')) wasteFactor = 0.25;
+        if (userMessage.includes('vanity') || userMessage.includes('small')) wasteFactor = 0.35;
+
+        const adjustedArea = totalArea * (1 + wasteFactor);
+        const materialCost = adjustedArea * materialPrice * 1.04;
+        let laborCostPerSqft = 65;
+        try {
+          const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
+          laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
+        } catch (error) {
+          console.error(`Failed to fetch labor costs: ${error.message}`);
+        }
+        const fabricationCost = totalArea * 50;
+        const installationCost = totalArea * 15;
+        const laborCost = adjustedArea * laborCostPerSqft;
+        const subtotal = materialCost + laborCost;
+        const margin = 0.50;
+        const totalCost = subtotal / (1 - margin);
+
+        responseMessage = `Estimate for ${layout} countertop (${material}, ${thickness}, ${materialType}):\n` +
+          `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
+          `- Material: $${materialCost.toFixed(2)} (${materialPrice.toFixed(2)}/sqft + 4% markup)\n` +
+          `- Fabrication: $${fabricationCost.toFixed(2)} ($50/sqft)\n` +
+          `- Installation: $${installationCost.toFixed(2)} ($15/sqft)\n` +
+          `- Total: $${totalCost.toFixed(2)} (50% margin)\n` +
+          `Explore more: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Visualizer (${NAV_LINKS.visualizer})`;
+
+        // Save bid
+        chatLog.bids = chatLog.bids || [];
+        chatLog.bids.push({
+          layout,
+          dimensions,
+          material,
+          wasteFactor,
+          fabricationCost,
+          installationCost,
+          materialCost,
+          totalCost,
+          margin
+        });
+
+        // Solicit feedback
+        responseMessage += '\nIs this price fair? (Reply: Great, High, Low)';
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -302,10 +536,30 @@ app.post(
         return res.json({
           message: responseMessage,
           image: matchedMaterial.image_url || null,
-          quickReplies: ['Get a quote', 'Show other materials', 'Contact support']
+          quickReplies: ['Great', 'High', 'Low', 'Samples', 'Visualizer']
         });
       }
 
+      // Handle feedback
+      if (['great', 'high', 'low'].includes(userMessage)) {
+        chatLog.feedback = chatLog.feedback || [];
+        chatLog.feedback.push({
+          question: 'Is this price fair?',
+          response: userMessage
+        });
+        const responseMessage = `Thank you for your feedback! How else can I assist you?`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
+        });
+      }
+
+      // Handle sink/product queries
       let shopifyProducts = [];
       try {
         shopifyProducts = await fetchShopifyProducts();
@@ -323,8 +577,9 @@ app.post(
           const price = parseFloat(matchedSink.variants[0].price) || 0;
           const productUrl = matchedSink.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedSink.handle}`;
           const imageUrl = matchedSink.image?.src || null;
+          const description = matchedSink.body_html ? matchedSink.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
           console.log(`Matched sink: ${matchedSink.title}`);
-          const responseMessage = `We offer "${matchedSink.title}" for $${price.toFixed(2)}. View it here: ${productUrl}`;
+          const responseMessage = `"${matchedSink.title}" costs $${price.toFixed(2)}. ${description}\nView it here: ${productUrl}\nExplore more: ${NAV_LINKS.store}`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
@@ -334,7 +589,7 @@ app.post(
             message: responseMessage,
             image: imageUrl,
             productUrl,
-            quickReplies: ['Show more sinks', 'Get a quote', 'Contact support']
+            quickReplies: ['Samples', 'Online Store', 'Vendors', 'Visualizer']
           });
         }
       }
@@ -347,8 +602,9 @@ app.post(
         const price = parseFloat(matchedProduct.variants[0].price) || 0;
         const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
         const imageUrl = matchedProduct.image?.src || null;
+        const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
         console.log(`Matched product: ${matchedProduct.title}`);
-        const responseMessage = `You can purchase "${matchedProduct.title}" for $${price.toFixed(2)}. View it here: ${productUrl}`;
+        const responseMessage = `"${matchedProduct.title}" costs $${price.toFixed(2)}. ${description}\nView it here: ${productUrl}\nExplore more: ${NAV_LINKS.store}`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -358,22 +614,22 @@ app.post(
           message: responseMessage,
           image: imageUrl,
           productUrl,
-          quickReplies: ['Show similar products', 'Get a quote', 'Contact support']
+          quickReplies: ['Samples', 'Online Store', 'Vendors', 'Visualizer']
         });
       }
 
+      // Generic response
       const systemPrompt = {
         role: 'system',
         content: `
           You are Surprise Granite's AI assistant. Your tasks include:
-          - Providing prices for countertop materials from the Google Sheets price list.
-          - Offering product information from the Shopify store.
-          - Generating quotes for countertops based on material prices and dimensions (e.g., 5x3 ft).
-          - Including labor costs in estimates using the labor price list (e.g., $42/sqft for Quartz).
-          - Maintaining conversation context using the provided chat history.
-          - For sinks, check Shopify products or suggest contacting support via the website footer.
-          - If no specific material or product is found, suggest checking the store or contacting support via the website footer.
-          - Do not include contact information (phone, email, or links) in responses; users can use the website footer for contact options.
+          - Listing vendors (e.g., Arizona Tile, Kibi) and their products (e.g., Granite, Quartz, natural stone) with color counts and examples.
+          - Providing detailed countertop estimates by asking for layout, dimensions, material, and services.
+          - Using CSV pricing for materials and labor, with a fallback to $50/sqft fabrication, $15/sqft installation, 4% stone markup, 50% margin.
+          - Saving bids in MongoDB and soliciting feedback.
+          - Offering detailed Shopify product info (title, price, description, image, link).
+          - Including navigation links: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Vendors (${NAV_LINKS.vendors}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store}).
+          - Do not include contact information; use footer links.
         `,
       };
 
@@ -402,7 +658,6 @@ app.post(
       let aiMessage = aiResponse.data.choices[0].message.content;
       console.log(`Raw AI response: ${aiMessage}`);
 
-      // Remove all contact information
       const contactPatterns = [
         /Contact us:.*$/gi,
         /If you'd like to contact our support team.*$/gi,
@@ -414,6 +669,8 @@ app.post(
       contactPatterns.forEach((pattern) => {
         aiMessage = aiMessage.replace(pattern, '').trim();
       });
+
+      aiMessage += `\nExplore: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Vendors (${NAV_LINKS.vendors}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store})`;
       console.log(`Cleaned AI response: ${aiMessage}`);
 
       chatLog.messages.push(
@@ -424,7 +681,7 @@ app.post(
 
       res.json({
         message: aiMessage,
-        quickReplies: ['Show countertop materials', 'Show sinks', 'Book appointment']
+        quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
       });
     } catch (err) {
       console.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}):`, err.message);
