@@ -1,729 +1,779 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
-const axios = require('axios');
-const NodeCache = require('node-cache');
-const { parse } = require('csv-parse/sync');
-const path = require('path');
-const nodemailer = require('nodemailer');
-
-// --- Initialize App ---
-const app = express();
-const PORT = process.env.PORT || 3000;
-const cache = new NodeCache({ stdTTL: 1800 });
-
-// --- Enable Trust Proxy ---
-app.set('trust proxy', 1);
-
-// --- Validate Environment Variables ---
-const REQUIRED_ENV_VARS = [
-  'MONGO_URI',
-  'GOOGLE_SHEET_CSV_URL',
-  'PUBLISHED_CSV_LABOR',
-  'SHOPIFY_ACCESS_TOKEN',
-  'SHOPIFY_SHOP',
-  'OPENAI_API_KEY',
-  'EMAIL_USER',
-  'EMAIL_PASS',
-];
-REQUIRED_ENV_VARS.forEach((key) => {
-  if (!process.env[key]) {
-    console.error(`Missing required environment variable: ${key}`);
-    process.exit(1);
-  }
-});
-
-// --- MongoDB Connection ---
-mongoose
-  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected!'))
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// --- Define Schemas ---
-const Countertop = mongoose.model(
-  'Countertop',
-  new mongoose.Schema({
-    material: String,
-    thickness: String,
-    price_per_sqft: Number,
-    image_url: String,
-  })
-);
-
-const ChatLog = mongoose.model(
-  'ChatLog',
-  new mongoose.Schema(
-    {
-      sessionId: String,
-      messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
-      appointmentRequested: Boolean,
-      bids: [{
-        layout: String,
-        dimensions: [{ length: Number, width: Number }],
-        material: String,
-        wasteFactor: Number,
-        fabricationCost: Number,
-        installationCost: Number,
-        materialCost: Number,
-        totalCost: Number,
-        margin: Number,
-        createdAt: { type: Date, default: Date.now }
-      }],
-      feedback: [{ question: String, response: String, createdAt: { type: Date, default: Date.now } }],
-      abandoned: { type: Boolean, default: false },
-      lastActivity: { type: Date, default: Date.now }
-    },
-    { timestamps: true }
-  )
-);
-
-// --- Nodemailer Setup ---
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// --- Send Chat Transcript ---
-async function sendChatTranscript(chatLog) {
-  const messages = chatLog.messages.map(msg => `${msg.role.toUpperCase()} (${msg.createdAt.toLocaleString()}): ${msg.content}`).join('\n');
-  const bids = chatLog.bids?.map(bid => 
-    `Bid (${bid.createdAt.toLocaleString()}):\n` +
-    `- Layout: ${bid.layout}\n` +
-    `- Dimensions: ${bid.dimensions.map(d => `${d.length}x${d.width} ft`).join(', ')}\n` +
-    `- Material: ${bid.material}\n` +
-    `- Waste Factor: ${(bid.wasteFactor * 100).toFixed(0)}%\n` +
-    `- Material Cost: $${bid.materialCost.toFixed(2)}\n` +
-    `- Fabrication: $${bid.fabricationCost.toFixed(2)}\n` +
-    `- Installation: $${bid.installationCost.toFixed(2)}\n` +
-    `- Total: $${bid.totalCost.toFixed(2)}\n` +
-    `- Margin: ${(bid.margin * 100).toFixed(0)}%`
-  ).join('\n\n') || 'No bids';
-  const feedback = chatLog.feedback?.map(fb => 
-    `Feedback (${fb.createdAt.toLocaleString()}): ${fb.question} -> ${fb.response}`
-  ).join('\n') || 'No feedback';
-
-  const emailContent = `
-Chat Transcript (Session ID: ${chatLog.sessionId})
-Status: ${chatLog.abandoned ? 'Abandoned' : 'Closed'}
-Last Activity: ${chatLog.lastActivity.toLocaleString()}
-Appointment Requested: ${chatLog.appointmentRequested ? 'Yes' : 'No'}
-
-Messages:
-${messages}
-
-Bids:
-${bids}
-
-Feedback:
-${feedback}
-  `;
-
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: 'info@surprisegranite.com',
-      subject: `Chat Transcript ${chatLog.sessionId} (${chatLog.abandoned ? 'Abandoned' : 'Closed'})`,
-      text: emailContent,
-    });
-    console.log(`Transcript sent for session ${chatLog.sessionId}`);
-  } catch (error) {
-    console.error(`Failed to send transcript for session ${chatLog.sessionId}:`, error.message);
-  }
-}
-
-// --- Middleware ---
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.json({ limit: '5mb' }));
-
-// --- Serve Static Files ---
-app.use(express.static(path.join(__dirname, 'public')));
-
-// --- Shopify API Functionality ---
-async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-      },
-      timeout: 10000,
-    });
-    console.log('Shopify products fetched:', response.data.products.length);
-    return response.data.products;
-  } catch (error) {
-    console.error('Shopify API error:', error.message);
-    throw error;
-  }
-}
-
-// --- Fetch CSV Data ---
-async function fetchCsvData(url, cacheKey) {
-  let data = cache.get(cacheKey);
-  if (data) {
-    console.log(`Cache hit for ${cacheKey}, ${data.length} rows`);
-    return data;
-  }
-  try {
-    console.log(`Fetching CSV from ${url}`);
-    const response = await axios.get(url, { timeout: 10000 });
-    if (response.status !== 200) {
-      throw new Error(`HTTP ${response.status}: Failed to fetch CSV from ${url}`);
-    }
-    if (!response.data || typeof response.data !== 'string') {
-      throw new Error(`Invalid CSV data from ${url}`);
-    }
-    data = parse(response.data, { columns: true, skip_empty_lines: true, trim: true });
-    if (!data || data.length === 0) {
-      throw new Error(`Empty or invalid CSV from ${url}`);
-    }
-    console.log(`Parsed CSV from ${url}, ${data.length} rows`);
-    console.log(`CSV columns: ${Object.keys(data[0]).join(', ')}`);
-    console.log(`Sample row: ${JSON.stringify(data[0])}`);
-    cache.set(cacheKey, data);
-    return data;
-  } catch (error) {
-    console.error(`Error fetching/parsing CSV (${cacheKey}): ${error.message}`);
-    cache.del(cacheKey);
-    throw error;
-  }
-}
-
-// --- Fuzzy Matching ---
-function fuzzyMatch(str, pattern) {
-  if (!str || !pattern) return false;
-  const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1;
-}
-
-// --- Extract Dimensions ---
-function extractDimensions(message) {
-  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
-  const matches = [...message.matchAll(dimensionRegex)];
-  return matches.map(match => ({
-    length: parseFloat(match[1]),
-    width: parseFloat(match[3]),
-    area: parseFloat(match[1]) * parseFloat(match[3])
-  }));
-}
-
-// --- Match Labor Cost ---
-function getLaborCostPerSqft(laborData, materialType) {
-  const materialLower = materialType.toLowerCase();
-  const laborItem = laborData.find((item) => {
-    const description = item[Object.keys(item)[1]] || '';
-    return description.toLowerCase().includes(materialLower);
-  });
-  if (laborItem) {
-    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]);
-    if (!isNaN(cost)) {
-      console.log(`Labor cost for ${materialType}: $${cost}/sqft`);
-      return cost;
-    }
-  }
-  console.log(`No labor cost found for ${materialType}, using default $65/sqft`);
-  return 65; // $50 fabrication + $15 installation
-}
-
-// --- Vendor Data ---
-const VENDORS = {
-  'arizona tile': {
-    materials: {
-      Granite: { count: 70, examples: ['Silver Cloud Satin', 'Volcano', 'Alpine White'] },
-      Quartz: { count: 60, examples: ['Arabescato Como', 'Montenegro', 'Calacatta Doria'] },
-      'Natural Stone': { count: 300, examples: ['Marble', 'Quartzite', 'Limestone', 'Travertine'] }
-    },
-    description: 'Arizona Tile offers over 70 Granite varieties, 60+ Quartz colors, and 300+ natural stone options, including Marble, Quartzite, Limestone, and Travertine, sourced globally for premium quality.'
-  },
-  'kibi': {
-    materials: {
-      Granite: { count: 50, examples: ['Black Galaxy', 'Ubatuba', 'Santa Cecilia'] },
-      Quartz: { count: 40, examples: ['Calacatta Laza', 'Carrara Mist', 'Stellar White'] },
-      'Natural Stone': { count: 100, examples: ['Marble', 'Soapstone', 'Onyx'] }
-    },
-    description: 'Kibi provides a diverse selection of Granite, Quartz, and natural stone, with 50 Granite colors, 40 Quartz options, and various stones like Marble and Soapstone, ideal for custom projects.'
-  }
-};
-
-// --- Navigation Links ---
-const NAV_LINKS = {
-  samples: 'https://store.surprisegranite.com/collections/countertop-samples',
-  vendors: 'https://www.surprisegranite.com/company/vendors-list',
-  visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
-  countertops: 'https://www.surprisegranite.com/materials/all-countertops',
-  store: 'https://store.surprisegranite.com/'
-};
-
-// --- Appointment Endpoint ---
-app.post('/api/appointment', async (req, res) => {
-  const { name, email, date, sessionId } = req.body;
-  if (!name || !email || !date) {
-    return res.status(400).json({ error: 'Name, email, and date are required.' });
-  }
-
-  try {
-    let chatLog = await ChatLog.findOne({ sessionId });
-    if (!chatLog) {
-      chatLog = new ChatLog({ sessionId, messages: [] });
-    }
-    chatLog.appointmentRequested = true;
-    chatLog.messages.push({
-      role: 'system',
-      content: `Appointment requested: ${name}, ${email}, ${date}`,
-    });
-    chatLog.lastActivity = new Date();
-    await chatLog.save();
-
-    await axios.post('https://usebasin.com/f/0e9742fed801', {
-      name,
-      email,
-      date,
-    });
-
-    const responseMessage = `Appointment booked for ${name} on ${date}! We'll confirm via email.`;
-    chatLog.messages.push({
-      role: 'assistant',
-      content: responseMessage,
-    });
-    await chatLog.save();
-
-    res.json({ message: responseMessage });
-  } catch (error) {
-    console.error('Appointment error:', error.message);
-    res.status(500).json({ error: 'Failed to book appointment. Please try again.' });
-  }
-});
-
-// --- Chat Logs Endpoint ---
-app.get('/api/chatlogs', async (req, res) => {
-  try {
-    const { sessionId } = req.query;
-    const query = sessionId ? { sessionId } : {};
-    const logs = await ChatLog.find(query).limit(100).sort({ updatedAt: -1 });
-    res.json(logs);
-  } catch (error) {
-    console.error('Chat logs error:', error.message);
-    res.status(500).json({ error: 'Failed to retrieve chat logs.' });
-  }
-});
-
-// --- Close Chat Endpoint ---
-app.post('/api/close-chat', async (req, res) => {
-  const { sessionId, abandoned } = req.body;
-  try {
-    const chatLog = await ChatLog.findOne({ sessionId });
-    if (chatLog) {
-      chatLog.abandoned = abandoned || false;
-      chatLog.lastActivity = new Date();
-      await chatLog.save();
-      await sendChatTranscript(chatLog);
-      res.json({ message: 'Chat closed and transcript sent.' });
-    } else {
-      res.status(404).json({ error: 'Chat session not found.' });
-    }
-  } catch (error) {
-    console.error('Close chat error:', error.message);
-    res.status(500).json({ error: 'Failed to close chat.' });
-  }
-});
-
-// --- Chat Endpoint ---
-app.post(
-  '/api/chat',
-  [body('message').isString().trim().isLength({ max: 1000 })],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Surprise Granite AI Chatbot">
+  <title>Surprise Granite AI Chatbot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-blue: #1e3a8a;
+      --primary-yellow: #facc15;
+      --text-dark: #1f2937;
+      --text-light: #ffffff;
+      --bg-light: #f3f4f6;
+      --bg-message-user: #facc15;
+      --bg-message-bot: #f9fafb;
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
-    try {
-      const userMessage = req.body.message.toLowerCase();
-      const sessionId = req.body.sessionId || 'anonymous';
-      const requestId = req.headers['x-request-id'] || 'unknown';
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-      console.log(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--bg-light);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 0;
+    }
 
-      let chatLog = await ChatLog.findOne({ sessionId });
-      if (!chatLog) {
-        chatLog = new ChatLog({ sessionId, messages: [] });
-      }
-      chatLog.lastActivity = new Date();
-      const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+    .chat-container {
+      width: 100%;
+      max-width: 450px;
+      background-color: var(--text-light);
+      border-radius: 1.5rem;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 85vh;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      touch-action: manipulation;
+    }
 
-      // Handle vendor list request
-      if (userMessage.includes('list vendors') || userMessage.includes('our vendors')) {
-        const vendorList = Object.keys(VENDORS).map(v => v.toUpperCase()).join(', ');
-        const responseMessage = `Our vendors include: ${vendorList}.\nAsk about a specific vendor (e.g., "What does Arizona Tile offer?") or explore: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}).`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
-        });
-      }
+    .chat-container.hidden {
+      opacity: 0;
+      transform: scale(0.9);
+      display: none;
+    }
 
-      // Handle vendor product query
-      const vendorMatch = Object.keys(VENDORS).find(v => userMessage.includes(v.toLowerCase()));
-      if (vendorMatch) {
-        const vendor = VENDORS[vendorMatch];
-        const materials = Object.entries(vendor.materials).map(([type, data]) =>
-          `${type}: ${data.count} colors available, including ${data.examples.join(', ')}.`
-        ).join('\n');
-        const responseMessage = `${vendor.description}\nAvailable products:\n${materials}\nExplore more: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}).`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
-        });
+    .chat-header {
+      background: linear-gradient(135deg, var(--primary-blue), #3b82f6);
+      color: var(--text-light);
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-top-left-radius: 1.5rem;
+      border-top-right-radius: 1.5rem;
+    }
+
+    .chat-header img {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      border-radius: 1rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .message.user {
+      background-color: var(--bg-message-user);
+      color: var(--text-dark);
+      align-self: flex-end;
+      border-bottom-right-radius: 0;
+    }
+
+    .message.bot {
+      background-color: var(--bg-message-bot);
+      color: var(--text-dark);
+      align-self: flex-start;
+      border-bottom-left-radius: 0;
+      box-shadow: var(--shadow);
+      border-left: 3px solid var(--primary-blue);
+    }
+
+    .message.bot img {
+      max-width: 100%;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .message.bot a {
+      color: var(--primary-blue);
+      text-decoration: underline;
+      word-break: break-all;
+    }
+
+    .message .timestamp {
+      font-size: 0.7rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+      text-align: right;
+    }
+
+    .typing-indicator {
+      display: none;
+      padding: 0.5rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .typing-indicator::after {
+      content: '...';
+      animation: dots 1s infinite;
+    }
+
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background-color: var(--bg-light);
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    .quick-reply {
+      padding: 0.4rem 0.8rem;
+      background-color: var(--primary-blue);
+      color: var(--text-light);
+      border: none;
+      border-radius: 1rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .quick-reply:active {
+      transform: scale(0.95);
+    }
+
+    .quick-reply:hover {
+      background-color: #1e40af;
+    }
+
+    .chat-input {
+      display: flex;
+      padding: 0.75rem;
+      background-color: var(--bg-light);
+      border-top: 1px solid #d1d5db;
+    }
+
+    .chat-input input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 1rem;
+      font-size: 1rem;
+      outline: none;
+      touch-action: manipulation;
+    }
+
+    .chat-input button {
+      padding: 0.75rem 2rem;
+      margin-left: 0.5rem;
+      background-color: var(--primary-blue);
+      color: var(--text-light);
+      border: none;
+      border-radius: 1rem;
+      cursor: pointer;
+      font-size: 1rem;
+      min-width: 100px;
+      touch-action: manipulation;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .chat-input button:active {
+      transform: scale(0.95);
+    }
+
+    .chat-input button:hover {
+      background-color: #1e40af;
+    }
+
+    .chat-footer {
+      background-color: var(--primary-blue);
+      padding: 0.75rem;
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      border-bottom-left-radius: 1.5rem;
+      border-bottom-right-radius: 1.5rem;
+    }
+
+    .footer-icon {
+      color: var(--text-light);
+      font-size: 1.5rem;
+      text-decoration: none;
+      padding: 0.5rem;
+      border: 2px solid var(--text-light);
+      border-radius: 0.5rem;
+      transition: transform 0.2s, color 0.2s, border-color 0.2s;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      touch-action: manipulation;
+    }
+
+    .footer-icon:active {
+      transform: scale(0.95);
+    }
+
+    .footer-icon:hover {
+      color: var(--primary-yellow);
+      border-color: var(--primary-yellow);
+      transform: scale(1.1);
+    }
+
+    .footer-icon .tooltip {
+      visibility: hidden;
+      background-color: #374151;
+      color: var(--text-light);
+      text-align: center;
+      border-radius: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .footer-icon:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .chat-toggle {
+      position: fixed;
+      bottom: 40px;
+      right: 40px;
+      background-color: var(--primary-blue);
+      color: var(--text-light);
+      width: 50px;
+      height: 50px;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: background-color 0.2s, transform 0.2s;
+      z-index: 1000;
+      touch-action: manipulation;
+    }
+
+    .chat-toggle:active {
+      transform: scale(0.95);
+    }
+
+    .chat-toggle:hover {
+      background-color: #1e40af;
+      transform: scale(1.1);
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background-color: var(--text-light);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: var(--shadow);
+    }
+
+    .modal-content h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: var(--primary-blue);
+    }
+
+    .modal-content label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--text-dark);
+    }
+
+    .modal-content input,
+    .modal-content select {
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.25rem;
+      font-size: 1rem;
+    }
+
+    .modal-content button {
+      padding: 0.75rem 1.5rem;
+      background-color: var(--primary-blue);
+      color: var(--text-light);
+      border: none;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .modal-content button:active {
+      transform: scale(0.95);
+    }
+
+    .modal-content button:hover {
+      background-color: #1e40af;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes dots {
+      0% { content: '.'; }
+      33% { content: '..'; }
+      66% { content: '...'; }
+    }
+
+    @media (max-width: 600px) {
+      .chat-container {
+        max-width: 100%;
+        height: 70vh;
+        border-radius: 1rem;
       }
 
-      // Handle samples request
-      if (userMessage.includes('samples')) {
-        const responseMessage = `Explore our countertop samples here: ${NAV_LINKS.samples}\nMore options: Countertops (${NAV_LINKS.countertops}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store})`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
-        });
+      .chat-header {
+        font-size: 1.1rem;
       }
 
-      // Handle estimation request
-      if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop')) {
-        let responseMessage = '';
-        let quickReplies = ['Samples', 'All Countertops', 'Vendors', 'Visualizer'];
-
-        // Prompt for layout if not provided
-        if (!['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'].some(layout => userMessage.includes(layout))) {
-          responseMessage = 'What is the layout of your countertop? (e.g., U-shaped, Galley, L-shape, Plateau, Bar Top)';
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({ message: responseMessage, quickReplies });
-        }
-
-        // Extract layout
-        const layout = ['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'].find(l => userMessage.includes(l)) || 'unknown';
-
-        // Prompt for dimensions if not provided
-        const dimensions = extractDimensions(req.body.message);
-        if (!dimensions.length) {
-          responseMessage = 'Please provide the dimensions of each countertop section (e.g., 5x3 ft).';
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({ message: responseMessage, quickReplies });
-        }
-
-        // Prompt for material
-        let priceList = [];
-        try {
-          priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
-        } catch (error) {
-          console.error(`Failed to fetch price list: ${error.message}`);
-        }
-
-        let matchedMaterial = priceList.find((item) => {
-          const materialName = item['Color Name'];
-          if (!materialName) return false;
-          return fuzzyMatch(materialName, userMessage);
-        });
-
-        if (!matchedMaterial) {
-          responseMessage = `Please specify a material (e.g., Frost-N, Calacatta Gold). See our samples: ${NAV_LINKS.samples}`;
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({ message: responseMessage, quickReplies });
-        }
-
-        // Calculate estimate
-        const material = matchedMaterial['Color Name'];
-        const thickness = matchedMaterial.Thickness || 'unknown';
-        const materialPrice = parseFloat(matchedMaterial['Cost/SqFt']) || 0;
-        const materialType = matchedMaterial.Material || 'unknown';
-        if (!material || materialPrice === 0) {
-          responseMessage = `Invalid material data for "${material}". Try our samples: ${NAV_LINKS.samples}`;
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({ message: responseMessage, quickReplies });
-        }
-
-        const totalArea = dimensions.reduce((sum, dim) => sum + dim.area, 0);
-        let wasteFactor = 0.20;
-        if (userMessage.includes('waterfall')) wasteFactor = 0.30;
-        if (userMessage.includes('backsplash') && userMessage.includes('full')) wasteFactor = 0.25;
-        if (userMessage.includes('vanity') || userMessage.includes('small')) wasteFactor = 0.35;
-
-        const adjustedArea = totalArea * (1 + wasteFactor);
-        const materialCost = adjustedArea * materialPrice * 1.04;
-        let laborCostPerSqft = 65;
-        try {
-          const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
-          laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
-        } catch (error) {
-          console.error(`Failed to fetch labor costs: ${error.message}`);
-        }
-        const fabricationCost = totalArea * 50;
-        const installationCost = totalArea * 15;
-        const laborCost = adjustedArea * laborCostPerSqft;
-        const subtotal = materialCost + laborCost;
-        const margin = 0.50;
-        const totalCost = subtotal / (1 - margin);
-
-        responseMessage = `Estimate for ${layout} countertop (${material}, ${thickness}, ${materialType}):\n` +
-          `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
-          `- Material: $${materialCost.toFixed(2)} (${materialPrice.toFixed(2)}/sqft + 4% markup)\n` +
-          `- Fabrication: $${fabricationCost.toFixed(2)} ($50/sqft)\n` +
-          `- Installation: $${installationCost.toFixed(2)} ($15/sqft)\n` +
-          `- Total: $${totalCost.toFixed(2)} (50% margin)\n` +
-          `Explore more: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Visualizer (${NAV_LINKS.visualizer})`;
-
-        // Save bid
-        chatLog.bids = chatLog.bids || [];
-        chatLog.bids.push({
-          layout,
-          dimensions,
-          material,
-          wasteFactor,
-          fabricationCost,
-          installationCost,
-          materialCost,
-          totalCost,
-          margin
-        });
-
-        // Solicit feedback
-        responseMessage += '\nIs this price fair? (Reply: Great, High, Low)';
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-
-        return res.json({
-          message: responseMessage,
-          image: matchedMaterial.image_url || null,
-          quickReplies: ['Great', 'High', 'Low', 'Samples', 'Visualizer']
-        });
+      .message {
+        font-size: 0.9rem;
       }
 
-      // Handle feedback
-      if (['great', 'high', 'low'].includes(userMessage)) {
-        chatLog.feedback = chatLog.feedback || [];
-        chatLog.feedback.push({
-          question: 'Is this price fair?',
-          response: userMessage
-        });
-        const responseMessage = `Thank you for your feedback! How else can I assist you?`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
-        });
+      .quick-replies {
+        max-height: 60px;
       }
 
-      // Handle sink/product queries
-      let shopifyProducts = [];
+      .quick-reply,
+      .chat-input input,
+      .chat-input button {
+        font-size: 0.9rem;
+      }
+
+      .chat-input input {
+        padding: 0.6rem;
+      }
+
+      .chat-input button {
+        padding: 0.6rem 1.5rem;
+        min-width: 90px;
+      }
+
+      .chat-footer {
+        gap: 1.5rem;
+      }
+
+      .footer-icon {
+        font-size: 1.25rem;
+        width: 36px;
+        height: 36px;
+      }
+    }
+
+    /* Accessibility */
+    .chat-input input:focus,
+    .chat-input button:focus,
+    .quick-reply:focus,
+    .footer-icon:focus,
+    .modal-content input:focus,
+    .modal-content button:focus,
+    .chat-toggle:focus {
+      outline: 2px solid var(--primary-yellow);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot">
+    <i class="fas fa-message"></i>
+  </div>
+
+  <div class="chat-container hidden" id="chatContainer" role="region" aria-label="Surprise Granite AI Chatbot">
+    <div class="chat-header">
+      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo">
+      Surprise Granite AI
+    </div>
+    <div class="chat-messages" id="chatMessages" aria-live="polite">
+      <div class="message bot">
+        Welcome to Surprise Granite! How can I assist you today?
+        <div class="timestamp" id="welcomeTimestamp"></div>
+      </div>
+    </div>
+    <div class="quick-replies" id="quickReplies">
+      <button class="quick-reply" onclick="sendQuickReply('Show countertop materials')">Countertops</button>
+      <button class="quick-reply" onclick="sendQuickReply('Show sinks')">Sinks</button>
+      <button class="quick-reply" onclick="openSamples()">Samples</button>
+      <button class="quick-reply" onclick="openAppointmentModal()">Book Appointment</button>
+      <button class="quick-reply" onclick="sendQuickReply('List vendors')">Vendors</button>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="userInput" placeholder="Ask about Frost-N pricing..." aria-label="Chat input" autocomplete="off">
+      <button onclick="sendMessage()" aria-label="Send message">Send</button>
+    </div>
+    <div class="chat-footer" id="chatFooter">
+      <!-- Populated by JavaScript -->
+    </div>
+  </div>
+
+  <div class="modal" id="appointmentModal">
+    <div class="modal-content">
+      <h2>Book an Appointment</h2>
+      <form id="appointmentForm" action="https://usebasin.com/f/0e9742fed801" method="POST">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required aria-required="true">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required aria-required="true">
+        <label for="date">Preferred Date</label>
+        <input type="date" id="date" name="date" required aria-required="true">
+        <button type="submit">Submit</button>
+        <button type="button" onclick="closeAppointmentModal()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const chatContainer = document.getElementById('chatContainer');
+    const chatToggle = document.getElementById('chatToggle');
+    const chatMessages = document.getElementById('chatMessages');
+    const userInput = document.getElementById('userInput');
+    const quickReplies = document.getElementById('quickReplies');
+    const appointmentModal = document.getElementById('appointmentModal');
+    const chatFooter = document.getElementById('chatFooter');
+    const sessionId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    let placeholders = [
+      'Ask about Frost-N pricing...',
+      'Need a sink recommendation?',
+      'Get a countertop quote...',
+      'Book an appointment!'
+    ];
+    let placeholderIndex = 0;
+    let inactivityTimer;
+    let abandonTimer;
+
+    // Navigation links
+    const NAV_LINKS = {
+      samples: 'https://store.surprisegranite.com/collections/countertop-samples',
+      vendors: 'https://www.surprisegranite.com/company/vendors-list',
+      visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
+      countertops: 'https://www.surprisegranite.com/materials/all-countertops',
+      store: 'https://store.surprisegranite.com/'
+    };
+
+    // Load company info
+    async function loadCompanyInfo() {
       try {
-        shopifyProducts = await fetchShopifyProducts();
+        const response = await fetch('/companyInfo.json');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to fetch companyInfo.json`);
+        }
+        const companyInfo = await response.json();
+        console.log('Company info loaded:', companyInfo);
+        chatFooter.innerHTML = `
+          <a href="tel:${companyInfo.phone}" class="footer-icon" aria-label="Call us" title="Call">
+            <i class="fas fa-phone"></i>
+            <span class="tooltip">Call Us</span>
+          </a>
+          <a href="${companyInfo.messageForm}" class="footer-icon" aria-label="Message us" title="Message">
+            <i class="fas fa-envelope"></i>
+            <span class="tooltip">Message Us</span>
+          </a>
+          <a href="${companyInfo.mapUrl}" class="footer-icon" aria-label="Get directions" title="Directions">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="tooltip">Get Directions</span>
+          </a>
+        `;
       } catch (error) {
-        console.error(`Failed to fetch Shopify products: ${error.message}`);
+        console.error('Error loading company info:', error.message);
+        chatFooter.innerHTML = `
+          <a href="tel:+16028333189" class="footer-icon" aria-label="Call us" title="Call">
+            <i class="fas fa-phone"></i>
+            <span class="tooltip">Call Us</span>
+          </a>
+          <a href="https://usebasin.com/f/0e9742fed801" class="footer-icon" aria-label="Message us" title="Message">
+            <i class="fas fa-envelope"></i>
+            <span class="tooltip">Message Us</span>
+          </a>
+          <a href="https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379" class="footer-icon" aria-label="Get directions" title="Directions">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="tooltip">Get Directions</span>
+          </a>
+        `;
       }
-
-      if (userMessage.includes('sink')) {
-        const matchedSink = shopifyProducts.find((product) =>
-          product.title &&
-          fuzzyMatch(product.title, userMessage) &&
-          userMessage.includes('sink')
-        );
-        if (matchedSink) {
-          const price = parseFloat(matchedSink.variants[0].price) || 0;
-          const productUrl = matchedSink.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedSink.handle}`;
-          const imageUrl = matchedSink.image?.src || null;
-          const description = matchedSink.body_html ? matchedSink.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-          console.log(`Matched sink: ${matchedSink.title}`);
-          const responseMessage = `"${matchedSink.title}" costs $${price.toFixed(2)}. ${description}\nView it here: ${productUrl}\nExplore more: ${NAV_LINKS.store}`;
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({
-            message: responseMessage,
-            image: imageUrl,
-            productUrl,
-            quickReplies: ['Samples', 'Online Store', 'Vendors', 'Visualizer']
-          });
-        }
-      }
-
-      const matchedProduct = shopifyProducts.find((product) =>
-        product.title && fuzzyMatch(product.title, userMessage)
-      );
-
-      if (matchedProduct) {
-        const price = parseFloat(matchedProduct.variants[0].price) || 0;
-        const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
-        const imageUrl = matchedProduct.image?.src || null;
-        const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-        console.log(`Matched product: ${matchedProduct.title}`);
-        const responseMessage = `"${matchedProduct.title}" costs $${price.toFixed(2)}. ${description}\nView it here: ${productUrl}\nExplore more: ${NAV_LINKS.store}`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          image: imageUrl,
-          productUrl,
-          quickReplies: ['Samples', 'Online Store', 'Vendors', 'Visualizer']
-        });
-      }
-
-      // Generic response
-      const systemPrompt = {
-        role: 'system',
-        content: `
-          You are Surprise Granite's AI assistant. Your tasks include:
-          - Listing vendors (e.g., Arizona Tile, Kibi) and their products (e.g., Granite, Quartz, natural stone) with color counts and examples.
-          - Providing detailed countertop estimates by asking for layout, dimensions, material, and services.
-          - Using CSV pricing for materials and labor, with a fallback to $50/sqft fabrication, $15/sqft installation, 4% stone markup, 50% margin.
-          - Saving bids in MongoDB and soliciting feedback.
-          - Offering detailed Shopify product info (title, price, description, image, link).
-          - Including navigation links: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Vendors (${NAV_LINKS.vendors}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store}).
-          - Do not include contact information; use footer links.
-        `,
-      };
-
-      const messages = [
-        systemPrompt,
-        ...conversationHistory,
-        { role: 'user', content: req.body.message },
-      ];
-
-      const aiResponse = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-3.5-turbo',
-          messages,
-          temperature: 0.7,
-          max_tokens: 600,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      let aiMessage = aiResponse.data.choices[0].message.content;
-      console.log(`Raw AI response: ${aiMessage}`);
-
-      const contactPatterns = [
-        /Contact us:.*$/gi,
-        /If you'd like to contact our support team.*$/gi,
-        /support@surprisegranite\.com/gi,
-        /\[Call \(602\) 833-3189\].*$/gi,
-        /\[Message Us\].*$/gi,
-        /\[Get Directions\].*$/gi,
-      ];
-      contactPatterns.forEach((pattern) => {
-        aiMessage = aiMessage.replace(pattern, '').trim();
-      });
-
-      aiMessage += `\nExplore: Samples (${NAV_LINKS.samples}), Countertops (${NAV_LINKS.countertops}), Vendors (${NAV_LINKS.vendors}), Visualizer (${NAV_LINKS.visualizer}), Store (${NAV_LINKS.store})`;
-      console.log(`Cleaned AI response: ${aiMessage}`);
-
-      chatLog.messages.push(
-        { role: 'user', content: req.body.message },
-        { role: 'assistant', content: aiMessage }
-      );
-      await chatLog.save();
-
-      res.json({
-        message: aiMessage,
-        quickReplies: ['Samples', 'All Countertops', 'Vendors', 'Visualizer']
-      });
-    } catch (err) {
-      console.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}):`, err.message);
-      res.status(500).json({
-        error: 'An error occurred while processing your request. Please try again later.',
-        details: err.message,
-      });
     }
-  }
-);
 
-// --- Default Route ---
-app.get('/', (req, res) => {
-  res.send('Welcome to the Surprise Granite API!');
-});
+    // Set timestamp for welcome message
+    document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-// --- Catch-All Route ---
-app.use((req, res) => {
-  res.status(404).send('Page not found. Make sure you are accessing the correct endpoint.');
-});
+    // Rotate placeholders
+    setInterval(() => {
+      userInput.placeholder = placeholders[placeholderIndex];
+      placeholderIndex = (placeholderIndex + 1) % placeholders.length;
+    }, 3000);
 
-// --- Handle SIGTERM ---
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM. Shutting down gracefully...');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed.');
-    process.exit(0);
-  });
-});
+    // Auto-focus input
+    userInput.focus();
 
-// --- Global Error Handling ---
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err.message);
-  process.exit(1);
-});
+    // Open samples page
+    function openSamples() {
+      console.log('Samples button clicked, redirecting to:', NAV_LINKS.samples);
+      try {
+        window.open(NAV_LINKS.samples, '_blank');
+      } catch (error) {
+        console.error('Failed to open samples page:', error);
+        addMessage('Sorry, I couldn’t open the samples page. Try this link: ' + NAV_LINKS.samples, false);
+      }
+    }
 
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err.message);
-  process.exit(1);
-});
+    // Inactivity detection
+    function resetInactivityTimer() {
+      clearTimeout(inactivityTimer);
+      clearTimeout(abandonTimer);
+      inactivityTimer = setTimeout(() => {
+        addMessage('Are you still there? Let me know how I can assist!', false, null, null, ['Samples', 'All Countertops', 'Vendors', 'Visualizer']);
+        abandonTimer = setTimeout(closeAbandonedChat, 60 * 1000);
+      }, 5 * 60 * 1000);
+    }
 
-// --- Start Server ---
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+    async function closeAbandonedChat() {
+      addMessage('Chat session closed due to inactivity.', false);
+      chatContainer.classList.add('hidden');
+      chatToggle.innerHTML = '<i class="fas fa-message"></i>';
+      chatToggle.setAttribute('aria-label', 'Open chatbot');
+      try {
+        await fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, abandoned: true })
+        });
+      } catch (error) {
+        console.error('Error closing chat:', error);
+      }
+      clearTimeout(inactivityTimer);
+      clearTimeout(abandonTimer);
+    }
+
+    // Toggle chatbot
+    function toggleChat() {
+      const isHidden = chatContainer.classList.contains('hidden');
+      chatContainer.classList.toggle('hidden', !isHidden);
+      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
+      chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
+      if (isHidden) {
+        userInput.focus();
+        resetInactivityTimer();
+      } else {
+        clearTimeout(inactivityTimer);
+        clearTimeout(abandonTimer);
+        fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, abandoned: false })
+        }).catch(error => console.error('Error closing chat:', error));
+      }
+    }
+
+    chatToggle.addEventListener('click', toggleChat);
+
+    function addMessage(content, isUser, imageUrl, productUrl, quickRepliesList) {
+      const div = document.createElement('div');
+      div.className = `message ${isUser ? 'user' : 'bot'}`;
+      
+      const contentDiv = document.createElement('div');
+      
+      if (productUrl) {
+        const parts = content.split(productUrl);
+        contentDiv.textContent = parts[0];
+        const link = document.createElement('a');
+        link.href = productUrl;
+        link.textContent = productUrl;
+        link.target = '_blank';
+        contentDiv.appendChild(link);
+        contentDiv.appendChild(document.createTextNode(parts[1] || ''));
+      } else {
+        contentDiv.textContent = content;
+      }
+
+      div.appendChild(contentDiv);
+
+      if (imageUrl && !isUser) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = `Product image`;
+        div.appendChild(img);
+      }
+
+      const timestamp = document.createElement('div');
+      timestamp.className = 'timestamp';
+      timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      div.appendChild(timestamp);
+
+      chatMessages.appendChild(div);
+
+      // Update quick replies
+      if (quickRepliesList && quickRepliesList.length) {
+        quickReplies.innerHTML = quickRepliesList.map(reply => {
+          let action = `sendQuickReply('${reply}')`;
+          if (reply === 'Samples') action = `openSamples()`;
+          if (reply === 'All Countertops') action = `window.open('${NAV_LINKS.countertops}', '_blank')`;
+          if (reply === 'Vendors') action = `window.open('${NAV_LINKS.vendors}', '_blank')`;
+          if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer}', '_blank')`;
+          if (reply === 'Online Store') action = `window.open('${NAV_LINKS.store}', '_blank')`;
+          return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
+        }).join('');
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (isUser) resetInactivityTimer();
+    }
+
+    function showTypingIndicator(show) {
+      let indicator = document.getElementById('typingIndicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'typingIndicator';
+        indicator.className = 'typing-indicator';
+        indicator.textContent = 'Surprise Granite AI is typing';
+        chatMessages.appendChild(indicator);
+      }
+      indicator.style.display = show ? 'block' : 'none';
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      addMessage(message, true);
+      userInput.value = '';
+      quickReplies.style.display = 'none';
+      showTypingIndicator(true);
+
+      try {
+        const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, sessionId })
+        });
+        const data = await response.json();
+        showTypingIndicator(false);
+        addMessage(data.message, false, data.image, data.productUrl, data.quickReplies);
+        quickReplies.style.display = 'flex';
+      } catch (error) {
+        console.error('Chat error:', error);
+        showTypingIndicator(false);
+        addMessage('Sorry, something went wrong. Please try again.', false, null, null, ['Samples', 'All Countertops', 'Vendors', 'Visualizer']);
+        quickReplies.style.display = 'flex';
+      }
+    }
+
+    function sendQuickReply(message) {
+      userInput.value = message;
+      sendMessage();
+    }
+
+    function openAppointmentModal() {
+      appointmentModal.style.display = 'flex';
+      document.getElementById('name').focus();
+    }
+
+    function closeAppointmentModal() {
+      appointmentModal.style.display = 'none';
+      document.getElementById('appointmentForm').reset();
+    }
+
+    async function handleAppointmentSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const date = document.getElementById('date').value;
+
+      try {
+        const form = document.getElementById('appointmentForm');
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+        });
+        if (response.ok) {
+          addMessage(`Appointment booked for ${name} on ${date}! We'll confirm via email.`, false);
+          let chatLog = await ChatLog.findOne({ sessionId });
+          if (!chatLog) {
+            chatLog = new ChatLog({ sessionId, messages: [] });
+          }
+          chatLog.appointmentRequested = true;
+          chatLog.messages.push({
+            role: 'system',
+            content: `Appointment requested: ${name}, ${email}, ${date}`,
+          });
+          await chatLog.save();
+        } else {
+          throw new Error('Basin submission failed');
+        }
+        closeAppointmentModal();
+      } catch (error) {
+        console.error('Appointment error:', error);
+        addMessage('Sorry, we couldn’t book your appointment. Please try again.', false);
+      }
+    }
+
+    userInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    document.getElementById('appointmentForm').addEventListener('submit', handleAppointmentSubmit);
+
+    // Initialize company info
+    loadCompanyInfo();
+  </script>
+</body>
+</html>
