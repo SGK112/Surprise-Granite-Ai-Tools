@@ -47,8 +47,9 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      height: 85vh;
+      height: 90vh;
       transition: var(--transition);
+      z-index: 10;
     }
 
     .chat-container.hidden {
@@ -95,6 +96,7 @@
       font-size: 0.95rem;
       line-height: 1.5;
       animation: fadeIn 0.3s ease;
+      word-break: break-word;
     }
 
     .message.user {
@@ -122,7 +124,12 @@
     .message.bot a {
       color: var(--primary-blue);
       text-decoration: underline;
-      word-break: break-all;
+      font-weight: 500;
+    }
+
+    .message.bot a:hover,
+    .message.bot a:focus {
+      color: var(--primary-yellow);
     }
 
     .message .timestamp {
@@ -155,14 +162,19 @@
     }
 
     .quick-reply {
-      padding: 0.4rem 0.8rem;
+      padding: 0.5rem 1rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
       border-radius: var(--border-radius);
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       cursor: pointer;
       transition: var(--transition);
+      min-height: 44px;
+      min-width: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .quick-reply:hover,
@@ -180,6 +192,9 @@
       padding: 0.75rem;
       background-color: var(--bg-light);
       border-top: 1px solid #d1d5db;
+      position: sticky;
+      bottom: 0;
+      z-index: 11;
     }
 
     .chat-input input {
@@ -190,6 +205,7 @@
       font-size: 1rem;
       outline: none;
       transition: border-color 0.2s ease;
+      min-height: 44px;
     }
 
     .chat-input input:focus {
@@ -206,6 +222,7 @@
       cursor: pointer;
       font-size: 1rem;
       min-width: 100px;
+      min-height: 44px;
       transition: var(--transition);
     }
 
@@ -240,8 +257,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       position: relative;
     }
 
@@ -277,13 +294,13 @@
 
     .chat-toggle {
       position: fixed;
-      bottom: 40px;
-      right: 40px;
+      bottom: 20px;
+      right: 20px;
       background-color: var(--primary-blue);
       color: var(--text-light);
-      width: 50px;
-      height: 50px;
-      border-radius: 0.5rem;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -348,6 +365,7 @@
       border-radius: 0.25rem;
       font-size: 1rem;
       transition: border-color 0.2s ease;
+      min-height: 44px;
     }
 
     .modal-content input:focus,
@@ -370,6 +388,7 @@
       cursor: pointer;
       font-size: 1rem;
       transition: var(--transition);
+      min-height: 44px;
     }
 
     .modal-content button:hover,
@@ -424,7 +443,7 @@
 
       .quick-reply {
         font-size: 0.9rem;
-        padding: 0.5rem 1rem;
+        padding: 0.6rem 1.2rem;
       }
 
       .chat-input input,
@@ -440,12 +459,17 @@
     @media (max-width: 600px) {
       .chat-container {
         max-width: 100%;
-        height: 90vh;
+        height: 95vh;
         border-radius: 0.75rem;
       }
 
       .chat-header {
         font-size: 1.1rem;
+        padding: 0.75rem;
+      }
+
+      .chat-messages {
+        padding: 1rem;
       }
 
       .message {
@@ -457,8 +481,13 @@
       }
 
       .quick-reply {
-        font-size: 0.75rem;
-        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        padding: 0.5rem 1rem;
+        min-height: 40px;
+      }
+
+      .chat-input {
+        padding: 0.5rem;
       }
 
       .chat-input input {
@@ -474,19 +503,21 @@
 
       .chat-footer {
         gap: 1.5rem;
+        padding: 0.5rem;
       }
 
       .footer-icon {
         font-size: 1.25rem;
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
       }
 
       .chat-toggle {
-        bottom: 20px;
-        right: 20px;
+        bottom: 16px;
+        right: 16px;
         width: 48px;
         height: 48px;
+        font-size: 1.25rem;
       }
     }
 
@@ -527,15 +558,15 @@
     </div>
     <div class="chat-messages" id="chatMessages" aria-live="polite">
       <div class="message bot">
-        Welcome to Surprise Granite! How can I assist you today?
+        Hey there! Welcome to Surprise Granite! 😊 I’m here to help you design your dream kitchen or bath. Want to start with a countertop quote, browse <a href="https://store.surprisegranite.com/" target="_blank">our store</a>, or request a sample?
         <div class="timestamp" id="welcomeTimestamp"></div>
       </div>
     </div>
     <div class="quick-replies" id="quickReplies">
-      <button class="quick-reply" onclick="sendQuickReply('Show countertop materials')">Countertops</button>
-      <button class="quick-reply" onclick="sendQuickReply('Show sinks')">Sinks</button>
-      <button class="quick-reply" onclick="openSamples()">Samples</button>
-      <button class="quick-reply" onclick="openAppointmentModal()">Book Appointment</button>
+      <button class="quick-reply" onclick="sendQuickReply('Countertops')">Countertops</button>
+      <button class="quick-reply" onclick="sendQuickReply('Sinks')">Sinks</button>
+      <button class="quick-reply" onclick="sendQuickReply('Request Sample')">Request Sample</button>
+      <button class="quick-reply" onclick="openLeadModal()">Get Quote</button>
     </div>
     <div class="chat-input">
       <input type="text" id="userInput" placeholder="Ask about Frost-N pricing..." aria-label="Chat input" autocomplete="off">
@@ -543,6 +574,22 @@
     </div>
     <div class="chat-footer" id="chatFooter">
       <!-- Populated by JavaScript -->
+    </div>
+  </div>
+
+  <div class="modal" id="leadModal">
+    <div class="modal-content">
+      <h2>Start Your Quote</h2>
+      <form id="leadForm" action="https://usebasin.com/f/0e9742fed801" method="POST">
+        <label for="leadName">Name</label>
+        <input type="text" id="leadName" name="name" required aria-required="true">
+        <label for="leadEmail">Email</label>
+        <input type="email" id="leadEmail" name="email" required aria-required="true">
+        <label for="leadPhone">Phone (Optional)</label>
+        <input type="tel" id="leadPhone" name="phone">
+        <button type="submit">Submit</button>
+        <button type="button" onclick="closeLeadModal()">Cancel</button>
+      </form>
     </div>
   </div>
 
@@ -584,6 +631,7 @@
     const chatMessages = document.getElementById('chatMessages');
     const userInput = document.getElementById('userInput');
     const quickReplies = document.getElementById('quickReplies');
+    const leadModal = document.getElementById('leadModal');
     const appointmentModal = document.getElementById('appointmentModal');
     const contactModal = document.getElementById('contactModal');
     const chatFooter = document.getElementById('chatFooter');
@@ -592,68 +640,131 @@
       'Ask about Frost-N pricing...',
       'Need a sink recommendation?',
       'Get a countertop quote...',
-      'Book an appointment!'
+      'Request a sample...'
     ];
     let placeholderIndex = 0;
     let inactivityTimer;
     let abandonTimer;
+    let quoteState = {
+      user: { name: null, email: null, phone: null },
+      material: null,
+      layout: null,
+      dimensions: null,
+      demo: null,
+      style: null,
+      preferences: {}
+    };
+    let conversationStage = 'initial';
 
-    // Navigation links
+    // Hyperlink library
     const NAV_LINKS = {
-      samples: 'https://store.surprisegranite.com/collections/countertop-samples',
-      vendors: 'https://www.surprisegranite.com/company/vendors-list',
-      visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
-      countertops: 'https://www.surprisegranite.com/materials/all-countertops',
-      store: 'https://store.surprisegranite.com/'
+      store: { url: 'https://store.surprisegranite.com/', text: 'our store' },
+      samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
+      vendors: { url: 'https://www.surprisegranite.com/company/vendors-list', text: 'vendors' },
+      visualizer: { url: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool', text: 'visualizer' },
+      countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
+      granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
+      quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
+      sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
+      repairs: { url: 'https://www.surprisegranite.com/services/countertop-repair', text: 'repair services' }
     };
 
-    // Dynamic quick replies based on conversation context
+    // Dynamic quick replies
     const QUICK_REPLY_SETS = {
-      default: [
+      initial: [
         'Countertops',
         'Sinks',
-        'Samples',
-        'Book Appointment'
+        'Request Sample',
+        'Get Quote'
       ],
       countertops: [
-        'Granite Options',
-        'Quartz Options',
-        'Pricing',
-        'All Countertops'
+        'Granite',
+        'Quartz',
+        'Other Materials',
+        'Pricing'
+      ],
+      style: [
+        'Modern',
+        'Traditional',
+        'Rustic',
+        'Custom'
+      ],
+      countertop_layout: [
+        'L-Shape',
+        'U-Shape',
+        'Straight',
+        'Island'
+      ],
+      countertop_dimensions: [
+        'Provide Dimensions',
+        'Estimate',
+        'Skip'
+      ],
+      countertop_demo: [
+        'Demolition Needed',
+        'No Demolition',
+        'Unsure'
       ],
       sinks: [
         'Stainless Steel',
         'Composite',
         'Undermount',
-        'Pricing'
+        'Browse Sinks'
       ],
       samples: [
         'Order Samples',
         'View Samples',
-        'Visualizer',
-        'Online Store'
+        'Shop Online',
+        'Contact Us'
       ],
-      vendors: [
-        'List Vendors',
-        'Vendor Locations',
-        'Contact Vendor',
-        'Online Store'
+      pricing: [
+        'Countertop Pricing',
+        'Sink Pricing',
+        'Repair Pricing',
+        'Save Quote'
+      ],
+      shopify: [
+        'Track Order',
+        'Shipping Info',
+        'Returns',
+        'Shop Online'
       ],
       appointment: [
         'Book Appointment',
         'View Availability',
         'Contact Us',
-        'Visualizer'
+        'Shop Online'
       ],
       inactivity: [
-        'Samples',
-        'All Countertops',
-        'Vendors',
-        'Visualizer'
+        'Request Sample',
+        'Countertops',
+        'Sinks',
+        'Shop Online'
       ]
     };
 
-    // Load company info
+    // Nodemailer configuration
+    async function sendEmail(formData, type) {
+      try {
+        const response = await fetch('https://your-nodemailer-server.com/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type,
+            data: formData,
+            to: 'your-email@surprisegranite.com',
+            from: 'noreply@surprisegranite.com'
+          })
+        });
+        if (!response.ok) throw new Error('Email sending failed');
+        console.log('Email sent successfully');
+      } catch (error) {
+        console.error('Nodemailer error:', error);
+        throw error;
+      }
+    }
+
+    // Load company info with fallback
     async function loadCompanyInfo() {
       try {
         const response = await fetch('/companyInfo.json');
@@ -678,6 +789,7 @@
         `;
       } catch (error) {
         console.error('Error loading company info:', error.message);
+        // Fallback contact info
         chatFooter.innerHTML = `
           <a href="tel:+16028333189" class="footer-icon" aria-label="Call us" title="Call">
             <i class="fas fa-phone"></i>
@@ -709,13 +821,13 @@
 
     // Open samples page
     function openSamples() {
-      console.log('Samples button clicked, redirecting to:', NAV_LINKS.samples);
+      console.log('Samples button clicked, redirecting to:', NAV_LINKS.samples.url);
       try {
-        window.open(NAV_LINKS.samples, '_blank');
+        window.open(NAV_LINKS.samples.url, '_blank');
         updateQuickReplies('samples');
       } catch (error) {
         console.error('Failed to open samples page:', error);
-        addMessage('Sorry, I couldn’t open the samples page. Try this link: ' + NAV_LINKS.samples, false);
+        addMessage(`Oops, I couldn’t open the samples page. Please visit <a href="${NAV_LINKS.samples.url}" target="_blank">${NAV_LINKS.samples.text}</a>.`, false);
       }
     }
 
@@ -724,13 +836,16 @@
       clearTimeout(inactivityTimer);
       clearTimeout(abandonTimer);
       inactivityTimer = setTimeout(() => {
-        addMessage('Are you still there? Let me know how I can assist!', false, null, null, 'inactivity');
+        addMessage('Still dreaming about your perfect kitchen? 😊 Let’s pick up where we left off!', false, null, null, 'inactivity');
         abandonTimer = setTimeout(closeAbandonedChat, 60 * 1000);
       }, 5 * 60 * 1000);
     }
 
     async function closeAbandonedChat() {
-      addMessage('Chat session closed due to inactivity.', false);
+      if (quoteState.user.email) {
+        await sendEmail({ ...quoteState, status: 'abandoned' }, 'lead');
+      }
+      addMessage('Looks like you’ve stepped away. Chat closed for now, but come back anytime!', false);
       chatContainer.classList.add('hidden');
       chatToggle.innerHTML = '<i class="fas fa-message"></i>';
       chatToggle.setAttribute('aria-label', 'Open chatbot');
@@ -756,7 +871,7 @@
       if (isHidden) {
         userInput.focus();
         resetInactivityTimer();
-        updateQuickReplies('default');
+        updateQuickReplies('initial');
       } else {
         clearTimeout(inactivityTimer);
         clearTimeout(abandonTimer);
@@ -776,38 +891,27 @@
     });
 
     function updateQuickReplies(context) {
-      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.default;
+      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
       quickReplies.innerHTML = replies.map(reply => {
         let action = `sendQuickReply('${reply}')`;
-        if (reply === 'Samples' || reply === 'View Samples' || reply === 'Order Samples') action = `openSamples()`;
-        if (reply === 'All Countertops') action = `window.open('${NAV_LINKS.countertops}', '_blank')`;
-        if (reply === 'Vendors' || reply === 'List Vendors') action = `window.open('${NAV_LINKS.vendors}', '_blank')`;
-        if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer}', '_blank')`;
-        if (reply === 'Online Store') action = `window.open('${NAV_LINKS.store}', '_blank')`;
+        if (reply === 'Request Sample' || reply === 'Order Samples' || reply === 'View Samples') action = `openSamples()`;
+        if (reply === 'All Countertops' || reply === 'Other Materials') action = `window.open('${NAV_LINKS.countertops.url}', '_blank')`;
+        if (reply === 'Vendors') action = `window.open('${NAV_LINKS.vendors.url}', '_blank')`;
+        if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer.url}', '_blank')`;
+        if (reply === 'Shop Online' || reply === 'Browse Sinks') action = `window.open('${NAV_LINKS.store.url}', '_blank')`;
         if (reply === 'Book Appointment') action = `openAppointmentModal()`;
-        if (reply === 'Contact Us' || reply === 'Contact Vendor') action = `openContactModal()`;
+        if (reply === 'Contact Us') action = `openContactModal()`;
+        if (reply === 'Get Quote' || reply === 'Save Quote') action = `openLeadModal()`;
         return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
       }).join('');
     }
 
-    function addMessage(content, isUser, imageUrl, productUrl, quickReplyContext) {
+    function addMessage(content, isUser, imageUrl, quickReplyContext) {
       const div = document.createElement('div');
       div.className = `message ${isUser ? 'user' : 'bot'}`;
       
       const contentDiv = document.createElement('div');
-      
-      if (productUrl) {
-        const parts = content.split(productUrl);
-        contentDiv.textContent = parts[0];
-        const link = document.createElement('a');
-        link.href = productUrl;
-        link.textContent = productUrl;
-        link.target = '_blank';
-        contentDiv.appendChild(link);
-        contentDiv.appendChild(document.createTextNode(parts[1] || ''));
-      } else {
-        contentDiv.textContent = content;
-      }
+      contentDiv.innerHTML = content;
 
       div.appendChild(contentDiv);
 
@@ -825,7 +929,6 @@
 
       chatMessages.appendChild(div);
 
-      // Update quick replies based on context
       if (quickReplyContext) {
         updateQuickReplies(quickReplyContext);
       }
@@ -857,36 +960,128 @@
       quickReplies.style.display = 'none';
       showTypingIndicator(true);
 
-      try {
-        const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, sessionId })
-        });
-        const data = await response.json();
-        showTypingIndicator(false);
-        
-        // Determine quick reply context based on response
-        let context = 'default';
-        if (message.toLowerCase().includes('countertop')) context = 'countertops';
-        else if (message.toLowerCase().includes('sink')) context = 'sinks';
-        else if (message.toLowerCase().includes('vendor')) context = 'vendors';
-        else if (message.toLowerCase().includes('appointment')) context = 'appointment';
-        else if (data.quickReplies && data.quickReplies.length) context = data.quickReplies[0].toLowerCase();
+      let context = 'initial';
+      let responseMessage = '';
 
-        addMessage(data.message, false, data.image, data.productUrl, context);
-        quickReplies.style.display = 'flex';
-      } catch (error) {
-        console.error('Chat error:', error);
-        showTypingIndicator(false);
-        addMessage('Sorry, something went wrong. Please try again.', false, null, null, 'default');
-        quickReplies.style.display = 'flex';
+      // Quote flow and conversational logic
+      if (!quoteState.user.email && ['Countertops', 'Sinks', 'Request Sample', 'Get Quote'].includes(message)) {
+        responseMessage = 'Awesome! To get started with your quote, may I have your name and email? I’ll send you a free sample as a thank you! 😊';
+        context = 'initial';
+        conversationStage = 'collect_lead';
+      } else if (conversationStage === 'collect_lead' && message.includes('@')) {
+        const emailMatch = message.match(/\b[\w\.-]+@[\w\.-]+\.\w+\b/);
+        const name = message.replace(emailMatch[0], '').trim() || 'Customer';
+        quoteState.user = { name, email: emailMatch[0], phone: null };
+        responseMessage = `Thanks, ${name}! You’re one step closer to your dream kitchen! 😊 Let’s pick a countertop material. Granite is durable and heat-resistant ($40-$100/sqft), great for Arizona’s busy kitchens. Quartz is low-maintenance with a sleek look ($50-$120/sqft). Pricing includes fabrication and installation (3-5 weeks lead time in Arizona), but extras like edge profiles may apply. Note: This is an estimate; final costs depend on a field visit.`;
+        context = 'countertops';
+        conversationStage = 'countertop_material';
+        await sendEmail({ ...quoteState.user, status: 'lead_collected' }, 'lead');
+      } else if (message.toLowerCase().includes('countertop') || message === 'Countertops') {
+        responseMessage = `Fantastic choice, ${quoteState.user.name || 'friend'}! Let’s design your countertop. In Arizona, fabrication takes 3-5 weeks. Granite is super durable ($40-$100/sqft), perfect for heavy use. Quartz is low-maintenance ($50-$120/sqft), ideal for a modern vibe. Pricing includes fabrication and installation, but additional charges (e.g., cutouts) may apply. Estimates are preliminary; final pricing requires a field visit. Browse options at <a href="${NAV_LINKS.countertops.url}" target="_blank">${NAV_LINKS.countertops.text}</a>.`;
+        context = 'countertops';
+        conversationStage = 'countertop_material';
+      } else if (message === 'Granite' && conversationStage === 'countertop_material') {
+        quoteState.material = 'Granite';
+        quoteState.preferences.durable = true;
+        responseMessage = `Love that, ${quoteState.user.name || 'friend'}! Granite’s strength is perfect for Arizona kitchens, and we use CNC machines for precise cuts (3-5 weeks lead time). Try a bold black for a modern look or beige for rustic charm. What’s your kitchen layout?`;
+        context = 'countertop_layout';
+        conversationStage = 'countertop_layout';
+      } else if (message === 'Quartz' && conversationStage === 'countertop_material') {
+        quoteState.material = 'Quartz';
+        quoteState.preferences.lowMaintenance = true;
+        responseMessage = `Great pick, ${quoteState.user.name || 'friend'}! Quartz is low-maintenance and perfect for a sleek Arizona home (3-5 weeks fabrication). A white quartz could elevate your space! What’s your countertop layout?`;
+        context = 'countertop_layout';
+        conversationStage = 'countertop_layout';
+      } else if (['L-Shape', 'U-Shape', 'Straight', 'Island'].includes(message) && conversationStage === 'countertop_layout') {
+        quoteState.layout = message;
+        responseMessage = `Nice, a ${message} layout! For your ${quoteState.material} countertop, what are the approximate dimensions (e.g., length x width in feet)? Our team ensures a perfect fit, and we can coordinate installation in Arizona. Or I can estimate for you.`;
+        context = 'countertop_dimensions';
+        conversationStage = 'countertop_dimensions';
+      } else if ((message.toLowerCase().includes('dimension') || message === 'Provide Dimensions') && conversationStage === 'countertop_dimensions') {
+        quoteState.dimensions = message === 'Provide Dimensions' ? 'User will provide' : message;
+        responseMessage = `Got it! Do you need demolition services for an existing countertop? Our Arizona team can handle everything, ensuring a smooth install (3-5 weeks lead time).`;
+        context = 'countertop_demo';
+        conversationStage = 'countertop_demo';
+      } else if (['Demolition Needed', 'No Demolition', 'Unsure'].includes(message) && conversationStage === 'countertop_demo') {
+        quoteState.demo = message;
+        let priceRange = quoteState.material === 'Granite' ? '$40-$100/sqft' : '$50-$120/sqft';
+        let laborCost = quoteState.demo === 'Demolition Needed' ? 'plus $30-$50/sqft for demolition (based on labor rates)' : '';
+        let recommendation = quoteState.preferences.durable 
+          ? `${quoteState.material} is ideal for durability. Consider a polished finish for a classic Arizona kitchen.`
+          : `${quoteState.material} fits your low-maintenance needs. A matte finish could add a modern touch.`;
+        responseMessage = `You’re all set, ${quoteState.user.name || 'friend'}! For a ${quoteState.layout} ${quoteState.material} countertop${quoteState.demo === 'Demolition Needed' ? ' with demolition' : ''} in Arizona, the estimated range is ${priceRange} ${laborCost}, including fabrication and installation (3-5 weeks lead time). Additional charges (e.g., cutouts, edge profiles) may apply, and final pricing depends on a field visit. ${recommendation} Save this quote or browse <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>?`;
+        context = 'pricing';
+        conversationStage = 'quote_complete';
+      } else if (message === 'Sinks') {
+        responseMessage = `Sweet! A new sink can transform your Arizona kitchen. We offer stainless steel, composite, and undermount options. Check them out at <a href="${NAV_LINKS.sinks.url}" target="_blank">${NAV_LINKS.sinks.text}</a>. A stainless steel sink pairs great with ${quoteState.material || 'any countertop'}! Want an estimate or design tips?`;
+        context = 'sinks';
+        conversationStage = 'sinks';
+      } else if (message === 'Request Sample') {
+        responseMessage = `Perfect! Samples let you feel the quality. Browse our collection at <a href="${NAV_LINKS.samples.url}" target="_blank">${NAV_LINKS.samples.text}</a>. Want a free sample, ${quoteState.user.name || 'friend'}? Share your email if you haven’t already!`;
+        context = 'samples';
+        conversationStage = 'samples';
+      } else if (message.toLowerCase().includes('repair') || message === 'Repair Pricing') {
+        responseMessage = `Countertop repairs in Arizona range from $250-$2500+, depending on damage (e.g., cracks, chips). Labor rates are sourced from our pricing data, typically $30-$50/sqft for related tasks. Learn more at <a href="${NAV_LINKS.repairs.url}" target="_blank">${NAV_LINKS.repairs.text}</a>. Want a repair quote, ${quoteState.user.name || 'friend'}?`;
+        context = 'pricing';
+        conversationStage = 'pricing';
+      } else if (message.toLowerCase().includes('pricing') || message === 'Pricing' || message === 'Countertop Pricing') {
+        responseMessage = `Let’s talk pricing, ${quoteState.user.name || 'friend'}! Granite is $40-$100/sqft, Quartz is $50-$120/sqft, and sinks start at $200. In Arizona, fabrication takes 3-5 weeks. Pricing includes fabrication and installation (labor at $30-$50/sqft), but extras like edge profiles or cutouts may add costs. This is an estimate; final pricing comes after a field visit. Browse at <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> or save a quote!`;
+        context = 'pricing';
+        conversationStage = 'pricing';
+      } else if (message.toLowerCase().includes('shipping') || message === 'Shipping Info') {
+        responseMessage = `Shipping questions? Items from <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> ship in 3-5 business days to Arizona and nationwide. Samples are $5-$10 to ship, countertops vary by location. Need help with a specific product, ${quoteState.user.name || 'friend'}?`;
+        context = 'shopify';
+        conversationStage = 'shopify';
+      } else if (message.toLowerCase().includes('return') || message === 'Returns') {
+        responseMessage = `Our return policy is hassle-free! Unopened items from <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> can be returned within 30 days. Need help with a return, ${quoteState.user.name || 'friend'}?`;
+        context = 'shopify';
+        conversationStage = 'shopify';
+      } else if (message.toLowerCase().includes('design') || message.toLowerCase().includes('style')) {
+        responseMessage = `Let’s design your Arizona space, ${quoteState.user.name || 'friend'}! For a modern vibe, try white Quartz with a stainless sink. Rustic? Go for Granite with warm tones. Use our <a href="${NAV_LINKS.visualizer.url}" target="_blank">${NAV_LINKS.visualizer.text}</a> for inspiration. What’s your style?`;
+        context = 'style';
+        conversationStage = 'style';
+      } else {
+        try {
+          const response = await fetch('https://surprise-granite-connections-dev.onrender.com/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, sessionId })
+          });
+          if (!response.ok) throw new Error(`API error: ${response.status}`);
+          const data = await response.json();
+          responseMessage = data.message.replace(
+            /(https?:\/\/[^\s]+)/g,
+            url => `<a href="${url}" target="_blank">${url.includes('store.surprisegranite') ? 'our store' : 'this link'}</a>`
+          );
+          context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
+        } catch (error) {
+          console.error('Chat error:', error);
+          responseMessage = `Hmm, something went wrong, ${quoteState.user.name || 'friend'}. Let’s try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>!`;
+          context = 'initial';
+        }
       }
+
+      showTypingIndicator(false);
+      addMessage(responseMessage, false, null, context);
+      quickReplies.style.display = 'flex';
     }
 
     function sendQuickReply(message) {
       userInput.value = message;
       sendMessage();
+    }
+
+    function openLeadModal() {
+      leadModal.style.display = 'flex';
+      document.getElementById('leadName').focus();
+      updateQuickReplies('pricing');
+    }
+
+    function closeLeadModal() {
+      leadModal.style.display = 'none';
+      document.getElementById('leadForm').reset();
+      updateQuickReplies('initial');
+      chatContainer.focus();
     }
 
     function openAppointmentModal() {
@@ -898,19 +1093,58 @@
     function closeAppointmentModal() {
       appointmentModal.style.display = 'none';
       document.getElementById('appointmentForm').reset();
-      updateQuickReplies('default');
+      updateQuickReplies('initial');
+      chatContainer.focus();
     }
 
     function openContactModal() {
       contactModal.style.display = 'flex';
       document.getElementById('contactName').focus();
-      updateQuickReplies('default');
+      updateQuickReplies('initial');
     }
 
     function closeContactModal() {
       contactModal.style.display = 'none';
       document.getElementById('contactForm').reset();
-      updateQuickReplies('default');
+      updateQuickReplies('initial');
+      chatContainer.focus();
+    }
+
+    async function handleLeadSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('leadName').value;
+      const email = document.getElementById('leadEmail').value;
+      const phone = document.getElementById('leadPhone').value;
+
+      try {
+        const form = document.getElementById('leadForm');
+        const formData = new FormData(form);
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: formData
+        });
+
+        quoteState.user = { name, email, phone };
+        await sendEmail({ ...quoteState, status: 'quote_saved' }, 'lead');
+
+        addMessage(`Thanks, ${name}! Your quote details are saved. We’ll send a summary to ${email}. Let’s pick a countertop material: Granite ($40-$100/sqft) or Quartz ($50-$120/sqft)? Check out <a href="${NAV_LINKS.countertops.url}" target="_blank">${NAV_LINKS.countertops.text}</a>!`, false, null, 'countertops');
+        
+        let chatLog = await ChatLog.findOne({ sessionId });
+        if (!chatLog) {
+          chatLog = new ChatLog({ sessionId, messages: [] });
+        }
+        chatLog.messages.push({
+          role: 'system',
+          content: `Lead captured: ${name}, ${email}, ${phone}, Quote: ${JSON.stringify(quoteState)}`
+        });
+        await chatLog.save();
+        
+        closeLeadModal();
+        conversationStage = 'countertop_material';
+      } catch (error) {
+        console.error('Lead form error:', error);
+        addMessage(`Sorry, ${name}, we couldn’t save your quote. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+      }
     }
 
     async function handleAppointmentSubmit(e) {
@@ -921,29 +1155,31 @@
 
       try {
         const form = document.getElementById('appointmentForm');
+        const formData = new FormData(form);
         const response = await fetch(form.action, {
           method: 'POST',
-          body: new FormData(form),
+          body: formData
         });
-        if (response.ok) {
-          addMessage(`Appointment booked for ${name} on ${date}! We'll confirm via email.`, false, null, null, 'appointment');
-          let chatLog = await ChatLog.findOne({ sessionId });
-          if (!chatLog) {
-            chatLog = new ChatLog({ sessionId, messages: [] });
-          }
-          chatLog.appointmentRequested = true;
-          chatLog.messages.push({
-            role: 'system',
-            content: `Appointment requested: ${name}, ${email}, ${date}`,
-          });
-          await chatLog.save();
-        } else {
-          throw new Error('Basin submission failed');
+
+        await sendEmail({ name, email, date }, 'appointment');
+
+        addMessage(`You’re all set, ${name}! We’ve requested your appointment for ${date}. Check ${email} for confirmation. Want to browse <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>?`, false, null, 'appointment');
+        
+        let chatLog = await ChatLog.findOne({ sessionId });
+        if (!chatLog) {
+          chatLog = new ChatLog({ sessionId, messages: [] });
         }
+        chatLog.appointmentRequested = true;
+        chatLog.messages.push({
+          role: 'system',
+          content: `Appointment requested: ${name}, ${email}, ${date}`
+        });
+        await chatLog.save();
+        
         closeAppointmentModal();
       } catch (error) {
         console.error('Appointment error:', error);
-        addMessage('Sorry, we couldn’t book your appointment. Please try again.', false, null, null, 'appointment');
+        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'appointment');
       }
     }
 
@@ -955,28 +1191,30 @@
 
       try {
         const form = document.getElementById('contactForm');
+        const formData = new FormData(form);
         const response = await fetch(form.action, {
           method: 'POST',
-          body: new FormData(form),
+          body: formData
         });
-        if (response.ok) {
-          addMessage(`Thank you, ${name}! Your message has been sent. We'll get back to you soon.`, false, null, null, 'default');
-          let chatLog = await ChatLog.findOne({ sessionId });
-          if (!chatLog) {
-            chatLog = new ChatLog({ sessionId, messages: [] });
-          }
-          chatLog.messages.push({
-            role: 'system',
-            content: `Contact form submitted: ${name}, ${email}, ${message}`,
-          });
-          await chatLog.save();
-        } else {
-          throw new Error('Basin submission failed');
+
+        await sendEmail({ name, email, message }, 'contact');
+
+        addMessage(`Thanks for reaching out, ${name}! We’ve got your message and will reply to ${email} soon. Check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> in the meantime!`, false, null, 'initial');
+        
+        let chatLog = await ChatLog.findOne({ sessionId });
+        if (!chatLog) {
+          chatLog = new ChatLog({ sessionId, messages: [] });
         }
+        chatLog.messages.push({
+          role: 'system',
+          content: `Contact form submitted: ${name}, ${email}, ${message}`
+        });
+        await chatLog.save();
+        
         closeContactModal();
       } catch (error) {
         console.error('Contact form error:', error);
-        addMessage('Sorry, we couldn’t send your message. Please try again.', false, null, null, 'default');
+        addMessage(`Sorry, ${name}, we couldn’t send your message. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
@@ -984,6 +1222,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
+    document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
     document.getElementById('appointmentForm').addEventListener('submit', handleAppointmentSubmit);
     document.getElementById('contactForm').addEventListener('submit', handleContactSubmit);
 
