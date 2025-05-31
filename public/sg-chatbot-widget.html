@@ -149,15 +149,17 @@
       gap: 0.5rem;
       padding: 0.5rem 1rem;
       background-color: var(--bg-light);
+      max-height: 80px;
+      overflow-y: auto;
     }
 
     .quick-reply {
-      padding: 0.6rem 1.2rem;
+      padding: 0.4rem 0.8rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
       border-radius: 1rem;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       cursor: pointer;
       touch-action: manipulation;
       transition: background-color 0.2s, transform 0.1s;
@@ -271,8 +273,8 @@
 
     .chat-toggle {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      bottom: 40px;
+      right: 40px;
       background-color: var(--primary-blue);
       color: var(--text-light);
       width: 50px;
@@ -376,7 +378,7 @@
     @media (max-width: 600px) {
       .chat-container {
         max-width: 100%;
-        height: 90vh;
+        height: 70vh;
         border-radius: 1rem;
       }
 
@@ -386,6 +388,10 @@
 
       .message {
         font-size: 0.9rem;
+      }
+
+      .quick-replies {
+        max-height: 60px;
       }
 
       .quick-reply,
@@ -434,7 +440,7 @@
 
   <div class="chat-container hidden" id="chatContainer" role="region" aria-label="Surprise Granite AI Chatbot">
     <div class="chat-header">
-      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg">
+      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo">
       Surprise Granite AI
     </div>
     <div class="chat-messages" id="chatMessages" aria-live="polite">
@@ -446,8 +452,9 @@
     <div class="quick-replies" id="quickReplies">
       <button class="quick-reply" onclick="sendQuickReply('Show countertop materials')">Countertops</button>
       <button class="quick-reply" onclick="sendQuickReply('Show sinks')">Sinks</button>
+      <button class="quick-reply" onclick="openSamples()">Samples</button>
       <button class="quick-reply" onclick="openAppointmentModal()">Book Appointment</button>
-      <button class="quick-reply" onclick="sendQuickReply('Contact support')">Contact</button>
+      <button class="quick-reply" onclick="sendQuickReply('List vendors')">Vendors</button>
     </div>
     <div class="chat-input">
       <input type="text" id="userInput" placeholder="Ask about Frost-N pricing..." aria-label="Chat input" autocomplete="off">
@@ -490,6 +497,17 @@
       'Book an appointment!'
     ];
     let placeholderIndex = 0;
+    let inactivityTimer;
+    let abandonTimer;
+
+    // Navigation links
+    const NAV_LINKS = {
+      samples: 'https://store.surprisegranite.com/collections/countertop-samples',
+      vendors: 'https://www.surprisegranite.com/company/vendors-list',
+      visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
+      countertops: 'https://www.surprisegranite.com/materials/all-countertops',
+      store: 'https://store.surprisegranite.com/'
+    };
 
     // Load company info
     async function loadCompanyInfo() {
@@ -545,13 +563,63 @@
     // Auto-focus input
     userInput.focus();
 
+    // Open samples page
+    function openSamples() {
+      console.log('Samples button clicked, redirecting to:', NAV_LINKS.samples);
+      try {
+        window.open(NAV_LINKS.samples, '_blank');
+      } catch (error) {
+        console.error('Failed to open samples page:', error);
+        addMessage('Sorry, I couldn’t open the samples page. Try this link: ' + NAV_LINKS.samples, false);
+      }
+    }
+
+    // Inactivity detection
+    function resetInactivityTimer() {
+      clearTimeout(inactivityTimer);
+      clearTimeout(abandonTimer);
+      inactivityTimer = setTimeout(() => {
+        addMessage('Are you still there? Let me know how I can assist!', false, null, null, ['Samples', 'All Countertops', 'Vendors', 'Visualizer']);
+        abandonTimer = setTimeout(closeAbandonedChat, 60 * 1000);
+      }, 5 * 60 * 1000);
+    }
+
+    async function closeAbandonedChat() {
+      addMessage('Chat session closed due to inactivity.', false);
+      chatContainer.classList.add('hidden');
+      chatToggle.innerHTML = '<i class="fas fa-message"></i>';
+      chatToggle.setAttribute('aria-label', 'Open chatbot');
+      try {
+        await fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, abandoned: true })
+        });
+      } catch (error) {
+        console.error('Error closing chat:', error);
+      }
+      clearTimeout(inactivityTimer);
+      clearTimeout(abandonTimer);
+    }
+
     // Toggle chatbot
     function toggleChat() {
       const isHidden = chatContainer.classList.contains('hidden');
       chatContainer.classList.toggle('hidden', !isHidden);
       chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
       chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
-      if (isHidden) userInput.focus();
+      if (isHidden) {
+        userInput.focus();
+        resetInactivityTimer();
+      } else {
+        clearTimeout(inactivityTimer);
+        clearTimeout(abandonTimer);
+        fetch('https://surprise-granite-connections-dev.onrender.com/api/close-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, abandoned: false })
+        }).catch(error => console.error('Error closing chat:', error));
+      }
     }
 
     chatToggle.addEventListener('click', toggleChat);
@@ -593,12 +661,20 @@
 
       // Update quick replies
       if (quickRepliesList && quickRepliesList.length) {
-        quickReplies.innerHTML = quickRepliesList.map(reply => `
-          <button class="quick-reply" onclick="sendQuickReply('${reply}')">${reply}</button>
-        `).join('');
+        quickReplies.innerHTML = quickRepliesList.map(reply => {
+          let action = `sendQuickReply('${reply}')`;
+          if (reply === 'Samples') action = `openSamples()`;
+          if (reply === 'All Countertops') action = `window.open('${NAV_LINKS.countertops}', '_blank')`;
+          if (reply === 'Vendors') action = `window.open('${NAV_LINKS.vendors}', '_blank')`;
+          if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer}', '_blank')`;
+          if (reply === 'Online Store') action = `window.open('${NAV_LINKS.store}', '_blank')`;
+          return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
+        }).join('');
       }
 
       chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (isUser) resetInactivityTimer();
     }
 
     function showTypingIndicator(show) {
@@ -636,7 +712,7 @@
       } catch (error) {
         console.error('Chat error:', error);
         showTypingIndicator(false);
-        addMessage('Sorry, something went wrong. Please try again.', false, null, null, ['Show countertop materials', 'Show sinks', 'Contact support']);
+        addMessage('Sorry, something went wrong. Please try again.', false, null, null, ['Samples', 'All Countertops', 'Vendors', 'Visualizer']);
         quickReplies.style.display = 'flex';
       }
     }
