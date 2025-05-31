@@ -77,7 +77,13 @@ const ChatLog = mongoose.model(
       }],
       feedback: [{ question: String, response: String, createdAt: { type: Date, default: Date.now } }],
       abandoned: { type: Boolean, default: false },
-      lastActivity: { type: Date, default: Date.now }
+      lastActivity: { type: Date, default: Date.now },
+      estimateContext: {
+        step: String,
+        layout: String,
+        dimensions: [{ length: Number, width: Number }],
+        material: String
+      }
     },
     { timestamps: true }
   )
@@ -254,9 +260,10 @@ async function getVendorData() {
           'Kitchen Sinks': { count: 0, examples: [] },
           'Kitchen Faucets': { count: 0, examples: [] },
           'Bathroom Faucets': { count: 0, examples: [] },
-          'Bath Accessories': { count: 0, examples: [] }
+          'Bath Accessories': { count: 0, examples: [] },
+          'Shower Heads': { count: 0, examples: [] }
         },
-        description: 'Kibi USA, founded in 2018, provides luxury kitchen and bath fixtures, including sinks, faucets, and accessories, designed for affordability and functionality.'
+        description: 'Kibi USA, founded in 2018, provides luxury kitchen and bath fixtures, including sinks, faucets, shower heads, and accessories, designed for affordability and functionality.'
       }
     };
 
@@ -305,6 +312,11 @@ async function getVendorData() {
           if (vendors['kibi usa'].materials['Bathroom Faucets'].examples.length < 3) {
             vendors['kibi usa'].materials['Bathroom Faucets'].examples.push({ name: product.title, url: productUrl });
           }
+        } else if (title.includes('shower head')) {
+          vendors['kibi usa'].materials['Shower Heads'].count++;
+          if (vendors['kibi usa'].materials['Shower Heads'].examples.length < 3) {
+            vendors['kibi usa'].materials['Shower Heads'].examples.push({ name: product.title, url: productUrl });
+          }
         } else if (title.includes('accessory') || title.includes('mirror') || title.includes('towel')) {
           vendors['kibi usa'].materials['Bath Accessories'].count++;
           if (vendors['kibi usa'].materials['Bath Accessories'].examples.length < 3) {
@@ -332,7 +344,8 @@ async function getVendorData() {
           'Kitchen Sinks': { count: 50, examples: [{ name: '30" Workstation Sink (K3-S30T)', url: 'https://store.surprisegranite.com' }] },
           'Kitchen Faucets': { count: 30, examples: [{ name: 'Artis Brushed Gold', url: 'https://store.surprisegranite.com' }] },
           'Bathroom Faucets': { count: 25, examples: [{ name: 'Cube Widespread', url: 'https://store.surprisegranite.com' }] },
-          'Bath Accessories': { count: 40, examples: [{ name: 'Circular Hardware Set', url: 'https://store.surprisegranite.com' }] }
+          'Bath Accessories': { count: 40, examples: [{ name: 'Circular Hardware Set', url: 'https://store.surprisegranite.com' }] },
+          'Shower Heads': { count: 20, examples: [{ name: 'Kibi Rain Shower Head', url: 'https://store.surprisegranite.com' }] }
         },
         description: 'Kibi USA provides luxury kitchen and bath fixtures.'
       }
@@ -510,14 +523,14 @@ app.post('/api/estimate', async (req, res) => {
     const margin = 0.50;
     const totalCost = subtotal / (1 - margin);
 
-    const responseMessage = `Estimate for ${layout} countertop (${matchedMaterial['Color Name']}, ${matchedMaterial['Thickness'] || 'unknown'}, ${materialType}):\n` +
+    const responseMessage = `Here’s your estimate for a ${layout} countertop using ${matchedMaterial['Color Name']} (${materialType}, ${matchedMaterial['Thickness'] || 'unknown'}):\n` +
       `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
       `- Material: $${materialCost.toFixed(2)} (${materialPrice.toFixed(2)}/sqft + 4% markup)\n` +
       `- Fabrication: $${fabricationCost.toFixed(2)} ($50/sqft)\n` +
       `- Installation: $${installationCost.toFixed(2)} ($15/sqft)\n` +
       `- Total: $${totalCost.toFixed(2)} (50% margin)\n` +
-      `Pair with a Kibi USA sink: <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">View Sinks</a>\n` +
-      `Is this price fair? (Reply: Great, High, Low)`;
+      `Pair it with a Kibi USA sink: <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">View Sinks</a>\n` +
+      `Want to add installation or order a sample of ${matchedMaterial['Color Name']}? Let me know, or reply 'Great', 'High', or 'Low' to share feedback on the price.`;
 
     chatLog.bids = chatLog.bids || [];
     chatLog.bids.push({
@@ -536,6 +549,7 @@ app.post('/api/estimate', async (req, res) => {
       { role: 'user', content: `Estimate request: ${layout}, ${JSON.stringify(dimensions)}, ${material}` },
       { role: 'assistant', content: responseMessage }
     );
+    chatLog.estimateContext = {}; // Reset context
     await chatLog.save();
 
     res.json({
@@ -568,7 +582,7 @@ app.post(
 
       let chatLog = await ChatLog.findOne({ sessionId });
       if (!chatLog) {
-        chatLog = new ChatLog({ sessionId, messages: [] });
+        chatLog = new ChatLog({ sessionId, messages: [], estimateContext: {} });
       }
       chatLog.lastActivity = new Date();
       const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
@@ -578,7 +592,7 @@ app.post(
 
       // Handle company information request
       if (userMessage.includes('about surprise granite') || userMessage.includes('company info')) {
-        const responseMessage = `Surprise Granite, located at 11560 N Dysart Rd, Surprise, AZ 85379, specializes in custom countertops, sinks, faucets, and kitchen/bath fixtures. We’re committed to delivering high-quality, durable solutions for your home, sourced from trusted vendors like Arizona Tile and Kibi USA. Use the footer buttons to call us at (602) 833-3189 or send a message to get started.`;
+        const responseMessage = `Surprise Granite, located at 11560 N Dysart Rd, Surprise, AZ 85379, specializes in custom countertops, sinks, faucets, and bath fixtures. We source high-quality materials from Arizona Tile and Kibi USA to create durable, stylish solutions for your home. Check out our products at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a> or use the footer buttons to call (602) 833-3189 or message us!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -594,7 +608,7 @@ app.post(
       if (userMessage.includes('list vendors') || userMessage.includes('our vendors')) {
         const vendors = await getVendorData();
         const vendorList = Object.keys(vendors).map(v => v.toUpperCase()).join(', ');
-        const responseMessage = `Our vendors include: ${vendorList}. Ask about a specific vendor (e.g., "What does Kibi USA offer?") or select a quick reply button to learn more.`;
+        const responseMessage = `We partner with top vendors like ${vendorList} to bring you the best in countertops and fixtures. Curious about what they offer? Ask about a specific vendor (e.g., "What does Kibi USA offer?") or explore our <a href="https://store.surprisegranite.com" target="_blank">store</a>.`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -617,9 +631,9 @@ app.post(
             const examples = data.examples.map(ex => 
               typeof ex === 'string' ? ex : `<a href="${ex.url}" target="_blank">${ex.name}</a>`
             ).join(', ');
-            return `${type}: ${data.count} options available, including ${examples}.`;
+            return `${type}: ${data.count} options, including ${examples}.`;
           }).join('\n');
-        const responseMessage = `${vendor.description}\nAvailable products:\n${materials}\nExplore more at <a href="https://store.surprisegranite.com" target="_blank">our store</a>.`;
+        const responseMessage = `${vendor.description}\nAvailable products:\n${materials}\nSee the full range at <a href="https://store.surprisegranite.com" target="_blank">our store</a>. Want to pair these with a countertop? Try the "Get Estimate" button!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -633,7 +647,7 @@ app.post(
 
       // Handle product queries
       if (userMessage.includes('products') || userMessage.includes('show products')) {
-        const responseMessage = `Surprise Granite offers custom countertops in Granite, Quartz, Marble, and Quartzite from Arizona Tile, plus kitchen and bath fixtures from Kibi USA, including stainless steel, fireclay, and quartz composite sinks, brass faucets, and accessories like towel bars and mirrors. View our collection at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a>. Ask about specific products (e.g., "Tell me about sinks") or select a quick reply button.`;
+        const responseMessage = `At Surprise Granite, we craft custom countertops in Granite, Quartz, Marble, and Quartzite from Arizona Tile, and offer premium kitchen and bath fixtures from Kibi USA, like stainless steel sinks, brass faucets, and stylish accessories. Browse our collection at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a>. Want to dive into a specific category, like sinks or countertops? Just let me know!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -652,7 +666,7 @@ app.post(
         const examples = sinks.examples.map(ex => 
           `<a href="${ex.url}" target="_blank">${ex.name}</a>`
         ).join(', ');
-        const responseMessage = `We offer a variety of sinks from Kibi USA, including ${sinks.count} options like ${examples}. Visit <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">our store</a> to explore or ask for details about a specific type.`;
+        const responseMessage = `Kibi USA offers ${sinks.count} premium sinks, including options like ${examples}. Perfect for modern kitchens, these sinks are durable and stylish. Check them out at <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">our store</a>. Want to pair a sink with a countertop? I can help with an estimate!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -673,7 +687,26 @@ app.post(
           ...kitchenFaucets.examples.map(ex => `<a href="${ex.url}" target="_blank">${ex.name}</a>`),
           ...bathroomFaucets.examples.map(ex => `<a href="${ex.url}" target="_blank">${ex.name}</a>`)
         ].slice(0, 3).join(', ');
-        const responseMessage = `Our Kibi USA faucets include ${kitchenFaucets.count} kitchen and ${bathroomFaucets.count} bathroom options, such as ${examples}. Check them out at <a href="https://store.surprisegranite.com/collections/faucets" target="_blank">our store</a> or ask for more details.`;
+        const responseMessage = `Kibi USA’s faucets include ${kitchenFaucets.count} kitchen and ${bathroomFaucets.count} bathroom options, such as ${examples}. These add elegance and functionality to any space. View them at <a href="https://store.surprisegranite.com/collections/faucets" target="_blank">our store</a>. Interested in a matching countertop? Let’s get an estimate started!`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+        });
+      }
+
+      // Handle shower head queries
+      if (userMessage.includes('shower head')) {
+        const vendors = await getVendorData();
+        const showerHeads = vendors['kibi usa'].materials['Shower Heads'];
+        const examples = showerHeads.examples.map(ex => 
+          `<a href="${ex.url}" target="_blank">${ex.name}</a>`
+        ).join(', ');
+        const responseMessage = `Kibi USA offers ${showerHeads.count} shower heads, including luxurious options like ${examples}. Ideal for upgrading your bathroom, these feature rain and handheld designs. See them at <a href="https://store.surprisegranite.com/collections/shower-heads" target="_blank">our store</a>. Want to complete your bath with a new countertop? Try an estimate!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -687,7 +720,7 @@ app.post(
 
       // Handle explore options
       if (userMessage.includes('explore options')) {
-        const responseMessage = `You can explore our countertop samples or learn about our vendors, Arizona Tile and Kibi USA. Ask about samples (e.g., "Show samples") or vendors (e.g., "List vendors") to dive deeper. Visit <a href="https://store.surprisegranite.com" target="_blank">our store</a> for more.`;
+        const responseMessage = `Let’s find inspiration! You can check out countertop samples from Arizona Tile or discover fixtures from Kibi USA. Ask about samples (e.g., "Show samples") or vendors (e.g., "List vendors"), or browse everything at <a href="https://store.surprisegranite.com" target="_blank">our store</a>. Ready to start a project? Try an estimate!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -701,7 +734,7 @@ app.post(
 
       // Handle samples request
       if (userMessage.includes('samples')) {
-        const responseMessage = `Please select the Samples button to view our countertop samples at <a href="https://store.surprisegranite.com/collections/countertop-samples" target="_blank">store.surprisegranite.com</a>.`;
+        const responseMessage = `Our countertop samples showcase stunning materials like Granite and Quartz from Arizona Tile. View them at <a href="https://store.surprisegranite.com/collections/countertop-samples" target="_blank">our store</a>. Want to see how a sample looks in your space? Order one or get an estimate to start planning!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -713,9 +746,49 @@ app.post(
         });
       }
 
-      // Handle estimate request
-      if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop')) {
-        const responseMessage = `Please use the "Get Estimate" button to provide details for your countertop estimate.`;
+      // Handle estimate context
+      if (chatLog.estimateContext?.step) {
+        let responseMessage = '';
+        let quickReplies = ['Get Estimate', 'Products', 'Explore', 'Book Appointment'];
+
+        if (chatLog.estimateContext.step === 'layout') {
+          const layouts = ['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'];
+          if (layouts.some(layout => userMessage.includes(layout))) {
+            chatLog.estimateContext.layout = layouts.find(layout => userMessage.includes(layout));
+            chatLog.estimateContext.step = 'dimensions';
+            responseMessage = `Got it, a ${chatLog.estimateContext.layout} countertop! What are the dimensions in feet? (e.g., "5x3 ft" or multiple like "5x3 ft, 4x2 ft")`;
+          } else {
+            responseMessage = `Please specify a layout, such as U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
+          }
+        } else if (chatLog.estimateContext.step === 'dimensions') {
+          const dimensions = extractDimensions(req.body.message);
+          if (dimensions.length > 0) {
+            chatLog.estimateContext.dimensions = dimensions;
+            chatLog.estimateContext.step = 'material';
+            responseMessage = `Thanks for the dimensions! Now, which material would you like? Popular choices include Sparkling White Quartz or Silver Cloud Granite. You can also browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>.`;
+          } else {
+            responseMessage = `I didn’t catch the dimensions. Please provide them in feet, like "5x3 ft" or multiple sections like "5x3 ft, 4x2 ft".`;
+          }
+        } else if (chatLog.estimateContext.step === 'material') {
+          const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+          const matchedMaterial = priceList.find(item => fuzzyMatch(item['Color Name'], req.body.message));
+          if (matchedMaterial) {
+            chatLog.estimateContext.material = matchedMaterial['Color Name'];
+            const estimateData = {
+              layout: chatLog.estimateContext.layout,
+              dimensions: chatLog.estimateContext.dimensions,
+              material: chatLog.estimateContext.material,
+              sessionId
+            };
+            const estimateResponse = await axios.post('http://localhost:' + PORT + '/api/estimate', estimateData);
+            responseMessage = estimateResponse.data.message;
+            quickReplies = estimateResponse.data.quickReplies;
+            chatLog.estimateContext = {}; // Reset context
+          } else {
+            responseMessage = `I couldn’t find that material. Try a name like "Sparkling White" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
+          }
+        }
+
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -723,8 +796,39 @@ app.post(
         await chatLog.save();
         return res.json({
           message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          quickReplies
         });
+      }
+
+      // Handle estimate request
+      if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop')) {
+        const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+        const matchedMaterial = priceList.find(item => fuzzyMatch(item['Color Name'], userMessage));
+        if (matchedMaterial) {
+          chatLog.estimateContext = { step: 'layout', material: matchedMaterial['Color Name'] };
+          const responseMessage = `Great choice with ${matchedMaterial['Color Name']} ${matchedMaterial['Material']}! What’s the layout of your countertop? Options include U-shaped, Galley, L-shape, Plateau, or Bar Top. Or, use the "Get Estimate" button for a quick form.`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          });
+        } else {
+          chatLog.estimateContext = { step: 'layout' };
+          const responseMessage = `Let’s get started on your countertop estimate! What’s the layout? Choose from U-shaped, Galley, L-shape, Plateau, or Bar Top. You can also use the "Get Estimate" button to fill out a form.`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          });
+        }
       }
 
       // Handle feedback
@@ -734,7 +838,7 @@ app.post(
           question: 'Is this price fair?',
           response: userMessage
         });
-        const responseMessage = `Thank you for your feedback! How else can I assist you? Explore our <a href="https://store.surprisegranite.com" target="_blank">store</a> or get another estimate.`;
+        const responseMessage = `Thanks for your feedback! ${userMessage === 'Great' ? 'Glad you like the price!' : userMessage === 'High' ? 'Let’s explore more affordable options.' : 'That’s a steal!'} Want to browse complementary products like sinks or faucets at <a href="https://store.surprisegranite.com" target="_blank">our store</a> or get another estimate?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -754,42 +858,42 @@ app.post(
         console.error(`Failed to fetch Shopify products: ${error.message}`);
       }
 
-      if (userMessage.includes('sink') || userMessage.includes('faucet')) {
-        const matchedProduct = shopifyProducts.find((product) =>
-          product.title && fuzzyMatch(product.title, userMessage)
+      const matchedProduct = shopifyProducts.find((product) =>
+        product.title && fuzzyMatch(product.title, userMessage)
+      );
+      if (matchedProduct) {
+        const price = parseFloat(matchedProduct.variants[0].price) || 0;
+        const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
+        const imageUrl = matchedProduct.image?.src || null;
+        const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
+        console.log(`Matched product: ${matchedProduct.title}`);
+        const responseMessage = `The "${matchedProduct.title}" is a fantastic choice, priced at $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View on our store</a>. ${matchedProduct.title.toLowerCase().includes('countertop') ? 'Want a custom quote for this?' : 'Need a countertop to match?'} Let’s get an estimate or explore more!`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
         );
-        if (matchedProduct) {
-          const price = parseFloat(matchedProduct.variants[0].price) || 0;
-          const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
-          const imageUrl = matchedProduct.image?.src || null;
-          const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-          console.log(`Matched product: ${matchedProduct.title}`);
-          const responseMessage = `"${matchedProduct.title}" costs $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View Product</a>`;
-          chatLog.messages.push(
-            { role: 'user', content: req.body.message },
-            { role: 'assistant', content: responseMessage }
-          );
-          await chatLog.save();
-          return res.json({
-            message: responseMessage,
-            image: imageUrl,
-            productUrl,
-            quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
-          });
-        }
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          image: imageUrl,
+          productUrl,
+          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+        });
       }
 
       // Generic response
       const systemPrompt = {
         role: 'system',
         content: `
-          You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) from Arizona Tile and kitchen/bath fixtures (sinks, faucets, accessories) from Kibi USA. Our mission is to provide high-quality, durable solutions for home remodeling. Your tasks include:
-          - Providing detailed information about Surprise Granite's company, products, and vendors (Arizona Tile, Kibi USA) only when explicitly requested.
-          - Assisting with Shopify store navigation (store.surprisegranite.com), recommending products/services with hyperlinks.
-          - Directing users to the "Get Estimate" button for countertop estimates.
-          - Saving bids in MongoDB and soliciting feedback.
-          - Offering Shopify product details (title, price, description, image) with hyperlinks.
-          - Do not include navigation links in responses; use quick reply buttons instead.
+          You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) from Arizona Tile and kitchen/bath fixtures (sinks, faucets, shower heads, accessories) from Kibi USA. Our mission is to provide high-quality, durable solutions for home remodeling. Your tasks include:
+          - Providing conversational, engaging responses with a friendly tone, avoiding repetition.
+          - Offering detailed information about Surprise Granite's company, products, and vendors only when explicitly requested.
+          - Assisting with Shopify store navigation (store.surprisegranite.com), recommending products/services with hyperlinks and specific details.
+          - Guiding users through countertop estimates conversationally (layout, dimensions, material) or via the "Get Estimate" button, storing context in estimateContext.
+          - Saving bids in MongoDB and soliciting feedback with personalized follow-ups.
+          - Providing Shopify product details (title, price, description, image) with hyperlinks, including stock status if available.
+          - Suggesting related products or services (e.g., sinks with countertops, installation).
+          - Do not include navigation links in responses; use quick reply buttons or hyperlinked store URLs.
           - Do not include contact information; direct users to footer buttons for calling (602) 833-3189 or messaging.
           - Do not append vendor data unless specifically asked.
         `,
