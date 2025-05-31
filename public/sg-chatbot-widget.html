@@ -643,53 +643,6 @@
       store: 'https://store.surprisegranite.com/'
     };
 
-    // Initialize keyboard (mobile only)
-    function initKeyboard() {
-      if (!isMobile) {
-        keyboard.style.display = 'none';
-        return;
-      }
-      const keys = [
-        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-        'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',
-        'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l',
-        'shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'backspace',
-        'space', 'enter'
-      ];
-      keyboard.innerHTML = keys.map(key => `
-        <button class="keyboard-key ${key === 'shift' || key === 'backspace' || key === 'space' || key === 'enter' ? 'special' : ''}" data-key="${key}">
-          ${key === 'backspace' ? '<i class="fas fa-backspace"></i>' : key === 'space' ? ' ' : key === 'enter' ? '<i class="fas fa-paper-plane"></i>' : key}
-        </button>
-      `).join('');
-      keyboard.querySelectorAll('.keyboard-key').forEach(key => {
-        key.addEventListener('click', handleKeyPress);
-      });
-    }
-
-    function handleKeyPress(e) {
-      const key = e.target.dataset.key;
-      if (key === 'shift') {
-        isShift = !isShift;
-        keyboard.querySelectorAll('.keyboard-key:not(.special)').forEach(k => {
-          k.textContent = isShift ? k.textContent.toUpperCase() : k.textContent.toLowerCase();
-        });
-        return;
-      }
-      if (key === 'backspace') {
-        userInput.value = userInput.value.slice(0, -1);
-        return;
-      }
-      if (key === 'space') {
-        userInput.value += ' ';
-        return;
-      }
-      if (key === 'enter') {
-        sendMessage();
-        return;
-      }
-      userInput.value += isShift ? key.toUpperCase() : key;
-    }
-
     // Load company info
     async function loadCompanyInfo() {
       try {
