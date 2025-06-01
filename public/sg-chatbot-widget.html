@@ -132,6 +132,37 @@
       box-shadow: var(--shadow);
     }
 
+    .message.bot img {
+      max-width: 100%;
+      max-height: 150px;
+      object-fit: cover;
+      border-radius: 0.75rem;
+      margin-top: 0.5rem;
+      display: block;
+      border: 1px solid #d1d5db;
+      loading: lazy;
+    }
+
+    .message.bot .product-container {
+      margin-top: 0.75rem;
+      padding: 0.5rem;
+      background-color: #f9fafb;
+      border-radius: 0.5rem;
+      border: 1px solid #e5e7eb;
+    }
+
+    .message.bot .product-container p {
+      margin: 0.25rem 0;
+      font-size: 0.85rem;
+      color: #374151;
+    }
+
+    .message.bot .image-error {
+      color: #ef4444;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+
     .message.bot a {
       color: var(--primary-blue);
       text-decoration: underline;
@@ -639,11 +670,12 @@
 
   <script>
     // Configuration
+    const SERVER_URL = 'https://surprise-granite-connections-dev.onrender.com';
     const CONFIG = {
-      SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
+      SERVER_URL,
       USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801',
       GEO_API_URL: 'https://ipapi.co/json/',
-      SHOPIFY_API: 'https://store.surprisegranite.com/api/2024-10/graphql.json',
+      SHOPIFY_API: `${SERVER_URL}/api/shopify-products`,
       COMPANY_INFO_URL: '/companyinfo.json',
       PRICE_LIST: {
         materials: {
@@ -803,83 +835,29 @@
       }
     }
 
-    async function fetchShopifyProducts(category, material = null, after = null) {
+    async function fetchShopifyProducts(category, material = null) {
       try {
-        let queryString = category === 'countertops' ? 'tag:countertop' : category;
-        if (material) queryString += ` ${material}`;
-        const query = `
-          query {
-            products(first: 3, query: "${queryString}", after: ${after ? `"${after}"` : null}) {
-              edges {
-                node {
-                  id
-                  title
-                  handle
-                  priceRange {
-                    minVariantPrice {
-                      amount
-                      currencyCode
-                    }
-                  }
-                  images(first: 1) {
-                    edges {
-                      node {
-                        src
-                        altText
-                      }
-                    }
-                  }
-                  vendor
-                  description
-                  variants(first: 1) {
-                    edges {
-                      node {
-                        id
-                        sku
-                        availableForSale
-                      }
-                    }
-                  }
-                }
-              }
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-            }
-          }
-        `;
-        const response = await axios.post(CONFIG.SHOPIFY_API, { query }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Storefront-Access-Token': process.env.SHOPIFY_STOREFRONT_TOKEN || 'your-shopify-storefront-token'
-          }
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        if (material) params.append('material', material);
+        const response = await axios.get(`${CONFIG.SERVER_URL}/api/shopify-products?${params.toString()}`, {
+          headers: { 'x-request-id': sessionId }
         });
-        if (response.data.errors) {
-          throw new Error(response.data.errors[0].message);
-        }
-        const { edges, pageInfo } = response.data.data.products;
-        const products = edges.map(edge => edge.node);
-        return {
-          products: products.map(product => ({
-            id: product.id,
-            title: product.title,
-            price: parseFloat(product.priceRange.minVariantPrice.amount),
-            currency: product.priceRange.minVariantPrice.currencyCode,
-            image: product.images.edges[0]?.node.src || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(product.title),
-            altText: product.images.edges[0]?.node.altText || `${product.title}`,
-            url: `https://store.surprisegranite.com/products/${product.handle}`,
-            vendor: product.vendor,
-            description: product.description ? product.description.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
-            sku: product.variants.edges[0]?.node.sku || 'N/A',
-            available: product.variants.edges[0]?.node.availableForSale || false
-          })),
-          hasNextPage: pageInfo.hasNextPage,
-          endCursor: pageInfo.endCursor
-        };
+        return response.data.map(product => ({
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          currency: 'USD',
+          image: product.image || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(product.title),
+          altText: product.title,
+          url: product.url,
+          vendor: product.vendor,
+          description: product.description,
+          available: product.inStock
+        }));
       } catch (error) {
         console.error('Shopify fetch error:', error.message);
-        return { products: [], hasNextPage: false, endCursor: null };
+        return [];
       }
     }
 
@@ -931,10 +909,10 @@
       const entities = {};
       let intent = 'browse';
 
-      const categories = ['countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card'];
+      const categories = ['countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card', 'kitchen'];
       const category = categories.find(cat => normalizedMessage.includes(cat));
       if (category) {
-        entities.category = category;
+        entities.category = category === 'kitchen' ? 'sinks' : category; // Map kitchen to sinks
         intent = 'browse_category';
       }
 
@@ -1083,6 +1061,22 @@
       contentDiv.innerHTML = content || 'Sorry, no response received. Please try again!';
       div.appendChild(contentDiv);
 
+      if (imageUrl && !isUser) {
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'product-container';
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = `Product image for ${content.split(' ').slice(0, 3).join(' ')}`;
+        img.setAttribute('aria-hidden', 'false');
+        img.loading = 'lazy';
+        img.onerror = () => {
+          imgContainer.innerHTML = `<p class="image-error" role="alert">Image not available.</p>`;
+          console.error(`Image load failed: ${imageUrl}, Session: ${sessionId}`);
+        };
+        imgContainer.appendChild(img);
+        div.appendChild(imgContainer);
+      }
+
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1152,12 +1146,15 @@
           context = 'initial';
           lastResponseType = 'zip_skipped';
         } else if (nlpResult.intent === 'browse_category' && nlpResult.entities.category) {
-          const { products } = await fetchShopifyProducts(nlpResult.entities.category);
+          const products = await fetchShopifyProducts(nlpResult.entities.category);
           userProfile.preferences.category = nlpResult.entities.category;
           saveSession();
           if (products.length) {
             responseMessage = `Here are some ${nlpResult.entities.category}:<br>` + 
-              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
+              products.map(p => 
+                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
+                `<br>${p.description}`
+              ).join('<br><br>');
             imageUrl = products[0].image;
             context = nlpResult.entities.category;
             lastResponseType = 'category';
@@ -1167,12 +1164,15 @@
             lastResponseType = 'no_results';
           }
         } else if (nlpResult.intent === 'browse_material' && nlpResult.entities.material) {
-          const { products } = await fetchShopifyProducts('countertops', nlpResult.entities.material);
+          const products = await fetchShopifyProducts('countertops', nlpResult.entities.material);
           userProfile.preferences.material = nlpResult.entities.material;
           saveSession();
           if (products.length) {
             responseMessage = `Here are some ${nlpResult.entities.material} products:<br>` + 
-              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
+              products.map(p => 
+                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
+                `<br>${p.description}`
+              ).join('<br><br>');
             imageUrl = products[0].image;
             context = 'countertops';
             lastResponseType = 'material';
@@ -1184,14 +1184,17 @@
         } else if (nlpResult.intent === 'browse_budget' && nlpResult.entities.budget) {
           userProfile.preferences.budget = nlpResult.entities.budget;
           saveSession();
-          const { products } = await fetchShopifyProducts(userProfile.preferences.category || 'countertops');
+          const products = await fetchShopifyProducts(userProfile.preferences.category || 'countertops');
           const filteredProducts = products.filter(p => {
             const adjustedPrice = parseFloat(applyMarkup(p.price, userProfile.zipCode));
             return adjustedPrice >= userProfile.preferences.budget.min / 50 && adjustedPrice <= userProfile.preferences.budget.max / 50;
           });
           if (filteredProducts.length) {
             responseMessage = `Here are products within your budget ($${userProfile.preferences.budget.min}-$${userProfile.preferences.budget.max}):<br>` + 
-              filteredProducts.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
+              filteredProducts.map(p => 
+                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
+                `<br>${p.description}`
+              ).join('<br><br>');
             imageUrl = filteredProducts[0].image;
             context = userProfile.preferences.category || 'countertops';
             lastResponseType = 'budget';
@@ -1208,7 +1211,7 @@
           showTypingIndicator(false);
           return;
         } else if (nlpResult.intent === 'design_tips') {
-          const category = nlpResult.entities.category || (normalizedMessage.includes('kitchen') ? 'kitchen' : 'material');
+          const category = nlpResult.entities.category || (message.toLowerCase().includes('kitchen') ? 'kitchen' : 'material');
           const tips = await fetchDesignTips(category);
           responseMessage = `Here are some design tips for ${category}: ${tips} Want more inspiration or to browse products?`;
           context = 'design';
