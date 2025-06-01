@@ -3,22 +3,43 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const compression = require('compression');
 const { body, validationResult } = require('express-validator');
 const axios = require('axios');
 const NodeCache = require('node-cache');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const winston = require('winston');
 
-// --- Initialize App ---
+// Initialize App
 const app = express();
 const PORT = process.env.PORT || 3000;
 const cache = new NodeCache({ stdTTL: 1800 });
 
-// --- Enable Trust Proxy ---
+// Logger Setup
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+// Enable Trust Proxy
 app.set('trust proxy', 1);
 
-// --- Validate Environment Variables ---
+// Validate Environment Variables
 const REQUIRED_ENV_VARS = [
   'MONGO_URI',
   'GOOGLE_SHEET_CSV_URL',
@@ -31,21 +52,23 @@ const REQUIRED_ENV_VARS = [
 ];
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
-    console.error(`Missing required environment variable: ${key}`);
+    logger.error(`Missing required environment variable: ${key}`);
     process.exit(1);
   }
 });
 
-// --- MongoDB Connection ---
+// MongoDB Connection
 mongoose
-  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected!'))
+  .connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000
+  })
+  .then(() => logger.info('MongoDB connected!'))
   .catch((err) => {
-    console.error('MongoDB connection error:', err);
+    logger.error('MongoDB connection error:', err);
     process.exit(1);
   });
 
-// --- Define Schemas ---
+// Define Schemas
 const Countertop = mongoose.model(
   'Countertop',
   new mongoose.Schema({
@@ -89,7 +112,7 @@ const ChatLog = mongoose.model(
   )
 );
 
-// --- Nodemailer Setup ---
+// Nodemailer Setup
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -98,7 +121,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// --- Send Chat Transcript ---
+// Send Chat Transcript
 async function sendChatTranscript(chatLog) {
   const messages = chatLog.messages.map(msg => `${msg.role.toUpperCase()} (${msg.createdAt.toLocaleString()}): ${msg.content}`).join('\n');
   const bids = chatLog.bids?.map(bid => 
@@ -140,21 +163,28 @@ ${feedback}
       subject: `Chat Transcript ${chatLog.sessionId} (${chatLog.abandoned ? 'Abandoned' : 'Closed'})`,
       text: emailContent,
     });
-    console.log(`Transcript sent for session ${chatLog.sessionId}`);
+    logger.info(`Transcript sent for session ${chatLog.sessionId}`);
   } catch (error) {
-    console.error(`Failed to send transcript for session ${chatLog.sessionId}:`, error.message);
+    logger.error(`Failed to send transcript for session ${chatLog.sessionId}: ${error.message}`);
   }
 }
 
-// --- Middleware ---
+// Middleware
+app.use(helmet());
+app.use(compression());
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '5mb' }));
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests from this IP, please try again later.'
+}));
 
-// --- Serve Static Files ---
+// Serve Static Files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Shopify API Functionality ---
-async function fetchShopifyProducts() {
+// Shopify API Functionality
+async function fetchShopifyProducts(category = null, material = null) {
   const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
   try {
     const response = await axios.get(url, {
@@ -163,23 +193,30 @@ async function fetchShopifyProducts() {
       },
       timeout: 10000,
     });
-    console.log('Shopify products fetched:', response.data.products.length);
-    return response.data.products;
+    let products = response.data.products;
+    if (category) {
+      products = products.filter(p => p.tags.toLowerCase().includes(category.toLowerCase()));
+    }
+    if (material) {
+      products = products.filter(p => p.title.toLowerCase().includes(material.toLowerCase()));
+    }
+    logger.info(`Shopify products fetched: ${products.length}`);
+    return products;
   } catch (error) {
-    console.error('Shopify API error:', error.message);
+    logger.error(`Shopify API error: ${error.message}`);
     throw error;
   }
 }
 
-// --- Fetch CSV Data ---
+// Fetch CSV Data
 async function fetchCsvData(url, cacheKey) {
   let data = cache.get(cacheKey);
   if (data) {
-    console.log(`Cache hit for ${cacheKey}, ${data.length} rows`);
+    logger.info(`Cache hit for ${cacheKey}, ${data.length} rows`);
     return data;
   }
   try {
-    console.log(`Fetching CSV from ${url}`);
+    logger.info(`Fetching CSV from ${url}`);
     const response = await axios.get(url, { timeout: 10000 });
     if (response.status !== 200) {
       throw new Error(`HTTP ${response.status}: Failed to fetch CSV from ${url}`);
@@ -191,19 +228,17 @@ async function fetchCsvData(url, cacheKey) {
     if (!data || data.length === 0) {
       throw new Error(`Empty or invalid CSV from ${url}`);
     }
-    console.log(`Parsed CSV from ${url}, ${data.length} rows`);
-    console.log(`CSV columns: ${Object.keys(data[0]).join(', ')}`);
-    console.log(`Sample row: ${JSON.stringify(data[0])}`);
+    logger.info(`Parsed CSV from ${url}, ${data.length} rows`);
     cache.set(cacheKey, data);
     return data;
   } catch (error) {
-    console.error(`Error fetching/parsing CSV (${cacheKey}): ${error.message}`);
+    logger.error(`Error fetching/parsing CSV (${cacheKey}): ${error.message}`);
     cache.del(cacheKey);
     throw error;
   }
 }
 
-// --- Fuzzy Matching ---
+// Fuzzy Matching
 function fuzzyMatch(str, pattern) {
   if (!str || !pattern) return false;
   const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -211,7 +246,7 @@ function fuzzyMatch(str, pattern) {
   return cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1;
 }
 
-// --- Extract Dimensions ---
+// Extract Dimensions
 function extractDimensions(message) {
   const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
   const matches = [...message.matchAll(dimensionRegex)];
@@ -222,7 +257,7 @@ function extractDimensions(message) {
   }));
 }
 
-// --- Match Labor Cost ---
+// Match Labor Cost
 function getLaborCostPerSqft(laborData, materialType) {
   const materialLower = materialType.toLowerCase();
   const laborItem = laborData.find((item) => {
@@ -232,15 +267,15 @@ function getLaborCostPerSqft(laborData, materialType) {
   if (laborItem) {
     const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]);
     if (!isNaN(cost)) {
-      console.log(`Labor cost for ${materialType}: $${cost}/sqft`);
+      logger.info(`Labor cost for ${materialType}: $${cost}/sqft`);
       return cost;
     }
   }
-  console.log(`No labor cost found for ${materialType}, using default $65/sqft`);
-  return 65; // $50 fabrication + $15 installation
+  logger.info(`No labor cost found for ${materialType}, using default $65/sqft`);
+  return 65;
 }
 
-// --- Vendor Data (Dynamic from Shopify/CSV) ---
+// Vendor Data
 async function getVendorData() {
   try {
     const shopifyProducts = await fetchShopifyProducts();
@@ -251,19 +286,36 @@ async function getVendorData() {
         materials: {
           Granite: { count: 0, examples: [] },
           Quartz: { count: 0, examples: [] },
-          'Natural Stone': { count: 0, examples: [] }
+          Marble: { count: 0, examples: [] },
+          Quartzite: { count: 0, examples: [] },
+          Porcelain: { count: 0, examples: [] }
         },
-        description: 'Arizona Tile supplies premium countertops, including Granite, Quartz, and natural stones like Marble and Quartzite, sourced globally for quality and durability.'
+        description: 'Arizona Tile supplies premium countertops, including Granite, Quartz, Marble, Quartzite, and Porcelain, sourced globally for quality and durability.'
       },
       'kibi usa': {
         materials: {
           'Kitchen Sinks': { count: 0, examples: [] },
+          'Quartz Composite Sinks': { count: 0, examples: [] },
+          'Stainless Steel Sinks': { count: 0, examples: [] },
+          'Fireclay Sinks': { count: 0, examples: [] },
+          'Matte Stone Sinks': { count: 0, examples: [] },
           'Kitchen Faucets': { count: 0, examples: [] },
+          'Pull Down Faucets': { count: 0, examples: [] },
+          'Filtration Faucets': { count: 0, examples: [] },
+          'Pot Fillers': { count: 0, examples: [] },
           'Bathroom Faucets': { count: 0, examples: [] },
-          'Bath Accessories': { count: 0, examples: [] },
-          'Shower Heads': { count: 0, examples: [] }
+          'Shower Heads': { count: 0, examples: [] },
+          'Shower Valves': { count: 0, examples: [] },
+          'Shower Jets': { count: 0, examples: [] },
+          'Soap Dispensers': { count: 0, examples: [] },
+          'Sink Strainers': { count: 0, examples: [] },
+          'Drain Trays': { count: 0, examples: [] },
+          'Bathroom Organization': { count: 0, examples: [] },
+          'Hardware': { count: 0, examples: [] },
+          'Shelves': { count: 0, examples: [] },
+          'Bathtubs': { count: 0, examples: [] }
         },
-        description: 'Kibi USA, founded in 2018, provides luxury kitchen and bath fixtures, including sinks, faucets, shower heads, and accessories, designed for affordability and functionality.'
+        description: 'Kibi USA provides luxury kitchen and bath fixtures, including sinks, faucets, shower systems, bathtubs, and accessories, designed for affordability and functionality.'
       }
     };
 
@@ -272,20 +324,11 @@ async function getVendorData() {
       const materialName = item['Color Name'] || '';
       const materialType = item['Material'] || 'Unknown';
       if (materialName) {
-        if (materialType.toLowerCase().includes('granite')) {
-          vendors['arizona tile'].materials.Granite.count++;
-          if (vendors['arizona tile'].materials.Granite.examples.length < 3) {
-            vendors['arizona tile'].materials.Granite.examples.push(materialName);
-          }
-        } else if (materialType.toLowerCase().includes('quartz')) {
-          vendors['arizona tile'].materials.Quartz.count++;
-          if (vendors['arizona tile'].materials.Quartz.examples.length < 3) {
-            vendors['arizona tile'].materials.Quartz.examples.push(materialName);
-          }
-        } else {
-          vendors['arizona tile'].materials['Natural Stone'].count++;
-          if (vendors['arizona tile'].materials['Natural Stone'].examples.length < 3) {
-            vendors['arizona tile'].materials['Natural Stone'].examples.push(materialName);
+        const materialKey = materialType.charAt(0).toUpperCase() + materialType.slice(1).toLowerCase();
+        if (vendors['arizona tile'].materials[materialKey]) {
+          vendors['arizona tile'].materials[materialKey].count++;
+          if (vendors['arizona tile'].materials[materialKey].examples.length < 3) {
+            vendors['arizona tile'].materials[materialKey].examples.push(materialName);
           }
         }
       }
@@ -295,57 +338,79 @@ async function getVendorData() {
     shopifyProducts.forEach(product => {
       const title = product.title.toLowerCase();
       const vendor = product.vendor?.toLowerCase() || '';
+      const productUrl = product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`;
       if (vendor.includes('kibi') || title.includes('kibi')) {
-        const productUrl = product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`;
-        if (title.includes('sink')) {
-          vendors['kibi usa'].materials['Kitchen Sinks'].count++;
-          if (vendors['kibi usa'].materials['Kitchen Sinks'].examples.length < 3) {
-            vendors['kibi usa'].materials['Kitchen Sinks'].examples.push({ name: product.title, url: productUrl });
+        const categories = [
+          { key: 'Kitchen Sinks', terms: ['sink', 'kitchen sink'] },
+          { key: 'Quartz Composite Sinks', terms: ['quartz composite', 'composite sink'] },
+          { key: 'Stainless Steel Sinks', terms: ['stainless steel', 'steel sink'] },
+          { key: 'Fireclay Sinks', terms: ['fireclay', 'fireclay sink'] },
+          { key: 'Matte Stone Sinks', terms: ['matte stone', 'stone sink'] },
+          { key: 'Kitchen Faucets', terms: ['faucet', 'kitchen faucet'] },
+          { key: 'Pull Down Faucets', terms: ['pull down', 'pull-down'] },
+          { key: 'Filtration Faucets', terms: ['filtration', 'filter faucet'] },
+          { key: 'Pot Fillers', terms: ['pot filler'] },
+          { key: 'Bathroom Faucets', terms: ['bathroom faucet', 'bath faucet'] },
+          { key: 'Shower Heads', terms: ['shower head'] },
+          { key: 'Shower Valves', terms: ['shower valve'] },
+          { key: 'Shower Jets', terms: ['shower jet'] },
+          { key: 'Soap Dispensers', terms: ['soap dispenser'] },
+          { key: 'Sink Strainers', terms: ['sink strainer', 'strainer'] },
+          { key: 'Drain Trays', terms: ['drain tray'] },
+          { key: 'Bathroom Organization', terms: ['bathroom organization', 'organizer'] },
+          { key: 'Hardware', terms: ['hardware', 'bathroom hardware'] },
+          { key: 'Shelves', terms: ['shelf', 'shelves'] },
+          { key: 'Bathtubs', terms: ['bathtub', 'bath tub'] }
+        ];
+
+        categories.forEach(category => {
+          if (category.terms.some(term => title.includes(term))) {
+            vendors['kibi usa'].materials[category.key].count++;
+            if (vendors['kibi usa'].materials[category.key].examples.length < 3) {
+              vendors['kibi usa'].materials[category.key].examples.push({ name: product.title, url: productUrl });
+            }
           }
-        } else if (title.includes('faucet') && title.includes('kitchen')) {
-          vendors['kibi usa'].materials['Kitchen Faucets'].count++;
-          if (vendors['kibi usa'].materials['Kitchen Faucets'].examples.length < 3) {
-            vendors['kibi usa'].materials['Kitchen Faucets'].examples.push({ name: product.title, url: productUrl });
-          }
-        } else if (title.includes('faucet') && title.includes('bath')) {
-          vendors['kibi usa'].materials['Bathroom Faucets'].count++;
-          if (vendors['kibi usa'].materials['Bathroom Faucets'].examples.length < 3) {
-            vendors['kibi usa'].materials['Bathroom Faucets'].examples.push({ name: product.title, url: productUrl });
-          }
-        } else if (title.includes('shower head')) {
-          vendors['kibi usa'].materials['Shower Heads'].count++;
-          if (vendors['kibi usa'].materials['Shower Heads'].examples.length < 3) {
-            vendors['kibi usa'].materials['Shower Heads'].examples.push({ name: product.title, url: productUrl });
-          }
-        } else if (title.includes('accessory') || title.includes('mirror') || title.includes('towel')) {
-          vendors['kibi usa'].materials['Bath Accessories'].count++;
-          if (vendors['kibi usa'].materials['Bath Accessories'].examples.length < 3) {
-            vendors['kibi usa'].materials['Bath Accessories'].examples.push({ name: product.title, url: productUrl });
-          }
-        }
+        });
       }
     });
 
     cache.set('vendorData', vendors, 3600);
     return vendors;
   } catch (error) {
-    console.error('Error fetching vendor data:', error.message);
+    logger.error(`Error fetching vendor data: ${error.message}`);
     return {
       'arizona tile': {
         materials: {
           Granite: { count: 70, examples: ['Silver Cloud Satin', 'Volcano', 'Alpine White'] },
           Quartz: { count: 60, examples: ['Arabescato Como', 'Montenegro', 'Calacatta Doria'] },
-          'Natural Stone': { count: 300, examples: ['Marble', 'Quartzite', 'Limestone'] }
+          Marble: { count: 50, examples: ['Calacatta', 'Carrara', 'Statuario'] },
+          Quartzite: { count: 40, examples: ['Taj Mahal', 'Azul Macaubas', 'Super White'] },
+          Porcelain: { count: 30, examples: ['Porcelain Slab', 'Neolith', 'Dekton'] }
         },
         description: 'Arizona Tile supplies premium countertops.'
       },
       'kibi usa': {
         materials: {
-          'Kitchen Sinks': { count: 50, examples: [{ name: '30" Workstation Sink (K3-S30T)', url: 'https://store.surprisegranite.com' }] },
+          'Kitchen Sinks': { count: 50, examples: [{ name: '30" Workstation Sink', url: 'https://store.surprisegranite.com' }] },
+          'Quartz Composite Sinks': { count: 20, examples: [{ name: 'Quartz Composite Undermount', url: 'https://store.surprisegranite.com' }] },
+          'Stainless Steel Sinks': { count: 30, examples: [{ name: '16-Gauge Stainless Sink', url: 'https://store.surprisegranite.com' }] },
+          'Fireclay Sinks': { count: 15, examples: [{ name: 'Fireclay Farmhouse Sink', url: 'https://store.surprisegranite.com' }] },
+          'Matte Stone Sinks': { count: 10, examples: [{ name: 'Matte Stone Single Bowl', url: 'https://store.surprisegranite.com' }] },
           'Kitchen Faucets': { count: 30, examples: [{ name: 'Artis Brushed Gold', url: 'https://store.surprisegranite.com' }] },
+          'Pull Down Faucets': { count: 20, examples: [{ name: 'Pull Down Matte Black', url: 'https://store.surprisegranite.com' }] },
+          'Filtration Faucets': { count: 10, examples: [{ name: 'Filtration Chrome', url: 'https://store.surprisegranite.com' }] },
+          'Pot Fillers': { count: 5, examples: [{ name: 'Pot Filler Stainless', url: 'https://store.surprisegranite.com' }] },
           'Bathroom Faucets': { count: 25, examples: [{ name: 'Cube Widespread', url: 'https://store.surprisegranite.com' }] },
-          'Bath Accessories': { count: 40, examples: [{ name: 'Circular Hardware Set', url: 'https://store.surprisegranite.com' }] },
-          'Shower Heads': { count: 20, examples: [{ name: 'Kibi Rain Shower Head', url: 'https://store.surprisegranite.com' }] }
+          'Shower Heads': { count: 20, examples: [{ name: 'Kibi Rain Shower Head', url: 'https://store.surprisegranite.com' }] },
+          'Shower Valves': { count: 15, examples: [{ name: 'Thermostatic Valve', url: 'https://store.surprisegranite.com' }] },
+          'Shower Jets': { count: 10, examples: [{ name: 'Body Spray Jet', url: 'https://store.surprisegranite.com' }] },
+          'Soap Dispensers': { count: 10, examples: [{ name: 'Soap Dispenser Chrome', url: 'https://store.surprisegranite.com' }] },
+          'Sink Strainers': { count: 15, examples: [{ name: 'Stainless Strainer', url: 'https://store.surprisegranite.com' }] },
+          'Drain Trays': { count: 5, examples: [{ name: 'Drain Tray Black', url: 'https://store.surprisegranite.com' }] },
+          'Bathroom Organization': { count: 20, examples: [{ name: 'Towel Rack', url: 'https://store.surprisegranite.com' }] },
+          'Hardware': { count: 15, examples: [{ name: 'Cabinet Knob', url: 'https://store.surprisegranite.com' }] },
+          'Shelves': { count: 10, examples: [{ name: 'Floating Shelf', url: 'https://store.surprisegranite.com' }] },
+          'Bathtubs': { count: 8, examples: [{ name: 'Freestanding Bathtub', url: 'https://store.surprisegranite.com' }] }
         },
         description: 'Kibi USA provides luxury kitchen and bath fixtures.'
       }
@@ -353,16 +418,27 @@ async function getVendorData() {
   }
 }
 
-// --- Navigation Links (for quick replies only) ---
+// Navigation Links
 const NAV_LINKS = {
   samples: 'https://store.surprisegranite.com/collections/countertop-samples',
   vendors: 'https://www.surprisegranite.com/company/vendors-list',
   visualizer: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool',
   countertops: 'https://www.surprisegranite.com/materials/all-countertops',
-  store: 'https://store.surprisegranite.com/'
+  store: 'https://store.surprisegranite.com/',
+  sinks: 'https://store.surprisegranite.com/collections/sinks',
+  faucets: 'https://store.surprisegranite.com/collections/faucets',
+  bathroom: 'https://store.surprisegranite.com/collections/bathroom',
+  shower: 'https://store.surprisegranite.com/collections/shower'
 };
 
-// --- Materials Endpoint ---
+// Design Tips
+const DESIGN_TIPS = {
+  kitchen: 'Pair light Quartz countertops with stainless steel sinks for a modern look. Use pull-down faucets for easy cleanup. Consider a waterfall edge for elegance.',
+  bathroom: 'Marble countertops add luxury, while matte stone sinks create a spa-like feel. Install rainfall shower heads and organize with floating shelves.',
+  material: 'Granite is durable for high-traffic kitchens, Quartz offers low maintenance, and Porcelain is ideal for sleek, modern designs. Match materials to your lifestyle!'
+};
+
+// Materials Endpoint
 app.get('/api/materials', async (req, res) => {
   try {
     const csvMaterials = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
@@ -375,15 +451,16 @@ app.get('/api/materials', async (req, res) => {
     })).filter(m => m.name && m.price_per_sqft > 0);
     res.json(materials);
   } catch (error) {
-    console.error('Materials fetch error:', error.message);
+    logger.error(`Materials fetch error: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch materials.' });
   }
 });
 
-// --- Shopify Products Endpoint ---
+// Shopify Products Endpoint
 app.get('/api/shopify-products', async (req, res) => {
   try {
-    const products = await fetchShopifyProducts();
+    const { category, material } = req.query;
+    const products = await fetchShopifyProducts(category, material);
     const formattedProducts = products.map(product => ({
       id: product.id,
       title: product.title,
@@ -391,16 +468,30 @@ app.get('/api/shopify-products', async (req, res) => {
       price: parseFloat(product.variants[0]?.price) || 0,
       url: product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`,
       image: product.image?.src || null,
-      description: product.body_html ? product.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.'
+      description: product.body_html ? product.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
+      inStock: product.variants[0]?.inventory_quantity > 0,
+      tags: product.tags.split(',').map(tag => tag.trim())
     }));
     res.json(formattedProducts);
   } catch (error) {
-    console.error('Shopify products fetch error:', error.message);
+    logger.error(`Shopify products fetch error: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch Shopify products.' });
   }
 });
 
-// --- Appointment Endpoint ---
+// Design Tips Endpoint
+app.get('/api/design-tips', async (req, res) => {
+  try {
+    const { category } = req.query;
+    const tips = DESIGN_TIPS[category.toLowerCase()] || 'Consider coordinating colors and textures for a cohesive look. Visit our store for inspiration!';
+    res.json({ tips });
+  } catch (error) {
+    logger.error(`Design tips error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch design tips.' });
+  }
+});
+
+// Appointment Endpoint
 app.post('/api/appointment', async (req, res) => {
   const { name, email, date, sessionId } = req.body;
   if (!name || !email || !date) {
@@ -435,12 +526,12 @@ app.post('/api/appointment', async (req, res) => {
 
     res.json({ message: responseMessage });
   } catch (error) {
-    console.error('Appointment error:', error.message);
+    logger.error(`Appointment error: ${error.message}`);
     res.status(500).json({ error: 'Failed to book appointment. Please try again.' });
   }
 });
 
-// --- Chat Logs Endpoint ---
+// Chat Logs Endpoint
 app.get('/api/chatlogs', async (req, res) => {
   try {
     const { sessionId } = req.query;
@@ -448,12 +539,12 @@ app.get('/api/chatlogs', async (req, res) => {
     const logs = await ChatLog.find(query).limit(100).sort({ updatedAt: -1 });
     res.json(logs);
   } catch (error) {
-    console.error('Chat logs error:', error.message);
+    logger.error(`Chat logs error: ${error.message}`);
     res.status(500).json({ error: 'Failed to retrieve chat logs.' });
   }
 });
 
-// --- Close Chat Endpoint ---
+// Close Chat Endpoint
 app.post('/api/close-chat', async (req, res) => {
   const { sessionId, abandoned } = req.body;
   try {
@@ -468,12 +559,12 @@ app.post('/api/close-chat', async (req, res) => {
       res.status(404).json({ error: 'Chat session not found.' });
     }
   } catch (error) {
-    console.error('Close chat error:', error.message);
+    logger.error(`Close chat error: ${error.message}`);
     res.status(500).json({ error: 'Failed to close chat.' });
   }
 });
 
-// --- Estimate Endpoint ---
+// Estimate Endpoint
 app.post('/api/estimate', async (req, res) => {
   const { layout, dimensions, material, sessionId } = req.body;
   if (!layout || !dimensions || !material || !sessionId) {
@@ -514,7 +605,7 @@ app.post('/api/estimate', async (req, res) => {
       const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
       laborCostPerSqft = getLaborCostPerSqft(laborData, materialType);
     } catch (error) {
-      console.error(`Failed to fetch labor costs: ${error.message}`);
+      logger.error(`Failed to fetch labor costs: ${error.message}`);
     }
     const fabricationCost = totalArea * 50;
     const installationCost = totalArea * 15;
@@ -549,7 +640,7 @@ app.post('/api/estimate', async (req, res) => {
       { role: 'user', content: `Estimate request: ${layout}, ${JSON.stringify(dimensions)}, ${material}` },
       { role: 'assistant', content: responseMessage }
     );
-    chatLog.estimateContext = {}; // Reset context
+    chatLog.estimateContext = {};
     await chatLog.save();
 
     res.json({
@@ -558,12 +649,12 @@ app.post('/api/estimate', async (req, res) => {
       quickReplies: ['Great', 'High', 'Low', 'Get Estimate', 'Products', 'Explore', 'Book Appointment']
     });
   } catch (error) {
-    console.error('Estimate error:', error.message);
+    logger.error(`Estimate error: ${error.message}`);
     res.status(500).json({ error: 'Failed to generate estimate. Please try again.' });
   }
 });
 
-// --- Chat Endpoint ---
+// Chat Endpoint
 app.post(
   '/api/chat',
   [body('message').isString().trim().isLength({ max: 1000 })],
@@ -578,7 +669,7 @@ app.post(
       const sessionId = req.body.sessionId || 'anonymous';
       const requestId = req.headers['x-request-id'] || 'unknown';
 
-      console.log(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
+      logger.info(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
 
       let chatLog = await ChatLog.findOne({ sessionId });
       if (!chatLog) {
@@ -647,7 +738,7 @@ app.post(
 
       // Handle product queries
       if (userMessage.includes('products') || userMessage.includes('show products')) {
-        const responseMessage = `At Surprise Granite, we craft custom countertops in Granite, Quartz, Marble, and Quartzite from Arizona Tile, and offer premium kitchen and bath fixtures from Kibi USA, like stainless steel sinks, brass faucets, and stylish accessories. Browse our collection at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a>. Want to dive into a specific category, like sinks or countertops? Just let me know!`;
+        const responseMessage = `At Surprise Granite, we craft custom countertops in Granite, Quartz, Marble, Quartzite, and Porcelain from Arizona Tile, and offer premium kitchen and bath fixtures from Kibi USA, like sinks, faucets, shower systems, and accessories. Browse our collection at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a>. Want to dive into a specific category, like sinks or countertops? Just let me know!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -659,14 +750,21 @@ app.post(
         });
       }
 
-      // Handle sink-specific queries
-      if (userMessage.includes('sink')) {
-        const vendors = await getVendorData();
-        const sinks = vendors['kibi usa'].materials['Kitchen Sinks'];
-        const examples = sinks.examples.map(ex => 
-          `<a href="${ex.url}" target="_blank">${ex.name}</a>`
+      // Handle specific category queries
+      const categories = [
+        'countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card',
+        'quartz composite sinks', 'stainless steel sinks', 'fireclay sinks', 'matte stone sinks',
+        'pull down faucets', 'filtration faucets', 'pot fillers', 'shower heads', 'shower valves',
+        'shower jets', 'soap dispensers', 'sink strainers', 'drain trays', 'bathroom organization',
+        'hardware', 'shelves', 'bathtubs'
+      ];
+      const matchedCategory = categories.find(cat => userMessage.includes(cat));
+      if (matchedCategory) {
+        const products = await fetchShopifyProducts(matchedCategory);
+        const examples = products.slice(0, 3).map(p => 
+          `<a href="${p.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${p.handle}`}" target="_blank">${p.title}</a>`
         ).join(', ');
-        const responseMessage = `Kibi USA offers ${sinks.count} premium sinks, including options like ${examples}. Perfect for modern kitchens, these sinks are durable and stylish. Check them out at <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">our store</a>. Want to pair a sink with a countertop? I can help with an estimate!`;
+        const responseMessage = `${matchedCategory.charAt(0).toUpperCase() + matchedCategory.slice(1)} from ${products[0]?.vendor || 'our vendors'} include options like ${examples || 'various styles'}. Check them out at <a href="${NAV_LINKS[matchedCategory] || NAV_LINKS.store}" target="_blank">our store</a>. Want to pair with a countertop or get design tips?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -674,75 +772,25 @@ app.post(
         await chatLog.save();
         return res.json({
           message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          image: products[0]?.image?.src || null,
+          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment', 'Design Tips']
         });
       }
 
-      // Handle faucet-specific queries
-      if (userMessage.includes('faucet')) {
-        const vendors = await getVendorData();
-        const kitchenFaucets = vendors['kibi usa'].materials['Kitchen Faucets'];
-        const bathroomFaucets = vendors['kibi usa'].materials['Bathroom Faucets'];
-        const examples = [
-          ...kitchenFaucets.examples.map(ex => `<a href="${ex.url}" target="_blank">${ex.name}</a>`),
-          ...bathroomFaucets.examples.map(ex => `<a href="${ex.url}" target="_blank">${ex.name}</a>`)
-        ].slice(0, 3).join(', ');
-        const responseMessage = `Kibi USA’s faucets include ${kitchenFaucets.count} kitchen and ${bathroomFaucets.count} bathroom options, such as ${examples}. These add elegance and functionality to any space. View them at <a href="https://store.surprisegranite.com/collections/faucets" target="_blank">our store</a>. Interested in a matching countertop? Let’s get an estimate started!`;
+      // Handle design tips request
+      if (userMessage.includes('design') || userMessage.includes('tips') || userMessage.includes('advice')) {
+        const category = userMessage.includes('bathroom') ? 'bathroom' : userMessage.includes('kitchen') ? 'kitchen' : 'material';
+        const tips = DESIGN_TIPS[category];
+        const responseMessage = `Here are some design tips for ${category}: ${tips} Want more inspiration or to browse related products?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
         );
         await chatLog.save();
         return res.json({
+          image: null,
           message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
-        });
-      }
-
-      // Handle shower head queries
-      if (userMessage.includes('shower head')) {
-        const vendors = await getVendorData();
-        const showerHeads = vendors['kibi usa'].materials['Shower Heads'];
-        const examples = showerHeads.examples.map(ex => 
-          `<a href="${ex.url}" target="_blank">${ex.name}</a>`
-        ).join(', ');
-        const responseMessage = `Kibi USA offers ${showerHeads.count} shower heads, including luxurious options like ${examples}. Ideal for upgrading your bathroom, these feature rain and handheld designs. See them at <a href="https://store.surprisegranite.com/collections/shower-heads" target="_blank">our store</a>. Want to complete your bath with a new countertop? Try an estimate!`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
-        });
-      }
-
-      // Handle explore options
-      if (userMessage.includes('explore options')) {
-        const responseMessage = `Let’s find inspiration! You can check out countertop samples from Arizona Tile or discover fixtures from Kibi USA. Ask about samples (e.g., "Show samples") or vendors (e.g., "List vendors"), or browse everything at <a href="https://store.surprisegranite.com" target="_blank">our store</a>. Ready to start a project? Try an estimate!`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
-        });
-      }
-
-      // Handle samples request
-      if (userMessage.includes('samples')) {
-        const responseMessage = `Our countertop samples showcase stunning materials like Granite and Quartz from Arizona Tile. View them at <a href="https://store.surprisegranite.com/collections/countertop-samples" target="_blank">our store</a>. Want to see how a sample looks in your space? Order one or get an estimate to start planning!`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment', 'Design Tips']
         });
       }
 
@@ -780,10 +828,10 @@ app.post(
               material: chatLog.estimateContext.material,
               sessionId
             };
-            const estimateResponse = await axios.post('http://localhost:' + PORT + '/api/estimate', estimateData);
+            const estimateResponse = await axios.post(`http://localhost:${PORT}/api/estimate`, estimateData);
             responseMessage = estimateResponse.data.message;
             quickReplies = estimateResponse.data.quickReplies;
-            chatLog.estimateContext = {}; // Reset context
+            chatLog.estimateContext = {};
           } else {
             responseMessage = `I couldn’t find that material. Try a name like "Sparkling White" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
           }
@@ -855,7 +903,7 @@ app.post(
       try {
         shopifyProducts = await fetchShopifyProducts();
       } catch (error) {
-        console.error(`Failed to fetch Shopify products: ${error.message}`);
+        logger.error(`Failed to fetch Shopify products: ${error.message}`);
       }
 
       const matchedProduct = shopifyProducts.find((product) =>
@@ -866,7 +914,7 @@ app.post(
         const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
         const imageUrl = matchedProduct.image?.src || null;
         const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-        console.log(`Matched product: ${matchedProduct.title}`);
+        logger.info(`Matched product: ${matchedProduct.title}`);
         const responseMessage = `The "${matchedProduct.title}" is a fantastic choice, priced at $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View on our store</a>. ${matchedProduct.title.toLowerCase().includes('countertop') ? 'Want a custom quote for this?' : 'Need a countertop to match?'} Let’s get an estimate or explore more!`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
@@ -885,14 +933,15 @@ app.post(
       const systemPrompt = {
         role: 'system',
         content: `
-          You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) from Arizona Tile and kitchen/bath fixtures (sinks, faucets, shower heads, accessories) from Kibi USA. Our mission is to provide high-quality, durable solutions for home remodeling. Your tasks include:
+          You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite, Porcelain) from Arizona Tile and kitchen/bath fixtures (sinks, faucets, shower systems, bathtubs, accessories) from Kibi USA. Your tasks include:
           - Providing conversational, engaging responses with a friendly tone, avoiding repetition.
           - Offering detailed information about Surprise Granite's company, products, and vendors only when explicitly requested.
           - Assisting with Shopify store navigation (store.surprisegranite.com), recommending products/services with hyperlinks and specific details.
           - Guiding users through countertop estimates conversationally (layout, dimensions, material) or via the "Get Estimate" button, storing context in estimateContext.
           - Saving bids in MongoDB and soliciting feedback with personalized follow-ups.
-          - Providing Shopify product details (title, price, description, image) with hyperlinks, including stock status if available.
+          - Providing Shopify product details (title, price, description, image, stock status) with hyperlinks.
           - Suggesting related products or services (e.g., sinks with countertops, installation).
+          - Offering design tips when relevant, tailored to kitchens, bathrooms, or materials.
           - Do not include navigation links in responses; use quick reply buttons or hyperlinked store URLs.
           - Do not include contact information; direct users to footer buttons for calling (602) 833-3189 or messaging.
           - Do not append vendor data unless specifically asked.
@@ -922,7 +971,7 @@ app.post(
       );
 
       let aiMessage = aiResponse.data.choices[0].message.content;
-      console.log(`Raw AI response: ${aiMessage}`);
+      logger.info(`Raw AI response: ${aiMessage}`);
 
       const contactPatterns = [
         /Contact us:.*$/gi,
@@ -944,10 +993,10 @@ app.post(
 
       res.json({
         message: aiMessage,
-        quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+        quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment', 'Design Tips']
       });
     } catch (err) {
-      console.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}):`, err.message);
+      logger.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}): ${err.message}`);
       res.status(500).json({
         error: 'An error occurred while processing your request. Please try again later.',
         details: err.message,
@@ -956,42 +1005,42 @@ app.post(
   }
 );
 
-// --- Default Route ---
+// Default Route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'chatbot.html'));
 });
 
-// --- Chatbot Widget Route ---
+// Chatbot Widget Route
 app.get('/sg-chatbot-widget.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'chatbot.html'));
 });
 
-// --- Catch-All Route ---
+// Catch-All Route
 app.use((req, res) => {
   res.status(404).send('Page not found. Make sure you are accessing the correct endpoint.');
 });
 
-// --- Handle SIGTERM ---
+// Handle SIGTERM
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM. Shutting down gracefully...');
+  logger.info('Received SIGTERM. Shutting down gracefully...');
   mongoose.connection.close(() => {
-    console.log('MongoDB connection closed.');
+    logger.info('MongoDB connection closed.');
     process.exit(0);
   });
 });
 
-// --- Global Error Handling ---
+// Global Error Handling
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err.message);
+  logger.error(`Uncaught Exception: ${err.message}`);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err.message);
+  logger.error(`Unhandled Rejection: ${err.message}`);
   process.exit(1);
 });
 
-// --- Start Server ---
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  logger.info(`Server running at http://localhost:${PORT}`);
 });
