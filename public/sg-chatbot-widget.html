@@ -132,29 +132,6 @@
       box-shadow: var(--shadow);
     }
 
-    .message.bot img {
-      max-width: 100%;
-      max-height: 200px;
-      object-fit: cover;
-      border-radius: 0.75rem;
-      margin-top: 0.75rem;
-      display: block;
-      cursor: pointer;
-    }
-
-    .message.bot .image-loading {
-      font-style: italic;
-      color: #6b7280;
-      margin-top: 0.5rem;
-      font-size: 0.85rem;
-    }
-
-    .message.bot .image-error {
-      color: #ef4444;
-      font-size: 0.8rem;
-      margin-top: 0.5rem;
-    }
-
     .message.bot a {
       color: var(--primary-blue);
       text-decoration: underline;
@@ -216,10 +193,6 @@
       animation: slideIn 0.4s ease;
     }
 
-    .quick-reply.retry-image {
-      background-color: #6b7280;
-    }
-
     .quick-reply:hover,
     .quick-reply:focus {
       background-color: #1e40af;
@@ -256,31 +229,6 @@
     .chat-input input:focus {
       border-color: var(--primary-yellow);
       box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.2);
-    }
-
-    .image-upload-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.75rem;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      border-radius: var(--border-radius);
-      cursor: pointer;
-      margin-left: 0.75rem;
-      min-width: 44px;
-      min-height: 44px;
-      transition: var(--transition);
-    }
-
-    .image-upload-btn:hover,
-    .image-upload-btn:focus {
-      background-color: #1e40af;
-      transform: translateY(-2px);
-    }
-
-    .image-upload-btn:active {
-      transform: scale(0.98);
     }
 
     .chat-input button {
@@ -477,6 +425,14 @@
       background-color: #4b5563;
     }
 
+    .zip-form, .estimate-form {
+      margin-bottom: 1rem;
+    }
+
+    .zip-form input, .estimate-form input, .estimate-form select {
+      margin-bottom: 0.5rem;
+    }
+
     @media (min-width: 600px) {
       .chat-container {
         max-width: 420px;
@@ -609,17 +565,13 @@
     </div>
     <div class="chat-messages" id="chatMessages" aria-live="polite">
       <div class="message bot">
-        Hello! I’m your personal shopper for Surprise Granite. 😊 Browse countertops, sinks, faucets, or get design tips. Share your zip code for tailored pricing or try an estimate! What’s on your list?
+        Hello! I’m your personal shopper for Surprise Granite. 😊 Browse countertops, sinks, faucets, or get design tips. Try an estimate or share a zip code for tailored pricing! What’s on your shopping list?
         <div class="timestamp" id="welcomeTimestamp"></div>
       </div>
     </div>
     <div class="quick-replies" id="quickReplies"></div>
     <div class="chat-input">
       <input type="text" id="userInput" placeholder="Tell me what you're shopping for..." aria-label="Chat input" autocomplete="off">
-      <label for="imageUpload" class="image-upload-btn" aria-label="Upload image">
-        <i class="fas fa-image"></i>
-        <input type="file" id="imageUpload" accept="image/*" style="display: none;">
-      </label>
       <button id="sendButton" aria-label="Send message">Send</button>
     </div>
     <div class="chat-footer" id="chatFooter"></div>
@@ -650,12 +602,24 @@
     </div>
   </div>
 
+  <div class="modal" id="zipModal" role="dialog" aria-labelledby="zipModalTitle" aria-hidden="true">
+    <div class="modal-content">
+      <h2 id="zipModalTitle">Enter Your Zip Code</h2>
+      <form id="zipForm" class="zip-form">
+        <label for="zipInput">Zip Code</label>
+        <input type="text" id="zipInput" name="zip" pattern="\d{5}" title="Enter a 5-digit zip code" placeholder="e.g., 12345">
+        <button type="submit">Submit</button>
+        <button type="button" id="zipSkip">Skip</button>
+      </form>
+    </div>
+  </div>
+
   <div class="modal" id="estimateModal" role="dialog" aria-labelledby="estimateModalTitle" aria-hidden="true">
     <div class="modal-content">
-      <h2 id="estimateModalTitle">Countertop Estimate</h2>
-      <form id="estimateForm">
-        <label for="estimateLayout">Layout</label>
-        <select id="estimateLayout" name="layout" required aria-required="true">
+      <h2 id="estimateModalTitle">Get a Countertop Estimate</h2>
+      <form id="estimateForm" class="estimate-form">
+        <label for="layoutSelect">Layout</label>
+        <select id="layoutSelect" name="layout" required aria-required="true">
           <option value="">Select Layout</option>
           <option value="u-shaped">U-shaped</option>
           <option value="galley">Galley</option>
@@ -663,20 +627,41 @@
           <option value="plateau">Plateau</option>
           <option value="bar top">Bar Top</option>
         </select>
-        <label for="estimateDimensions">Dimensions (e.g., 5x3 ft, 4x2 ft)</label>
-        <input type="text" id="estimateDimensions" name="dimensions" placeholder="e.g., 5x3 ft, 4x2 ft" required aria-required="true">
-        <label for="estimateMaterial">Material</label>
-        <input type="text" id="estimateMaterial" name="material" placeholder="e.g., Sparkling White Quartz" required aria-required="true">
-        <button type="submit">Get Estimate</button>
+        <label for="dimensionsInput">Dimensions (e.g., 5x3 ft)</label>
+        <input type="text" id="dimensionsInput" name="dimensions" placeholder="e.g., 5x3 ft" required aria-required="true">
+        <label for="materialInput">Material</label>
+        <input type="text" id="materialInput" name="material" placeholder="e.g., Sparkling White Quartz" required aria-required="true">
+        <button type="submit">Submit</button>
         <button type="button" id="estimateCancel">Cancel</button>
       </form>
     </div>
   </div>
 
   <script>
+    // Configuration
     const CONFIG = {
       SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
       USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801',
+      GEO_API_URL: 'https://ipapi.co/json/',
+      SHOPIFY_API: 'https://store.surprisegranite.com/api/2024-10/graphql.json',
+      COMPANY_INFO_URL: '/companyinfo.json',
+      PRICE_LIST: {
+        materials: {
+          granite: { base: 40, high: 100 },
+          quartz: { base: 50, high: 120 },
+          marble: { base: 60, high: 150 },
+          quartzite: { base: 55, high: 130 },
+          porcelain: { base: 45, high: 110 },
+          'sparkling white quartz': { base: 65, high: 130 },
+          'frost n': { base: 70, high: 140 }
+        },
+        labor: { base: 20, cutout: 100, demo: 500, backsplash: 10 },
+        markups: {
+          '85001': 1.10,
+          '85701': 1.08,
+          'default': 1.05
+        }
+      }
     };
 
     const NAV_LINKS = {
@@ -685,39 +670,52 @@
       countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
       sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
       faucets: { url: 'https://store.surprisegranite.com/collections/faucets', text: 'faucets' },
-      shower: { url: 'https://store.surprisegranite.com/collections/shower-heads', text: 'shower heads' },
+      bathroom: { url: 'https://store.surprisegranite.com/collections/bathroom', text: 'bathroom' },
+      shower: { url: 'https://store.surprisegranite.com/collections/shower', text: 'shower' }
     };
 
     const QUICK_REPLY_SETS = {
-      initial: ['Countertops', 'Sinks', 'Faucets', 'Design Tips', 'Get Estimate'],
-      countertops: ['Granite', 'Quartz', 'Marble', 'Porcelain', 'Shop All'],
-      sinks: ['Quartz Composite', 'Stainless Steel', 'Fireclay', 'Matte Stone', 'Shop All'],
+      initial: ['Countertops', 'Sinks', 'Faucets', 'Design Tips', 'Estimate', 'Contact Us'],
+      countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Porcelain', 'Shop All'],
+      sinks: ['Quartz Composite', 'Stainless Steel', 'Fireclay', 'Matte Stone', 'Browse Sinks'],
       faucets: ['Pull Down', 'Filtration', 'Pot Fillers', 'Shop All'],
       bathroom: ['Countertops', 'Sinks', 'Faucets', 'Shower Heads', 'Shop All'],
-      design: ['Kitchen Tips', 'Bathroom Tips', 'Material Guide', 'Color Trends'],
-      estimate: ['Great', 'High', 'Low', 'Get Estimate', 'Shop All'],
+      shower: ['Shower Heads', 'Shower Valves', 'Shower Jets', 'Shop All'],
+      estimate: ['U-shaped', 'Galley', 'L-shape', 'Plateau', 'Bar Top'],
       contact: ['Get Quote', 'Book Consultation', 'Send Message'],
       zip: ['Enter Zip Code', 'Skip'],
+      design: ['Kitchen Tips', 'Bathroom Tips', 'Material Guide', 'Shop All']
     };
 
     let userProfile = {
       name: null,
       email: null,
       zipCode: null,
-      preferences: { material: null, budget: null },
+      zipPromptSkipped: false,
+      preferences: { material: null, budget: null, category: null }
     };
 
+    let companyInfo = {};
     let conversationHistory = [];
     let sessionId = 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     let inactivityTimer;
     let lastResponseType = null;
     const placeholders = [
-      'Tell me what you’re shopping for...',
-      'Need countertops or sinks?',
-      'Want design tips?',
-      'Ready for an estimate?',
+      'Ask about countertops, sinks, or faucets...',
+      'Need a countertop estimate?',
+      'Looking for design tips?',
+      'Browse our Shopify store!'
     ];
     let placeholderIndex = 0;
+
+    // Debounce utility
+    function debounce(func, wait) {
+      let timeout;
+      return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
 
     function saveSession() {
       try {
@@ -725,7 +723,7 @@
           userProfile,
           conversationHistory,
           sessionId,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         }));
       } catch (error) {
         console.error('Session save error:', error);
@@ -742,7 +740,7 @@
             conversationHistory = savedHistory;
             sessionId = savedId;
             if (userProfile.name) {
-              addMessage(`Welcome back, ${userProfile.name}! Let’s find countertops, sinks, or design ideas${userProfile.zipCode ? ` for ${userProfile.zipCode}` : ''}. What’s next?`, false, null, 'initial');
+              addMessage(`Welcome back, ${userProfile.name}! Ready to explore countertops, sinks, or get design tips?`, false, null, 'initial');
             }
           }
         }
@@ -751,28 +749,181 @@
       }
     }
 
-    async function fetchShopifyProducts(category, material = null) {
+    function getMarkupFromZip(zipCode) {
+      return CONFIG.PRICE_LIST.markups[zipCode] || CONFIG.PRICE_LIST.markups['default'];
+    }
+
+    async function fetchCompanyInfo() {
       try {
-        const response = await axios.get(`${CONFIG.SERVER_URL}/api/shopify-products`);
-        let products = response.data;
-        if (category) {
-          products = products.filter(p => {
-            const title = p.title.toLowerCase();
-            return title.includes(category.toLowerCase()) || (material && title.includes(material.toLowerCase()));
-          });
+        const response = await axios.get(CONFIG.COMPANY_INFO_URL);
+        companyInfo = response.data;
+        updateCompanyInfo();
+      } catch (error) {
+        console.error('Company info fetch error:', error.message);
+        companyInfo = {
+          name: 'Surprise Granite',
+          logo: 'https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg',
+          contact: { phone: '6028333189', emailForm: 'https://usebasin.com/f/0e1679dd8d79' },
+          social: { instagram: 'https://www.instagram.com/surprisegranite' }
+        };
+        updateCompanyInfo();
+      }
+    }
+
+    function updateCompanyInfo() {
+      const chatHeader = document.querySelector('.chat-header');
+      const chatFooter = document.getElementById('chatFooter');
+      if (chatHeader) {
+        chatHeader.innerHTML = `
+          <img src="${companyInfo.logo}" alt="${companyInfo.name} Logo">
+          ${companyInfo.name} AI
+        `;
+      }
+      if (chatFooter) {
+        chatFooter.innerHTML = `
+          <a href="${companyInfo.contact.emailForm}" class="footer-icon" target="_blank" aria-label="Contact us" title="Contact">
+            <i class="fas fa-envelope"></i>
+            <span class="tooltip">Contact Us</span>
+          </a>
+          <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
+            <i class="fas fa-shopping-cart"></i>
+            <span class="tooltip">Shop</span>
+          </a>
+          <a href="tel:${companyInfo.contact.phone}" class="footer-icon" aria-label="Call us" title="Call">
+            <i class="fas fa-phone"></i>
+            <span class="tooltip">Call Us</span>
+          </a>
+          ${companyInfo.social?.instagram ? `
+            <a href="${companyInfo.social.instagram}" class="footer-icon" target="_blank" aria-label="Follow on Instagram" title="Instagram">
+              <i class="fab fa-instagram"></i>
+              <span class="tooltip">Instagram</span>
+            </a>
+          ` : ''}
+        `;
+      }
+    }
+
+    async function fetchShopifyProducts(category, material = null, after = null) {
+      try {
+        let queryString = category === 'countertops' ? 'tag:countertop' : category;
+        if (material) queryString += ` ${material}`;
+        const query = `
+          query {
+            products(first: 3, query: "${queryString}", after: ${after ? `"${after}"` : null}) {
+              edges {
+                node {
+                  id
+                  title
+                  handle
+                  priceRange {
+                    minVariantPrice {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  images(first: 1) {
+                    edges {
+                      node {
+                        src
+                        altText
+                      }
+                    }
+                  }
+                  vendor
+                  description
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                        sku
+                        availableForSale
+                      }
+                    }
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        `;
+        const response = await axios.post(CONFIG.SHOPIFY_API, { query }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Storefront-Access-Token': process.env.SHOPIFY_STOREFRONT_TOKEN || 'your-shopify-storefront-token'
+          }
+        });
+        if (response.data.errors) {
+          throw new Error(response.data.errors[0].message);
         }
-        return products.map(product => ({
-          id: product.id,
-          title: product.title,
-          price: product.price,
-          description: product.description,
-          image: product.image,
-          url: product.url,
-        }));
+        const { edges, pageInfo } = response.data.data.products;
+        const products = edges.map(edge => edge.node);
+        return {
+          products: products.map(product => ({
+            id: product.id,
+            title: product.title,
+            price: parseFloat(product.priceRange.minVariantPrice.amount),
+            currency: product.priceRange.minVariantPrice.currencyCode,
+            image: product.images.edges[0]?.node.src || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(product.title),
+            altText: product.images.edges[0]?.node.altText || `${product.title}`,
+            url: `https://store.surprisegranite.com/products/${product.handle}`,
+            vendor: product.vendor,
+            description: product.description ? product.description.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
+            sku: product.variants.edges[0]?.node.sku || 'N/A',
+            available: product.variants.edges[0]?.node.availableForSale || false
+          })),
+          hasNextPage: pageInfo.hasNextPage,
+          endCursor: pageInfo.endCursor
+        };
       } catch (error) {
         console.error('Shopify fetch error:', error.message);
-        return [];
+        return { products: [], hasNextPage: false, endCursor: null };
       }
+    }
+
+    async function fetchDesignTips(category) {
+      try {
+        const response = await axios.get(`${CONFIG.SERVER_URL}/api/design-tips?category=${encodeURIComponent(category)}`);
+        return response.data.tips;
+      } catch (error) {
+        console.error('Design tips fetch error:', error.message);
+        return `For ${category}, consider coordinating colors and textures for a cohesive look. Visit our <a href="${NAV_LINKS.store.url}" target="_blank">store</a> for inspiration!`;
+      }
+    }
+
+    function applyMarkup(price, zipCode) {
+      const markup = getMarkupFromZip(zipCode);
+      return (price * markup).toFixed(2);
+    }
+
+    function generateCSVEstimate(layout, dimensions, material) {
+      const headers = ['Item', 'Type', 'Quantity', 'Unit Price', 'Total Price'];
+      const materialRow = [
+        material,
+        'Material',
+        dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0),
+        CONFIG.PRICE_LIST.materials[material.toLowerCase()]?.base || 50,
+        applyMarkup(
+          dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0) *
+          (CONFIG.PRICE_LIST.materials[material.toLowerCase()]?.base || 50),
+          userProfile.zipCode
+        )
+      ];
+      const laborRow = [
+        'Installation',
+        'Labor',
+        1,
+        CONFIG.PRICE_LIST.labor.base,
+        applyMarkup(CONFIG.PRICE_LIST.labor.base, userProfile.zipCode)
+      ];
+      const csvContent = [
+        headers.join(','),
+        materialRow.join(','),
+        laborRow.join(',')
+      ].join('\n');
+      return encodeURI('data:text/csv;charset=utf-8,' + csvContent);
     }
 
     function processNLP(message) {
@@ -780,14 +931,14 @@
       const entities = {};
       let intent = 'browse';
 
-      const categories = ['countertops', 'sinks', 'faucets', 'shower heads', 'bathroom', 'samples', 'tile'];
+      const categories = ['countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card'];
       const category = categories.find(cat => normalizedMessage.includes(cat));
       if (category) {
         entities.category = category;
         intent = 'browse_category';
       }
 
-      const materials = ['granite', 'quartz', 'marble', 'porcelain', 'quartz composite', 'stainless steel', 'fireclay', 'matte stone'];
+      const materials = ['granite', 'quartz', 'marble', 'quartzite', 'porcelain', 'stainless steel', 'fireclay', 'matte stone', 'quartz composite'];
       const material = materials.find(mat => normalizedMessage.includes(mat));
       if (material) {
         entities.material = material;
@@ -808,16 +959,20 @@
         intent = 'set_zip';
       }
 
-      if (normalizedMessage.includes('design') || normalizedMessage.includes('tips') || normalizedMessage.includes('advice')) {
-        intent = 'design_tips';
-      }
-
       if (normalizedMessage.includes('estimate') || normalizedMessage.includes('quote')) {
         intent = 'estimate';
       }
 
-      if (normalizedMessage.includes('contact') || normalizedMessage.includes('quote') || normalizedMessage.includes('consultation')) {
+      if (normalizedMessage.includes('design') || normalizedMessage.includes('tips') || normalizedMessage.includes('advice')) {
+        intent = 'design_tips';
+      }
+
+      if (normalizedMessage.includes('contact') || normalizedMessage.includes('consultation') || normalizedMessage.includes('message')) {
         intent = 'contact';
+      }
+
+      if (normalizedMessage.includes('skip')) {
+        intent = 'skip_zip';
       }
 
       return { intent, entities };
@@ -831,62 +986,25 @@
       }
     }
 
-    function retryImage(imageUrl) {
-      addMessage('Retrying image load...', false);
-      const img = new Image();
-      img.src = imageUrl;
-      img.onload = () => {
-        addMessage('Image loaded successfully!', false, imageUrl, 'initial');
-      };
-      img.onerror = () => {
-        addMessage('Still couldn’t load the image. Try again or browse our store.', false, null, 'initial');
-      };
-    }
-
-    function openLeadModal() {
-      const leadModal = document.getElementById('leadModal');
-      if (leadModal) {
-        leadModal.style.display = 'flex';
-        leadModal.setAttribute('aria-hidden', 'false');
-        const firstInput = document.getElementById('leadName');
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        const firstInput = modal.querySelector('input, select');
         firstInput?.focus();
-        trapFocus(leadModal);
-        updateQuickReplies('contact');
+        trapFocus(modal);
       }
     }
 
-    function closeLeadModal() {
-      const leadModal = document.getElementById('leadModal');
-      const leadForm = document.getElementById('leadForm');
-      if (leadModal) {
-        leadModal.style.display = 'none';
-        leadModal.setAttribute('aria-hidden', 'true');
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      const form = modal?.querySelector('form');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
       }
-      if (leadForm) leadForm.reset();
-      updateQuickReplies('initial');
-      document.getElementById('chatContainer')?.focus();
-    }
-
-    function openEstimateModal() {
-      const estimateModal = document.getElementById('estimateModal');
-      if (estimateModal) {
-        estimateModal.style.display = 'flex';
-        estimateModal.setAttribute('aria-hidden', 'false');
-        const firstInput = document.getElementById('estimateLayout');
-        firstInput?.focus();
-        trapFocus(estimateModal);
-      }
-    }
-
-    function closeEstimateModal() {
-      const estimateModal = document.getElementById('estimateModal');
-      const estimateForm = document.getElementById('estimateForm');
-      if (estimateModal) {
-        estimateModal.style.display = 'none';
-        estimateModal.setAttribute('aria-hidden', 'true');
-      }
-      if (estimateForm) estimateForm.reset();
-      updateQuickReplies('initial');
+      if (form) form.reset();
       document.getElementById('chatContainer')?.focus();
     }
 
@@ -906,32 +1024,15 @@
           }
         }
         if (e.key === 'Escape') {
-          if (element.id === 'leadModal') closeLeadModal();
-          if (element.id === 'estimateModal') closeEstimateModal();
+          closeModal(element.id);
         }
       });
-    }
-
-    function loadCompanyInfo() {
-      const chatFooter = document.getElementById('chatFooter');
-      if (chatFooter) {
-        chatFooter.innerHTML = `
-          <a href="https://usebasin.com/f/0e1679dd8d79" class="footer-icon" target="_blank" aria-label="Contact us" title="Contact">
-            <i class="fas fa-envelope"></i>
-            <span class="tooltip">Contact Us</span>
-          </a>
-          <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
-            <i class="fas fa-shopping-cart"></i>
-            <span class="tooltip">Shop</span>
-          </a>
-        `;
-      }
     }
 
     function resetInactivityTimer() {
       clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
-        addMessage('Still shopping? 😊 I can help with countertops, sinks, or design tips!', false, null, 'initial');
+        addMessage('Still shopping? 😊 I can help with countertops, sinks, faucets, or design tips!', false, null, 'initial');
       }, 5 * 60 * 1000);
     }
 
@@ -950,8 +1051,6 @@
         updateQuickReplies('initial');
       } else {
         clearTimeout(inactivityTimer);
-        axios.post(`${CONFIG.SERVER_URL}/api/close-chat`, { sessionId, abandoned: true })
-          .catch(error => console.error('Close chat error:', error.message));
       }
     }
 
@@ -961,14 +1060,15 @@
       const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
       quickReplies.innerHTML = replies.map(reply => {
         let action = `sendQuickReply('${reply}')`;
-        if (reply === 'Shop All') {
-          if (context === 'countertops') action = `window.open('${NAV_LINKS.countertops.url}', '_blank')`;
-          if (context === 'sinks') action = `window.open('${NAV_LINKS.sinks.url}', '_blank')`;
-          if (context === 'faucets') action = `window.open('${NAV_LINKS.faucets.url}', '_blank')`;
-          if (context === 'bathroom') action = `window.open('${NAV_LINKS.store.url}', '_blank')`;
-        }
-        if (reply.includes('Consultation') || reply.includes('Quote') || reply.includes('Message')) action = `openLeadModal()`;
-        if (reply === 'Get Estimate') action = `openEstimateModal()`;
+        if (reply === 'Shop All' && context === 'countertops') action = `window.open('${NAV_LINKS.countertops.url}', '_blank')`;
+        if (reply === 'Shop All' && context === 'sinks') action = `window.open('${NAV_LINKS.sinks.url}', '_blank')`;
+        if (reply === 'Shop All' && context === 'faucets') action = `window.open('${NAV_LINKS.faucets.url}', '_blank')`;
+        if (reply === 'Shop All' && context === 'bathroom') action = `window.open('${NAV_LINKS.bathroom.url}', '_blank')`;
+        if (reply === 'Shop All' && context === 'shower') action = `window.open('${NAV_LINKS.shower.url}', '_blank')`;
+        if (reply === 'Browse Sinks') action = `window.open('${NAV_LINKS.sinks.url}', '_blank')`;
+        if (reply.includes('Consultation') || reply.includes('Quote') || reply.includes('Message')) action = `openModal('leadModal')`;
+        if (reply === 'Enter Zip Code') action = `openModal('zipModal')`;
+        if (reply === 'Estimate') action = `openModal('estimateModal')`;
         return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
       }).join('');
     }
@@ -982,30 +1082,6 @@
       const contentDiv = document.createElement('div');
       contentDiv.innerHTML = content || 'Sorry, no response received. Please try again!';
       div.appendChild(contentDiv);
-
-      if (imageUrl && !isUser) {
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'image-container';
-        imgContainer.innerHTML = '<div class="image-loading" role="status">Loading image...</div>';
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = `Image of ${content.split(' ').slice(0, 3).join(' ')}`;
-        img.setAttribute('aria-hidden', 'false');
-        img.loading = 'lazy';
-        img.onclick = () => window.open(imageUrl, '_blank');
-        img.onload = () => {
-          imgContainer.querySelector('.image-loading').remove();
-        };
-        img.onerror = () => {
-          imgContainer.innerHTML = `
-            <div class="image-error" role="alert">Failed to load image.</div>
-            <button class="quick-reply retry-image" onclick="retryImage('${imageUrl}')">Retry</button>
-          `;
-          console.error(`Image load failed: ${imageUrl}, Session: ${sessionId}`);
-        };
-        imgContainer.appendChild(img);
-        div.appendChild(imgContainer);
-      }
 
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
@@ -1030,7 +1106,7 @@
         indicator = document.createElement('div');
         indicator.id = 'typingIndicator';
         indicator.className = 'typing-indicator';
-        indicator.textContent = 'Surprise Granite AI is typing';
+        indicator.textContent = `${companyInfo.name || 'Surprise Granite'} AI is typing`;
         chatMessages.appendChild(indicator);
       }
       indicator.style.display = show ? 'block' : 'none';
@@ -1055,37 +1131,48 @@
         let context = 'initial';
         let imageUrl = null;
 
-        if (!userProfile.zipCode && !nlpResult.entities.zipCode && nlpResult.intent !== 'set_zip') {
-          responseMessage = 'Please share your zip code for personalized pricing, or skip to browse products.';
+        if (!userProfile.zipCode && !nlpResult.entities.zipCode && !userProfile.zipPromptSkipped && nlpResult.intent !== 'set_zip' && nlpResult.intent !== 'skip_zip') {
+          responseMessage = 'For personalized pricing, please enter your zip code or skip.';
+          openModal('zipModal');
           context = 'zip';
           lastResponseType = 'zip_prompt';
+          showTypingIndicator(false);
+          return;
         } else if (nlpResult.intent === 'set_zip' && nlpResult.entities.zipCode) {
           userProfile.zipCode = nlpResult.entities.zipCode;
+          userProfile.zipPromptSkipped = false;
           saveSession();
-          responseMessage = `Got it! Your zip code is ${userProfile.zipCode}. Now, what are you shopping for? Countertops, sinks, faucets, or design tips?`;
+          responseMessage = `Thanks for sharing your zip code: ${userProfile.zipCode}! What are you shopping for? Try countertops, sinks, faucets, or design tips!`;
           context = 'initial';
           lastResponseType = 'zip_set';
+        } else if (nlpResult.intent === 'skip_zip') {
+          userProfile.zipPromptSkipped = true;
+          saveSession();
+          responseMessage = `Got it, skipping zip code! What’s on your shopping list? Try countertops, sinks, or design tips.`;
+          context = 'initial';
+          lastResponseType = 'zip_skipped';
         } else if (nlpResult.intent === 'browse_category' && nlpResult.entities.category) {
-          const category = nlpResult.entities.category === 'shower heads' ? 'shower' : nlpResult.entities.category;
-          const products = await fetchShopifyProducts(category);
+          const { products } = await fetchShopifyProducts(nlpResult.entities.category);
+          userProfile.preferences.category = nlpResult.entities.category;
+          saveSession();
           if (products.length) {
-            responseMessage = `Here are some ${category}${userProfile.zipCode ? ` for ${userProfile.zipCode}` : ''}:<br>` + 
-              products.slice(0, 3).map(p => `<a href="${p.url}" target="_blank">${p.title}</a> - $${p.price.toFixed(2)}<br>${p.description}`).join('<br>');
+            responseMessage = `Here are some ${nlpResult.entities.category}:<br>` + 
+              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = products[0].image;
-            context = category === 'countertops' ? 'countertops' : category === 'sinks' ? 'sinks' : category === 'faucets' ? 'faucets' : 'bathroom';
+            context = nlpResult.entities.category;
             lastResponseType = 'category';
           } else {
-            responseMessage = `Sorry, I couldn’t find any ${category}. Try browsing <a href="${NAV_LINKS[category]?.url || NAV_LINKS.store.url}" target="_blank">${NAV_LINKS[category]?.text || 'our store'}</a> or let me know what else you’re looking for!`;
+            responseMessage = `Sorry, I couldn’t find any ${nlpResult.entities.category}. Try browsing <a href="${NAV_LINKS[nlpResult.entities.category]?.url || NAV_LINKS.store.url}" target="_blank">${NAV_LINKS[nlpResult.entities.category]?.text || NAV_LINKS.store.text}</a> or ask for design tips!`;
             context = 'initial';
             lastResponseType = 'no_results';
           }
         } else if (nlpResult.intent === 'browse_material' && nlpResult.entities.material) {
-          const products = await fetchShopifyProducts('countertops', nlpResult.entities.material);
+          const { products } = await fetchShopifyProducts('countertops', nlpResult.entities.material);
           userProfile.preferences.material = nlpResult.entities.material;
           saveSession();
           if (products.length) {
-            responseMessage = `Here are some ${nlpResult.entities.material} products${userProfile.zipCode ? ` for ${userProfile.zipCode}` : ''}:<br>` + 
-              products.slice(0, 3).map(p => `<a href="${p.url}" target="_blank">${p.title}</a> - $${p.price.toFixed(2)}<br>${p.description}`).join('<br>');
+            responseMessage = `Here are some ${nlpResult.entities.material} products:<br>` + 
+              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = products[0].image;
             context = 'countertops';
             lastResponseType = 'material';
@@ -1097,50 +1184,52 @@
         } else if (nlpResult.intent === 'browse_budget' && nlpResult.entities.budget) {
           userProfile.preferences.budget = nlpResult.entities.budget;
           saveSession();
-          const products = await fetchShopifyProducts('countertops');
-          const filteredProducts = products.filter(p => p.price >= userProfile.preferences.budget.min / 50 && p.price <= userProfile.preferences.budget.max / 50);
+          const { products } = await fetchShopifyProducts(userProfile.preferences.category || 'countertops');
+          const filteredProducts = products.filter(p => {
+            const adjustedPrice = parseFloat(applyMarkup(p.price, userProfile.zipCode));
+            return adjustedPrice >= userProfile.preferences.budget.min / 50 && adjustedPrice <= userProfile.preferences.budget.max / 50;
+          });
           if (filteredProducts.length) {
-            responseMessage = `Here are products within your budget ($${userProfile.preferences.budget.min}-$${userProfile.preferences.budget.max})${userProfile.zipCode ? ` for ${userProfile.zipCode}` : ''}:<br>` + 
-              filteredProducts.slice(0, 3).map(p => `<a href="${p.url}" target="_blank">${p.title}</a> - $${p.price.toFixed(2)}<br>${p.description}`).join('<br>');
+            responseMessage = `Here are products within your budget ($${userProfile.preferences.budget.min}-$${userProfile.preferences.budget.max}):<br>` + 
+              filteredProducts.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = filteredProducts[0].image;
-            context = 'countertops';
+            context = userProfile.preferences.category || 'countertops';
             lastResponseType = 'budget';
           } else {
-            responseMessage = `No products found in your budget range. Try a wider range or browse <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>!`;
+            responseMessage = `No products found in your budget range. Try a wider range or browse <a href="${NAV_LINKS[userProfile.preferences.category]?.url || NAV_LINKS.store.url}" target="_blank">our collection</a>!`;
             context = 'initial';
             lastResponseType = 'no_results';
           }
+        } else if (nlpResult.intent === 'estimate') {
+          responseMessage = `Let’s get a countertop estimate! Please fill out the form to specify layout, dimensions, and material.`;
+          openModal('estimateModal');
+          context = 'estimate';
+          lastResponseType = 'estimate_start';
+          showTypingIndicator(false);
+          return;
         } else if (nlpResult.intent === 'design_tips') {
-          const tips = {
-            'kitchen': 'For kitchens, choose durable Granite or Quartz countertops for heavy use. Pair with a Kibi USA stainless steel sink for a sleek look. Use light colors like Sparkling White Quartz to brighten small spaces, and add a pull-down faucet for functionality.',
-            'bathroom': 'In bathrooms, Marble or Porcelain countertops add elegance. Combine with a Kibi USA rainfall shower head and matte stone sink for a spa-like feel. Consider floating shelves for storage to keep counters clutter-free.',
-            'material': 'Granite is low-maintenance and durable, ideal for kitchens. Quartz offers consistent patterns for modern designs. Marble is luxurious but needs sealing. Porcelain is heat-resistant and great for unique looks.',
-            'color': '2025 trends favor bold Quartzite veining or muted Quartz tones. Pair warm Granite with brass Kibi USA faucets for a cozy vibe, or cool Marble with chrome for minimalism.',
-          };
-          const tipType = message.toLowerCase().includes('kitchen') ? 'kitchen' :
-                          message.toLowerCase().includes('bathroom') ? 'bathroom' :
-                          message.toLowerCase().includes('material') ? 'material' : 'color';
-          responseMessage = `${tips[tipType]} Want more ideas or to browse products? Visit <a href="${NAV_LINKS.store.url}" target="_blank">our store</a> or try an estimate!`;
+          const category = nlpResult.entities.category || (normalizedMessage.includes('kitchen') ? 'kitchen' : 'material');
+          const tips = await fetchDesignTips(category);
+          responseMessage = `Here are some design tips for ${category}: ${tips} Want more inspiration or to browse products?`;
           context = 'design';
           lastResponseType = 'design_tips';
-        } else if (nlpResult.intent === 'estimate') {
-          responseMessage = 'Let’s get your countertop estimate! Use the form or tell me the layout (e.g., U-shaped), dimensions (e.g., 5x3 ft), and material (e.g., Granite).';
-          openEstimateModal();
-          showTypingIndicator(false);
-          lastResponseType = 'estimate';
-          return;
         } else if (nlpResult.intent === 'contact') {
-          responseMessage = 'Let’s connect! Share your name and email for a quote or consultation.';
-          openLeadModal();
+          responseMessage = `Let’s connect! Please fill out the contact form for a quote, consultation, or message.`;
+          openModal('leadModal');
           showTypingIndicator(false);
           lastResponseType = 'contact';
           return;
         } else {
-          const response = await axios.post(`${CONFIG.SERVER_URL}/api/chat`, { message, sessionId });
-          responseMessage = response.data.message;
-          imageUrl = response.data.image;
-          context = response.data.quickReplies.includes('Get Estimate') ? 'initial' : 'initial';
-          lastResponseType = 'generic';
+          const serverResponse = await axios.post(`${CONFIG.SERVER_URL}/api/chat`, {
+            message,
+            sessionId
+          }, {
+            headers: { 'x-request-id': sessionId }
+          });
+          responseMessage = serverResponse.data.message;
+          context = serverResponse.data.quickReplies ? serverResponse.data.quickReplies[0].toLowerCase() : 'initial';
+          imageUrl = serverResponse.data.image;
+          lastResponseType = 'server_response';
         }
 
         showTypingIndicator(false);
@@ -1171,11 +1260,14 @@
         if (zip) userProfile.zipCode = zip;
         if (budget) userProfile.preferences.budget = budget;
         const formData = { name, email, phone, zip, budget, preferences: JSON.stringify(userProfile.preferences) };
-        await axios.post(CONFIG.USEBASIN_ENDPOINT, formData, {
-          headers: { 'Content-Type': 'application/json' },
+        const response = await axios.post(CONFIG.USEBASIN_ENDPOINT, formData, {
+          headers: { 'Content-Type': 'application/json' }
         });
-        addMessage(`Thanks, ${name}! I’ve saved your details. Want to shop or get an estimate?`, false, null, 'initial');
-        closeLeadModal();
+        if (response.status !== 200) {
+          throw new Error('Lead submission failed');
+        }
+        addMessage(`Thanks, ${name}! Your details are saved. Want to continue shopping or get an estimate?`, false, null, 'initial');
+        closeModal('leadModal');
         saveSession();
         lastResponseType = 'lead';
       } catch (error) {
@@ -1185,83 +1277,97 @@
       }
     }
 
+    async function handleZipSubmit(e) {
+      e.preventDefault();
+      const zip = document.getElementById('zipInput')?.value;
+      if (zip && /^\d{5}$/.test(zip)) {
+        userProfile.zipCode = zip;
+        userProfile.zipPromptSkipped = false;
+        saveSession();
+        addMessage(`Thanks for sharing your zip code: ${zip}! What’s next on your shopping list?`, false, null, 'initial');
+        closeModal('zipModal');
+        lastResponseType = 'zip_set';
+      } else {
+        addMessage('Please enter a valid 5-digit zip code.', false, null, 'zip');
+      }
+    }
+
+    function handleZipSkip() {
+      userProfile.zipPromptSkipped = true;
+      saveSession();
+      addMessage('Got it, skipping zip code! What’s on your shopping list?', false, null, 'initial');
+      closeModal('zipModal');
+      lastResponseType = 'zip_skipped';
+    }
+
     async function handleEstimateSubmit(e) {
       e.preventDefault();
-      const layout = document.getElementById('estimateLayout')?.value;
-      const dimensionsInput = document.getElementById('estimateDimensions')?.value;
-      const material = document.getElementById('estimateMaterial')?.value;
+      const layout = document.getElementById('layoutSelect')?.value;
+      const dimensionsInput = document.getElementById('dimensionsInput')?.value;
+      const material = document.getElementById('materialInput')?.value;
 
       if (!layout || !dimensionsInput || !material) return;
 
+      const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)/gi;
+      const dimensions = [];
+      let match;
+      while ((match = dimensionRegex.exec(dimensionsInput)) !== null) {
+        dimensions.push({ length: parseFloat(match[1]), width: parseFloat(match[3]) });
+      }
+
+      if (dimensions.length === 0) {
+        addMessage('Please enter valid dimensions (e.g., 5x3 ft).', false, null, 'estimate');
+        return;
+      }
+
       try {
-        const dimensions = dimensionsInput.split(',').map(dim => {
-          const [length, width] = dim.trim().split('x').map(Number);
-          return { length, width };
-        });
+        const totalArea = dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0);
+        const materialCost = (CONFIG.PRICE_LIST.materials[material.toLowerCase()]?.base || 50) * totalArea;
+        const laborCost = CONFIG.PRICE_LIST.labor.base;
+        const totalCost = applyMarkup(materialCost + laborCost, userProfile.zipCode);
+        const csvLink = generateCSVEstimate(layout, dimensions, material);
+        
         const response = await axios.post(`${CONFIG.SERVER_URL}/api/estimate`, {
           layout,
           dimensions,
           material,
-          sessionId,
+          sessionId
         });
-        addMessage(response.data.message, false, response.data.image, 'estimate');
-        closeEstimateModal();
-        saveSession();
+        
+        addMessage(
+          `${response.data.message}<br>Your estimate: $${totalCost} (Material: $${applyMarkup(materialCost, userProfile.zipCode)}, Labor: $${applyMarkup(laborCost, userProfile.zipCode)}).<br>
+          <a href="${csvLink}" download="estimate.csv">Download Estimate as CSV</a>`,
+          false,
+          response.data.image,
+          'initial'
+        );
+        closeModal('estimateModal');
         lastResponseType = 'estimate';
       } catch (error) {
         console.error('Estimate submit error:', error.message);
-        addMessage(`Sorry, we couldn’t process your estimate. Try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
-        closeEstimateModal();
+        addMessage('Sorry, we couldn’t process your estimate. Try again or browse our <a href="${NAV_LINKS.countertops.url}" target="_blank">countertops</a>.', false, null, 'initial');
         lastResponseType = 'error';
       }
-    }
-
-    async function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      if (!file.type.startsWith('image/')) {
-        addMessage('Please upload a valid image file.', false, null, 'initial');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        addMessage('Image is too large. Please upload an image under 5MB.', false, null, 'initial');
-        return;
-      }
-
-      try {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const imageUrl = reader.result;
-          addMessage('Here’s the image you uploaded:', true, imageUrl);
-          addMessage(`Thanks for sharing! This looks great. Want design tips or product suggestions for this space?`, false, null, 'design');
-          saveSession();
-          lastResponseType = 'image';
-        };
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.error('Image upload error:', error.message);
-        addMessage('Sorry, we couldn’t upload your image. Try again or contact us.', false, null, 'initial');
-        lastResponseType = 'error';
-      }
-      event.target.value = '';
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
       const sendButton = document.getElementById('sendButton');
       const leadCancel = document.getElementById('leadCancel');
       const leadForm = document.getElementById('leadForm');
-      const estimateCancel = document.getElementById('estimateCancel');
+      const zipForm = document.getElementById('zipForm');
+      const zipSkip = document.getElementById('zipSkip');
       const estimateForm = document.getElementById('estimateForm');
+      const estimateCancel = document.getElementById('estimateCancel');
       const userInput = document.getElementById('userInput');
       const chatToggle = document.getElementById('chatToggle');
-      const imageUpload = document.getElementById('imageUpload');
 
-      if (sendButton) sendButton.addEventListener('click', sendMessage);
-      if (leadCancel) leadCancel.addEventListener('click', closeLeadModal);
+      if (sendButton) sendButton.addEventListener('click', debounce(sendMessage, 300));
+      if (leadCancel) leadCancel.addEventListener('click', () => closeModal('leadModal'));
       if (leadForm) leadForm.addEventListener('submit', handleLeadSubmit);
-      if (estimateCancel) estimateCancel.addEventListener('click', closeEstimateModal);
+      if (zipForm) zipForm.addEventListener('submit', handleZipSubmit);
+      if (zipSkip) zipSkip.addEventListener('click', handleZipSkip);
       if (estimateForm) estimateForm.addEventListener('submit', handleEstimateSubmit);
+      if (estimateCancel) estimateCancel.addEventListener('click', () => closeModal('estimateModal'));
       if (userInput) {
         userInput.addEventListener('keypress', (e) => {
           if (e.key === 'Enter') sendMessage();
@@ -1272,9 +1378,6 @@
         chatToggle.addEventListener('keypress', (e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleChat();
         });
-      }
-      if (imageUpload) {
-        imageUpload.addEventListener('change', handleImageUpload);
       }
 
       document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1287,8 +1390,8 @@
       }, 3000);
 
       userInput?.focus();
+      await fetchCompanyInfo();
       loadSession();
-      loadCompanyInfo();
       updateQuickReplies('initial');
     });
   </script>
