@@ -186,6 +186,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Shopify API Functionality
 async function fetchShopifyProducts(category = null, material = null) {
   const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
+  const cacheKey = `shopify_products_${category || 'all'}_${material || 'all'}`;
+  let products = cache.get(cacheKey);
+  if (products) {
+    logger.info(`Cache hit for ${cacheKey}, ${products.length} products`);
+    return products;
+  }
   try {
     const response = await axios.get(url, {
       headers: {
@@ -193,18 +199,39 @@ async function fetchShopifyProducts(category = null, material = null) {
       },
       timeout: 10000,
     });
-    let products = response.data.products;
+    products = response.data.products;
     if (category) {
-      products = products.filter(p => p.tags.toLowerCase().includes(category.toLowerCase()));
+      products = products.filter(p => 
+        p.tags.toLowerCase().split(',').map(tag => tag.trim()).includes(category.toLowerCase())
+      );
     }
     if (material) {
-      products = products.filter(p => p.title.toLowerCase().includes(material.toLowerCase()));
+      products = products.filter(p => 
+        p.title.toLowerCase().includes(material.toLowerCase()) ||
+        p.tags.toLowerCase().includes(material.toLowerCase())
+      );
     }
+    // Prioritize in-stock products
+    products = products
+      .filter(p => p.variants[0]?.inventory_quantity > 0)
+      .concat(products.filter(p => p.variants[0]?.inventory_quantity <= 0));
+    products = products.map(product => ({
+      id: product.id,
+      title: product.title,
+      vendor: product.vendor,
+      price: parseFloat(product.variants[0]?.price) || 0,
+      url: product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`,
+      image: product.image?.src || null,
+      description: product.body_html ? product.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
+      inStock: product.variants[0]?.inventory_quantity > 0,
+      tags: product.tags.split(',').map(tag => tag.trim())
+    }));
     logger.info(`Shopify products fetched: ${products.length}`);
+    cache.set(cacheKey, products, 3600);
     return products;
   } catch (error) {
     logger.error(`Shopify API error: ${error.message}`);
-    throw error;
+    return [];
   }
 }
 
@@ -465,12 +492,12 @@ app.get('/api/shopify-products', async (req, res) => {
       id: product.id,
       title: product.title,
       vendor: product.vendor,
-      price: parseFloat(product.variants[0]?.price) || 0,
-      url: product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`,
-      image: product.image?.src || null,
-      description: product.body_html ? product.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
-      inStock: product.variants[0]?.inventory_quantity > 0,
-      tags: product.tags.split(',').map(tag => tag.trim())
+      price: parseFloat(product.price) || 0,
+      url: product.url,
+      image: product.image,
+      description: product.description,
+      inStock: product.inStock,
+      tags: product.tags
     }));
     res.json(formattedProducts);
   } catch (error) {
@@ -665,7 +692,7 @@ app.post(
     }
 
     try {
-      const userMessage = req.body.message.toLowerCase();
+      const userMessage = req.body.message.toLowerCase().trim();
       const sessionId = req.body.sessionId || 'anonymous';
       const requestId = req.headers['x-request-id'] || 'unknown';
 
@@ -680,6 +707,40 @@ app.post(
         role: msg.role,
         content: msg.content,
       }));
+
+      // Handle location query
+      if (userMessage.includes('where') && (userMessage.includes('surprise granite') || userMessage.includes('located'))) {
+        const responseMessage = `Surprise Granite is located at 11560 N Dysart Rd, Surprise, AZ 85379. Visit us or explore our products at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a>. Want to get directions or browse countertops?`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Get Directions', 'Countertops', 'Estimate', 'Contact Us']
+        });
+      }
+
+      // Handle material pricing query
+      if (userMessage.includes('how much') || userMessage.includes('price') || userMessage.includes('cost')) {
+        const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
+        const matchedMaterial = priceList.find(item => fuzzyMatch(item['Color Name'], userMessage) || fuzzyMatch(item['Material'], userMessage));
+        if (matchedMaterial) {
+          const materialPrice = parseFloat(matchedMaterial['Cost/SqFt']) || 50;
+          const responseMessage = `${matchedMaterial['Color Name']} (${matchedMaterial['Material']}) is priced at approximately $${materialPrice.toFixed(2)} per square foot. For a precise quote, try our estimate tool or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our countertop collection</a>. Need an estimate for a specific size?`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            image: matchedMaterial.image_url || null,
+            quickReplies: ['Get Estimate', 'Countertops', 'Design Tips', 'Contact Us']
+          });
+        }
+      }
 
       // Handle company information request
       if (userMessage.includes('about surprise granite') || userMessage.includes('company info')) {
@@ -750,31 +811,60 @@ app.post(
         });
       }
 
-      // Handle specific category queries
+      // Handle specific category or material queries
       const categories = [
         'countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card',
         'quartz composite sinks', 'stainless steel sinks', 'fireclay sinks', 'matte stone sinks',
         'pull down faucets', 'filtration faucets', 'pot fillers', 'shower heads', 'shower valves',
         'shower jets', 'soap dispensers', 'sink strainers', 'drain trays', 'bathroom organization',
-        'hardware', 'shelves', 'bathtubs'
+        'hardware', 'shelves', 'bathtubs', 'kitchen'
       ];
+      const materials = ['granite', 'quartz', 'marble', 'quartzite', 'porcelain'];
       const matchedCategory = categories.find(cat => userMessage.includes(cat));
-      if (matchedCategory) {
-        const products = await fetchShopifyProducts(matchedCategory);
-        const examples = products.slice(0, 3).map(p => 
-          `<a href="${p.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${p.handle}`}" target="_blank">${p.title}</a>`
-        ).join(', ');
-        const responseMessage = `${matchedCategory.charAt(0).toUpperCase() + matchedCategory.slice(1)} from ${products[0]?.vendor || 'our vendors'} include options like ${examples || 'various styles'}. Check them out at <a href="${NAV_LINKS[matchedCategory] || NAV_LINKS.store}" target="_blank">our store</a>. Want to pair with a countertop or get design tips?`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          image: products[0]?.image?.src || null,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment', 'Design Tips']
-        });
+      const matchedMaterial = materials.find(mat => userMessage.includes(mat)) || 
+        priceList.find(item => fuzzyMatch(item['Color Name'], userMessage))?.['Color Name']?.toLowerCase();
+
+      if (matchedCategory || matchedMaterial) {
+        const queryCategory = matchedCategory === 'kitchen' ? 'sinks' : matchedCategory;
+        const queryMaterial = matchedMaterial;
+        const products = await fetchShopifyProducts(queryCategory, queryMaterial);
+        if (products.length) {
+          const examples = products.slice(0, 3).map(p => ({
+            title: p.title,
+            url: p.url,
+            price: p.price.toFixed(2),
+            image: p.image,
+            inStock: p.inStock,
+            description: p.description
+          }));
+          const responseMessage = `Here are some ${queryCategory || queryMaterial} options from our store:<br>` +
+            examples.map(p => 
+              `<a href="${p.url}" target="_blank">${p.title}</a> - $${p.price}${p.inStock ? '' : ' (Out of Stock)'}` +
+              `<br>${p.description}` +
+              (p.image ? `<br><img src="${p.image}" alt="${p.title}" style="max-width: 100%; max-height: 150px; border-radius: 0.75rem; margin-top: 0.5rem;">` : '')
+            ).join('<br><br>') +
+            `<br>Explore more at <a href="${NAV_LINKS[queryCategory] || NAV_LINKS.store}" target="_blank">our store</a>. Want to pair with a countertop or get design tips?`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment', 'Design Tips']
+          });
+        } else {
+          const responseMessage = `Sorry, I couldn’t find any ${queryCategory || queryMaterial} right now. Browse our <a href="${NAV_LINKS[queryCategory] || NAV_LINKS.store}" target="_blank">store</a> or try another category like countertops or faucets!`;
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
+          });
+        }
       }
 
       // Handle design tips request
@@ -898,37 +988,6 @@ app.post(
         });
       }
 
-      // Handle Shopify product queries
-      let shopifyProducts = [];
-      try {
-        shopifyProducts = await fetchShopifyProducts();
-      } catch (error) {
-        logger.error(`Failed to fetch Shopify products: ${error.message}`);
-      }
-
-      const matchedProduct = shopifyProducts.find((product) =>
-        product.title && fuzzyMatch(product.title, userMessage)
-      );
-      if (matchedProduct) {
-        const price = parseFloat(matchedProduct.variants[0].price) || 0;
-        const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
-        const imageUrl = matchedProduct.image?.src || null;
-        const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-        logger.info(`Matched product: ${matchedProduct.title}`);
-        const responseMessage = `The "${matchedProduct.title}" is a fantastic choice, priced at $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View on our store</a>. ${matchedProduct.title.toLowerCase().includes('countertop') ? 'Want a custom quote for this?' : 'Need a countertop to match?'} Let’s get an estimate or explore more!`;
-        chatLog.messages.push(
-          { role: 'user', content: req.body.message },
-          { role: 'assistant', content: responseMessage }
-        );
-        await chatLog.save();
-        return res.json({
-          message: responseMessage,
-          image: imageUrl,
-          productUrl,
-          quickReplies: ['Get Estimate', 'Products', 'Explore', 'Book Appointment']
-        });
-      }
-
       // Generic response
       const systemPrompt = {
         role: 'system',
@@ -1007,12 +1066,12 @@ app.post(
 
 // Default Route
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chatbot.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Chatbot Widget Route
 app.get('/sg-chatbot-widget.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chatbot.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Catch-All Route
