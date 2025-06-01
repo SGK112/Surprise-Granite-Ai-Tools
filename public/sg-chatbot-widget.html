@@ -43,7 +43,7 @@
     .chat-container {
       width: 100%;
       max-width: 380px;
-      background: rgba(255, 255, 255, 0.98);
+      background: rgba(255, 255, 255, 0.95);
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
       overflow: hidden;
@@ -53,19 +53,22 @@
       position: fixed;
       bottom: 90px;
       left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateX(-50%);
+      transition: var(--transition);
       opacity: 0;
+      visibility: hidden;
       z-index: 1000;
     }
 
     .chat-container.active {
       opacity: 1;
+      visibility: visible;
       transform: translateX(-50%) translateY(0);
     }
 
     .chat-container.hidden {
       opacity: 0;
+      visibility: hidden;
       transform: translateX(-50%) translateY(20px);
     }
 
@@ -110,11 +113,10 @@
       animation: fadeIn 0.4s ease;
       word-break: break-word;
       position: relative;
-      background: linear-gradient(145deg, #ffffff, #e6e6e6);
     }
 
     .message.user {
-      background: linear-gradient(145deg, var(--bg-message-user), #e3b104);
+      background-color: var(--bg-message-user);
       color: var(--text-dark);
       align-self: flex-end;
       border-bottom-right-radius: 0.25rem;
@@ -122,43 +124,12 @@
     }
 
     .message.bot {
-      background: linear-gradient(145deg, var(--bg-message-bot), #eceff1);
+      background-color: var(--bg-message-bot);
       color: var(--text-dark);
       align-self: flex-start;
       border-bottom-left-radius: 0.25rem;
       border-left: 4px solid var(--primary-blue);
       box-shadow: var(--shadow);
-    }
-
-    .message.bot img {
-      max-width: 100%;
-      max-height: 150px;
-      object-fit: cover;
-      border-radius: 0.75rem;
-      margin-top: 0.5rem;
-      display: block;
-      border: 1px solid #d1d5db;
-      loading: lazy;
-    }
-
-    .message.bot .product-container {
-      margin-top: 0.75rem;
-      padding: 0.5rem;
-      background-color: #f9fafb;
-      border-radius: 0.5rem;
-      border: 1px solid #e5e7eb;
-    }
-
-    .message.bot .product-container p {
-      margin: 0.25rem 0;
-      font-size: 0.85rem;
-      color: #374151;
-    }
-
-    .message.bot .image-error {
-      color: #ef4444;
-      font-size: 0.8rem;
-      margin-top: 0.5rem;
     }
 
     .message.bot a {
@@ -182,16 +153,13 @@
     .typing-indicator {
       display: none;
       padding: 0.75rem;
-      color: var(--primary-blue);
+      color: #6b7280;
       font-style: italic;
       font-size: 0.85rem;
-      background: rgba(243, 244, 246, 0.9);
-      border-radius: var(--border-radius);
-      margin: 0.5rem;
     }
 
     .typing-indicator::after {
-      content: '•••';
+      content: '...';
       animation: dots 1s infinite;
     }
 
@@ -348,7 +316,7 @@
       bottom: 20px;
       right: 20px;
       background-color: var(--primary-yellow);
-      color: var(--primary-blue);
+      color: var(--text-dark);
       width: 64px;
       height: 64px;
       border-radius: 50%;
@@ -358,17 +326,18 @@
       font-size: 1.8rem;
       cursor: pointer;
       box-shadow: var(--shadow);
-      transition: background-color 0.3s ease, transform 0.3s ease;
-      z-index: 1001;
-      border: 2px solid var(--primary-blue);
+      transition: var(--transition);
+      z-index: 1000;
     }
 
     .chat-toggle:hover,
     .chat-toggle:focus {
       background-color: #eab308;
-      transform: scale(1.05);
-      outline: 2px solid var(--primary-blue);
-      outline-offset: 2px;
+      transform: scale(1.1);
+    }
+
+    .chat-toggle:active {
+      transform: scale(0.98);
     }
 
     .modal {
@@ -386,12 +355,11 @@
 
     .modal-content {
       background-color: var(--text-light);
-      padding: 2rem;
+      padding: 1.5rem;
       border-radius: var(--border-radius);
       width: 90%;
-      max-width: 400px;
+      max-width: 360px;
       box-shadow: var(--shadow);
-      animation: slideIn 0.3s ease;
     }
 
     .modal-content h2 {
@@ -426,15 +394,13 @@
     }
 
     .modal-content button {
-      width: 100%;
-      padding: 1rem;
-      margin: 0.5rem 0;
+      padding: 0.75rem 1.5rem;
       background-color: var(--primary-blue);
       color: var(--text-light);
       border: none;
-      border-radius: 0.75rem;
+      border-radius: 0.5rem;
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 0.95rem;
       transition: var(--transition);
       min-height: 44px;
     }
@@ -451,6 +417,7 @@
 
     .modal-content button[type="button"] {
       background-color: #6b7280;
+      margin-left: 0.75rem;
     }
 
     .modal-content button[type="button"]:hover,
@@ -536,7 +503,6 @@
       .chat-container {
         max-width: 320px;
         height: 75vh;
-        bottom: 80px;
       }
 
       .chat-header {
@@ -550,12 +516,6 @@
       .quick-reply {
         font-size: 0.8rem;
         min-width: 70px;
-      }
-
-      .chat-toggle {
-        width: 56px;
-        height: 56px;
-        font-size: 1.6rem;
       }
     }
 
@@ -591,18 +551,11 @@
       from { transform: translateY(10px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-
-    @keyframes dots {
-      0% { content: '•••'; }
-      33% { content: '•• '; }
-      66% { content: '•  '; }
-      100% { content: '   '; }
-    }
   </style>
 </head>
 <body>
-  <div class="chat-toggle" id="chatToggle" role="button" aria-label="Open chatbot" tabindex="0">
-    <i class="fas fa-message" aria-hidden="true"></i>
+  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot" tabindex="0">
+    <i class="fas fa-message"></i>
   </div>
 
   <div class="chat-container hidden" id="chatContainer" role="region" aria-label="Surprise Granite AI Chatbot">
@@ -686,12 +639,11 @@
 
   <script>
     // Configuration
-    const SERVER_URL = 'https://surprise-granite-connections-dev.onrender.com';
     const CONFIG = {
-      SERVER_URL,
+      SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
       USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801',
       GEO_API_URL: 'https://ipapi.co/json/',
-      SHOPIFY_API: `${SERVER_URL}/api/shopify-products`,
+      SHOPIFY_API: 'https://store.surprisegranite.com/api/2024-10/graphql.json',
       COMPANY_INFO_URL: '/companyinfo.json',
       PRICE_LIST: {
         materials: {
@@ -851,29 +803,83 @@
       }
     }
 
-    async function fetchShopifyProducts(category, material = null) {
+    async function fetchShopifyProducts(category, material = null, after = null) {
       try {
-        const params = new URLSearchParams();
-        if (category) params.append('category', category);
-        if (material) params.append('material', material);
-        const response = await axios.get(`${CONFIG.SERVER_URL}/api/shopify-products?${params.toString()}`, {
-          headers: { 'x-request-id': sessionId }
+        let queryString = category === 'countertops' ? 'tag:countertop' : category;
+        if (material) queryString += ` ${material}`;
+        const query = `
+          query {
+            products(first: 3, query: "${queryString}", after: ${after ? `"${after}"` : null}) {
+              edges {
+                node {
+                  id
+                  title
+                  handle
+                  priceRange {
+                    minVariantPrice {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  images(first: 1) {
+                    edges {
+                      node {
+                        src
+                        altText
+                      }
+                    }
+                  }
+                  vendor
+                  description
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                        sku
+                        availableForSale
+                      }
+                    }
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        `;
+        const response = await axios.post(CONFIG.SHOPIFY_API, { query }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Storefront-Access-Token': process.env.SHOPIFY_STOREFRONT_TOKEN || 'your-shopify-storefront-token'
+          }
         });
-        return response.data.map(product => ({
-          id: product.id,
-          title: product.title,
-          price: product.price,
-          currency: 'USD',
-          image: product.image || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(product.title),
-          altText: product.title,
-          url: product.url,
-          vendor: product.vendor,
-          description: product.description,
-          available: product.inStock
-        }));
+        if (response.data.errors) {
+          throw new Error(response.data.errors[0].message);
+        }
+        const { edges, pageInfo } = response.data.data.products;
+        const products = edges.map(edge => edge.node);
+        return {
+          products: products.map(product => ({
+            id: product.id,
+            title: product.title,
+            price: parseFloat(product.priceRange.minVariantPrice.amount),
+            currency: product.priceRange.minVariantPrice.currencyCode,
+            image: product.images.edges[0]?.node.src || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(product.title),
+            altText: product.images.edges[0]?.node.altText || `${product.title}`,
+            url: `https://store.surprisegranite.com/products/${product.handle}`,
+            vendor: product.vendor,
+            description: product.description ? product.description.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
+            sku: product.variants.edges[0]?.node.sku || 'N/A',
+            available: product.variants.edges[0]?.node.availableForSale || false
+          })),
+          hasNextPage: pageInfo.hasNextPage,
+          endCursor: pageInfo.endCursor
+        };
       } catch (error) {
         console.error('Shopify fetch error:', error.message);
-        return [];
+        return { products: [], hasNextPage: false, endCursor: null };
       }
     }
 
@@ -925,10 +931,10 @@
       const entities = {};
       let intent = 'browse';
 
-      const categories = ['countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card', 'kitchen'];
+      const categories = ['countertops', 'sinks', 'faucets', 'bathroom', 'shower', 'samples', 'tile', 'gift card'];
       const category = categories.find(cat => normalizedMessage.includes(cat));
       if (category) {
-        entities.category = category === 'kitchen' ? 'sinks' : category;
+        entities.category = category;
         intent = 'browse_category';
       }
 
@@ -999,7 +1005,7 @@
         modal.setAttribute('aria-hidden', 'true');
       }
       if (form) form.reset();
-      document.getElementById('chatToggle')?.focus();
+      document.getElementById('chatContainer')?.focus();
     }
 
     function trapFocus(element) {
@@ -1033,25 +1039,17 @@
     function toggleChat() {
       const chatContainer = document.getElementById('chatContainer');
       const chatToggle = document.getElementById('chatToggle');
-      if (!chatContainer || !chatToggle) {
-        console.error('Error: Chat container or toggle not found');
-        return;
-      }
+      if (!chatContainer || !chatToggle) return;
       const isHidden = chatContainer.classList.contains('hidden');
+      chatContainer.classList.toggle('hidden', !isHidden);
+      chatContainer.classList.toggle('active', isHidden);
+      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
+      chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
       if (isHidden) {
-        chatContainer.classList.remove('hidden');
-        chatContainer.classList.add('active');
-        chatToggle.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
-        chatToggle.setAttribute('aria-label', 'Close chatbot');
         document.getElementById('userInput')?.focus();
         resetInactivityTimer();
         updateQuickReplies('initial');
-        chatContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
       } else {
-        chatContainer.classList.remove('active');
-        chatContainer.classList.add('hidden');
-        chatToggle.innerHTML = '<i class="fas fa-message" aria-hidden="true"></i>';
-        chatToggle.setAttribute('aria-label', 'Open chatbot');
         clearTimeout(inactivityTimer);
       }
     }
@@ -1085,22 +1083,6 @@
       contentDiv.innerHTML = content || 'Sorry, no response received. Please try again!';
       div.appendChild(contentDiv);
 
-      if (imageUrl && !isUser) {
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'product-container';
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = `Product image for ${content.split(' ').slice(0, 3).join(' ')}`;
-        img.setAttribute('aria-hidden', 'false');
-        img.loading = 'lazy';
-        img.onerror = () => {
-          imgContainer.innerHTML = `<p class="image-error" role="alert">Image not available.</p>`;
-          console.error(`Image load failed: ${imageUrl}, Session: ${sessionId}`);
-        };
-        imgContainer.appendChild(img);
-        div.appendChild(imgContainer);
-      }
-
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1108,7 +1090,9 @@
       fragment.appendChild(div);
       chatMessages.appendChild(fragment);
       if (quickReplyContext) updateQuickReplies(quickReplyContext);
-      chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
       if (isUser) resetInactivityTimer();
       conversationHistory.push({ role: isUser ? 'user' : 'bot', content, imageUrl, timestamp: Date.now() });
       saveSession();
@@ -1126,7 +1110,9 @@
         chatMessages.appendChild(indicator);
       }
       indicator.style.display = show ? 'block' : 'none';
-      chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
     }
 
     async function sendMessage() {
@@ -1166,15 +1152,12 @@
           context = 'initial';
           lastResponseType = 'zip_skipped';
         } else if (nlpResult.intent === 'browse_category' && nlpResult.entities.category) {
-          const products = await fetchShopifyProducts(nlpResult.entities.category);
+          const { products } = await fetchShopifyProducts(nlpResult.entities.category);
           userProfile.preferences.category = nlpResult.entities.category;
           saveSession();
           if (products.length) {
             responseMessage = `Here are some ${nlpResult.entities.category}:<br>` + 
-              products.map(p => 
-                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
-                `<br>${p.description}`
-              ).join('<br><br>');
+              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = products[0].image;
             context = nlpResult.entities.category;
             lastResponseType = 'category';
@@ -1184,15 +1167,12 @@
             lastResponseType = 'no_results';
           }
         } else if (nlpResult.intent === 'browse_material' && nlpResult.entities.material) {
-          const products = await fetchShopifyProducts('countertops', nlpResult.entities.material);
+          const { products } = await fetchShopifyProducts('countertops', nlpResult.entities.material);
           userProfile.preferences.material = nlpResult.entities.material;
           saveSession();
           if (products.length) {
             responseMessage = `Here are some ${nlpResult.entities.material} products:<br>` + 
-              products.map(p => 
-                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
-                `<br>${p.description}`
-              ).join('<br><br>');
+              products.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = products[0].image;
             context = 'countertops';
             lastResponseType = 'material';
@@ -1204,17 +1184,14 @@
         } else if (nlpResult.intent === 'browse_budget' && nlpResult.entities.budget) {
           userProfile.preferences.budget = nlpResult.entities.budget;
           saveSession();
-          const products = await fetchShopifyProducts(userProfile.preferences.category || 'countertops');
+          const { products } = await fetchShopifyProducts(userProfile.preferences.category || 'countertops');
           const filteredProducts = products.filter(p => {
             const adjustedPrice = parseFloat(applyMarkup(p.price, userProfile.zipCode));
             return adjustedPrice >= userProfile.preferences.budget.min / 50 && adjustedPrice <= userProfile.preferences.budget.max / 50;
           });
           if (filteredProducts.length) {
             responseMessage = `Here are products within your budget ($${userProfile.preferences.budget.min}-$${userProfile.preferences.budget.max}):<br>` + 
-              filteredProducts.map(p => 
-                `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}` +
-                `<br>${p.description}`
-              ).join('<br><br>');
+              filteredProducts.map(p => `<a href="${p.url}" target="_blank">${p.title}</a> by ${p.vendor} - $${applyMarkup(p.price, userProfile.zipCode)} ${p.currency}${p.available ? '' : ' (Out of Stock)'}<br>${p.description}`).join('<br>');
             imageUrl = filteredProducts[0].image;
             context = userProfile.preferences.category || 'countertops';
             lastResponseType = 'budget';
@@ -1231,7 +1208,7 @@
           showTypingIndicator(false);
           return;
         } else if (nlpResult.intent === 'design_tips') {
-          const category = nlpResult.entities.category || (message.toLowerCase().includes('kitchen') ? 'kitchen' : 'material');
+          const category = nlpResult.entities.category || (normalizedMessage.includes('kitchen') ? 'kitchen' : 'material');
           const tips = await fetchDesignTips(category);
           responseMessage = `Here are some design tips for ${category}: ${tips} Want more inspiration or to browse products?`;
           context = 'design';
@@ -1384,19 +1361,6 @@
       const userInput = document.getElementById('userInput');
       const chatToggle = document.getElementById('chatToggle');
 
-      if (chatToggle) {
-        chatToggle.addEventListener('click', toggleChat);
-        chatToggle.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggleChat();
-          }
-        });
-        console.log('Chat toggle event listeners attached successfully');
-      } else {
-        console.error('Error: Chat toggle element not found in DOM');
-      }
-
       if (sendButton) sendButton.addEventListener('click', debounce(sendMessage, 300));
       if (leadCancel) leadCancel.addEventListener('click', () => closeModal('leadModal'));
       if (leadForm) leadForm.addEventListener('submit', handleLeadSubmit);
@@ -1409,18 +1373,19 @@
           if (e.key === 'Enter') sendMessage();
         });
       }
+      if (chatToggle) {
+        chatToggle.addEventListener('click', toggleChat);
+        chatToggle.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') toggleChat();
+        });
+      }
 
       document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setInterval(() => {
         if (userInput) {
-          userInput.style.transition = 'opacity 0.3s ease';
-          userInput.style.opacity = '0';
-          setTimeout(() => {
-            userInput.placeholder = placeholders[placeholderIndex];
-            userInput.style.opacity = '1';
-            placeholderIndex = (placeholderIndex + 1) % placeholders.length;
-          }, 300);
+          userInput.placeholder = placeholders[placeholderIndex];
+          placeholderIndex = (placeholderIndex + 1) % placeholders.length;
         }
       }, 3000);
 
