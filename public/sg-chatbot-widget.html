@@ -185,12 +185,14 @@
       align-items: center;
       justify-content: center;
       animation: slideIn 0.3s ease;
+      opacity: 0.9;
     }
 
     .quick-reply:hover,
     .quick-reply:focus {
       background-color: #1e40af;
       transform: translateY(-2px);
+      opacity: 1;
     }
 
     .quick-reply:active {
@@ -644,7 +646,7 @@
       measurement_guide: { url: 'https://store.surprisegranite.com/pages/measurement-guide', text: 'Measurement Guide' },
     };
 
-    // Quick Reply Sets
+    // Quick Reply Sets (Prompts)
     const QUICK_REPLY_SETS = {
       initial: ['Get Quote', 'Shop Products', 'Design Ideas', 'Book Consultation', 'Browse Samples'],
       countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Sparkling White Quartz', 'Frost-N'],
@@ -664,6 +666,9 @@
       pricing: ['Get Quote', 'Browse More', 'Book Consultation'],
       design: ['Visualizer', 'Samples Gallery', 'Material Pairings', 'Consult Designer'],
       fabrication: ['Standard', 'Custom', 'View Process', 'Skip'],
+      material_selected: ['Add a Backsplash', 'Choose Edge Style', 'Include Sink Cutout', 'Get Quote'],
+      style_selected: ['Browse Matching Materials', 'Use Visualizer', 'Consult Designer'],
+      product_browsing: ['View Granite Countertops', 'Browse Sinks', 'See Faucets', 'Order Samples'],
     };
 
     // User Profile
@@ -1081,19 +1086,34 @@
     function updateQuickReplies(context) {
       const quickReplies = document.getElementById('quickReplies');
       if (!quickReplies) return;
-      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
+      let replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
+
+      // Dynamic prompt adjustments based on userProfile
+      if (context === 'initial' && userProfile.project.style) {
+        replies = [...replies, `Explore ${userProfile.project.style} Ideas`];
+      } else if (context === 'countertops' && userProfile.quote.material) {
+        replies = QUICK_REPLY_SETS.material_selected;
+      } else if (context === 'style' && userProfile.project.style) {
+        replies = QUICK_REPLY_SETS.style_selected;
+      } else if (context === 'browse_products') {
+        replies = QUICK_REPLY_SETS.product_browsing;
+      }
+
       quickReplies.innerHTML = replies.map(reply => {
         let action = `sendQuickReply('${reply}')`;
         if (reply === 'Order Samples' || reply === 'View Samples' || reply === 'Browse Samples') action = `openSamples()`;
-        if (reply === 'Browse Sinks') action = `window.open('${NAV_LINKS.sinks.url}', '_blank')`;
+        if (reply === 'Browse Sinks' || reply === 'See Sinks') action = `window.open('${NAV_LINKS.sinks.url}', '_blank')`;
         if (reply === 'Shop Online') action = `window.open('${NAV_LINKS.store.url}', '_blank')`;
-        if (reply === 'Book Consultation') action = `openAppointmentModal()`;
+        if (reply === 'Book Consultation' || reply === 'Consult Designer') action = `openAppointmentModal()`;
         if (reply === 'Contact Us') action = `openContactModal()`;
         if (reply === 'Get Quote' || reply === 'New Quote') action = `startWizard('quote')`;
-        if (reply === 'Design Ideas') action = `startDesignWizard()`;
-        if (reply === 'Shop Products') action = `startBrowseWizard()`;
+        if (reply === 'Design Ideas' || reply.includes('Explore') || reply === 'Browse Matching Materials') action = `startDesignWizard()`;
+        if (reply === 'Shop Products' || reply === 'View Granite Countertops' || reply === 'Browse Sinks' || reply === 'See Faucets') action = `startBrowseWizard()`;
         if (reply === 'View Guide') action = `window.open('${NAV_LINKS.measurement_guide.url}', '_blank')`;
-        if (reply === 'Visualizer') action = `window.open('${NAV_LINKS.visualizer.url}', '_blank')`;
+        if (reply === 'Visualizer' || reply === 'Use Visualizer') action = `window.open('${NAV_LINKS.visualizer.url}', '_blank')`;
+        if (reply === 'Add a Backsplash') action = `sendQuickReply('4" Backsplash')`;
+        if (reply === 'Choose Edge Style') action = `sendQuickReply('Eased')`;
+        if (reply === 'Include Sink Cutout') action = `sendQuickReply('Sink')`;
         return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
       }).join('');
     }
@@ -1165,9 +1185,10 @@
             responseMessage = `I couldn’t find "${material}". How about Granite, Quartz, or Marble? Or check out <a href="${NAV_LINKS.countertops.url}" target="_blank">our full collection</a>.`;
             context = 'countertops';
           } else {
+            userProfile.quote.material = matchedMaterial.name;
             const price = matchedMaterial.price_per_sqft * (userProfile.zip && userProfile.zip.startsWith('85') ? 1.1 : 1.05);
-            responseMessage = `${matchedMaterial.name} (${matchedMaterial.type}) is ~$${price.toFixed(2)}/sq ft in your area. Want a custom quote or matching sinks?`;
-            context = 'pricing';
+            responseMessage = `${matchedMaterial.name} (${matchedMaterial.type}) is ~$${price.toFixed(2)}/sq ft in your area. Want to customize your quote with a backsplash or cutouts?`;
+            context = 'material_selected';
             addMessage(responseMessage, false, matchedMaterial.image_url, context);
             showTypingIndicator(false);
             quickReplies.style.display = 'flex';
@@ -1177,7 +1198,7 @@
 
         // Handle Location Info
         if (nlpResult.intent === 'location_info') {
-          responseMessage = `We’re located at 11560 N Dysart Rd, Surprise, AZ 85379. Drop by or visit <a href="${NAV_LINKS.map.url}" target="_blank">our location</a>. Want to start a project?`;
+          responseMessage = `We’re at 11560 N Dysart Rd, Surprise, AZ 85379. Drop by or visit <a href="${NAV_LINKS.map.url}" target="_blank">our location</a>. Want to start a project?`;
           context = 'initial';
         }
 
@@ -1226,7 +1247,7 @@
             userProfile.project.style = message.toLowerCase();
             wizardState = { stage: 'layout', context: 'project' };
             responseMessage = `${userProfile.project.style.charAt(0).toUpperCase() + userProfile.project.style.slice(1)} is perfect! What’s your countertop layout? L-Shape, U-Shape, Galley, or Island?`;
-            context = 'layout';
+            context = 'style_selected';
           } else {
             responseMessage = 'Please pick a style: Modern, Classic, Rustic, or Contemporary.';
             context = 'style';
@@ -1266,7 +1287,7 @@
             userProfile.quote.material = matchedMaterial.name;
             wizardState = { stage: 'backsplash', context: 'project' };
             responseMessage = `${matchedMaterial.name} (${matchedMaterial.type}) looks stunning! Add a backsplash? 4", 6", Full Height, or None?`;
-            context = 'backsplash';
+            context = 'material_selected';
           } else {
             responseMessage = `Please pick a material like Granite, Quartz, or Marble. Or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
             context = 'countertops';
@@ -1375,7 +1396,7 @@
             userProfile.project.style = message.toLowerCase();
             wizardState = { stage: 'design', context: 'options' };
             responseMessage = `${userProfile.project.style.charAt(0).toUpperCase() + userProfile.project.style.slice(1)} is a great choice! Try our Visualizer, check Samples, explore Material Pairings, or chat with a Designer.`;
-            context = 'design';
+            context = 'style_selected';
           } else {
             responseMessage = 'Please pick a style: Modern, Classic, Rustic, or Contemporary.';
             context = 'style';
