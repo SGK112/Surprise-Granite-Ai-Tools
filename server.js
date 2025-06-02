@@ -84,14 +84,17 @@ const ChatLog = mongoose.model(
       appointmentRequested: Boolean,
       bids: [{
         layout: String,
-        dimensions: [{ length: Number, width: Number }],
+        dimensions: [{ length: Number, width: Number, isInches: Boolean }],
         material: String,
         wasteFactor: Number,
         fabricationCost: Number,
         installationCost: Number,
         materialCost: Number,
+        demoCost: Number,
+        plumbingCost: Number,
         totalCost: Number,
         margin: Number,
+        sampleSize: String,
         createdAt: { type: Date, default: Date.now },
       }],
       feedback: [{ question: String, response: String, createdAt: { type: Date, default: Date.now } }],
@@ -100,8 +103,14 @@ const ChatLog = mongoose.model(
       estimateContext: {
         step: String,
         layout: String,
-        dimensions: [{ length: Number, width: Number }],
+        dimensions: [{ length: Number, width: Number, isInches: Boolean }],
         material: String,
+        backsplash: String,
+        edge: String,
+        cutouts: [String],
+        demo: String,
+        plumbing: Boolean,
+        sampleSize: String,
       },
     },
     { timestamps: true }
@@ -123,14 +132,17 @@ async function sendChatTranscript(chatLog) {
   const bids = chatLog.bids?.map(bid =>
     `Bid (${bid.createdAt.toLocaleString()}):\n` +
     `- Layout: ${bid.layout}\n` +
-    `- Dimensions: ${bid.dimensions.map(d => `${d.length}x${d.width} ft`).join(', ')}\n` +
+    `- Dimensions: ${bid.dimensions.map(d => `${d.length}x${d.width} ${d.isInches ? 'in' : 'ft'}`).join(', ')}\n` +
     `- Material: ${bid.material}\n` +
     `- Waste Factor: ${(bid.wasteFactor * 100).toFixed(0)}%\n` +
     `- Material Cost: $${bid.materialCost.toFixed(2)}\n` +
     `- Fabrication: $${bid.fabricationCost.toFixed(2)}\n` +
     `- Installation: $${bid.installationCost.toFixed(2)}\n` +
+    `- Demo Cost: $${bid.demoCost.toFixed(2)}\n` +
+    `- Plumbing Cost: $${bid.plumbingCost.toFixed(2)}\n` +
     `- Total: $${bid.totalCost.toFixed(2)}\n` +
-    `- Margin: ${(bid.margin * 100).toFixed(0)}%`
+    `- Margin: ${(bid.margin * 100).toFixed(0)}%\n` +
+    `- Sample Size: ${bid.sampleSize || 'None'}`
   ).join('\n\n') || 'No bids';
   const feedback = chatLog.feedback?.map(fb =>
     `Feedback (${fb.createdAt.toLocaleString()}): ${fb.question} -> ${fb.response}`
@@ -231,12 +243,13 @@ function fuzzyMatch(str, pattern) {
 
 // Extract Dimensions
 function extractDimensions(message) {
-  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
+  const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet|in|inch|inches)?/gi;
   const matches = [...message.matchAll(dimensionRegex)];
   return matches.map(match => ({
     length: parseFloat(match[1]),
     width: parseFloat(match[3]),
-    area: parseFloat(match[1]) * parseFloat(match[3]),
+    isInches: (match[5] || '').toLowerCase().startsWith('in'),
+    area: parseFloat(match[1]) * parseFloat(match[3]) / (match[5] && match[5].toLowerCase().startsWith('in') ? 144 : 1),
   }));
 }
 
@@ -248,14 +261,14 @@ function getLaborCostPerSqft(laborData, materialType) {
     return description.toLowerCase().includes(materialLower);
   });
   if (laborItem) {
-    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]);
+    const cost = parseFloat(laborItem[Object.keys(item)[3]]);
     if (!isNaN(cost)) {
       logger.info(`Labor cost for ${materialType}: $${cost}/sqft`);
       return cost;
     }
   }
   logger.info(`No labor cost found for ${materialType}, using default $65/sqft`);
-  return 65; // $50 fabrication + $15 installation
+  return 65;
 }
 
 // Materials Endpoint
@@ -267,7 +280,7 @@ app.get('/api/materials', async (req, res) => {
       type: item['Material'],
       thickness: item['Thickness'],
       price_per_sqft: parseFloat(item['Cost/SqFt']) || 0,
-      image_url: item['image_url'] || null,
+      image_url: item['image_url'] || 'https://via.placeholder.com/150?text=No+Image',
     })).filter(m => m.name && m.price_per_sqft > 0);
     res.json(materials);
   } catch (error) {
@@ -286,7 +299,7 @@ app.get('/api/shopify-products', async (req, res) => {
       vendor: product.vendor,
       price: parseFloat(product.variants[0]?.price) || 0,
       url: product.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${product.handle}`,
-      image: product.image?.src || null,
+      image: product.image?.src || 'https://via.placeholder.com/150?text=No+Image',
       description: product.body_html ? product.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.',
     }));
     res.json(formattedProducts);
@@ -373,7 +386,7 @@ app.post('/api/close-chat', async (req, res) => {
 
 // Estimate Endpoint
 app.post('/api/estimate', async (req, res) => {
-  const { layout, dimensions, material, sessionId } = req.body;
+  const { layout, dimensions, material, sessionId, backsplash, edge, cutouts, demo, plumbing, sampleSize } = req.body;
   if (!layout || !dimensions || !material || !sessionId) {
     return res.status(400).json({ error: 'Layout, dimensions, material, and sessionId are required.' });
   }
@@ -397,11 +410,11 @@ app.post('/api/estimate', async (req, res) => {
       return res.json({ message: responseMessage, quickReplies: ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'] });
     }
 
-    const totalArea = dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0);
+    const totalArea = dimensions.reduce((sum, dim) => sum + (dim.area || (dim.length * dim.width) / (dim.isInches ? 144 : 1)), 0);
     let wasteFactor = 0.20;
     if (material.toLowerCase().includes('waterfall')) wasteFactor = 0.30;
-    if (material.toLowerCase().includes('backsplash') && material.toLowerCase().includes('full')) wasteFactor = 0.25;
-    if (material.toLowerCase().includes('vanity') || material.toLowerCase().includes('small')) wasteFactor = 0.35;
+    if (backsplash === 'Full Height') wasteFactor = 0.25;
+    if (layout.toLowerCase().includes('vanity') || totalArea < 10) wasteFactor = 0.35;
 
     const adjustedArea = totalArea * (1 + wasteFactor);
     const materialPrice = parseFloat(matchedMaterial['Cost/SqFt']) || 50;
@@ -416,19 +429,26 @@ app.post('/api/estimate', async (req, res) => {
     }
     const fabricationCost = totalArea * 50;
     const installationCost = totalArea * 15;
+    const demoCost = demo === 'Light' ? totalArea * 5 : demo === 'Heavy' ? totalArea * 10 : 0;
+    const plumbingCost = plumbing ? 500 : 0; // Flat rate for plumbing
     const laborCost = adjustedArea * laborCostPerSqft;
-    const subtotal = materialCost + laborCost;
+    const subtotal = materialCost + laborCost + demoCost + plumbingCost;
     const margin = 0.50;
     const totalCost = subtotal / (1 - margin);
 
+    const sampleCost = sampleSize === '3x3"' ? 10 : sampleSize === '4x6"' ? 15 : sampleSize === '5x10"' ? 25 : 0;
+
     const responseMessage = `Here’s your estimate for a ${layout} countertop using ${matchedMaterial['Color Name']} (${materialType}, ${matchedMaterial['Thickness'] || 'unknown'}):\n` +
       `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
-      `- Material: $${materialCost.toFixed(2)} (${materialPrice.toFixed(2)}/sqft + 4% markup)\n` +
+      `- Material: $${materialCost.toFixed(2)} ($${materialPrice.toFixed(2)}/sqft + 4% markup)\n` +
       `- Fabrication: $${fabricationCost.toFixed(2)} ($50/sqft)\n` +
       `- Installation: $${installationCost.toFixed(2)} ($15/sqft)\n` +
-      `- Total: $${totalCost.toFixed(2)} (50% margin)\n` +
+      (demo ? `- Demolition (${demo}): $${demoCost.toFixed(2)} ($${demo === 'Light' ? 5 : 10}/sqft)\n` : '') +
+      (plumbing ? `- Plumbing: $${plumbingCost.toFixed(2)} (flat rate)\n` : '') +
+      (sampleSize ? `- Sample (${sampleSize}): $${sampleCost.toFixed(2)}\n` : '') +
+      `- Total: $${(totalCost + sampleCost).toFixed(2)} (50% margin)\n` +
       `Pair it with a sink: <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">View Sinks</a>\n` +
-      `Want to add installation or order a sample of ${matchedMaterial['Color Name']}? Reply 'Great', 'Too High', or 'New Quote'.`;
+      `Want to order a sample or schedule a site visit? Reply 'Great', 'Too High', or 'New Quote'.`;
 
     chatLog.bids = chatLog.bids || [];
     chatLog.bids.push({
@@ -439,8 +459,11 @@ app.post('/api/estimate', async (req, res) => {
       fabricationCost,
       installationCost,
       materialCost,
-      totalCost,
+      demoCost,
+      plumbingCost,
+      totalCost: totalCost + sampleCost,
       margin,
+      sampleSize,
     });
 
     chatLog.messages.push(
@@ -453,13 +476,16 @@ app.post('/api/estimate', async (req, res) => {
     res.json({
       message: responseMessage,
       bid: {
-        totalCost,
+        totalCost: totalCost + sampleCost,
         materialCost,
         fabricationCost,
         installationCost,
+        demoCost,
+        plumbingCost,
+        sampleCost,
       },
-      image: matchedMaterial.image_url || null,
-      quickReplies: ['Great', 'Too High', 'New Quote', 'Book Consultation'],
+      image: matchedMaterial.image_url || 'https://via.placeholder.com/150?text=No+Image',
+      quickReplies: ['Great', 'Too High', 'New Quote', 'Order Sample', 'Book Consultation'],
     });
   } catch (error) {
     logger.error(`Estimate error: ${error.message}`);
@@ -513,41 +539,135 @@ app.post(
         let responseMessage = '';
         let quickReplies = ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'];
 
-        if (chatLog.estimateContext.step === 'layout') {
-          const layouts = ['u-shaped', 'galley', 'l-shape', 'plateau', 'bar top'];
+        if (chatLog.estimateContext.step === 'space') {
+          const spaces = ['kitchen', 'bathroom', 'other'];
+          if (spaces.some(space => userMessage.includes(space))) {
+            chatLog.estimateContext.space = spaces.find(space => userMessage.includes(space));
+            chatLog.estimateContext.step = 'style';
+            responseMessage = `Great, a ${chatLog.estimateContext.space} project! What style do you prefer? Modern, Traditional, Rustic, or Contemporary?`;
+            quickReplies = ['Modern', 'Traditional', 'Rustic', 'Contemporary'];
+          } else {
+            responseMessage = `Please specify the space, such as Kitchen, Bathroom, or Other.`;
+          }
+        } else if (chatLog.estimateContext.step === 'style') {
+          const styles = ['modern', 'traditional', 'rustic', 'contemporary'];
+          if (styles.some(style => userMessage.includes(style))) {
+            chatLog.estimateContext.style = styles.find(style => userMessage.includes(style));
+            chatLog.estimateContext.step = 'layout';
+            responseMessage = `Love the ${chatLog.estimateContext.style} vibe! What’s the countertop layout? Options include L-Shape, U-Shape, Galley, or Island.`;
+            quickReplies = ['L-Shape', 'U-Shape', 'Galley', 'Island'];
+          } else {
+            responseMessage = `Please choose a style: Modern, Traditional, Rustic, or Contemporary.`;
+          }
+        } else if (chatLog.estimateContext.step === 'layout') {
+          const layouts = ['l-shape', 'u-shape', 'galley', 'island'];
           if (layouts.some(layout => userMessage.includes(layout))) {
             chatLog.estimateContext.layout = layouts.find(layout => userMessage.includes(layout));
             chatLog.estimateContext.step = 'dimensions';
-            responseMessage = `Got it, a ${chatLog.estimateContext.layout} countertop! What are the dimensions in feet? (e.g., "5x3 ft" or multiple like "5x3 ft, 4x2 ft")`;
+            responseMessage = `Got it, a ${chatLog.estimateContext.layout} countertop! What are the dimensions? Provide in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Need help measuring?`;
           } else {
-            responseMessage = `Please specify a layout, such as U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
+            responseMessage = `Please specify a layout, such as L-Shape, U-Shape, Galley, or Island.`;
           }
         } else if (chatLog.estimateContext.step === 'dimensions') {
           const dimensions = extractDimensions(req.body.message);
           if (dimensions.length > 0) {
             chatLog.estimateContext.dimensions = dimensions;
             chatLog.estimateContext.step = 'material';
-            responseMessage = `Thanks for the dimensions! Now, which material would you like? Popular choices include Sparkling White Quartz or Silver Cloud Granite. You can also browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>.`;
+            responseMessage = `Thanks for the dimensions (total: ${(dimensions.reduce((sum, dim) => sum + dim.area, 0)).toFixed(2)} sqft)! Which material would you like? Popular choices include Granite, Quartz, Marble, or Quartzite. Browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>.`;
+            quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Collection'];
           } else {
-            responseMessage = `I didn’t catch the dimensions. Please provide them in feet, like "5x3 ft" or multiple sections like "5x3 ft, 4x2 ft".`;
+            responseMessage = `I didn’t catch the dimensions. Please provide them in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Try our <a href="https://store.surprisegranite.com/pages/measurement-guide" target="_blank">measurement guide</a>.`;
           }
         } else if (chatLog.estimateContext.step === 'material') {
           const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
           const matchedMaterial = priceList.find(item => fuzzyMatch(item['Color Name'], req.body.message));
           if (matchedMaterial) {
             chatLog.estimateContext.material = matchedMaterial['Color Name'];
+            chatLog.estimateContext.step = 'backsplash';
+            responseMessage = `Great choice with ${matchedMaterial['Color Name']} ${matchedMaterial['Material']}! Would you like a backsplash? Options are 4", 6", Full Height, or None.`;
+            quickReplies = ['4"', '6"', 'Full Height', 'None'];
+          } else {
+            responseMessage = `I couldn’t find that material. Try a name like "Calacatta Gold" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
+          }
+        } else if (chatLog.estimateContext.step === 'backsplash') {
+          const backsplashes = ['4"', '6"', 'full height', 'none'];
+          if (backsplashes.some(b => userMessage.includes(b))) {
+            chatLog.estimateContext.backsplash = backsplashes.find(b => userMessage.includes(b));
+            chatLog.estimateContext.step = 'edge';
+            responseMessage = `Backsplash set to ${chatLog.estimateContext.backsplash}! What edge style do you prefer? Eased, Bullnose, Ogee, or Waterfall?`;
+            quickReplies = ['Eased', 'Bullnose', 'Ogee', 'Waterfall'];
+          } else {
+            responseMessage = `Please choose a backsplash: 4", 6", Full Height, or None.`;
+          }
+        } else if (chatLog.estimateContext.step === 'edge') {
+          const edges = ['eased', 'bullnose', 'ogee', 'waterfall'];
+          if (edges.some(e => userMessage.includes(e))) {
+            chatLog.estimateContext.edge = edges.find(e => userMessage.includes(e));
+            chatLog.estimateContext.step = 'cutouts';
+            responseMessage = `Edge style set to ${chatLog.estimateContext.edge}! Any cutouts needed? Sink, Faucet, Cooktop, or None?`;
+            quickReplies = ['Sink', 'Faucet', 'Cooktop', 'None'];
+          } else {
+            responseMessage = `Please choose an edge style: Eased, Bullnose, Ogee, or Waterfall.`;
+          }
+        } else if (chatLog.estimateContext.step === 'cutouts') {
+          const cutouts = ['sink', 'faucet', 'cooktop', 'none'];
+          if (cutouts.some(c => userMessage.includes(c))) {
+            if (userMessage.includes('none')) {
+              chatLog.estimateContext.cutouts = [];
+              chatLog.estimateContext.step = 'demo';
+              responseMessage = `No cutouts needed. Do you require demolition of an existing countertop? Options: Light ($5/sqft), Heavy ($10/sqft), or None.`;
+              quickReplies = ['Light', 'Heavy', 'None'];
+            } else {
+              chatLog.estimateContext.cutouts = chatLog.estimateContext.cutouts || [];
+              chatLog.estimateContext.cutouts.push(...cutouts.filter(c => userMessage.includes(c) && c !== 'none'));
+              responseMessage = `Added ${cutouts.filter(c => userMessage.includes(c)).join(', ')} cutout(s). Any more? Sink, Faucet, Cooktop, or None.`;
+              quickReplies = ['Sink', 'Faucet', 'Cooktop', 'None'];
+            }
+          } else {
+            responseMessage = `Please specify cutouts: Sink, Faucet, Cooktop, or None.`;
+          }
+        } else if (chatLog.estimateContext.step === 'demo') {
+          const demoOptions = ['light', 'heavy', 'none'];
+          if (demoOptions.some(d => userMessage.includes(d))) {
+            chatLog.estimateContext.demo = demoOptions.find(d => userMessage.includes(d));
+            chatLog.estimateContext.step = 'plumbing';
+            responseMessage = `Demolition set to ${chatLog.estimateContext.demo}. Will you need plumbing services to connect a new sink or faucet? (Flat rate: $500)`;
+            quickReplies = ['Yes', 'No'];
+          } else {
+            responseMessage = `Please choose a demolition option: Light ($5/sqft), Heavy ($10/sqft), or None.`;
+          }
+        } else if (chatLog.estimateContext.step === 'plumbing') {
+          const plumbingOptions = ['yes', 'no'];
+          if (plumbingOptions.some(p => userMessage.includes(p))) {
+            chatLog.estimateContext.plumbing = userMessage.includes('yes');
+            chatLog.estimateContext.step = 'sample';
+            responseMessage = `Plumbing set to ${chatLog.estimateContext.plumbing ? 'Yes' : 'No'}. Would you like to order a material sample? Available sizes: 3x3" ($10), 4x6" ($15), 5x10" ($25), or None.`;
+            quickReplies = ['3x3"', '4x6"', '5x10"', 'None'];
+          } else {
+            responseMessage = `Please specify if you need plumbing: Yes or No.`;
+          }
+        } else if (chatLog.estimateContext.step === 'sample') {
+          const sampleSizes = ['3x3"', '4x6"', '5x10"', 'none'];
+          if (sampleSizes.some(s => userMessage.includes(s))) {
+            chatLog.estimateContext.sampleSize = sampleSizes.find(s => userMessage.includes(s));
             const estimateData = {
               layout: chatLog.estimateContext.layout,
               dimensions: chatLog.estimateContext.dimensions,
               material: chatLog.estimateContext.material,
               sessionId,
+              backsplash: chatLog.estimateContext.backsplash,
+              edge: chatLog.estimateContext.edge,
+              cutouts: chatLog.estimateContext.cutouts,
+              demo: chatLog.estimateContext.demo,
+              plumbing: chatLog.estimateContext.plumbing,
+              sampleSize: chatLog.estimateContext.sampleSize,
             };
             const estimateResponse = await axios.post(`http://localhost:${PORT}/api/estimate`, estimateData);
             responseMessage = estimateResponse.data.message;
             quickReplies = estimateResponse.data.quickReplies;
             chatLog.estimateContext = {};
           } else {
-            responseMessage = `I couldn’t find that material. Try a name like "Sparkling White" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
+            responseMessage = `Please choose a sample size: 3x3" ($10), 4x6" ($15), 5x10" ($25), or None.`;
           }
         }
 
@@ -567,8 +687,8 @@ app.post(
         const priceList = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
         const matchedMaterial = priceList.find(item => fuzzyMatch(item['Color Name'], userMessage));
         if (matchedMaterial) {
-          chatLog.estimateContext = { step: 'layout', material: matchedMaterial['Color Name'] };
-          const responseMessage = `Great choice with ${matchedMaterial['Color Name']} ${matchedMaterial['Material']}! What’s the layout of your countertop? Options include U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
+          chatLog.estimateContext = { step: 'space', material: matchedMaterial['Color Name'] };
+          const responseMessage = `Great choice with ${matchedMaterial['Color Name']} ${matchedMaterial['Material']}! Is this countertop for a Kitchen, Bathroom, or Other space?`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
@@ -576,11 +696,11 @@ app.post(
           await chatLog.save();
           return res.json({
             message: responseMessage,
-            quickReplies: ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'],
+            quickReplies: ['Kitchen', 'Bathroom', 'Other'],
           });
         } else {
-          chatLog.estimateContext = { step: 'layout' };
-          const responseMessage = `Let’s get started on your countertop estimate! What’s the layout? Choose from U-shaped, Galley, L-shape, Plateau, or Bar Top.`;
+          chatLog.estimateContext = { step: 'space' };
+          const responseMessage = `Let’s get started on your countertop estimate! Is this for a Kitchen, Bathroom, or Other space?`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
@@ -588,19 +708,19 @@ app.post(
           await chatLog.save();
           return res.json({
             message: responseMessage,
-            quickReplies: ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'],
+            quickReplies: ['Kitchen', 'Bathroom', 'Other'],
           });
         }
       }
 
       // Handle feedback
-      if (['great', 'too high', 'new quote'].includes(userMessage)) {
+      if (['great', 'too high', 'new quote', 'order sample'].includes(userMessage)) {
         chatLog.feedback = chatLog.feedback || [];
         chatLog.feedback.push({
           question: 'Is this price fair?',
           response: userMessage,
         });
-        const responseMessage = `Thanks for your feedback! ${userMessage === 'great' ? 'Glad you like the price!' : userMessage === 'too high' ? 'Let’s explore more affordable options.' : 'Let’s start a new quote.'} Want to browse products or book a consultation?`;
+        const responseMessage = `Thanks for your feedback! ${userMessage === 'great' ? 'Glad you like the price!' : userMessage === 'too high' ? 'Let’s explore more affordable options.' : userMessage === 'order sample' ? 'Let’s order your sample!' : 'Let’s start a new quote.'} Want to browse products or book a consultation?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -626,7 +746,7 @@ app.post(
       if (matchedProduct) {
         const price = parseFloat(matchedProduct.variants[0].price) || 0;
         const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
-        const imageUrl = matchedProduct.image?.src || null;
+        const imageUrl = matchedProduct.image?.src || 'https://via.placeholder.com/150?text=No+Image';
         const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
         logger.info(`Matched product: ${matchedProduct.title}`);
         const responseMessage = `The "${matchedProduct.title}" is priced at $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View on our store</a>. ${matchedProduct.title.toLowerCase().includes('countertop') ? 'Want a custom quote for this?' : 'Need a countertop to match?'} Let’s get an estimate or explore more!`;
@@ -650,9 +770,10 @@ app.post(
           You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) and kitchen/bath fixtures (sinks, faucets, shower heads, accessories). Your tasks include:
           - Providing conversational, engaging responses with a friendly tone.
           - Assisting with Shopify store navigation (store.surprisegranite.com), recommending products/services with hyperlinks.
-          - Guiding users through countertop estimates (layout, dimensions, material) or via the "Get Quote" button.
+          - Guiding users through countertop estimates (space, style, layout, dimensions, material, backsplash, edge, cutouts, demo, plumbing, sample) or via the "Get Quote" button.
           - Saving bids in MongoDB and soliciting feedback.
           - Providing Shopify product details (title, price, description, image) with hyperlinks.
+          - Offering sample sizes (3x3" for $10, 4x6" for $15, 5x10" for $25).
           - Suggesting related products or services.
           - Do not include contact information; direct users to footer buttons for calling (602) 833-3189 or messaging.
         `,
