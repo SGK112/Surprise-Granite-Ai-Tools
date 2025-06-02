@@ -47,10 +47,10 @@
       flex-direction: column;
       height: 70vh;
       position: fixed;
-      bottom: 60px;
-      right: 10px;
-      transition: var(--transition);
-      z-index: 10;
+      bottom: 80px;
+      right: 20px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 999;
     }
 
     .chat-container.hidden {
@@ -295,8 +295,8 @@
 
     .chat-toggle {
       position: fixed;
-      bottom: 15px;
-      right: 15px;
+      bottom: 20px;
+      right: 20px;
       background-color: var(--primary-blue);
       color: var(--text-light);
       width: 48px;
@@ -308,7 +308,7 @@
       font-size: 1.25rem;
       cursor: pointer;
       box-shadow: var(--shadow);
-      transition: var(--transition);
+      transition: background-color 0.2s ease, transform 0.2s ease;
       z-index: 1000;
     }
 
@@ -401,10 +401,10 @@
 
     @media (max-width: 600px) {
       .chat-container {
-        max-width: 300px;
+        max-width: 320px;
         height: 65vh;
-        bottom: 50px;
-        right: 10px;
+        bottom: 70px;
+        right: 15px;
       }
 
       .chat-header {
@@ -461,6 +461,8 @@
         width: 44px;
         height: 44px;
         font-size: 1.1rem;
+        bottom: 15px;
+        right: 15px;
       }
 
       .modal-content {
@@ -511,6 +513,11 @@
     .chat-messages {
       -ms-overflow-style: none;
       scrollbar-width: none;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   </style>
 </head>
@@ -605,7 +612,7 @@
     };
 
     const QUICK_REPLY_SETS = {
-      initial: ['Get Quote', 'Materials', 'Design', 'Book estimate'],
+      initial: ['Get Quote', 'Materials', 'Design', 'Book Estimate'],
       countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite'],
       style: ['Modern', 'Traditional', 'Rustic', 'Contemporary'],
       countertop_layout: ['L-Shape', 'U-Shape', 'Galley', 'Island'],
