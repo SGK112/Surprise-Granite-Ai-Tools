@@ -586,17 +586,17 @@
   </div>
 
   <script>
-    // Environment variables
+    // Configuration
     const CONFIG = {
-      SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com', // Replace with process.env.SERVER_URL
-      USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801' // Replace with process.env.USEBASIN_ENDPOINT
+      SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
+      USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801'
     };
 
-    // Global constants
+    // Navigation Links
     const NAV_LINKS = {
       store: { url: 'https://store.surprisegranite.com/', text: 'our store' },
       samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
-      vendors: { url: 'https://www.surprisegranite.com/company/vendors-list', text: 'vendors' },
+      vendorsISAM: { url: 'https://www.surprisegranite.com/company/vendors-list', text: 'vendors' },
       visualizer: { url: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool', text: 'visualizer' },
       countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
       granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
@@ -606,6 +606,7 @@
       map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
     };
 
+    // Quick Reply Options
     const QUICK_REPLY_SETS = {
       initial: ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'],
       countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite'],
@@ -626,6 +627,7 @@
       feedback: ['Looks Great!', 'Too High', 'Too Low', 'New Quote']
     };
 
+    // State Management
     let quoteState = {
       user: { name: null, email: null, phone: null },
       project: { type: null, room: null },
@@ -653,7 +655,7 @@
     ];
     let placeholderIndex = 0;
 
-    // NLP utility for name/email extraction
+    // Utility Functions
     function extractNameAndEmail(message) {
       const doc = nlp(message);
       const emailMatch = message.match(/\b[\w\.-]+@[\w\.-]+\.\w+\b/);
@@ -663,35 +665,23 @@
         const nameMatch = message.match(/name\s+is\s+([a-zA-Z\s]+?)(?:and\s+my\s+email|\s*,\s*|\s+@)/i);
         name = nameMatch ? nameMatch[1].trim() : message.split(/my email is|email:|at|@|,/i)[0].replace(/[^a-zA-Z\s]/g, '').trim() || 'Customer';
       }
-      console.log('Extracted name and email:', { name, email });
       return { name, email };
     }
 
-    // Core functions
     function sendQuickReply(message) {
-      console.log('Quick reply clicked:', message);
       const userInput = document.getElementById('userInput');
       if (userInput) {
         userInput.value = message;
         sendMessage();
-      } else {
-        console.error('User input element not found');
       }
     }
 
     function openSamples() {
-      console.log('Opening samples page:', NAV_LINKS.samples.url);
-      try {
-        window.open(NAV_LINKS.samples.url, '_blank');
-        updateQuickReplies('samples');
-      } catch (error) {
-        console.error('Failed to open samples page:', error);
-        addMessage(`Oops, I couldn’t open the samples page. Please visit <a href="${NAV_LINKS.samples.url}" target="_blank">${NAV_LINKS.samples.text}</a>.`, false);
-      }
+      window.open(NAV_LINKS.samples.url, '_blank');
+      updateQuickReplies('samples');
     }
 
     function startQuoteWizard(intent = 'quote') {
-      console.log('Starting quote wizard with intent:', intent);
       if (!quoteState.user.email) {
         quoteWizardStage = 'lead';
         quoteState.project.intent = intent;
@@ -703,119 +693,93 @@
     }
 
     function openLeadModal() {
-      console.log('Opening lead modal');
       const leadModal = document.getElementById('leadModal');
       if (leadModal) {
         leadModal.style.display = 'flex';
-        const leadName = document.getElementById('leadName');
-        if (leadName) leadName.focus();
+        document.getElementById('leadName').focus();
         updateQuickReplies('pricing');
-      } else {
-        console.error('Lead modal not found');
       }
     }
 
     function closeLeadModal() {
-      console.log('Closing lead modal');
       const leadModal = document.getElementById('leadModal');
       const leadForm = document.getElementById('leadForm');
       if (leadModal) leadModal.style.display = 'none';
       if (leadForm) leadForm.reset();
       updateQuickReplies('initial');
-      const chatContainer = document.getElementById('chatContainer');
-      if (chatContainer) chatContainer.focus();
+      document.getElementById('chatContainer').focus();
     }
 
     function openAppointmentModal() {
-      console.log('Opening appointment modal');
       const appointmentModal = document.getElementById('appointmentModal');
       if (appointmentModal) {
         appointmentModal.style.display = 'flex';
-        const nameInput = document.getElementById('name');
-        if (nameInput) nameInput.focus();
+        document.getElementById('name').focus();
         updateQuickReplies('appointment');
-      } else {
-        console.error('Appointment modal not found');
       }
     }
 
     function closeAppointmentModal() {
-      console.log('Closing appointment modal');
       const appointmentModal = document.getElementById('appointmentModal');
       const appointmentForm = document.getElementById('appointmentForm');
       if (appointmentModal) appointmentModal.style.display = 'none';
       if (appointmentForm) appointmentForm.reset();
       updateQuickReplies('initial');
-      const chatContainer = document.getElementById('chatContainer');
-      if (chatContainer) chatContainer.focus();
+      document.getElementById('chatContainer').focus();
     }
 
     function openContactModal() {
-      console.log('Opening contact modal');
       const contactModal = document.getElementById('contactModal');
       if (contactModal) {
         contactModal.style.display = 'flex';
-        const contactName = document.getElementById('contactName');
-        if (contactName) contactName.focus();
+        document.getElementById('contactName').focus();
         updateQuickReplies('initial');
-      } else {
-        console.error('Contact modal not found');
       }
     }
 
     function closeContactModal() {
-      console.log('Closing contact modal');
       const contactModal = document.getElementById('contactModal');
       const contactForm = document.getElementById('contactForm');
       if (contactModal) contactModal.style.display = 'none';
       if (contactForm) contactForm.reset();
       updateQuickReplies('initial');
-      const chatContainer = document.getElementById('chatContainer');
-      if (chatContainer) chatContainer.focus();
+      document.getElementById('chatContainer').focus();
     }
 
     async function loadCompanyInfo() {
       try {
         const response = await fetch('/public/companyInfo.json');
-        if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch companyInfo.json`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const companyInfo = await response.json();
-        console.log('Company info loaded:', companyInfo);
-        const chatFooter = document.getElementById('chatFooter');
-        if (chatFooter) {
-          chatFooter.innerHTML = `
-            <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
-              <i class="fas fa-envelope"></i>
-              <span class="tooltip">Contact Us</span>
-            </a>
-            <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
-              <i class="fas fa-shopping-cart"></i>
-              <span class="tooltip">Shop</span>
-            </a>
-            <a href="${NAV_LINKS.map.url}" class="footer-icon" target="_blank" aria-label="Get directions" title="Location">
-              <i class="fas fa-map-marker-alt"></i>
-              <span class="tooltip">Location</span>
-            </a>
-          `;
-        }
+        document.getElementById('chatFooter').innerHTML = `
+          <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
+            <i class="fas fa-envelope"></i>
+            <span class="tooltip">Contact Us</span>
+          </a>
+          <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
+            <i class="fas fa-shopping-cart"></i>
+            <span class="tooltip">Shop</span>
+          </a>
+          <a href="${NAV_LINKS.map.url}" class="footer-icon" target="_blank" aria-label="Get directions" title="Location">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="tooltip">Location</span>
+          </a>
+        `;
       } catch (error) {
-        console.error('Error loading company info:', error.message);
-        const chatFooter = document.getElementById('chatFooter');
-        if (chatFooter) {
-          chatFooter.innerHTML = `
-            <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
-              <i class="fas fa-envelope"></i>
-              <span class="tooltip">Contact Us</span>
-            </a>
-            <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
-              <i class="fas fa-shopping-cart"></i>
-              <span class="tooltip">Shop</span>
-            </a>
-            <a href="${NAV_LINKS.map.url}" class="footer-icon" target="_blank" aria-label="Get directions" title="Location">
-              <i class="fas fa-map-marker-alt"></i>
-              <span class="tooltip">Location</span>
-            </a>
-          `;
-        }
+        document.getElementById('chatFooter').innerHTML = `
+          <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
+            <i class="fas fa-envelope"></i>
+            <span class="tooltip">Contact Us</span>
+          </a>
+          <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
+            <i class="fas fa-shopping-cart"></i>
+            <span class="tooltip">Shop</span>
+          </a>
+          <a href="${NAV_LINKS.map.url}" class="footer-icon" target="_blank" aria-label="Get directions" title="Location">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="tooltip">Location</span>
+          </a>
+        `;
       }
     }
 
@@ -840,32 +804,24 @@
         chatToggle.innerHTML = '<i class="fas fa-message"></i>';
         chatToggle.setAttribute('aria-label', 'Open chatbot');
       }
-      try {
-        const response = await fetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, abandoned: true })
-        });
-        if (!response.ok) throw new Error(`Close chat failed: ${response.status}`);
-      } catch (error) {
-        console.error('Error closing chat:', error);
-      }
+      await fetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, abandoned: true })
+      });
       clearTimeout(inactivityTimer);
       clearTimeout(abandonTimer);
     }
 
     function toggleChat() {
-      console.log('Toggling chat');
       const chatContainer = document.getElementById('chatContainer');
       const chatToggle = document.getElementById('chatToggle');
-      if (!chatContainer || !chatToggle) return;
       const isHidden = chatContainer.classList.contains('hidden');
       chatContainer.classList.toggle('hidden', !isHidden);
       chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
       chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
       if (isHidden) {
-        const userInput = document.getElementById('userInput');
-        if (userInput) userInput.focus();
+        document.getElementById('userInput').focus();
         resetInactivityTimer();
         updateQuickReplies('initial');
       } else {
@@ -875,12 +831,11 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, abandoned: false })
-        }).catch(error => console.error('Error closing chat:', error));
+        });
       }
     }
 
     function updateQuickReplies(context) {
-      console.log('Updating quick replies for context:', context);
       const quickReplies = document.getElementById('quickReplies');
       if (!quickReplies) return;
       const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
@@ -908,7 +863,6 @@
     }
 
     function addMessage(content, isUser, imageUrl, quickReplyContext) {
-      console.log('Adding message:', { content, isUser, quickReplyContext });
       const chatMessages = document.getElementById('chatMessages');
       if (!chatMessages) return;
       const div = document.createElement('div');
@@ -961,12 +915,10 @@
       const userInput = document.getElementById('userInput');
       if (!userInput || !userInput.value.trim()) return;
       const message = userInput.value.trim();
-      console.log('Sending message:', message);
 
       addMessage(message, true);
       userInput.value = '';
-      const quickReplies = document.getElementById('quickReplies');
-      if (quickReplies) quickReplies.style.display = 'none';
+      document.getElementById('quickReplies').style.display = 'none';
       showTypingIndicator(true);
 
       let context = 'initial';
@@ -975,192 +927,22 @@
 
       try {
         if (quoteWizardStage) {
-          if (quoteWizardStage === 'project') {
-            const rooms = ['kitchen', 'bathroom', 'laundry', 'outdoor'];
-            if (rooms.some(room => message.toLowerCase().includes(room))) {
-              quoteState.project.room = message.toLowerCase().includes('bath') ? 'bathroom' : message.toLowerCase();
-              quoteWizardStage = 'style';
-              responseMessage = `Fantastic, a ${quoteState.project.room} project! What’s your preferred style? Options include Modern, Traditional, Rustic, or Contemporary.`;
-              context = 'style';
-            } else {
-              responseMessage = `Please specify the space, such as kitchen, bathroom, laundry, or outdoor.`;
-              context = 'initial';
+          const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, sessionId })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            responseMessage = data.message;
+            context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
+            imageUrl = data.image;
+            if (data.bid) {
+              quoteState.quote = data.bid;
+              quoteWizardStage = null;
             }
-          } else if (quoteWizardStage === 'style') {
-            const styles = ['modern', 'traditional', 'rustic', 'contemporary'];
-            if (styles.some(style => message.toLowerCase().includes(style))) {
-              quoteState.style = message.toLowerCase().replace(/i guess/gi, '').trim();
-              quoteWizardStage = 'layout';
-              responseMessage = `Love the ${quoteState.style} vibe! What’s the countertop layout? Common options are L-Shape, U-Shape, Galley, or Island.`;
-              context = 'countertop_layout';
-            } else {
-              responseMessage = `Please choose a style: Modern, Traditional, Rustic, or Contemporary.`;
-              context = 'style';
-            }
-          } else if (quoteWizardStage === 'layout') {
-            const layouts = ['l-shape', 'u-shape', 'galley', 'island'];
-            if (layouts.some(layout => message.toLowerCase().includes(layout))) {
-              quoteState.layout = layouts.find(layout => message.toLowerCase().includes(layout.replace('-', '')));
-              quoteWizardStage = 'dimensions';
-              responseMessage = `A ${quoteState.layout}${message.toLowerCase().includes('island') ? ' with an island' : ''} layout is perfect for a ${quoteState.style} ${quoteState.project.room}! Please provide the dimensions in feet (e.g., "5x3 ft" or multiple like "5x3 ft, 4x2 ft"). Need help measuring?`;
-              context = 'countertop_dimensions';
-            } else {
-              responseMessage = `Please specify a layout, such as L-Shape, U-Shape, Galley, or Island.`;
-              context = 'countertop_layout';
-            }
-          } else if (quoteWizardStage === 'dimensions') {
-            if (message.toLowerCase().includes('how do i measure') || message.toLowerCase().includes('yes')) {
-              responseMessage = `Measuring your countertops is easy! Use a tape measure to capture the length and width of each section in feet. For an L-Shape, measure each leg separately (e.g., "5x3 ft, 4x2 ft"). Include any island dimensions. Sketch your layout to keep track. Ready to share your measurements now?`;
-              context = 'countertop_dimensions';
-            } else {
-              const dimensionRegex = /(\d+\.?\d*)\s*(x|by|\*)\s*(\d+\.?\d*)\s*(ft|feet)?/gi;
-              const matches = [...message.matchAll(dimensionRegex)];
-              if (matches.length > 0) {
-                quoteState.dimensions = matches.map(match => ({
-                  length: parseFloat(match[1]),
-                  width: parseFloat(match[3])
-                }));
-                quoteWizardStage = 'material';
-                responseMessage = `Thanks for the dimensions! For your ${quoteState.style} ${quoteState.project.room}, which material do you prefer? Granite ($40-$100/sqft) is durable for Arizona’s heat, Quartz ($50-$120/sqft) is low-maintenance, or explore Marble or Quartzite.`;
-                context = 'quote_material';
-              } else {
-                responseMessage = `Please provide dimensions in feet, like "5x3 ft" or multiple sections like "5x3 ft, 4x2 ft". Need help measuring?`;
-                context = 'countertop_dimensions';
-              }
-            }
-          } else if (quoteWizardStage === 'material') {
-            const materials = ['granite', 'quartz', 'marble', 'quartzite'];
-            if (materials.some(material => message.toLowerCase().includes(material))) {
-              quoteState.material = materials.find(material => message.toLowerCase().includes(material));
-              quoteWizardStage = 'backsplash';
-              responseMessage = `${quoteState.material.charAt(0).toUpperCase() + quoteState.material.slice(1)} is a great choice! Would you like a backsplash? Options include 4" or 6" standard, full height, or none.`;
-              context = 'countertop_backsplash';
-            } else {
-              try {
-                const response = await fetch(`${CONFIG.SERVER_URL}/api/estimate`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    layout: quoteState.layout,
-                    dimensions: quoteState.dimensions,
-                    material: message,
-                    sessionId
-                  })
-                });
-                const data = await response.json();
-                console.log('Estimate response:', data);
-                if (response.ok && data.image) {
-                  quoteState.material = message;
-                  quoteWizardStage = 'backsplash';
-                  responseMessage = `Got it, we’ll use ${message} for your countertop. Would you like a backsplash? Choose 4", 6", full height, or none.`;
-                  imageUrl = data.image;
-                  context = 'countertop_backsplash';
-                } else {
-                  responseMessage = `I couldn’t find that material. Try Granite, Quartz, Marble, or Quartzite, or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>. What material are you thinking of?`;
-                  context = 'quote_material';
-                }
-              } catch (error) {
-                console.error('Estimate error:', error);
-                responseMessage = `Sorry, I couldn’t process the material. Please try Granite, Quartz, Marble, or Quartzite, or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
-                context = 'quote_material';
-              }
-            }
-          } else if (quoteWizardStage === 'backsplash') {
-            const backsplashes = ['4"', '6"', 'full height', 'none'];
-            if (backsplashes.some(b => message.toLowerCase().includes(b.replace('"', '')))) {
-              quoteState.backsplash.height = message.toLowerCase().includes('none') ? null : message.toLowerCase().includes('full') ? 'full' : message.match(/\d+/)?.[0];
-              quoteWizardStage = 'edge';
-              responseMessage = `Backsplash noted! What edge style do you prefer? Eased is sleek, Bullnose is rounded, Ogee adds elegance, or Waterfall for a modern look.`;
-              context = 'countertop_edge';
-            } else {
-              responseMessage = `Please choose a backsplash: 4", 6", full height, or none.`;
-              context = 'countertop_backsplash';
-            }
-          } else if (quoteWizardStage === 'edge') {
-            const edges = ['eased', 'bullnose', 'ogee', 'waterfall'];
-            if (edges.some(edge => message.toLowerCase().includes(edge))) {
-              quoteState.edge = edges.find(edge => message.toLowerCase().includes(edge));
-              quoteWizardStage = 'cutouts';
-              responseMessage = `${quoteState.edge.charAt(0).toUpperCase() + quoteState.edge.slice(1)} edge selected! Any cutouts needed, like for a sink, faucet, or cooktop? Choose none if not.`;
-              context = 'countertop_cutouts';
-            } else {
-              responseMessage = `Please select an edge style: Eased, Bullnose, Ogee, or Waterfall.`;
-              context = 'countertop_edge';
-            }
-          } else if (quoteWizardStage === 'cutouts') {
-            const cutouts = ['sink', 'faucet', 'cooktop', 'none'];
-            if (cutouts.some(cutout => message.toLowerCase().includes(cutout))) {
-              if (!message.toLowerCase().includes('none')) {
-                quoteState.cutouts.push(message.toLowerCase());
-              }
-              quoteWizardStage = message.toLowerCase().includes('none') ? 'demo' : 'more_cutouts';
-              responseMessage = message.toLowerCase().includes('none') ?
-                `No cutouts needed. Do you require demolition of an existing countertop?` :
-                `Added a ${message.toLowerCase()} cutout. Any more cutouts? Choose Sink, Faucet, Cooktop, or None.`;
-              context = message.toLowerCase().includes('none') ? 'countertop_demo' : 'countertop_cutouts';
-            } else {
-              responseMessage = `Please select a cutout: Sink, Faucet, Cooktop, or None.`;
-              context = 'countertop_cutouts';
-            }
-          } else if (quoteWizardStage === 'more_cutouts') {
-            const cutouts = ['sink', 'faucet', 'cooktop', 'none'];
-            if (cutouts.some(cutout => message.toLowerCase().includes(cutout))) {
-              if (!message.toLowerCase().includes('none')) {
-                quoteState.cutouts.push(message.toLowerCase());
-                responseMessage = `Added another ${message.toLowerCase()} cutout. Any more? Choose Sink, Faucet, Cooktop, or None.`;
-                context = 'countertop_cutouts';
-              } else {
-                quoteWizardStage = 'demo';
-                responseMessage = `No more cutouts. Do you need demolition services for an existing countertop?`;
-                context = 'countertop_demo';
-              }
-            } else {
-              responseMessage = `Please select a cutout: Sink, Faucet, Cooktop, or None.`;
-              context = 'countertop_cutouts';
-            }
-          } else if (quoteWizardStage === 'demo') {
-            const demoOptions = ['demolition needed', 'no demolition', 'unsure'];
-            if (demoOptions.some(option => message.toLowerCase().includes(option.replace(' ', '')))) {
-              quoteState.demo = message.toLowerCase().includes('needed') ? 'needed' : message.toLowerCase().includes('no') ? 'none' : 'unsure';
-              quoteWizardStage = 'quote';
-              try {
-                const response = await fetch(`${CONFIG.SERVER_URL}/api/estimate`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    layout: quoteState.layout,
-                    dimensions: quoteState.dimensions,
-                    material: quoteState.material,
-                    backsplash: quoteState.backsplash,
-                    edge: quoteState.edge,
-                    cutouts: quoteState.cutouts,
-                    demo: quoteState.demo,
-                    sessionId
-                  })
-                });
-                const data = await response.json();
-                console.log('Estimate response:', data);
-                if (response.ok && data.totalCost) {
-                  quoteState.quote = data;
-                  responseMessage = `Here’s your custom quote for a ${quoteState.style} ${quoteState.project.room}, ${quoteState.user.name}! Estimated cost: $${data.totalCost.toFixed(2)} for a ${quoteState.material} countertop with ${quoteState.layout} layout in Arizona (3-5 weeks fabrication). Includes ${quoteState.demo === 'needed' ? 'demolition, ' : ''}${quoteState.backsplash.height ? `${quoteState.backsplash.height} backsplash, ` : ''}${quoteState.edge} edge, and ${quoteState.cutouts.length ? quoteState.cutouts.join(', ') : 'no cutouts'}. Labor costs range from $30-$50/sqft. Note: Final pricing requires a site visit. Want to save this quote, pair it with a sink, or book a consultation?`;
-                  context = 'feedback';
-                  quoteWizardStage = null;
-                  await sendEmail({ ...quoteState, quote: data }, 'quote');
-                } else {
-                  responseMessage = `I couldn’t generate the quote due to an issue with the estimate. Let’s try again or explore <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>. Would you like to restart the quote process?`;
-                  context = 'initial';
-                  quoteWizardStage = null;
-                }
-              } catch (error) {
-                console.error('Estimate error:', error);
-                responseMessage = `Sorry, I couldn’t process the quote: ${error.message}. Please try again or explore <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>. Would you like to restart the quote process?`;
-                context = 'initial';
-                quoteWizardStage = null;
-              }
-            } else {
-              responseMessage = `Please choose: Demolition Needed, No Demolition, or Unsure.`;
-              context = 'countertop_demo';
-            }
+          } else {
+            responseMessage = 'Sorry, I couldn’t process your request. Please try again.';
           }
         } else if (!quoteState.user.email && ['get quote', 'browse products', 'design ideas', 'book consultation'].includes(message.toLowerCase())) {
           responseMessage = 'I’d love to assist with your project! Please share your name and email to get started, and I’ll send you a free countertop sample as a thank you! 😊';
@@ -1171,18 +953,16 @@
         } else if (conversationStage === 'collect_lead') {
           const { name, email } = extractNameAndEmail(message);
           if (email) {
-            try {
-              quoteState.user = { name, email, phone: null };
-              const formData = { name, email, quote: JSON.stringify(quoteState) };
-              const success = await sendEmail(formData, 'lead');
-              if (!success) throw new Error('Email sending failed');
+            quoteState.user = { name, email, phone: null };
+            const formData = { name, email, quote: JSON.stringify(quoteState) };
+            const success = await sendEmail(formData, 'lead');
+            if (success) {
               responseMessage = `Thank you, ${name}! Your details are saved, and we’ll send a free sample to ${email}. ${quoteState.project.intent === 'quote' ? 'Let’s create your countertop quote! Is this for a kitchen, bathroom, or another space?' : quoteState.project.intent === 'design' ? 'Let’s explore design ideas! Is this for a kitchen, bathroom, or another space?' : 'What would you like to explore today? A quote, design ideas, or perhaps a consultation?'}`;
               context = quoteState.project.intent === 'quote' || quoteState.project.intent === 'design' ? 'initial' : 'initial';
               conversationStage = 'project';
               quoteWizardStage = quoteState.project.intent === 'quote' || quoteState.project.intent === 'design' ? 'project' : null;
-            } catch (error) {
-              console.error('Lead collection error:', error.message);
-              responseMessage = `Sorry, I couldn’t save your details: ${error.message}. Please try again with your name and email, like "Josh B, joshb@surprisegranite.com".`;
+            } else {
+              responseMessage = 'Sorry, I couldn’t save your details. Please try again with your name and email.';
               context = 'initial';
             }
           } else {
@@ -1190,122 +970,68 @@
             context = 'initial';
           }
         } else {
-          try {
-            const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message, sessionId })
-            });
-            const data = await response.json();
-            console.log('Chat response:', data);
-            if (response.ok) {
-              responseMessage = data.message || 'I’m here to help! Try asking about countertops, designs, or book a consultation!';
-              context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
-              imageUrl = data.image;
-              if (message.toLowerCase().includes('frost-n') || message.toLowerCase().includes('frost n')) {
-                responseMessage = `Frost-N is a beautiful quartz option with a crisp white finish, perfect for a modern look. It starts at $50/sqft at Surprise Granite. Would you like to see a sample or start a quote with Frost-N?`;
-                imageUrl = data.image || 'https://cdn.shopify.com/s/files/1/0552/6377/7565/products/frost-n.jpg'; // Replace with actual Shopify URL
-                context = 'quote_material';
-              } else if (message.toLowerCase().includes('taj mahal')) {
-                responseMessage = `Taj Mahal Quartzite is a premium choice with a creamy white base and gold veining, starting at $95/sqft. It’s durable and ideal for Arizona kitchens. Want to include it in a quote or view a sample?`;
-                imageUrl = data.image || 'https://cdn.shopify.com/s/files/1/0552/6377/7565/products/taj-mahal.jpg'; // Replace with actual Shopify URL
-                context = 'quote_material';
-              } else if (message.toLowerCase().includes('giallo')) {
-                responseMessage = `Giallo granite, with its warm golden tones, starts at $45/sqft. It’s a vibrant choice for a cozy kitchen. Ready to quote it or see it in our store?`;
-                imageUrl = data.image || 'https://cdn.shopify.com/s/files/1/0552/6377/7565/products/giallo.jpg'; // Replace with actual Shopify URL
-                context = 'quote_material';
-              } else if (message.toLowerCase().includes('calacatta gold')) {
-                responseMessage = `Calacatta Gold marble, known for its luxurious white base and gold veining, starts at $150/sqft. Perfect for an elegant bathroom or kitchen. Shall we add it to a quote?`;
-                imageUrl = data.image || 'https://cdn.shopify.com/s/files/1/0552/6377/7565/products/calacatta-gold.jpg'; // Replace with actual Shopify URL
-                context = 'quote_material';
-              } else if (message.toLowerCase().includes('alaska white')) {
-                responseMessage = `Alaska White granite, with its white and gray speckled look, starts at $50/sqft. It’s versatile for any style. Want to explore it further or get a quote?`;
-                imageUrl = data.image || 'https://cdn.shopify.com/s/files/1/0552/6377/7565/products/alaska-white.jpg'; // Replace with actual Shopify URL
-                context = 'quote_material';
-              } else if (message.toLowerCase().includes('modern') || message.toLowerCase().includes('rustic') || message.toLowerCase().includes('traditional') || message.toLowerCase().includes('contemporary')) {
-                quoteState.style = message.toLowerCase();
-                responseMessage += ` I noticed you mentioned a ${quoteState.style} style—great choice! Want to start a quote or explore matching designs?`;
-                context = 'style';
-              } else if (message.toLowerCase().includes('kitchen') || message.toLowerCase().includes('bathroom')) {
-                quoteState.project.room = message.toLowerCase().includes('bath') ? 'bathroom' : 'kitchen';
-                responseMessage += ` A ${quoteState.project.room} project sounds exciting! Shall we get a quote started or discuss design ideas?`;
-                context = 'initial';
-              }
-              if (imageUrl) {
-                addMessage(responseMessage, false, imageUrl, context);
-                showTypingIndicator(false);
-                return;
-              }
-            } else {
-              responseMessage = `Sorry, I couldn’t process that. Try asking about countertops, designs, or <a href="${NAV_LINKS.store.url}" target="_blank">browse our store</a>!`;
-              context = 'initial';
-            }
-          } catch (error) {
-            console.error('Chat error:', error);
-            responseMessage = `Hmm, something went wrong, ${quoteState.user.name || 'friend'}. Let’s try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>!`;
+          const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, sessionId })
+          });
+          const data = await response.json();
+          if (response.ok) {
+            responseMessage = data.message;
+            context = data.quickReplies && data.quickReplies.length ? data.quickReplies[0].toLowerCase() : 'initial';
+            imageUrl = data.image;
+          } else {
+            responseMessage = 'Sorry, I couldn’t process that. Try asking about countertops, designs, or browse our store!';
             context = 'initial';
           }
         }
 
         showTypingIndicator(false);
         addMessage(responseMessage, false, imageUrl, context);
-        if (quickReplies) quickReplies.style.display = 'flex';
+        document.getElementById('quickReplies').style.display = 'flex';
       } catch (error) {
-        console.error('Send message error:', error.message);
         showTypingIndicator(false);
         addMessage(`Sorry, something went wrong: ${error.message}. Please try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
     async function sendEmail(formData, type) {
-      console.log(`Sending ${type} email`, formData);
       try {
         const response = await fetch(CONFIG.USEBASIN_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`UseBasin failed: ${response.status} - ${errorText}`);
-        }
-        console.log('Email sent via UseBasin');
-        return true;
+        return response.ok;
       } catch (error) {
-        console.error('Email error:', error.message);
         return false;
       }
     }
 
     async function handleLeadSubmit(e) {
       e.preventDefault();
-      console.log('Handling lead submit');
       const name = document.getElementById('leadName')?.value;
       const email = document.getElementById('leadEmail')?.value;
       const phone = document.getElementById('leadPhone')?.value;
 
       if (!name || !email) return;
 
-      try {
-        const formData = { name, email, phone, quote: JSON.stringify(quoteState) };
-        const success = await sendEmail(formData, 'lead');
-        if (!success) throw new Error('Email failed');
-
+      const formData = { name, email, phone, quote: JSON.stringify(quoteState) };
+      const success = await sendEmail(formData, 'lead');
+      if (success) {
         quoteState.user = { name, email, phone };
         const intent = quoteState.project.intent || 'quote';
         addMessage(`Thanks, ${name}! Your details are saved, and we’ll send a free sample to ${email}. ${intent === 'quote' ? 'Let’s create your countertop quote! Is this for a kitchen, bathroom, or another space?' : intent === 'design' ? 'Let’s explore design ideas! Is this for a kitchen, bathroom, or another space?' : 'What’s next? A quote, design ideas, or consultation?'}`, false, null, intent === 'quote' || intent === 'design' ? 'initial' : 'initial');
         closeLeadModal();
         quoteWizardStage = intent === 'quote' || intent === 'design' ? 'project' : null;
         conversationStage = 'project';
-      } catch (error) {
-        console.error('Lead form error:', error.message);
-        addMessage(`Sorry, ${name}, we couldn’t save your quote: ${error.message}. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+      } else {
+        addMessage(`Sorry, ${name}, we couldn’t save your quote. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
     async function handleAppointmentSubmit(e) {
       e.preventDefault();
-      console.log('Handling appointment submit');
       const name = document.getElementById('name')?.value;
       const email = document.getElementById('email')?.value;
       const date = document.getElementById('date')?.value;
@@ -1320,82 +1046,60 @@
           body: JSON.stringify({ name, email, date, time, sessionId })
         });
         const data = await response.json();
-        if (!response.ok) throw new Error('Appointment failed');
-        addMessage(data.message, false, null, 'appointment');
-        closeAppointmentModal();
+        if (response.ok) {
+          addMessage(data.message, false, null, 'appointment');
+          closeAppointmentModal();
+        } else {
+          throw new Error('Appointment failed');
+        }
       } catch (error) {
-        console.error('Appointment error:', error.message);
         addMessage(`Sorry, ${name}, we couldn’t book your appointment: ${error.message}. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'appointment');
       }
     }
 
     async function handleContactSubmit(e) {
       e.preventDefault();
-      console.log('Handling contact submit');
       const name = document.getElementById('contactName')?.value;
       const email = document.getElementById('contactEmail')?.value;
       const message = document.getElementById('message')?.value;
 
       if (!name || !email || !message) return;
 
-      try {
-        const formData = { name, email, message };
-        const success = await sendEmail(formData, 'contact');
-        if (!success) throw new Error('Email failed');
-
+      const formData = { name, email, message };
+      const success = await sendEmail(formData, 'contact');
+      if (success) {
         addMessage(`Thanks for reaching out, ${name}! We’ve got your message and will reply to ${email} soon. Check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> in the meantime!`, false, null, 'initial');
         closeContactModal();
-      } catch (error) {
-        console.error('Contact form error:', error.message);
-        addMessage(`Sorry, ${name}, we couldn’t send your message: ${error.message}. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+      } else {
+        addMessage(`Sorry, ${name}, we couldn’t send your message. Please try again or <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
       }
     }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
-      const sendButton = document.getElementById('sendButton');
-      const leadCancel = document.getElementById('leadCancel');
-      const appointmentCancel = document.getElementById('appointmentCancel');
-      const contactCancel = document.getElementById('contactCancel');
-      const leadForm = document.getElementById('leadForm');
-      const appointmentForm = document.getElementById('appointmentForm');
-      const contactForm = document.getElementById('contactForm');
-      const userInput = document.getElementById('userInput');
-      const chatToggle = document.getElementById('chatToggle');
+      document.getElementById('sendButton').addEventListener('click', sendMessage);
+      document.getElementById('leadCancel').addEventListener('click', closeLeadModal);
+      document.getElementById('appointmentCancel').addEventListener('click', closeAppointmentModal);
+      document.getElementById('contactCancel').addEventListener('click', closeContactModal);
+      document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
+      document.getElementById('appointmentForm').addEventListener('submit', handleAppointmentSubmit);
+      document.getElementById('contactForm').addEventListener('submit', handleContactSubmit);
+      document.getElementById('userInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+      });
+      document.getElementById('chatToggle').addEventListener('click', toggleChat);
+      document.getElementById('chatToggle').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') toggleChat();
+      });
 
-      if (sendButton) sendButton.addEventListener('click', sendMessage);
-      if (leadCancel) leadCancel.addEventListener('click', closeLeadModal);
-      if (appointmentCancel) appointmentCancel.addEventListener('click', closeAppointmentModal);
-      if (contactCancel) contactCancel.addEventListener('click', closeContactModal);
-      if (leadForm) leadForm.addEventListener('submit', handleLeadSubmit);
-      if (appointmentForm) appointmentForm.addEventListener('submit', handleAppointmentSubmit);
-      if (contactForm) contactForm.addEventListener('submit', handleContactSubmit);
-      if (userInput) {
-        userInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') sendMessage();
-        });
-      }
-      if (chatToggle) {
-        chatToggle.addEventListener('click', toggleChat);
-        chatToggle.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') toggleChat();
-        });
-      }
-
-      const welcomeTimestamp = document.getElementById('welcomeTimestamp');
-      if (welcomeTimestamp) {
-        welcomeTimestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
+      document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setInterval(() => {
-        if (userInput) {
-          userInput.placeholder = placeholders[placeholderIndex];
-          placeholderIndex = (placeholderIndex + 1) % placeholders.length;
-        }
+        document.getElementById('userInput').placeholder = placeholders[placeholderIndex];
+        placeholderIndex = (placeholderIndex + 1) % placeholders.length;
       }, 3000);
 
-      if (userInput) userInput.focus();
-
+      document.getElementById('userInput').focus();
       loadCompanyInfo();
       updateQuickReplies('initial');
     });
