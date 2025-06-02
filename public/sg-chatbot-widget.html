@@ -121,22 +121,7 @@
 
     .message.bot img {
       max-width: 100%;
-      max-height: 200px;
-      object-fit: contain;
       border-radius: 0.5rem;
-      margin-top: 0.5rem;
-      display: block;
-    }
-
-    .message.bot .image-loading {
-      font-style: italic;
-      color: #6b7280;
-      margin-top: 0.5rem;
-    }
-
-    .message.bot .image-error {
-      color: #ef4444;
-      font-size: 0.8rem;
       margin-top: 0.5rem;
     }
 
@@ -200,19 +185,10 @@
       animation: slideIn 0.3s ease;
     }
 
-    .quick-reply.retry-image {
-      background-color: #6b7280;
-    }
-
     .quick-reply:hover,
     .quick-reply:focus {
       background-color: #1e40af;
       transform: translateY(-2px);
-    }
-
-    .quick-reply.retry-image:hover,
-    .quick-reply.retry-image:focus {
-      background-color: #4b5563;
     }
 
     .quick-reply:active {
@@ -227,7 +203,6 @@
       position: sticky;
       bottom: 0;
       z-index: 12;
-      align-items: center;
     }
 
     .chat-input input {
@@ -243,36 +218,6 @@
 
     .chat-input input:focus {
       border-color: var(--primary-yellow);
-    }
-
-    .image-upload-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.6rem;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      border-radius: var(--border-radius);
-      cursor: pointer;
-      margin-left: 0.5rem;
-      min-width: 40px;
-      min-height: 40px;
-      transition: var(--transition);
-    }
-
-    .image-upload-btn:hover,
-    .image-upload-btn:focus {
-      background-color: #1e40af;
-      transform: translateY(-2px);
-    }
-
-    .image-upload-btn:active {
-      transform: scale(0.95);
-    }
-
-    .image-upload-btn:focus {
-      outline: 2px solid var(--primary-yellow);
-      outline-offset: 2px;
     }
 
     .chat-input button {
@@ -584,18 +529,14 @@
     <div class="quick-replies" id="quickReplies"></div>
     <div class="chat-input">
       <input type="text" id="userInput" placeholder="Tell me about your project..." aria-label="Chat input" autocomplete="off">
-      <label for="imageUpload" class="image-upload-btn" aria-label="Upload image">
-        <i class="fas fa-image"></i>
-        <input type="file" id="imageUpload" accept="image/*" style="display: none;">
-      </label>
       <button id="sendButton" aria-label="Send message">Send</button>
     </div>
     <div class="chat-footer" id="chatFooter"></div>
   </div>
 
-  <div class="modal" id="leadModal" role="dialog" aria-labelledby="leadModalTitle" aria-hidden="true">
+  <div class="modal" id="leadModal">
     <div class="modal-content">
-      <h2 id="leadModalTitle">Let’s Get Started!</h2>
+      <h2>Let’s Get Started!</h2>
       <form id="leadForm">
         <label for="leadName">Name</label>
         <input type="text" id="leadName" name="name" required aria-required="true">
@@ -618,9 +559,9 @@
     </div>
   </div>
 
-  <div class="modal" id="appointmentModal" role="dialog" aria-labelledby="appointmentModalTitle" aria-hidden="true">
+  <div class="modal" id="appointmentModal">
     <div class="modal-content">
-      <h2 id="appointmentModalTitle">Book a Consultation</h2>
+      <h2>Book a Consultation</h2>
       <form id="appointmentForm">
         <label for="name">Name</label>
         <input type="text" id="name" name="name" required aria-required="true">
@@ -638,9 +579,9 @@
     </div>
   </div>
 
-  <div class="modal" id="contactModal" role="dialog" aria-labelledby="contactModalTitle" aria-hidden="true">
+  <div class="modal" id="contactModal">
     <div class="modal-content">
-      <h2 id="contactModalTitle">Contact Our Team</h2>
+      <h2>Contact Our Team</h2>
       <form id="contactForm">
         <label for="contactName">Name</label>
         <input type="text" id="contactName" name="name" required aria-required="true">
@@ -789,7 +730,7 @@
       }
     }
 
-    // Fetch product price and image from Shopify
+    // Fetch product price from Shopify
     async function fetchProductPrice(material) {
       try {
         const query = `
@@ -808,14 +749,6 @@
                       }
                     }
                   }
-                  images(first: 1) {
-                    edges {
-                      node {
-                        src
-                        altText
-                      }
-                    }
-                  }
                 }
               }
             }
@@ -826,16 +759,12 @@
         });
         const product = response.data.data.products.edges[0]?.node;
         if (product) {
-          return {
-            price: parseFloat(product.variants.edges[0].node.price.amount),
-            image: product.images.edges[0]?.node.src || 'https://via.placeholder.com/300x150?text=' + material.replace(' ', '+'),
-            altText: product.images.edges[0]?.node.altText || `${material} countertop`
-          };
+          return parseFloat(product.variants.edges[0].node.price.amount);
         }
-        return { price: null, image: null, altText: null };
+        return null;
       } catch (error) {
-        console.error('Shopify fetch error:', error.message);
-        return { price: null, image: null, altText: null };
+        console.error('Shopify price fetch error:', error.message);
+        return null;
       }
     }
 
@@ -869,7 +798,7 @@
       }
     }
 
-    // Client-side NLP parsing
+    // FIX: Replaced API-based NLP with robust client-side parsing
     function processNLP(message) {
       try {
         const normalizedMessage = message.toLowerCase().trim();
@@ -955,18 +884,6 @@
       }
     }
 
-    function retryImage(imageUrl) {
-      addMessage('Retrying image load...', false);
-      const img = new Image();
-      img.src = imageUrl;
-      img.onload = () => {
-        addMessage('Image loaded successfully!', false, imageUrl, 'initial');
-      };
-      img.onerror = () => {
-        addMessage('Still couldn’t load the image. Try again or browse our store.', false, null, 'initial');
-      };
-    }
-
     function openSamples() {
       window.open(NAV_LINKS.samples.url, '_blank');
       updateQuickReplies('samples');
@@ -986,17 +903,14 @@
     function startBrowseWizard() {
       wizardState = { stage: 'browse', context: 'category' };
       const location = userProfile.location.city !== 'Unknown' ? userProfile.location.city : 'your area';
-      addMessage(`Let’s explore our store from ${location}! 😊 What are you interested in today? Countertops, sinks, samples, or our design tool?`, false, null, 'browse_products');
+      addMessage(`Let’s explore our store from ${location}! 😊 What are you interested in today? Countertops, sinks, samples, or our design tool?`, false, null, 'browse_products', null, 'https://via.placeholder.com/300x150?text=Store+Overview');
     }
 
     function openLeadModal() {
       const leadModal = document.getElementById('leadModal');
       if (leadModal) {
         leadModal.style.display = 'flex';
-        leadModal.setAttribute('aria-hidden', 'false');
-        const firstInput = document.getElementById('leadName');
-        firstInput?.focus();
-        trapFocus(leadModal);
+        document.getElementById('leadName')?.focus();
         updateQuickReplies('initial');
       }
     }
@@ -1004,10 +918,7 @@
     function closeLeadModal() {
       const leadModal = document.getElementById('leadModal');
       const leadForm = document.getElementById('leadForm');
-      if (leadModal) {
-        leadModal.style.display = 'none';
-        leadModal.setAttribute('aria-hidden', 'true');
-      }
+      if (leadModal) leadModal.style.display = 'none';
       if (leadForm) leadForm.reset();
       updateQuickReplies('initial');
       document.getElementById('chatContainer')?.focus();
@@ -1017,10 +928,7 @@
       const appointmentModal = document.getElementById('appointmentModal');
       if (appointmentModal) {
         appointmentModal.style.display = 'flex';
-        appointmentModal.setAttribute('aria-hidden', 'false');
-        const firstInput = document.getElementById('name');
-        firstInput?.focus();
-        trapFocus(appointmentModal);
+        document.getElementById('name')?.focus();
         updateQuickReplies('initial');
       }
     }
@@ -1028,10 +936,7 @@
     function closeAppointmentModal() {
       const appointmentModal = document.getElementById('appointmentModal');
       const appointmentForm = document.getElementById('appointmentForm');
-      if (appointmentModal) {
-        appointmentModal.style.display = 'none';
-        appointmentModal.setAttribute('aria-hidden', 'true');
-      }
+      if (appointmentModal) appointmentModal.style.display = 'none';
       if (appointmentForm) appointmentForm.reset();
       updateQuickReplies('initial');
       document.getElementById('chatContainer')?.focus();
@@ -1041,10 +946,7 @@
       const contactModal = document.getElementById('contactModal');
       if (contactModal) {
         contactModal.style.display = 'flex';
-        contactModal.setAttribute('aria-hidden', 'false');
-        const firstInput = document.getElementById('contactName');
-        firstInput?.focus();
-        trapFocus(contactModal);
+        document.getElementById('contactName')?.focus();
         updateQuickReplies('initial');
       }
     }
@@ -1052,36 +954,10 @@
     function closeContactModal() {
       const contactModal = document.getElementById('contactModal');
       const contactForm = document.getElementById('contactForm');
-      if (contactModal) {
-        contactModal.style.display = 'none';
-        contactModal.setAttribute('aria-hidden', 'true');
-      }
+      if (contactModal) contactModal.style.display = 'none';
       if (contactForm) contactForm.reset();
       updateQuickReplies('initial');
       document.getElementById('chatContainer')?.focus();
-    }
-
-    function trapFocus(element) {
-      const focusableElements = element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-      const firstFocusable = focusableElements[0];
-      const lastFocusable = focusableElements[focusableElements.length - 1];
-
-      element.addEventListener('keydown', (e) => {
-        if (e.key === 'Tab') {
-          if (e.shiftKey && document.activeElement === firstFocusable) {
-            e.preventDefault();
-            lastFocusable.focus();
-          } else if (!e.shiftKey && document.activeElement === lastFocusable) {
-            e.preventDefault();
-            firstFocusable.focus();
-          }
-        }
-        if (e.key === 'Escape') {
-          if (element.id === 'leadModal') closeLeadModal();
-          if (element.id === 'appointmentModal') closeAppointmentModal();
-          if (element.id === 'contactModal') closeContactModal();
-        }
-      });
     }
 
     function loadCompanyInfo() {
@@ -1126,6 +1002,7 @@
       } else {
         clearTimeout(inactivityTimer);
       }
+      // Clear stale listeners
       const sendButton = document.getElementById('sendButton');
       if (sendButton) {
         sendButton.removeEventListener('click', sendMessage);
@@ -1166,29 +1043,13 @@
       const contentDiv = document.createElement('div');
       contentDiv.innerHTML = content || 'Sorry, no response received. Please try again!';
       div.appendChild(contentDiv);
-
       if (imageUrl && !isUser) {
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'image-container';
-        imgContainer.innerHTML = '<div class="image-loading" role="status">Loading image...</div>';
         const img = document.createElement('img');
         img.src = imageUrl;
-        img.alt = `Image of ${content.split(' ').slice(0, 3).join(' ')}`;
-        img.setAttribute('aria-hidden', 'false');
-        img.onload = () => {
-          imgContainer.querySelector('.image-loading').remove();
-        };
-        img.onerror = () => {
-          imgContainer.innerHTML = `
-            <div class="image-error" role="alert">Failed to load image.</div>
-            <button class="quick-reply retry-image" onclick="retryImage('${imageUrl}')">Retry</button>
-          `;
-          console.error(`Image load failed: ${imageUrl}, Session: ${sessionId}`);
-        };
-        imgContainer.appendChild(img);
-        div.appendChild(imgContainer);
+        img.alt = `Product image`;
+        img.onerror = () => { img.src = 'https://via.placeholder.com/300x150?text=Image+Not+Found'; };
+        div.appendChild(img);
       }
-
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1200,7 +1061,7 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
       });
       if (isUser) resetInactivityTimer();
-      conversationHistory.push({ role: isUser ? 'user' : 'bot', content, imageUrl, timestamp: Date.now() });
+      conversationHistory.push({ role: isUser ? 'user' : 'bot', content, timestamp: Date.now() });
       saveSession();
     }
 
@@ -1245,9 +1106,10 @@
             responseMessage = `Sorry, I don’t have pricing for "${material}". Try Granite, Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N. Or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
             context = 'countertops';
           } else {
-            const productData = await fetchProductPrice(material);
-            let price = productData.price || CONFIG.PRICE_LIST.materials[material].base;
-            const imageUrl = productData.image;
+            let price = await fetchProductPrice(material);
+            if (!price) {
+              price = CONFIG.PRICE_LIST.materials[material].base;
+            }
             const locationKey = `${userProfile.location.city}, ${userProfile.location.state}` in CONFIG.PRICE_LIST.markups 
               ? `${userProfile.location.city}, ${userProfile.location.state}` 
               : 'default';
@@ -1255,7 +1117,7 @@
             const adjustedPrice = (price * markup).toFixed(2);
             responseMessage = `In ${userProfile.location.city || 'your area'}, ${material.charAt(0).toUpperCase() + material.slice(1)} costs approximately $${adjustedPrice}/sq ft, including local adjustments. Want a full quote for your project or to browse matching sinks?`;
             context = 'pricing';
-            addMessage(responseMessage, false, imageUrl, context);
+            addMessage(responseMessage, false, `https://via.placeholder.com/300x150?text=${material.replace(' ', '+')}`, context);
             showTypingIndicator(false);
             quickReplies.style.display = 'flex';
             return;
@@ -1568,35 +1430,6 @@
       }
     }
 
-    async function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      if (!file.type.startsWith('image/')) {
-        addMessage('Please upload a valid image file.', false, null, 'initial');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        addMessage('Image is too large. Please upload an image under 5MB.', false, null, 'initial');
-        return;
-      }
-
-      try {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const imageUrl = reader.result;
-          addMessage('Here’s the image you uploaded:', true, imageUrl);
-          addMessage('Thanks for sharing your project image! Want to provide dimensions or discuss design ideas for this space?', false, null, 'dimensions');
-          saveSession();
-        };
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.error('Image upload error:', error.message);
-        addMessage('Sorry, we couldn’t upload your image. Try again or contact us.', false, null, 'initial');
-      }
-      event.target.value = '';
-    }
-
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
       const sendButton = document.getElementById('sendButton');
@@ -1608,7 +1441,6 @@
       const contactForm = document.getElementById('contactForm');
       const userInput = document.getElementById('userInput');
       const chatToggle = document.getElementById('chatToggle');
-      const imageUpload = document.getElementById('imageUpload');
 
       if (sendButton) sendButton.addEventListener('click', sendMessage);
       if (leadCancel) leadCancel.addEventListener('click', closeLeadModal);
@@ -1627,9 +1459,6 @@
         chatToggle.addEventListener('keypress', (e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleChat();
         });
-      }
-      if (imageUpload) {
-        imageUpload.addEventListener('change', handleImageUpload);
       }
 
       document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
