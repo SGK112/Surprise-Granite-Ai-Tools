@@ -508,6 +508,17 @@
       from { transform: translateY(10px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes dots {
+      0% { content: '...'; }
+      33% { content: '..'; }
+      66% { content: '.'; }
+    }
   </style>
 </head>
 <body>
@@ -596,32 +607,16 @@
   </div>
 
   <script>
-    // Configuration with simulated .env price list
+    // Configuration
     const CONFIG = {
       SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
       USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801',
       GEO_API_URL: 'https://ipapi.co/json/',
-      SHOPIFY_API: 'https://store.surprisegranite.com/api',
-      SHOPIFY_TOKEN: 'your-shopify-storefront-token', // Replace with actual token
-      PRICE_LIST: {
-        materials: {
-          granite: { base: 40, high: 100 },
-          quartz: { base: 50, high: 120 },
-          marble: { base: 60, high: 150 },
-          quartzite: { base: 55, high: 130 },
-          'sparkling white quartz': { base: 65, high: 130 },
-          'frost n': { base: 70, high: 140 }
-        },
-        labor: { base: 20, cutout: 100, demo: 500, backsplash: 10 },
-        markups: {
-          'Phoenix, AZ': 1.10,
-          'Tucson, AZ': 1.08,
-          'default': 1.05
-        }
-      }
+      SHOPIFY_API: 'https://store.surprisegranite.com/admin/api/2024-10/products.json',
+      SHOPIFY_TOKEN: 'your-shopify-admin-access-token', // Replace with actual token in production
     };
 
-    // Navigation and quick reply sets
+    // Navigation links
     const NAV_LINKS = {
       store: { url: 'https://store.surprisegranite.com/', text: 'our store' },
       samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
@@ -630,9 +625,10 @@
       quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
       sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
       visualizer: { url: 'https://www.surprisegranite.com/tools/virtual-kitchen-design-tool', text: 'visualizer' },
-      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
+      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' },
     };
 
+    // Quick reply sets
     const QUICK_REPLY_SETS = {
       initial: ['Get Quote', 'Browse Products', 'Design Ideas', 'Book Consultation'],
       countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite'],
@@ -649,7 +645,7 @@
       browse_products: ['Countertops', 'Sinks', 'Samples', 'Visualizer'],
       measurement_guide: ['View Guide', 'Use Calculator', 'Enter Dimensions', 'Book Consultation'],
       location: ['Confirm Location', 'Enter City', 'Skip'],
-      pricing: ['Get Full Quote', 'Browse More', 'Book Consultation']
+      pricing: ['Get Full Quote', 'Browse More', 'Book Consultation'],
     };
 
     // Unified user profile
@@ -660,7 +656,7 @@
       location: { city: null, state: null, country: null },
       project: { type: null, room: null, intent: null },
       preferences: { material: null, style: null, budget: null },
-      quote: { material: null, layout: null, dimensions: [], backsplash: null, edge: null, cutouts: [], demo: null, cost: null }
+      quote: { material: null, layout: null, dimensions: [], backsplash: null, edge: null, cutouts: [], demo: null, cost: null },
     };
 
     // Conversation history and state
@@ -672,7 +668,7 @@
       'Tell me about your project...',
       'Need a countertop quote?',
       'Looking for design inspiration?',
-      'Want to book a consultation?'
+      'Want to book a consultation?',
     ];
     let placeholderIndex = 0;
 
@@ -683,7 +679,7 @@
           userProfile,
           conversationHistory,
           sessionId,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         }));
       } catch (error) {
         console.error('Session save error:', error);
@@ -716,9 +712,8 @@
         userProfile.location = {
           city: response.data.city || 'Unknown',
           state: response.data.region || 'Unknown',
-          country: response.data.country_name || 'Unknown'
+          country: response.data.country_name || 'Unknown',
         };
-        console.log('User location:', userProfile.location);
         saveSession();
         return userProfile.location;
       } catch (error) {
@@ -730,75 +725,85 @@
       }
     }
 
+    // Fetch materials from /api/materials
+    async function fetchMaterials() {
+      const cached = localStorage.getItem('sgMaterials');
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 3600000) return data;
+      }
+      try {
+        const response = await fetchWithRetry(`${CONFIG.SERVER_URL}/api/materials`, { method: 'GET' });
+        const data = response.data;
+        localStorage.setItem('sgMaterials', JSON.stringify({ data, timestamp: Date.now() }));
+        return data;
+      } catch (error) {
+        console.error('Materials fetch error:', error.message);
+        return [];
+      }
+    }
+
     // Fetch product price from Shopify
     async function fetchProductPrice(material) {
       try {
-        const query = `
-          query {
-            products(first: 1, query: "title:${material}") {
-              edges {
-                node {
-                  title
-                  variants(first: 1) {
-                    edges {
-                      node {
-                        price {
-                          amount
-                          currencyCode
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        `;
-        const response = await axios.post(CONFIG.SHOPIFY_API, { query }, {
-          headers: { 'X-Shopify-Storefront-Access-Token': CONFIG.SHOPIFY_TOKEN }
+        const response = await fetchWithRetry(CONFIG.SHOPIFY_API, {
+          headers: { 'X-Shopify-Access-Token': CONFIG.SHOPIFY_TOKEN },
         });
-        const product = response.data.data.products.edges[0]?.node;
-        if (product) {
-          return parseFloat(product.variants.edges[0].node.price.amount);
-        }
-        return null;
+        const product = response.data.products.find(p =>
+          p.title.toLowerCase().includes(material.toLowerCase())
+        );
+        return product ? parseFloat(product.variants[0]?.price) || null : null;
       } catch (error) {
         console.error('Shopify price fetch error:', error.message);
         return null;
       }
     }
 
-    // Calculate quote
-    function calculateQuote() {
+    // Calculate quote using /api/estimate
+    async function calculateQuote() {
       try {
-        const { dimensions, material, backsplash, cutouts, demo } = userProfile.quote;
-        const totalSqFt = dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0);
-        const materialCost = CONFIG.PRICE_LIST.materials[material.toLowerCase()]?.base || 50;
-        const locationKey = `${userProfile.location.city}, ${userProfile.location.state}` in CONFIG.PRICE_LIST.markups 
-          ? `${userProfile.location.city}, ${userProfile.location.state}` 
-          : 'default';
-        const markup = CONFIG.PRICE_LIST.markups[locationKey] || 1.05;
-        let cost = totalSqFt * materialCost;
-        cost += cutouts.length * CONFIG.PRICE_LIST.labor.cutout;
-        if (backsplash) cost += (backsplash.linearFeet || totalSqFt) * CONFIG.PRICE_LIST.labor.backsplash;
-        if (demo === 'needed') cost += CONFIG.PRICE_LIST.labor.demo;
-        cost *= markup;
+        const { dimensions, material, layout } = userProfile.quote;
+        const response = await fetchWithRetry(`${CONFIG.SERVER_URL}/api/estimate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: JSON.stringify({ layout: layout || 'unknown', dimensions, material, sessionId }),
+        });
+        const { totalCost, materialCost, fabricationCost, installationCost } = response.data.bid || {};
         return {
-          totalCost: cost.toFixed(2),
+          totalCost: totalCost?.toFixed(2) || '0.00',
           breakdown: {
-            material: (totalSqFt * materialCost).toFixed(2),
-            labor: (cutouts.length * CONFIG.PRICE_LIST.labor.cutout + (demo === 'needed' ? CONFIG.PRICE_LIST.labor.demo : 0)).toFixed(2),
-            backsplash: backsplash ? ((backsplash.linearFeet || totalSqFt) * CONFIG.PRICE_LIST.labor.backsplash).toFixed(2) : '0.00',
-            markup: (cost * (markup - 1)).toFixed(2)
-          }
+            material: materialCost?.toFixed(2) || '0.00',
+            fabrication: fabricationCost?.toFixed(2) || '0.00',
+            installation: installationCost?.toFixed(2) || '0.00',
+          },
         };
       } catch (error) {
-        console.error('Quote calculation error:', error);
+        console.error('Quote calculation error:', error.message);
         return { totalCost: '0.00', breakdown: {} };
       }
     }
 
-    // FIX: Replaced API-based NLP with robust client-side parsing
+    // Retry logic for API calls
+    async function fetchWithRetry(url, options, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await axios(url, options);
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+        }
+      }
+    }
+
+    // Fuzzy matching
+    function fuzzyMatch(str, pattern) {
+      if (!str || !pattern) return false;
+      const cleanStr = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanPattern = pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanStr.includes(cleanPattern) || cleanPattern.includes(cleanStr) || cleanStr.indexOf(cleanPattern) !== -1;
+    }
+
+    // NLP processing
     function processNLP(message) {
       try {
         const normalizedMessage = message.toLowerCase().trim();
@@ -812,7 +817,7 @@
         if (dimensions.length) {
           entities.dimensions = dimensions.map(match => ({
             length: parseFloat(match[1]),
-            width: parseFloat(match[3])
+            width: parseFloat(match[3]),
           }));
           intent = 'dimensions';
           confidence = 0.9;
@@ -830,19 +835,15 @@
         }
 
         // Material extraction
-        const materialKeys = Object.keys(CONFIG.PRICE_LIST.materials);
-        const materialRegex = new RegExp(`(${materialKeys.join('|')})`, 'i');
-        const materialMatch = normalizedMessage.match(materialRegex);
-        if (materialMatch) {
-          entities.material = materialMatch[0].toLowerCase();
-          if (normalizedMessage.includes('how much') || normalizedMessage.includes('price') || normalizedMessage.includes('cost')) {
-            intent = 'pricing';
-            confidence = 0.9;
-          }
+        if (normalizedMessage.includes('how much') || normalizedMessage.includes('price') || normalizedMessage.includes('cost')) {
+          intent = 'pricing';
+          confidence = 0.9;
+          const materialWords = normalizedMessage.replace(/how much is|price of|cost of/gi, '').trim().split(/\s+/);
+          entities.material = materialWords.join(' ');
         }
 
-        // Intent detection based on keywords
-        if (normalizedMessage.includes('quote')) {
+        // Intent detection
+        if (normalizedMessage.includes('quote') || normalizedMessage.includes('estimate')) {
           intent = 'quote';
           confidence = 0.85;
         } else if (normalizedMessage.includes('design')) {
@@ -854,6 +855,9 @@
         } else if (normalizedMessage.includes('measure') || normalizedMessage.includes('guide')) {
           intent = 'measurement_guide';
           confidence = 0.9;
+        } else if (normalizedMessage.includes('address') || normalizedMessage.includes('located') || normalizedMessage.includes('location')) {
+          intent = 'location_info';
+          confidence = 0.9;
         }
 
         // Location extraction
@@ -862,7 +866,7 @@
         if (locationMatch) {
           entities.location = {
             city: locationMatch[1].trim(),
-            state: locationMatch[2].toUpperCase()
+            state: locationMatch[2].toUpperCase(),
           };
           intent = 'location';
           confidence = 0.9;
@@ -1002,7 +1006,6 @@
       } else {
         clearTimeout(inactivityTimer);
       }
-      // Clear stale listeners
       const sendButton = document.getElementById('sendButton');
       if (sendButton) {
         sendButton.removeEventListener('click', sendMessage);
@@ -1102,26 +1105,28 @@
 
         if (nlpResult.intent === 'pricing' && nlpResult.entities.material) {
           const material = nlpResult.entities.material;
-          if (!CONFIG.PRICE_LIST.materials[material]) {
+          const materials = await fetchMaterials();
+          const matchedMaterial = materials.find(m => fuzzyMatch(m.name, material) || fuzzyMatch(m.type, material));
+          if (!matchedMaterial) {
             responseMessage = `Sorry, I don’t have pricing for "${material}". Try Granite, Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N. Or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
             context = 'countertops';
           } else {
-            let price = await fetchProductPrice(material);
-            if (!price) {
-              price = CONFIG.PRICE_LIST.materials[material].base;
-            }
-            const locationKey = `${userProfile.location.city}, ${userProfile.location.state}` in CONFIG.PRICE_LIST.markups 
-              ? `${userProfile.location.city}, ${userProfile.location.state}` 
-              : 'default';
-            const markup = CONFIG.PRICE_LIST.markups[locationKey] || 1.05;
-            const adjustedPrice = (price * markup).toFixed(2);
-            responseMessage = `In ${userProfile.location.city || 'your area'}, ${material.charAt(0).toUpperCase() + material.slice(1)} costs approximately $${adjustedPrice}/sq ft, including local adjustments. Want a full quote for your project or to browse matching sinks?`;
+            const shopifyPrice = await fetchProductPrice(material);
+            const price = shopifyPrice || matchedMaterial.price_per_sqft || 50;
+            const locationMarkup = userProfile.location.city === 'Phoenix' ? 1.10 : userProfile.location.city === 'Tucson' ? 1.08 : 1.05;
+            const adjustedPrice = (price * locationMarkup).toFixed(2);
+            responseMessage = `In ${userProfile.location.city || 'your area'}, ${matchedMaterial.name || material} (${matchedMaterial.type}) costs approximately $${adjustedPrice}/sq ft, including local adjustments. Want a full quote for your project or to browse matching sinks?`;
             context = 'pricing';
-            addMessage(responseMessage, false, `https://via.placeholder.com/300x150?text=${material.replace(' ', '+')}`, context);
+            addMessage(responseMessage, false, matchedMaterial.image_url || `https://via.placeholder.com/300x150?text=${material.replace(' ', '+')}`, context);
             showTypingIndicator(false);
             quickReplies.style.display = 'flex';
             return;
           }
+        }
+
+        if (nlpResult.intent === 'location_info') {
+          responseMessage = `Surprise Granite is located at 11560 N Dysart Rd, Surprise, AZ 85379. Visit us or check out <a href="${NAV_LINKS.map.url}" target="_blank">our location</a>. Want to start a project or browse products?`;
+          context = 'initial';
         }
 
         if (wizardState.stage === 'location') {
@@ -1191,7 +1196,7 @@
             userProfile.quote.dimensions = nlpResult.entities.dimensions;
             wizardState = { stage: 'material', context: 'project' };
             const totalSqFt = userProfile.quote.dimensions.reduce((sum, dim) => sum + (dim.length * dim.width), 0).toFixed(2);
-            responseMessage = `Thanks! Your ${userProfile.project.room} has ${totalSqFt} sq ft. What material do you prefer? Granite (${CONFIG.PRICE_LIST.materials.granite.base}-${CONFIG.PRICE_LIST.materials.granite.high}/sqft) is great for ${userProfile.location.state || 'your area'}, or try Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N.`;
+            responseMessage = `Thanks! Your ${userProfile.project.room} has ${totalSqFt} sq ft. What material do you prefer? Popular choices include Granite, Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N. Browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
             context = 'countertops';
           } else if (message.toLowerCase().includes('skip')) {
             wizardState = { stage: 'material', context: 'project' };
@@ -1212,15 +1217,16 @@
             context = 'measurement_guide';
           }
         } else if (wizardState.stage === 'material') {
-          const materials = Object.keys(CONFIG.PRICE_LIST.materials);
-          if (materials.some(material => message.toLowerCase().includes(material))) {
-            userProfile.quote.material = materials.find(material => message.toLowerCase().includes(material));
-            userProfile.preferences.material = userProfile.quote.material;
+          const materials = await fetchMaterials();
+          const matchedMaterial = materials.find(m => fuzzyMatch(m.name, message) || fuzzyMatch(m.type, message));
+          if (matchedMaterial) {
+            userProfile.quote.material = matchedMaterial.name;
+            userProfile.preferences.material = matchedMaterial.name;
             wizardState = { stage: 'backsplash', context: 'project' };
-            responseMessage = `${userProfile.quote.material.charAt(0).toUpperCase() + userProfile.quote.material.slice(1)} is perfect for ${userProfile.location.city || 'your area'}! Want a backsplash? Choose 4", 6", Full Height, or None.`;
+            responseMessage = `${matchedMaterial.name} (${matchedMaterial.type}) is perfect for ${userProfile.location.city || 'your area'}! Want a backsplash? Choose 4", 6", Full Height, or None.`;
             context = 'backsplash';
           } else {
-            responseMessage = `Please choose a material: Granite, Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N. Or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
+            responseMessage = `Please choose a material like Granite, Quartz, Marble, Quartzite, Sparkling White Quartz, or Frost N. Or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
             context = 'countertops';
           }
         } else if (wizardState.stage === 'backsplash') {
@@ -1228,7 +1234,7 @@
           if (backsplashes.some(b => message.toLowerCase().includes(b.replace('"', '')))) {
             userProfile.quote.backsplash = message.toLowerCase().includes('none') ? null : {
               height: message.toLowerCase().includes('full') ? 'full' : message.match(/\d+/)?.[0],
-              linearFeet: userProfile.quote.dimensions.reduce((sum, dim) => sum + dim.length, 0)
+              linearFeet: userProfile.quote.dimensions.reduce((sum, dim) => sum + dim.length, 0),
             };
             wizardState = { stage: 'edge', context: 'project' };
             responseMessage = `Backsplash noted! What edge style? Eased, Bullnose, Ogee, or Waterfall?`;
@@ -1268,9 +1274,9 @@
           const demoOptions = ['demolition needed', 'no demolition', 'unsure'];
           if (demoOptions.some(option => message.toLowerCase().includes(option.replace(' ', '')))) {
             userProfile.quote.demo = message.toLowerCase().includes('needed') ? 'needed' : message.toLowerCase().includes('no') ? 'none' : 'unsure';
-            const quote = calculateQuote();
+            const quote = await calculateQuote();
             userProfile.quote.cost = quote.totalCost;
-            responseMessage = `Here’s your quote for a ${userProfile.preferences.style} ${userProfile.project.room} in ${userProfile.location.city || 'your area'}, ${userProfile.name || 'friend'}! Estimated cost: $${quote.totalCost} (3-5 weeks fabrication). Includes ${userProfile.quote.material} ($${quote.breakdown.material}), ${userProfile.quote.layout} layout, ${userProfile.quote.backsplash ? `${userProfile.quote.backsplash.height} backsplash ($${quote.breakdown.backsplash}), ` : ''}${userProfile.quote.edge} edge, ${userProfile.quote.cutouts.length ? userProfile.quote.cutouts.join(', ') : 'no cutouts'}, ${userProfile.quote.demo === 'needed' ? `demolition ($${quote.breakdown.labor}), ` : ''}and local markup ($${quote.breakdown.markup}). Final pricing needs a site visit. Save this quote or book a consultation?`;
+            responseMessage = `Here’s your quote for a ${userProfile.preferences.style} ${userProfile.project.room} in ${userProfile.location.city || 'your area'}, ${userProfile.name || 'friend'}! Estimated cost: $${quote.totalCost} (3-5 weeks fabrication). Includes ${userProfile.quote.material} ($${quote.breakdown.material}), ${userProfile.quote.layout} layout, ${userProfile.quote.backsplash ? `${userProfile.quote.backsplash.height} backsplash, ` : ''}${userProfile.quote.edge} edge, ${userProfile.quote.cutouts.length ? userProfile.quote.cutouts.join(', ') : 'no cutouts'}, ${userProfile.quote.demo === 'needed' ? `demolition, ` : ''}and local adjustments. Final pricing needs a site visit. Save this quote or book a consultation?`;
             context = 'feedback';
             wizardState = { stage: 'initial', context: null };
             await sendEmail({ ...userProfile, quote }, 'quote');
@@ -1338,7 +1344,7 @@
             startBrowseWizard();
             return;
           } else {
-            responseMessage = `I’m here to help in ${userProfile.location.city || 'your area'}! Try asking about countertops, designs, or a quote. ${userProfile.preferences.style ? `I noticed you like ${userProfile.preferences.style} styles—want to explore matching options?` : ''}`;
+            responseMessage = `I’m here to help in ${userProfile.location.city || 'your area'}! Try asking about countertops, designs, quotes, or our location. ${userProfile.preferences.style ? `I noticed you like ${userProfile.preferences.style} styles—want to explore matching options?` : ''}`;
             context = 'initial';
           }
         }
@@ -1356,7 +1362,7 @@
     async function sendEmail(formData, type) {
       try {
         const response = await axios.post(CONFIG.USEBASIN_ENDPOINT, formData, {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         });
         console.log('Email sent via UseBasin');
         return true;
