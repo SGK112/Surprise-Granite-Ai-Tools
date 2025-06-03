@@ -81,8 +81,8 @@ const ChatLog = mongoose.model(
   new mongoose.Schema(
     {
       sessionId: String,
-      clientId: String, // New field for client identification
-      clientEmail: String, // Store client email for linking
+      clientId: String,
+      clientEmail: String,
       messages: [{ role: String, content: String, createdAt: { type: Date, default: Date.now } }],
       appointmentRequested: Boolean,
       bids: [{
@@ -400,403 +400,134 @@ app.get('/api/chatlogs', async (req, res) => {
 // Close Chat Endpoint
 app.post('/api/close-chat', async (req, res) => {
   const { sessionId, abandoned } = req.body;
-try {
-  const userMessage = req.body.message.toLowerCase();
-  const sessionId = req.body.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const clientId = req.body.clientId || `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const clientEmail = req.body.clientEmail || null;
-
-  logger.info(`Request ID: ${req.headers['x-request-id'] || 'unknown'}, Session ID: ${sessionId}, Client ID: ${clientId}, User message: ${userMessage}`);
-
-  let chatLog = await ChatLog.findOne({ sessionId });
-  if (!chatLog) {
-    chatLog = new ChatLog({ sessionId, clientId, clientEmail, messages: [], estimateContext: {} });
-  } else if (!chatLog.clientId) {
-    chatLog.clientId = clientId;
-    chatLog.clientEmail = clientEmail;
-  }
-  chatLog.lastActivity = new Date();
-
-  // Fetch prior chats for context
-  const priorChats = await ChatLog.find({ clientId, sessionId: { $ne: sessionId } })
-    .sort({ updatedAt: -1 })
-    .limit(3);
-  const priorContext = priorChats.flatMap(log =>
-    log.messages.slice(-3).map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-  );
-
-  const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
-    role: msg.role,
-    content: msg.content,
-  }));
-
-  // Handle material price query
-  const materials = await fetchMaterials();
-  const matchedMaterial = materials.find(item => fuzzyMatch(item.name, userMessage));
-  if (matchedMaterial && !chatLog.estimateContext.step) {
-    const installedPrice = calculateInstalledPrice(matchedMaterial.costPerSquare);
-    const responseMessage = `${matchedMaterial.name} ${matchedMaterial.material} is $${installedPrice}/sqft installed. Want to start a quote with this material or explore others?`;
-    chatLog.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: responseMessage }
-    );
-    await chatLog.save();
-    return res.json({
-      message: responseMessage,
-      image: matchedMaterial.imageUrl,
-      quickReplies: ['Start Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
-      clientId,
-      sessionId
-    });
-  }
-
-  // Handle browse materials request
-  if (userMessage.includes('browse materials')) {
-    const materialList = materials.slice(0, 5).map(m => `${m.name} (${m.material}): $${calculateInstalledPrice(m.costPerSquare)}/sqft installed`).join('\n');
-    const responseMessage = `Here are some popular materials:\n${materialList}\nAsk about a specific material or start a quote!`;
-    chatLog.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: responseMessage }
-    );
-    await chatLog.save();
-    return res.json({
-      message: responseMessage,
-      quickReplies: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Start Quote'],
-      clientId,
-      sessionId
-    });
-  }
-
-  // Handle company information request
-  if (userMessage.includes('about surprise granite') || userMessage.includes('company info')) {
-    const responseMessage = `Surprise Granite, located at 11560 N Dysart Rd, Surprise, AZ 85379, specializes in custom countertops, sinks, faucets, and bath fixtures. We source high-quality materials from Arizona Tile and Kibi USA to create durable, stylish solutions for your home. Check out our products at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a> or use the footer buttons to call (602) 833-3189 or message us!`;
-    chatLog.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: responseMessage }
-    );
-    await chatLog.save();
-    return res.json({
-      message: responseMessage,
-      quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
-      clientId,
-      sessionId
-    });
-  }
-
-  // Handle estimate context
-  if (chatLog.estimateContext?.step) {
-    let responseMessage = '';
-    let quickReplies = ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'];
-
-    if (chatLog.estimateContext.step === 'space') {
-      const spaces = ['kitchen', 'bathroom', 'other'];
-      if (spaces.some(space => userMessage.includes(space))) {
-        chatLog.estimateContext.space = spaces.find(space => userMessage.includes(space));
-        chatLog.estimateContext.step = 'style';
-        responseMessage = `Great, a ${chatLog.estimateContext.space} project! What style do you prefer? Modern, Traditional, Rustic, or Contemporary?`;
-        quickReplies = ['Modern', 'Traditional', 'Rustic', 'Contemporary'];
-      } else {
-        responseMessage = `Please specify the space, such as Kitchen, Bathroom, or Other.`;
-        quickReplies = ['Kitchen', 'Bathroom', 'Other'];
-      }
-    } else if (chatLog.estimateContext.step === 'style') {
-      const styles = ['modern', 'traditional', 'rustic', 'contemporary'];
-      if (styles.some(style => userMessage.includes(style))) {
-        chatLog.estimateContext.style = styles.find(style => userMessage.includes(style));
-        chatLog.estimateContext.step = 'layout';
-        responseMessage = `Love the ${chatLog.estimateContext.style} vibe! What’s the countertop layout? Options include L-Shape, U-Shape, Galley, or Island.`;
-        quickReplies = ['L-Shape', 'U-Shape', 'Galley', 'Island'];
-      } else {
-        responseMessage = `Please choose a style: Modern, Traditional, Rustic, or Contemporary.`;
-        quickReplies = ['Modern', 'Traditional', 'Rustic', 'Contemporary'];
-      }
-    } else if (chatLog.estimateContext.step === 'layout') {
-      const layouts = ['l-shape', 'u-shape', 'galley', 'island'];
-      if (layouts.some(layout => userMessage.includes(layout))) {
-        chatLog.estimateContext.layout = layouts.find(layout => userMessage.includes(layout));
-        chatLog.estimateContext.step = 'dimensions';
-        responseMessage = `Got it, a ${chatLog.estimateContext.layout} countertop! What are the dimensions? Provide in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Need help measuring?`;
-        quickReplies = ['Enter Dimensions', 'Need Help?', 'Skip'];
-      } else {
-        responseMessage = `Please specify a layout, such as L-Shape, U-Shape, Galley, or Island.`;
-        quickReplies = ['L-Shape', 'U-Shape', 'Galley', 'Island'];
-      }
-    } else if (chatLog.estimateContext.step === 'dimensions') {
-      const dimensions = extractDimensions(req.body.message);
-      if (dimensions.length > 0) {
-        chatLog.estimateContext.dimensions = dimensions;
-        chatLog.estimateContext.step = 'material';
-        responseMessage = `Thanks for the dimensions (total: ${(dimensions.reduce((sum, dim) => sum + dim.area, 0)).toFixed(2)} sqft)! Which material would you like? Popular choices include Granite, Quartz, Marble, or Quartzite. Browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>.`;
-        quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Materials'];
-      } else {
-        responseMessage = `I didn’t catch the dimensions. Please provide them in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Try our <a href="https://store.surprisegranite.com/pages/measurement-guide" target="_blank">measurement guide</a>.`;
-        quickReplies = ['Enter Dimensions', 'Need Help?', 'Skip'];
-      }
-    } else if (chatLog.estimateContext.step === 'material') {
-      const matchedMaterial = materials.find(item => fuzzyMatch(item.name, req.body.message));
-      if (matchedMaterial) {
-        chatLog.estimateContext.material = matchedMaterial.name;
-        chatLog.estimateContext.step = 'backsplash';
-        responseMessage = `Great choice with ${matchedMaterial.name} ${matchedMaterial.material}! Would you like a backsplash? Options are 4", 6", Full Height, or None.`;
-        quickReplies = ['4"', '6"', 'Full Height', 'None'];
-      } else {
-        responseMessage = `I couldn’t find that material. Try a name like "Calacatta Gold" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
-        quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Materials'];
-      }
-    } else if (chatLog.estimateContext.step === 'backsplash') {
-      const backsplashes = ['4"', '6"', 'full height', 'none'];
-      if (backsplashes.some(b => userMessage.includes(b))) {
-        chatLog.estimateContext.backsplash = backsplashes.find(b => userMessage.includes(b));
-        chatLog.estimateContext.step = 'edge';
-        responseMessage = `Backsplash set to ${chatLog.estimateContext.backsplash}! What edge style do you prefer? Eased, Bullnose, Ogee, or Waterfall?`;
-        quickReplies = ['Eased', 'Bullnose', 'Ogee', 'Waterfall'];
-      } else {
-        responseMessage = `Please choose a backsplash: 4", 6", Full Height, or None.`;
-        quickReplies = ['4"', '6"', 'Full Height', 'None'];
-      }
-    } else if (chatLog.estimateContext.step === 'edge') {
-      const edges = ['eased', 'bullnose', 'ogee', 'waterfall'];
-      if (edges.some(e => userMessage.includes(e))) {
-        chatLog.estimateContext.edge = edges.find(e => userMessage.includes(e));
-        chatLog.estimateContext.step = 'cutouts';
-        responseMessage = `Edge style set to ${chatLog.estimateContext.edge}! Any cutouts needed? Sink, Faucet, Cooktop, or None?`;
-        quickReplies = ['Sink', 'Faucet', 'Cooktop', 'None'];
-      } else {
-        responseMessage = `Please choose an edge style: Eased, Bullnose, Ogee, or Waterfall.`;
-        quickReplies = ['Eased', 'Bullnose', 'Ogee', 'Waterfall'];
-      }
-    } else if (chatLog.estimateContext.step === 'cutouts') {
-      const cutouts = ['sink', 'faucet', 'cooktop', 'none'];
-      if (cutouts.some(c => userMessage.includes(c))) {
-        if (userMessage.includes('none')) {
-          chatLog.estimateContext.cutouts = [];
-          chatLog.estimateContext.step = 'demo';
-          responseMessage = `No cutouts needed. Do you require demolition of an existing countertop? Options: Light ($5/sqft), Heavy ($10/sqft), or None.`;
-          quickReplies = ['Light', 'Heavy', 'None'];
-        } else {
-          chatLog.estimateContext.cutouts = chatLog.estimateContext.cutouts || [];
-          chatLog.estimateContext.cutouts.push(...cutouts.filter(c => userMessage.includes(c) && c !== 'none'));
-          responseMessage = `Added ${cutouts.filter(c => userMessage.includes(c)).join(', ')} cutout(s). Any more? Sink, Faucet, Cooktop, or None.`;
-          quickReplies = ['Sink', 'Faucet', 'Cooktop', 'None'];
-        }
-      } else {
-        responseMessage = `Please specify cutouts: Sink, Faucet, Cooktop, or None.`;
-        quickReplies = ['Sink', 'Faucet', 'Cooktop', 'None'];
-      }
-    } else if (chatLog.estimateContext.step === 'demo') {
-      const demoOptions = ['light', 'heavy', 'none'];
-      if (demoOptions.some(d => userMessage.includes(d))) {
-        chatLog.estimateContext.demo = demoOptions.find(d => userMessage.includes(d));
-        chatLog.estimateContext.step = 'plumbing';
-        responseMessage = `Demolition set to ${chatLog.estimateContext.demo}. Will you need plumbing services to connect a new sink or faucet? (Flat rate: $500)`;
-        quickReplies = ['Yes', 'No'];
-      } else {
-        responseMessage = `Please choose a demolition option: Light ($5/sqft), Heavy ($10/sqft), or None.`;
-        quickReplies = ['Light', 'Heavy', 'None'];
-      }
-    } else if (chatLog.estimateContext.step === 'plumbing') {
-      const plumbingOptions = ['yes', 'no'];
-      if (plumbingOptions.some(p => userMessage.includes(p))) {
-        chatLog.estimateContext.plumbing = userMessage.includes('yes');
-        chatLog.estimateContext.step = 'sample';
-        responseMessage = `Plumbing set to ${chatLog.estimateContext.plumbing ? 'Yes' : 'No'}. Would you like to order a material sample? Available sizes: 3x3" ($10), 4x6" ($15), 5x10" ($25), or None.`;
-        quickReplies = ['3x3"', '4x6"', '5x10"', 'None'];
-      } else {
-        responseMessage = `Please specify if you need plumbing: Yes or No.`;
-        quickReplies = ['Yes', 'No'];
-      }
-    } else if (chatLog.estimateContext.step === 'sample') {
-      const sampleSizes = ['3x3"', '4x6"', '5x10"', 'none'];
-      if (sampleSizes.some(s => userMessage.includes(s))) {
-        chatLog.estimateContext.sampleSize = sampleSizes.find(s => userMessage.includes(s));
-        const estimateData = {
-          layout: chatLog.estimateContext.layout,
-          dimensions: chatLog.estimateContext.dimensions,
-          material: chatLog.estimateContext.material,
-          sessionId,
-          backsplash: chatLog.estimateContext.backsplash,
-          edge: chatLog.estimateContext.edge,
-          cutouts: chatLog.estimateContext.cutouts,
-          demo: chatLog.estimateContext.demo,
-          plumbing: chatLog.estimateContext.plumbing,
-          sampleSize: chatLog.estimateContext.sampleSize,
-        };
-        const estimateResponse = await axios.post(`http://localhost:${PORT}/api/estimate`, estimateData);
-        responseMessage = estimateResponse.data.message;
-        quickReplies = estimateResponse.data.quickReplies;
-        chatLog.estimateContext = {};
-      } else {
-        responseMessage = `Please choose a sample size: 3x3" ($10), 4x6" ($15), 5x10" ($25), or None.`;
-        quickReplies = ['3x3"', '4x6"', '5x10"', 'None'];
-      }
-    }
-
-    chatLog.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: responseMessage }
-    );
-    await chatLog.save();
-    return res.json({
-      message: responseMessage,
-      quickReplies,
-      clientId,
-      sessionId
-    });
-  }
-
-  // Handle estimate request
-  if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop') || userMessage.includes('start quote')) {
-    const matchedMaterial = materials.find(item => fuzzyMatch(item.name, userMessage));
-    if (matchedMaterial) {
-      chatLog.estimateContext = { step: 'space', material: matchedMaterial.name };
-      const responseMessage = priorChats.length > 0
-        ? `Welcome back! You previously liked ${matchedMaterial.name}. Let’s get a quote for a ${matchedMaterial.material} countertop. Is this for a Kitchen, Bathroom, or Other space?`
-        : `Great choice with ${matchedMaterial.name} ${matchedMaterial.material}! Is this countertop for a Kitchen, Bathroom, or Other space?`;
-      chatLog.messages.push(
-        { role: 'user', content: req.body.message },
-        { role: 'assistant', content: responseMessage }
-      );
-      await chatLog.save();
-      return res.json({
-        message: responseMessage,
-        quickReplies: ['Kitchen', 'Bathroom', 'Other'],
-        clientId,
-        sessionId
-      });
-    } else {
-      chatLog.estimateContext = { step: 'space' };
-      const responseMessage = priorChats.length > 0
-        ? `Welcome back! Let’s get started on another countertop estimate. Is this for a Kitchen, Bathroom, or Other space?`
-        : `Let’s get started on your countertop estimate! Is this for a Kitchen, Bathroom, or Other space?`;
-      chatLog.messages.push(
-        { role: 'user', content: req.body.message },
-        { role: 'assistant', content: responseMessage }
-      );
-      await chatLog.save();
-      return res.json({
-        message: responseMessage,
-        quickReplies: ['Kitchen', 'Bathroom', 'Other'],
-        clientId,
-        sessionId
-      });
-    }
-  }
-
-  // Handle feedback
-  if (['great', 'too high', 'new quote', 'order sample'].includes(userMessage)) {
-    chatLog.feedback = chatLog.feedback || [];
-    chatLog.feedback.push({
-      question: 'Is this price fair?',
-      response: userMessage,
-    });
-    const responseMessage = `Thanks for your feedback! ${userMessage === 'great' ? 'Glad you like the price!' : userMessage === 'too high' ? 'Let’s explore more affordable options.' : userMessage === 'order sample' ? 'Let’s order your sample!' : 'Let’s start a new quote.'} Want to browse materials or book a consultation?`;
-    chatLog.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: responseMessage }
-    );
-    await chatLog.save();
-    return res.json({
-      message: responseMessage,
-      quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
-      clientId,
-      sessionId
-    });
-  }
-
-  // Handle Shopify product queries
-  let shopifyProducts = [];
   try {
-    shopifyProducts = await fetchShopifyProducts();
+    const chatLog = await ChatLog.findOne({ sessionId });
+    if (chatLog) {
+      chatLog.abandoned = abandoned || false;
+      chatLog.lastActivity = new Date();
+      await chatLog.save();
+      await sendChatTranscript(chatLog);
+      res.json({ message: 'Chat closed and transcript sent.' });
+    } else {
+      res.status(404).json({ error: 'Chat session not found.' });
+    }
   } catch (error) {
-    logger.error(`Failed to fetch Shopify products: ${error.message}`);
+    logger.error(`Close chat error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to close chat.' });
+  }
+});
+
+// Estimate Endpoint
+app.post('/api/estimate', async (req, res) => {
+  const { layout, dimensions, material, sessionId, backsplash, edge, cutouts, demo, plumbing, sampleSize } = req.body;
+  if (!layout || !dimensions || !material || !sessionId) {
+    return res.status(400).json({ error: 'Layout, dimensions, material, and sessionId are required.' });
   }
 
-  const matchedProduct = shopifyProducts.find((product) =>
-    product.title && fuzzyMatch(product.title, userMessage)
-  );
-  if (matchedProduct) {
-    const price = parseFloat(matchedProduct.variants[0].price) || 0;
-    const productUrl = matchedProduct.online_store_url || `https://${process.env.SHOPIFY_SHOP}/products/${matchedProduct.handle}`;
-    const imageUrl = matchedProduct.image?.src || 'https://via.placeholder.com/150?text=No+Image';
-    const description = matchedProduct.body_html ? matchedProduct.body_html.replace(/<[^>]+>/g, '').substring(0, 100) + '...' : 'No description available.';
-    logger.info(`Matched product: ${matchedProduct.title}`);
-    const responseMessage = `The "${matchedProduct.title}" is priced at $${price.toFixed(2)}. ${description} <a href="${productUrl}" target="_blank">View on our store</a>. ${matchedProduct.title.toLowerCase().includes('countertop') ? 'Want a custom quote for this?' : 'Need a countertop to match?'} Let’s get an estimate or explore more!`;
+  try {
+    let chatLog = await ChatLog.findOne({ sessionId });
+    if (!chatLog) {
+      chatLog = new ChatLog({ sessionId, messages: [] });
+    }
+
+    const priceList = await fetchMaterials();
+    const matchedMaterial = priceList.find(item => fuzzyMatch(item.name, material));
+
+    if (!matchedMaterial) {
+      const responseMessage = `Material "${material}" not found. Please select a valid material from our <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">countertop collection</a>.`;
+      chatLog.messages.push(
+        { role: 'user', content: `Estimate request: ${layout}, ${JSON.stringify(dimensions)}, ${material}` },
+        { role: 'assistant', content: responseMessage }
+      );
+      await chatLog.save();
+      return res.json({ message: responseMessage, quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'] });
+    }
+
+    const totalArea = parseFloat(dimensions.reduce((sum, dim) => {
+      const area = dim.area || (dim.length * dim.width) / (dim.isInches ? 144 : 1);
+      return sum + parseFloat(area.toFixed(4));
+    }, 0).toFixed(2));
+    let wasteFactor = 0.20;
+    if (material.toLowerCase().includes('waterfall')) wasteFactor = 0.30;
+    if (backsplash === 'Full Height') wasteFactor = 0.25;
+    if (layout.toLowerCase().includes('vanity') || totalArea < 10) wasteFactor = 0.35;
+
+    const adjustedArea = totalArea * (1 + wasteFactor);
+    const materialPrice = parseFloat(matchedMaterial.costPerSquare) || 50;
+    const installedPrice = calculateInstalledPrice(materialPrice);
+    const materialCost = adjustedArea * parseFloat(installedPrice);
+    let laborCostPerSqft = 65;
+    try {
+      const laborData = await fetchCsvData(process.env.PUBLISHED_CSV_LABOR, 'labor_costs');
+      laborCostPerSqft = getLaborCostPerSqft(laborData, matchedMaterial.material);
+    } catch (error) {
+      logger.error(`Failed to fetch labor costs: ${error.message}`);
+    }
+    const fabricationCost = totalArea * 50;
+    const installationCost = totalArea * 15;
+    const demoCost = demo === 'Light' ? totalArea * 5 : demo === 'Heavy' ? totalArea * 10 : 0;
+    const plumbingCost = plumbing ? 500 : 0;
+    const laborCost = adjustedArea * laborCostPerSqft;
+    const subtotal = materialCost + laborCost + demoCost + plumbingCost;
+    const margin = 0.50;
+    const totalCost = subtotal / (1 - margin);
+
+    const sampleCost = sampleSize === '3x3"' ? 10 : sampleSize === '5x10"' ? 25 : 0;
+
+    const responseMessage = `Here’s your estimate for a ${layout} countertop using ${matchedMaterial.name} (${matchedMaterial.material}, ${matchedMaterial.thickness || 'unknown'}):\n` +
+      `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
+      `- Material: $${materialCost.toFixed(2)} ($${installedPrice}/sqft installed)\n` +
+      `- Fabrication: $${fabricationCost.toFixed(2)} ($50/sqft)\n` +
+      `- Installation: $${installationCost.toFixed(2)} ($15/sqft)\n` +
+      (demo ? `- Demolition (${demo}): $${demoCost.toFixed(2)} ($${demo === 'Light' ? 5 : 10}/sqft)\n` : '') +
+      (plumbing ? `- Plumbing: $${plumbingCost.toFixed(2)} (flat rate)\n` : '') +
+      (sampleSize ? `- Sample (${sampleSize}): $${sampleCost.toFixed(2)}\n` : '') +
+      `- Total: $${(totalCost + sampleCost).toFixed(2)} (50% margin)\n` +
+      `Pair it with a sink: <a href="https://store.surprisegranite.com/collections/sinks" target="_blank">View Sinks</a>\n` +
+      `Want to order a sample or schedule a site visit? Reply 'Great', 'Too High', or 'New Quote'.`;
+
+    chatLog.bids = chatLog.bids || [];
+    chatLog.bids.push({
+      layout,
+      dimensions,
+      material: matchedMaterial.name,
+      wasteFactor,
+      fabricationCost,
+      installationCost,
+      materialCost,
+      demoCost,
+      plumbingCost,
+      totalCost: totalCost + sampleCost,
+      margin,
+      sampleSize,
+    });
+
     chatLog.messages.push(
-      { role: 'user', content: req.body.message },
+      { role: 'user', content: `Estimate request: ${layout}, ${JSON.stringify(dimensions)}, ${material}` },
       { role: 'assistant', content: responseMessage }
     );
+    chatLog.estimateContext = {};
     await chatLog.save();
-    return res.json({
+
+    res.json({
       message: responseMessage,
-      image: imageUrl,
-      productUrl,
-      quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
-      clientId,
-      sessionId
-    });
-  }
-
-  // Generic response with OpenAI
-  const messages = [
-    systemPrompt,
-    ...priorContext, // Include prior chat context
-    ...conversationHistory,
-    { role: 'user', content: req.body.message },
-  ];
-
-  const aiResponse = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      model: 'gpt-3.5-turbo',
-      messages,
-      temperature: 0.7,
-      max_tokens: 600,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
+      bid: {
+        totalCost: totalCost + sampleCost,
+        materialCost,
+        fabricationCost,
+        installationCost,
+        demoCost,
+        plumbingCost,
+        sampleCost,
       },
-    }
-  );
-
-  let aiMessage = aiResponse.data.choices[0].message.content;
-  logger.info(`Raw AI response: ${aiMessage}`);
-
-  const contactPatterns = [
-    /Contact us:.*$/gi,
-    /If you'd like to contact our support team.*$/gi,
-    /support@surprisegranite\.com/gi,
-    /\[Call \(602\) 833-3189\].*$/gi,
-    /\[Message Us\].*$/gi,
-    /\[Get Directions\].*$/gi,
-  ];
-  contactPatterns.forEach((pattern) => {
-    aiMessage = aiMessage.replace(pattern, '').trim();
-  });
-
-  chatLog.messages.push(
-    { role: 'user', content: req.body.message },
-    { role: 'assistant', content: aiMessage }
-  );
-  await chatLog.save();
-
-  res.json({
-    message: aiMessage,
-    quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
-    clientId,
-    sessionId
-  });
-} catch (err) {
-  logger.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}): ${err.message}`);
-  res.status(500).json({
-    error: 'An error occurred while processing your request. Please try again later.',
-    details: err.message,
-  });
-}
+      image: matchedMaterial.imageUrl || 'https://via.placeholder.com/150?text=No+Image',
+      quickReplies: ['Great', 'Too High', 'New Quote', 'Order Sample', 'Book Consultation'],
+    });
+  } catch (error) {
+    logger.error(`Estimate error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to generate estimate. Please try again.' });
+  }
+});
 
 // Chat Endpoint
 app.post(
@@ -810,22 +541,46 @@ app.post(
 
     try {
       const userMessage = req.body.message.toLowerCase();
-      const sessionId = req.body.sessionId || 'anonymous';
-      const requestId = req.headers['x-request-id'] || 'unknown';
+      const sessionId = req.body.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const clientId = req.body.clientId || `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const clientEmail = req.body.clientEmail || null;
 
-      logger.info(`Request ID: ${requestId}, Session ID: ${sessionId}, User message: ${userMessage}`);
+      logger.info(`Request ID: ${req.headers['x-request-id'] || 'unknown'}, Session ID: ${sessionId}, Client ID: ${clientId}, User message: ${userMessage}`);
 
       let chatLog = await ChatLog.findOne({ sessionId });
       if (!chatLog) {
-        chatLog = new ChatLog({ sessionId, messages: [], estimateContext: {} });
+        chatLog = new ChatLog({ sessionId, clientId, clientEmail, messages: [], estimateContext: {} });
+      } else if (!chatLog.clientId) {
+        chatLog.clientId = clientId;
+        chatLog.clientEmail = clientEmail;
       }
       chatLog.lastActivity = new Date();
+
+      const priorChats = await ChatLog.find({ clientId, sessionId: { $ne: sessionId } })
+        .sort({ updatedAt: -1 })
+        .limit(3);
+      const priorContext = priorChats.flatMap(log =>
+        log.messages.slice(-3).map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      );
+
       const conversationHistory = chatLog.messages.slice(-5).map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      // Handle material price query
+      const NAV_LINKS = {
+        store: { url: 'https://store.surprisegranite.com/', text: 'Surprise Granite online store' },
+        samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
+        countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
+        granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
+        quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
+        sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
+        map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
+      };
+
       const materials = await fetchMaterials();
       const matchedMaterial = materials.find(item => fuzzyMatch(item.name, userMessage));
       if (matchedMaterial && !chatLog.estimateContext.step) {
@@ -839,11 +594,12 @@ app.post(
         return res.json({
           message: responseMessage,
           image: matchedMaterial.imageUrl,
-          quickReplies: ['Start Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
+          quickReplies: ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
+          clientId,
+          sessionId
         });
       }
 
-      // Handle browse materials request
       if (userMessage.includes('browse materials')) {
         const materialList = materials.slice(0, 5).map(m => `${m.name} (${m.material}): $${calculateInstalledPrice(m.costPerSquare)}/sqft installed`).join('\n');
         const responseMessage = `Here are some popular materials:\n${materialList}\nAsk about a specific material or start a quote!`;
@@ -855,12 +611,13 @@ app.post(
         return res.json({
           message: responseMessage,
           quickReplies: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Start Quote'],
+          clientId,
+          sessionId
         });
       }
 
-      // Handle company information request
-      if (userMessage.includes('about surprise granite') || userMessage.includes('company info')) {
-        const responseMessage = `Surprise Granite, located at 11560 N Dysart Rd, Surprise, AZ 85379, specializes in custom countertops, sinks, faucets, and bath fixtures. We source high-quality materials from Arizona Tile and Kibi USA to create durable, stylish solutions for your home. Check out our products at <a href="https://store.surprisegranite.com" target="_blank">store.surprisegranite.com</a> or use the footer buttons to call (602) 833-3189 or message us!`;
+      if (userMessage.includes('showroom') || userMessage.includes('visit') || userMessage.includes('warehouse')) {
+        const responseMessage = `Our showroom and warehouse are located at 11560 N Dysart Rd, Surprise, AZ 85379. Come explore our wide selection of countertops, sinks, and fixtures in person! Want directions? <a href="${NAV_LINKS.map.url}" target="_blank">Get Directions</a>. Or, would you like to book a consultation to discuss your project at our showroom?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -868,14 +625,75 @@ app.post(
         await chatLog.save();
         return res.json({
           message: responseMessage,
-          quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
+          quickReplies: ['Book Consultation', 'Start Quote', 'Browse Materials', 'View Sinks'],
+          clientId,
+          sessionId
         });
       }
 
-      // Handle estimate context
+      if (userMessage.includes('browse countertops') || userMessage.includes('show me countertops')) {
+        const responseMessage = `Check out our stunning countertop collections at the Surprise Granite online store! Explore Granite, Quartz, Marble, and more. <a href="${NAV_LINKS.countertops.url}" target="_blank">Browse Countertops</a>. Want to start a quote for a specific material?`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Start Quote'],
+          clientId,
+          sessionId
+        });
+      }
+
+      if (userMessage.includes('show me sinks') || userMessage.includes('view sinks')) {
+        const responseMessage = `Explore our premium sinks at the Surprise Granite online store, perfect for your kitchen or bath! <a href="${NAV_LINKS.sinks.url}" target="_blank">View Sinks</a>. Need a countertop to pair with a sink? Let’s start a quote!`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Start Quote', 'Browse Materials', 'See Faucets', 'Visit Showroom'],
+          clientId,
+          sessionId
+        });
+      }
+
+      if (userMessage.includes('show me faucets') || userMessage.includes('view faucets')) {
+        const responseMessage = `Discover our stylish faucets at the Surprise Granite online store, ideal for any kitchen or bathroom. <a href="${NAV_LINKS.store.url}/collections/faucets" target="_blank">See Faucets</a>. Want to include a faucet in your project quote?`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Start Quote', 'View Sinks', 'Browse Countertops', 'Visit Showroom'],
+          clientId,
+          sessionId
+        });
+      }
+
+      if (userMessage.includes('about surprise granite') || userMessage.includes('company info')) {
+        const responseMessage = `Surprise Granite, located at our showroom at 11560 N Dysart Rd, Surprise, AZ 85379, specializes in custom countertops, sinks, faucets, and bath fixtures. We source high-quality materials from Arizona Tile and Kibi USA to create durable, stylish solutions for your home. Check out our products at <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a> or use the footer buttons to call (602) 833-3189 or message us!`;
+        chatLog.messages.push(
+          { role: 'user', content: req.body.message },
+          { role: 'assistant', content: responseMessage }
+        );
+        await chatLog.save();
+        return res.json({
+          message: responseMessage,
+          quickReplies: ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
+          clientId,
+          sessionId
+        });
+      }
+
       if (chatLog.estimateContext?.step) {
         let responseMessage = '';
-        let quickReplies = ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'];
+        let quickReplies = ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'];
 
         if (chatLog.estimateContext.step === 'space') {
           const spaces = ['kitchen', 'bathroom', 'other'];
@@ -915,10 +733,10 @@ app.post(
           if (dimensions.length > 0) {
             chatLog.estimateContext.dimensions = dimensions;
             chatLog.estimateContext.step = 'material';
-            responseMessage = `Thanks for the dimensions (total: ${(dimensions.reduce((sum, dim) => sum + dim.area, 0)).toFixed(2)} sqft)! Which material would you like? Popular choices include Granite, Quartz, Marble, or Quartzite. Browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>.`;
-            quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Materials'];
+            responseMessage = `Thanks for the dimensions (total: ${(dimensions.reduce((sum, dim) => sum + dim.area, 0)).toFixed(2)} sqft)! Which material would you like? Popular choices include Granite, Quartz, Marble, or Quartzite. Browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`;
+            quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Countertops'];
           } else {
-            responseMessage = `I didn’t catch the dimensions. Please provide them in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Try our <a href="https://store.surprisegranite.com/pages/measurement-guide" target="_blank">measurement guide</a>.`;
+            responseMessage = `I didn’t catch the dimensions. Please provide them in feet (e.g., "5x3 ft") or inches (e.g., "72x36 in"). Try our <a href="${NAV_LINKS.store.url}/pages/measurement-guide" target="_blank">measurement guide</a>.`;
             quickReplies = ['Enter Dimensions', 'Need Help?', 'Skip'];
           }
         } else if (chatLog.estimateContext.step === 'material') {
@@ -929,8 +747,8 @@ app.post(
             responseMessage = `Great choice with ${matchedMaterial.name} ${matchedMaterial.material}! Would you like a backsplash? Options are 4", 6", Full Height, or None.`;
             quickReplies = ['4"', '6"', 'Full Height', 'None'];
           } else {
-            responseMessage = `I couldn’t find that material. Try a name like "Calacatta Gold" or browse <a href="https://store.surprisegranite.com/collections/countertops" target="_blank">our collection</a>. What material are you thinking of?`;
-            quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Materials'];
+            responseMessage = `I couldn’t find that material. Try a name like "Calacatta Gold" or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>. What material are you thinking of?`;
+            quickReplies = ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Countertops'];
           }
         } else if (chatLog.estimateContext.step === 'backsplash') {
           const backsplashes = ['4"', '6"', 'full height', 'none'];
@@ -1028,15 +846,18 @@ app.post(
         return res.json({
           message: responseMessage,
           quickReplies,
+          clientId,
+          sessionId
         });
       }
 
-      // Handle estimate request
       if (userMessage.includes('estimate') || userMessage.includes('quote') || userMessage.includes('countertop') || userMessage.includes('start quote')) {
         const matchedMaterial = materials.find(item => fuzzyMatch(item.name, userMessage));
         if (matchedMaterial) {
           chatLog.estimateContext = { step: 'space', material: matchedMaterial.name };
-          const responseMessage = `Great choice with ${matchedMaterial.name} ${matchedMaterial.material}! Is this countertop for a Kitchen, Bathroom, or Other space?`;
+          const responseMessage = priorChats.length > 0
+            ? `Welcome back! You previously liked ${matchedMaterial.name}. Let’s get a quote for a ${matchedMaterial.material} countertop. Is this for a Kitchen, Bathroom, or Other space?`
+            : `Great choice with ${matchedMaterial.name} ${matchedMaterial.material}! Is this countertop for a Kitchen, Bathroom, or Other space?`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
@@ -1045,10 +866,14 @@ app.post(
           return res.json({
             message: responseMessage,
             quickReplies: ['Kitchen', 'Bathroom', 'Other'],
+            clientId,
+            sessionId
           });
         } else {
           chatLog.estimateContext = { step: 'space' };
-          const responseMessage = `Let’s get started on your countertop estimate! Is this for a Kitchen, Bathroom, or Other space?`;
+          const responseMessage = priorChats.length > 0
+            ? `Welcome back! Let’s get started on another countertop estimate. Is this for a Kitchen, Bathroom, or Other space?`
+            : `Let’s get started on your countertop estimate! Is this for a Kitchen, Bathroom, or Other space?`;
           chatLog.messages.push(
             { role: 'user', content: req.body.message },
             { role: 'assistant', content: responseMessage }
@@ -1057,18 +882,21 @@ app.post(
           return res.json({
             message: responseMessage,
             quickReplies: ['Kitchen', 'Bathroom', 'Other'],
+            clientId,
+            sessionId
           });
         }
       }
 
-      // Handle feedback
-      if (['great', 'too high', 'new quote', 'order sample'].includes(userMessage)) {
+      if (['great', 'too high', 'new quote', 'order sample', 'confirm quote', 'change material'].includes(userMessage)) {
         chatLog.feedback = chatLog.feedback || [];
         chatLog.feedback.push({
           question: 'Is this price fair?',
           response: userMessage,
         });
-        const responseMessage = `Thanks for your feedback! ${userMessage === 'great' ? 'Glad you like the price!' : userMessage === 'too high' ? 'Let’s explore more affordable options.' : userMessage === 'order sample' ? 'Let’s order your sample!' : 'Let’s start a new quote.'} Want to browse materials or book a consultation?`;
+        const responseMessage = userMessage === 'confirm quote' ? `Awesome, let’s finalize your quote! Would you like to book a consultation at our showroom at 11560 N Dysart Rd, Surprise?` :
+                              userMessage === 'change material' ? `No problem! Which material would you like to try instead? Check out our collection at <a href="${NAV_LINKS.countertops.url}" target="_blank">our online store</a>.` :
+                              `Thanks for your feedback! ${userMessage === 'great' ? 'Glad you like the price!' : userMessage === 'too high' ? 'Let’s explore more affordable options.' : userMessage === 'order sample' ? 'Let’s order your sample!' : 'Let’s start a new quote.'} Want to browse materials or book a consultation?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -1076,11 +904,14 @@ app.post(
         await chatLog.save();
         return res.json({
           message: responseMessage,
-          quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
+          quickReplies: userMessage === 'confirm quote' ? ['Book Consultation', 'View Sinks', 'Browse Materials'] :
+                        userMessage === 'change material' ? ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Countertops'] :
+                        ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
+          clientId,
+          sessionId
         });
       }
 
-      // Handle Shopify product queries
       let shopifyProducts = [];
       try {
         shopifyProducts = await fetchShopifyProducts();
@@ -1107,30 +938,33 @@ app.post(
           message: responseMessage,
           image: imageUrl,
           productUrl,
-          quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
+          quickReplies: ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
+          clientId,
+          sessionId
         });
       }
 
-      // Generic response with OpenAI
       const systemPrompt = {
-  role: 'system',
-  content: `
-    You are Surprise Granite's AI assistant, located at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) and remodeling solutions like tile, semi-custom cabinetry, and kitchen/bath fixtures (sinks, faucets, shower heads, accessories). Your tasks include:
-    - Engaging users with a warm, conversational tone, like a friendly expert guiding a neighbor.
-    - Personalizing responses using client data (e.g., name, previous material preferences) when available.
-    - Assisting with Shopify store navigation (store.surprisegranite.com), linking products/services with images and descriptions.
-    - Guiding users through countertop estimates (space, style, layout, dimensions, material, backsplash, edge, cutouts, demo, plumbing, sample) or suggesting the "Get Quote" button.
-    - Providing accurate material pricing (e.g., $${materialPrice}/sqft installed) using the cost * 3.25 + $26 model.
-    - Saving bids in MongoDB and asking for feedback (e.g., "Does this quote work for you?").
-    - Offering sample sizes (3x3" for $10, 4x6" for $15, 5x10" for $25).
-    - Suggesting complementary products (e.g., sinks for countertops) with hyperlinks.
-    - Avoiding contact info; direct users to footer buttons for calling (602) 833-3189 or messaging.
-    - Referencing past chats to maintain context (e.g., "Last time, you liked Quartz. Still interested?").
-  `
-};
-      
+        role: 'system',
+        content: `
+          You are Surprise Granite's AI assistant, located at our showroom and warehouse at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) and remodeling solutions like tile, semi-custom cabinetry, and kitchen/bath fixtures (sinks, faucets, shower heads, accessories). Your tasks include:
+          - Engaging users with a warm, conversational tone, like a friendly expert at our Surprise showroom.
+          - Personalizing responses using client data (e.g., name, past preferences) when available.
+          - Guiding users through countertop quotes (space, style, layout, dimensions, material, backsplash, edge, cutouts, demo, plumbing, sample) with clear steps.
+          - Promoting our online store at store.surprisegranite.com, linking products (e.g., sinks, faucets) with images and descriptions.
+          - Providing accurate material pricing (cost * 3.25 + $26/sqft installed).
+          - Inviting users to visit our showroom at 11560 N Dysart Rd, Surprise, for consultations or to view samples, with directions at https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379.
+          - Saving bids in MongoDB and asking for feedback (e.g., "Does this quote work for you?").
+          - Offering sample sizes (3x3" for $10, 4x6" for $15, 5x10" for $25).
+          - Suggesting complementary products (e.g., sinks for countertops) with links to our online store.
+          - Referencing past chats for context (e.g., "You liked Quartz last time. Still interested?").
+          - Avoiding contact info; direct users to footer buttons for calling (602) 833-3189 or messaging.
+        `
+      };
+
       const messages = [
         systemPrompt,
+        ...priorContext,
         ...conversationHistory,
         { role: 'user', content: req.body.message },
       ];
@@ -1174,7 +1008,9 @@ app.post(
 
       res.json({
         message: aiMessage,
-        quickReplies: ['Get Quote', 'Browse Materials', 'Design Ideas', 'Book Consultation'],
+        quickReplies: ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
+        clientId,
+        sessionId
       });
     } catch (err) {
       logger.error(`Error in /api/chat (Request ID: ${req.headers['x-request-id'] || 'unknown'}): ${err.message}`);
