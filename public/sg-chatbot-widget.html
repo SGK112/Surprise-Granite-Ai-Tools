@@ -55,8 +55,10 @@
       gap: 1.5rem;
       z-index: 1000;
       padding: 1rem;
-      /* SCROLLING ADDED */
-      max-height: 380px;
+      max-height: 65vh;      /* Allows chat to expand with viewport */
+      min-height: 240px;     /* Ensures chat isn't too small */
+      margin-bottom: 1.5rem; /* Adds space above input */
+      transition: max-height 0.3s;
       overflow-y: auto;
       background: transparent;
     }
@@ -196,6 +198,7 @@
       border: 1px solid rgba(255, 255, 255, 0.15);
       box-shadow: var(--shadow);
       z-index: 1001;
+      /* No margin-top needed if .chat-messages has margin-bottom */
     }
 
     .chat-input input {
@@ -430,6 +433,7 @@
         width: 95%;
         right: 10px;
         bottom: 140px;
+        max-height: 80vh;
       }
 
       .message {
@@ -882,7 +886,6 @@
       }
     }
 
-    // SCROLL TO BOTTOM ON NEW MESSAGE
     function scrollChatToBottom() {
       const chatMessages = document.getElementById('chatMessages');
       if (chatMessages) {
@@ -958,11 +961,22 @@
       showTypingIndicator(true);
 
       try {
-        // --- MATERIAL PRICE DETECTION ---
-        const priceAsk = /(?:price|cost)\s*(?:of|for)?\s*(granite|quartz|marble|quartzite)/i.exec(message);
-        if (priceAsk) {
-          const mat = priceAsk[1].charAt(0).toUpperCase() + priceAsk[1].slice(1).toLowerCase();
-          const price = await fetchMaterialPricing(mat);
+        // MATERIAL PRICE DETECTION (robust)
+        const materialMatch = /(price|cost)[^\w]*(granite|quartz|marble|quartzite)/i.exec(message);
+        if (materialMatch) {
+          const mat = materialMatch[2].charAt(0).toUpperCase() + materialMatch[2].slice(1).toLowerCase();
+          let price = MATERIAL_PRICING[mat]?.pricePerSqFt;
+          try {
+            const resp = await fetch(`${CONFIG.SERVER_URL}/api/pricing`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ material: mat })
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.pricePerSqFt) price = data.pricePerSqFt;
+            }
+          } catch {}
           addMessage(
             `<b>${mat}</b> is <b>$${price}/sq.ft</b> installed.<br>
             Want a sample? <a href="${NAV_LINKS[mat.toLowerCase()]?.url || NAV_LINKS.countertops.url}" target="_blank">See our ${mat}</a>`,
@@ -973,19 +987,31 @@
           showTypingIndicator(false);
           return;
         }
-        // --- MATERIAL PRICES OVERVIEW ---
-        if (message.toLowerCase().includes('material price') || message.toLowerCase().includes('material cost')) {
-          let pricingText = 'Here are our popular material prices per square foot:<br>';
-          for (const [material, data] of Object.entries(MATERIAL_PRICING)) {
-            const price = await fetchMaterialPricing(material);
-            pricingText += `<b>${material}</b>: $${price}/sq.ft<br>`;
+
+        // MATERIAL PRICES OVERVIEW
+        if (/material (price|cost)/i.test(message)) {
+          let pricingText = 'Here are our material prices per square foot:<br>';
+          for (const [mat, data] of Object.entries(MATERIAL_PRICING)) {
+            let price = data.pricePerSqFt;
+            try {
+              const resp = await fetch(`${CONFIG.SERVER_URL}/api/pricing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ material: mat })
+              });
+              if (resp.ok) {
+                const dat = await resp.json();
+                if (dat.pricePerSqFt) price = dat.pricePerSqFt;
+              }
+            } catch {}
+            pricingText += `<b>${mat}</b>: $${price}/sq.ft<br>`;
           }
           addMessage(pricingText + 'Ask for any material by name for details or a sample!', false, null, 'countertops');
           showTypingIndicator(false);
           return;
         }
 
-        // --- REST OF ORIGINAL LOGIC ---
+        // Continue with your existing wizard logic...
         if (conversationStage === 'collect_lead') {
           const { name, email } = extractNameAndEmail(message);
           if (email) {
