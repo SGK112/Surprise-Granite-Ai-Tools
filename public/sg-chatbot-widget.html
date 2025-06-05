@@ -55,6 +55,10 @@
       gap: 1.5rem;
       z-index: 1000;
       padding: 1rem;
+      /* SCROLLING ADDED */
+      max-height: 380px;
+      overflow-y: auto;
+      background: transparent;
     }
 
     .message {
@@ -544,7 +548,7 @@
     <i class="fas fa-message"></i>
   </div>
 
-  <div class="chat-messages" id="chatMessages" aria-live="polite" style="display: none;">
+  <div class="chat-messages" id="chatMessages" aria-live="polite" style="display: none;" tabindex="0">
     <div class="message bot">
       Welcome to Surprise Granite! 🌟 Let’s create something amazing! Want a quote, material prices, design ideas, or help?
       <div class="timestamp" id="welcomeTimestamp"></div>
@@ -843,6 +847,7 @@
         document.getElementById('userInput').focus();
         resetInactivityTimer();
         updateSuggestions('initial');
+        setTimeout(scrollChatToBottom, 200);
       } else {
         clearTimeout(inactivityTimer);
         clearTimeout(abandonTimer);
@@ -877,6 +882,14 @@
       }
     }
 
+    // SCROLL TO BOTTOM ON NEW MESSAGE
+    function scrollChatToBottom() {
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    }
+
     function addMessage(content, isUser, imageUrl = null, quickReplyContext = null) {
       const chatMessages = document.getElementById('chatMessages');
       if (!chatMessages) return;
@@ -901,7 +914,7 @@
       if (!isUser && quickReplyContext) {
         updateSuggestions(quickReplyContext);
       }
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      scrollChatToBottom();
       if (isUser) resetInactivityTimer();
     }
 
@@ -916,7 +929,7 @@
         chatMessages.appendChild(indicator);
       }
       indicator.style.display = show ? 'block' : 'none';
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      scrollChatToBottom();
     }
 
     async function fetchMaterialPricing(material) {
@@ -945,6 +958,34 @@
       showTypingIndicator(true);
 
       try {
+        // --- MATERIAL PRICE DETECTION ---
+        const priceAsk = /(?:price|cost)\s*(?:of|for)?\s*(granite|quartz|marble|quartzite)/i.exec(message);
+        if (priceAsk) {
+          const mat = priceAsk[1].charAt(0).toUpperCase() + priceAsk[1].slice(1).toLowerCase();
+          const price = await fetchMaterialPricing(mat);
+          addMessage(
+            `<b>${mat}</b> is <b>$${price}/sq.ft</b> installed.<br>
+            Want a sample? <a href="${NAV_LINKS[mat.toLowerCase()]?.url || NAV_LINKS.countertops.url}" target="_blank">See our ${mat}</a>`,
+            false,
+            MATERIAL_PRICING[mat]?.image,
+            'countertops'
+          );
+          showTypingIndicator(false);
+          return;
+        }
+        // --- MATERIAL PRICES OVERVIEW ---
+        if (message.toLowerCase().includes('material price') || message.toLowerCase().includes('material cost')) {
+          let pricingText = 'Here are our popular material prices per square foot:<br>';
+          for (const [material, data] of Object.entries(MATERIAL_PRICING)) {
+            const price = await fetchMaterialPricing(material);
+            pricingText += `<b>${material}</b>: $${price}/sq.ft<br>`;
+          }
+          addMessage(pricingText + 'Ask for any material by name for details or a sample!', false, null, 'countertops');
+          showTypingIndicator(false);
+          return;
+        }
+
+        // --- REST OF ORIGINAL LOGIC ---
         if (conversationStage === 'collect_lead') {
           const { name, email } = extractNameAndEmail(message);
           if (email) {
@@ -957,13 +998,6 @@
           } else {
             addMessage('Please share a valid email, like "Josh B, joshb@example.com".', false, null, 'initial');
           }
-        } else if (message.toLowerCase().includes('material prices')) {
-          let pricingText = 'Check out our material prices per square foot:\n';
-          for (const [material, data] of Object.entries(MATERIAL_PRICING)) {
-            const price = await fetchMaterialPricing(material);
-            pricingText += `- ${material}: $${price}/sq.ft\n`;
-          }
-          addMessage(pricingText + 'Want to see a sample? Pick one!', false, null, 'countertops');
         } else if (message.toLowerCase().includes('support')) {
           addMessage('I’m here to help! Pick an option or tell me what’s up.', false, null, 'support');
         } else if (message.toLowerCase().includes('faqs')) {
