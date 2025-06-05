@@ -257,9 +257,9 @@ async function fetchMaterials() {
 }
 
 function calculateInstalledPrice(costPerSquare, thickness) {
-  const markup = 3.25; // Your markup multiplier
-  const baseFee = 45; // Base fee per sqft
-  const thicknessMultiplier = thickness === '3cm' ? 1.2 : 1; // Add a multiplier for 3cm
+  const markup = 3.25;
+  const baseFee = 45;
+  const thicknessMultiplier = thickness === '3cm' ? 1.2 : 1;
   return ((costPerSquare * markup + baseFee) * thicknessMultiplier).toFixed(2);
 }
 
@@ -956,7 +956,7 @@ app.post(
           const spaces = ['kitchen', 'bathroom', 'other'];
           if (spaces.some(space => userMessage.toLowerCase().includes(space))) {
             chatLog.estimateContext.space = spaces.find(space => userMessage.toLowerCase().includes(space));
-            chatLog.estimateContext.step = 'style'; // Move to the next step
+            chatLog.estimateContext.step = 'style';
             responseMessage = `Great, a ${chatLog.estimateContext.space} project! What style do you prefer? Modern, Traditional, Rustic, or Contemporary?`;
             quickReplies = ['Modern', 'Traditional', 'Rustic', 'Contemporary'];
           } else {
@@ -992,7 +992,7 @@ app.post(
           const correctedArea = parseFloat(userMessage.match(areaCorrectionRegex)[1]);
           chatLog.estimateContext.totalArea = correctedArea;
           chatLog.estimateContext.step = 'confirm_dimensions';
-          responseMessage = `Correction noted: ${correctedArea} sqft. Confirm or re-enter dimensions (e.g., "72x26.5 in, 84x46 in").`;
+          responseMessage = `Correction noted: ${correctedArea} sqft. Confirm or re-enter dimensions (e.g., "72x26.5 in").`;
           quickReplies = ['Confirm', 'Re-enter Dimensions', 'Fill Form', 'Need Help?'];
           chatLog.messages.push(
             { role: 'user', content: userMessage },
@@ -1042,7 +1042,7 @@ app.post(
           if (chatLog.estimateContext.step === 'space') {
             const spaces = ['kitchen', 'bathroom', 'other'];
             if (spaces.some(space => userMessage.includes(space))) {
-              chatLog.estimateContext.space = spaces.find(space => userMessage.includes(space));
+              chatLog.estimateContext.space = spaces.find(space => userMessage.toLowerCase().includes(space));
               chatLog.estimateContext.step = 'style';
               responseMessage = `${chatLog.estimateContext.space} design! Style? Modern, Traditional, Rustic, Contemporary.`;
               quickReplies = ['Modern', 'Traditional', 'Rustic', 'Contemporary'];
