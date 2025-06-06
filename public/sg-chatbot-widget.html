@@ -5,9 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Surprise Granite AI Chatbot">
   <title>Surprise Granite AI Chatbot</title>
+  <!-- Shopyflow CSS -->
+  <link rel="stylesheet" href="https://cdn.shopyflow.io/1.0.6/shopyflow.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://unpkg.com/compromise@14.11.0/builds/compromise.min.js"></script>
+  <!-- Shopyflow Engine -->
+  <script defer
+    sf-token="0085c94c5b1df1aca43d5b91411ec3c6"
+    sf-domain="surprise-granite.myshopify.com"
+    src="https://cdn.shopyflow.io/1.0.6/shopyflow.js">
+  </script>
   <style>
     :root {
       --primary-blue: #1e40af;
@@ -112,6 +120,14 @@
       box-shadow: 0 4px 15px rgba(30, 64, 175, 0.3);
       font-size: 1rem;
       padding: 0.8rem 1.2rem;
+    }
+
+    .message.bot img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      display: block;
     }
 
     .message.bot a {
@@ -610,6 +626,8 @@
         <input type="text" id="name" name="name" required aria-required="true">
         <label for="email">Email</label>
         <input type="email" id="email" name="email" required aria-required="true">
+        <label for="city">City (Optional)</label>
+        <input type="text" id="city" name="city">
         <label for="date">Preferred Date</label>
         <input type="date" id="date" name="date" required aria-required="true">
         <label for="time">Preferred Time</label>
@@ -660,7 +678,7 @@
     const NAV_LINKS = {
       store: { url: 'https://store.surprisegranite.com/', text: 'our store' },
       samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
-      countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
+      countertops: { url: 'https://store.surprisegranite.com/collections/countertops', text: 'countertops' },
       granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
       quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
       sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
@@ -677,7 +695,7 @@
       countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Porcelain', 'Dekton'],
       countertop_layout: ['L-Shape', 'U-Shape', 'Galley', 'Island'],
       countertop_dimensions: ['Enter Dimensions', 'Need Help?'],
-      countertop_backsplash: ['4" Backsplash', '6" Backsplash', 'Full Height', 'None'],
+      countertop_backsplash: ['4"', '6"', 'Full Height', 'None'],
       countertop_edge: ['Eased', 'Bullnose', 'Ogee', 'Waterfall'],
       countertop_cutouts: ['Sink', 'Faucet', 'Cooktop', 'None'],
       countertop_demo: ['Light', 'Heavy', 'None'],
@@ -699,44 +717,6 @@
       Replacement: 'If countertops are heavily damaged, consider replacing with durable Dekton or Porcelain. Measure carefully and consult our team for installation.',
       Kitchen: 'Incorporate a Quartz island for extra prep space. Choose light colors to brighten the kitchen.',
       Bathroom: 'Marble vanities add elegance. Pair with a 6" backsplash to protect walls from splashes.'
-    };
-
-    const PRICE_SHEET = {
-      materials: {
-        Granite: { basePrice: 40, markup: 1.3 },
-        Quartz: { basePrice: 50, markup: 1.3 },
-        Marble: { basePrice: 60, markup: 1.3 },
-        Quartzite: { basePrice: 55, markup: 1.3 },
-        Porcelain: { basePrice: 45, markup: 1.3 },
-        Dekton: { basePrice: 70, markup: 1.3 }
-      },
-      backsplash: {
-        '4" Backsplash': { pricePerInch: 5, markup: 1.2 },
-        '6" Backsplash': { pricePerInch: 7, markup: 1.2 },
-        'Full Height': { pricePerInch: 10, markup: 1.2 },
-        'None': { pricePerInch: 0, markup: 1 }
-      },
-      edge: {
-        Eased: { pricePerInch: 3, markup: 1.2 },
-        Bullnose: { pricePerInch: 5, markup: 1.2 },
-        Ogee: { pricePerInch: 8, markup: 1.2 },
-        Waterfall: { pricePerInch: 10, markup: 1.2 }
-      },
-      cutouts: {
-        Sink: { price: 100, markup: 1.2 },
-        Faucet: { price: 50, markup: 1.2 },
-        Cooktop: { price: 150, markup: 1.2 },
-        None: { price: 0, markup: 1 }
-      },
-      demo: {
-        Light: { price: 200, markup: 1.2 },
-        Heavy: { price: 400, markup: 1.2 },
-        None: { price: 0, markup: 1 }
-      },
-      plumbing: {
-        Yes: { price: 150, markup: 1.2 },
-        No: { price: 0, markup: 1 }
-      }
     };
 
     const CUSTOMER_SERVICE_RESPONSES = {
@@ -766,8 +746,10 @@
     let quoteWizardStage = sessionStorage.getItem('quoteWizardStage') || null;
     let inactivityTimer;
     let abandonTimer;
+    const clientId = localStorage.getItem('clientId') || `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sessionId = sessionStorage.getItem('sessionId') || `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     sessionStorage.setItem('sessionId', sessionId);
+    localStorage.setItem('clientId', clientId);
     let placeholders = ['Tell me about your project...', 'Need a quote?', 'Want design ideas?', 'Ask for help!'];
     let placeholderIndex = 0;
 
@@ -791,6 +773,7 @@
 
     function openSamples() {
       window.open(NAV_LINKS.samples.url, '_blank');
+      updateSuggestions('initial');
     }
 
     function startQuoteWizard(projectType = 'New Countertop') {
@@ -811,12 +794,14 @@
     function openLeadModal() {
       document.getElementById('leadModal').style.display = 'flex';
       document.getElementById('leadName').focus();
+      updateSuggestions('initial');
     }
 
     function closeLeadModal() {
       document.getElementById('leadModal').style.display = 'none';
       document.getElementById('leadForm').reset();
       document.getElementById('chatMessages').focus();
+      updateSuggestions('initial');
     }
 
     function openAppointmentModal() {
@@ -824,12 +809,14 @@
       document.getElementById('name').value = quoteState.user.name || '';
       document.getElementById('email').value = quoteState.user.email || '';
       document.getElementById('name').focus();
+      updateSuggestions('initial');
     }
 
     function closeAppointmentModal() {
       document.getElementById('appointmentModal').style.display = 'none';
       document.getElementById('appointmentForm').reset();
       document.getElementById('chatMessages').focus();
+      updateSuggestions('initial');
     }
 
     function openContactModal() {
@@ -837,23 +824,27 @@
       document.getElementById('contactName').value = quoteState.user.name || '';
       document.getElementById('contactEmail').value = quoteState.user.email || '';
       document.getElementById('contactName').focus();
+      updateSuggestions('initial');
     }
 
     function closeContactModal() {
       document.getElementById('contactModal').style.display = 'none';
       document.getElementById('contactForm').reset();
       document.getElementById('chatMessages').focus();
+      updateSuggestions('initial');
     }
 
     function openEstimateModal() {
       document.getElementById('estimateModal').style.display = 'flex';
       document.getElementById('length').focus();
+      updateSuggestions('countertop_dimensions');
     }
 
     function closeEstimateModal() {
       document.getElementById('estimateModal').style.display = 'none';
       document.getElementById('estimateForm').reset();
       document.getElementById('chatMessages').focus();
+      updateSuggestions('countertop_dimensions');
     }
 
     async function loadCompanyInfo() {
@@ -873,10 +864,6 @@
         <a href="#" class="footer-icon" onclick="sendQuickReply('Live Agent')" aria-label="Live support" title="Live Support">
           <i class="fas fa-headset"></i>
           <span class="tooltip">Live Support</span>
-        </a>
-        <a href="${NAV_LINKS.liveChat.url}" class="footer-icon" onclick="${NAV_LINKS.liveChat.action}" aria-label="Live chat" title="Live Chat">
-          <i class="fas fa-comments"></i>
-          <span class="tooltip">Live Chat</span>
         </a>
       `;
     }
@@ -939,7 +926,7 @@
       const suggestionsContainer = document.querySelector(`#${context}Suggestions`) || document.createElement('div');
       suggestionsContainer.className = 'suggestions';
       suggestionsContainer.id = `${context}Suggestions`;
-      const replies = (QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial).slice(0, 3); // Limit to top 3
+      const replies = (QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial).slice(0, 3);
       suggestionsContainer.innerHTML = replies.map(reply => {
         let action = reply === 'New Countertop' ? `startQuoteWizard('New Countertop')` :
                      reply === 'Repair' ? `startQuoteWizard('Repair')` :
@@ -949,6 +936,10 @@
                      reply === 'Support' ? `sendQuickReply('Support')` :
                      reply === 'Book Consultation' ? 'openAppointmentModal()' :
                      reply === 'Enter Dimensions' ? 'openEstimateModal()' :
+                     reply === 'Great' ? `sendQuickReply('Great')` :
+                     reply === 'Too High' ? `sendQuickReply('Too High')` :
+                     reply === 'New Quote' ? `sendQuickReply('New Quote')` :
+                     reply === 'Order Sample' ? `sendQuickReply('Order Sample')` :
                      `sendQuickReply('${reply.replace(/'/g, "\\'")}')`;
         return `<button class="suggestion-chip" onclick="${action}">${reply}</button>`;
       }).join('');
@@ -967,7 +958,7 @@
       }
     }
 
-    function addMessage(content, isUser, quickReplyContext = null) {
+    function addMessage(content, isUser, imageUrl = null, quickReplyContext = null) {
       const chatMessages = document.getElementById('chatMessages');
       if (!chatMessages) return;
       const div = document.createElement('div');
@@ -975,6 +966,13 @@
       const contentDiv = document.createElement('div');
       contentDiv.innerHTML = content || 'Oops, something went wrong. Try again!';
       div.appendChild(contentDiv);
+      if (imageUrl && !isUser) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = 'Product image';
+        img.onerror = () => img.remove();
+        div.appendChild(img);
+      }
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1001,80 +999,6 @@
       scrollChatToBottom();
     }
 
-    function calculateQuote() {
-      let total = 0;
-      const material = quoteState.material || 'Granite';
-      const materialPrice = PRICE_SHEET.materials[material]?.basePrice * PRICE_SHEET.materials[material]?.markup || 50;
-
-      const totalArea = quoteState.dimensions.reduce((sum, dim) => {
-        return sum + (dim.length * dim.width) / 144;
-      }, 0);
-      total += totalArea * materialPrice;
-
-      if (quoteState.backsplash && quoteState.backsplash !== 'None') {
-        const backsplashPrice = PRICE_SHEET.backsplash[quoteState.backsplash]?.pricePerInch * PRICE_SHEET.backsplash[quoteState.backsplash]?.markup || 0;
-        const totalLength = quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0);
-        total += totalLength * backsplashPrice;
-      }
-
-      if (quoteState.edge) {
-        const edgePrice = PRICE_SHEET.edge[quoteState.edge]?.pricePerInch * PRICE_SHEET.edge[quoteState.edge]?.markup || 0;
-        const totalLength = quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0);
-        total += totalLength * edgePrice;
-      }
-
-      if (quoteState.cutouts.length) {
-        quoteState.cutouts.forEach(cutout => {
-          const cutoutPrice = PRICE_SHEET.cutouts[cutout]?.price * PRICE_SHEET.cutouts[cutout]?.markup || 0;
-          total += cutoutPrice;
-        });
-      }
-
-      if (quoteState.demo && quoteState.demo !== 'None') {
-        total += PRICE_SHEET.demo[quoteState.demo]?.price * PRICE_SHEET.demo[quoteState.demo]?.markup || 0;
-      }
-
-      if (quoteState.plumbing === 'Yes') {
-        total += PRICE_SHEET.plumbing.Yes?.price * PRICE_SHEET.plumbing.Yes?.markup || 0;
-      }
-
-      return {
-        total: total.toFixed(2),
-        area: totalArea.toFixed(2),
-        material,
-        details: {
-          materialCost: (totalArea * materialPrice).toFixed(2),
-          backsplashCost: quoteState.backsplash ? ((quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0) * (PRICE_SHEET.backsplash[quoteState.backsplash]?.pricePerInch * PRICE_SHEET.backsplash[quoteState.backsplash]?.markup || 0)).toFixed(2)) : '0.00',
-          edgeCost: quoteState.edge ? ((quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0) * (PRICE_SHEET.edge[quoteState.edge]?.pricePerInch * PRICE_SHEET.edge[quoteState.edge]?.markup || 0)).toFixed(2)) : '0.00',
-          cutoutCost: quoteState.cutouts.reduce((sum, cutout) => sum + (PRICE_SHEET.cutouts[cutout]?.price * PRICE_SHEET.cutouts[cutout]?.markup || 0), 0).toFixed(2),
-          demoCost: quoteState.demo ? (PRICE_SHEET.demo[quoteState.demo]?.price * PRICE_SHEET.demo[quoteState.demo]?.markup || 0).toFixed(2) : '0.00',
-          plumbingCost: quoteState.plumbing === 'Yes' ? (PRICE_SHEET.plumbing.Yes?.price * PRICE_SHEET.plumbing.Yes?.markup || 0).toFixed(2) : '0.00'
-        }
-      };
-    }
-
-    async function searchShopify(query, filters = {}) {
-      try {
-        const response = await fetch(`${CONFIG.SERVER_URL}/api/shopify-search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, filters, sessionId })
-        });
-        const products = await response.json();
-        if (response.ok && products.length) {
-          let message = 'Here are some products for you:<br>';
-          products.slice(0, 3).forEach(product => {
-            message += `<b>${product.title}</b>: $${product.price} <a href="${product.url}" target="_blank">View</a><br>`;
-          });
-          addMessage(message + 'Need more options or help choosing?', false, 'initial');
-        } else {
-          addMessage(`No products found for "${query}". Try another search or browse <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>.`, false, 'initial');
-        }
-      } catch {
-        addMessage(`Sorry, I couldn’t search our store. Visit <a href="${NAV_LINKS.store.url}" target="_blank">our store</a> to browse!`, false, 'initial');
-      }
-    }
-
     async function sendMessage() {
       const userInput = document.getElementById('userInput');
       if (!userInput || !userInput.value.trim()) return;
@@ -1085,53 +1009,56 @@
 
       try {
         // QUOTE REQUEST DETECTION
-        if (/quote|price|cost/i.test(message) && quoteState.dimensions.length) {
-          const quote = calculateQuote();
-          const responseText = `
-            Here’s your quote for a ${quoteState.project.type.toLowerCase()} in ${quoteState.project.room || 'your space'}:
-            <ul>
-              <li><b>Material</b>: ${quote.material} ($${PRICE_SHEET.materials[quote.material]?.basePrice * PRICE_SHEET.materials[quote.material]?.markup}/sq.ft)</li>
-              <li><b>Area</b>: ${quote.area} sq.ft</li>
-              <li><b>Material Cost</b>: $${quote.details.materialCost}</li>
-              ${quoteState.backsplash && quoteState.backsplash !== 'None' ? `<li><b>Backsplash</b>: ${quoteState.backsplash} ($${quote.details.backsplashCost})</li>` : ''}
-              ${quoteState.edge ? `<li><b>Edge</b>: ${quoteState.edge} ($${quote.details.edgeCost})</li>` : ''}
-              ${quoteState.cutouts.length ? `<li><b>Cutouts</b>: ${quoteState.cutouts.join(', ')} ($${quote.details.cutoutCost})</li>` : ''}
-              ${quoteState.demo && quoteState.demo !== 'None' ? `<li><b>Demo</b>: ${quoteState.demo} ($${quote.details.demoCost})</li>` : ''}
-              ${quoteState.plumbing === 'Yes' ? `<li><b>Plumbing</b>: $${quote.details.plumbingCost}</li>` : ''}
-              <li><b>Total</b>: $${quote.total}</li>
-            </ul>
-            <a href="${NAV_LINKS.store.url}" target="_blank">Shop now</a> or book a consultation!
-          `;
-          addMessage(responseText, false, 'feedback');
-          showTypingIndicator(false);
-          return;
+        if (/quote|price|cost|estimate/i.test(message)) {
+          if (!quoteState.user.email) {
+            quoteWizardStage = 'lead';
+            openLeadModal();
+            showTypingIndicator(false);
+            return;
+          }
+          if (!quoteState.dimensions.length) {
+            quoteWizardStage = 'countertop_dimensions';
+            addMessage('Please provide the dimensions for your countertop (e.g., 72x36 inches).', false, 'countertop_dimensions');
+            openEstimateModal();
+            showTypingIndicator(false);
+            return;
+          }
         }
 
         // MATERIAL PRICE DETECTION
         const materialMatch = /(price|cost)[^\w]*(granite|quartz|marble|quartzite|porcelain|dekton)/i.exec(message);
         if (materialMatch) {
           const mat = materialMatch[2].charAt(0).toUpperCase() + materialMatch[2].slice(1).toLowerCase();
-          const materialData = PRICE_SHEET.materials[mat];
+          const response = await fetch(`${CONFIG.SERVER_URL}/api/materials`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const materials = await response.json();
+          const materialData = materials.find(m => m.material.toLowerCase() === mat.toLowerCase());
           if (materialData) {
             addMessage(
-              `<b>${mat}</b> is <b>$${materialData.basePrice * materialData.markup}/sq.ft</b> installed.<br>` +
+              `<b>${materialData.name}</b> (${mat}) is <b>$${materialData.installedPrice}/sq.ft</b> installed.<br>` +
               `Want a sample? <a href="${NAV_LINKS[mat.toLowerCase()]?.url || NAV_LINKS.countertops.url}" target="_blank">See our ${mat}</a>`,
               false,
               'countertops'
             );
-            showTypingIndicator(false);
-            return;
+          } else {
+            addMessage(`Sorry, I couldn’t find pricing for ${mat}. Try another material or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`, false, 'countertops');
           }
-          addMessage(`Sorry, I couldn’t find pricing for ${mat}. Try another material or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`, false, 'countertops');
           showTypingIndicator(false);
           return;
         }
 
         // MATERIAL PRICES OVERVIEW
-        if (/material (price|cost)/i.test(message)) {
+        if (/material (price|cost)s?/i.test(message)) {
+          const response = await fetch(`${CONFIG.SERVER_URL}/api/materials`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const materials = await response.json();
           let pricingText = 'Here are our material prices per square foot (installed):<br>';
-          Object.keys(PRICE_SHEET.materials).forEach(mat => {
-            pricingText += `<b>${mat}</b>: $${PRICE_SHEET.materials[mat].basePrice * PRICE_SHEET.materials[mat].markup}/sq.ft<br>`;
+          materials.slice(0, 5).forEach(mat => {
+            pricingText += `<b>${mat.name}</b> (${mat.material}): $${mat.installedPrice}/sq.ft<br>`;
           });
           addMessage(pricingText + 'Ask for a specific material or start a quote!', false, 'countertops');
           showTypingIndicator(false);
@@ -1158,25 +1085,21 @@
         if (/search|find|shop|browse/i.test(message)) {
           const queryMatch = message.match(/(granite|quartz|marble|quartzite|porcelain|dekton|sink|cabinet)/i);
           const query = queryMatch ? queryMatch[0] : message.replace(/search|find|shop|browse/i, '').trim();
-          const filters = {};
-          if (/modern|traditional|rustic|contemporary/i.test(message)) {
-            filters.style = message.match(/modern|traditional|rustic|contemporary/i)[0];
+          const response = await fetch(`${CONFIG.SERVER_URL}/api/shopify-products`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const products = await response.json();
+          const filteredProducts = products.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+          if (filteredProducts.length) {
+            let message = 'Here are some products for you:<br>';
+            filteredProducts.slice(0, 3).forEach(product => {
+              message += `<b>${product.name}</b>: $${product.price} <a href="${product.url}" target="_blank">View</a><br>`;
+            });
+            addMessage(message + 'Need more options or help choosing?', false, 'initial');
+          } else {
+            addMessage(`No products found for "${query}". Try another search or browse <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>.`, false, 'initial');
           }
-          if (/\$\d+|\d+\s*dollar/i.test(message)) {
-            filters.maxPrice = parseFloat(message.match(/\d+/)[0]);
-          }
-          await searchShopify(query, filters);
-          showTypingIndicator(false);
-          return;
-        }
-
-        // PERSONAL SHOPPER
-        if (/recommend|suggest|personal shopper/i.test(message)) {
-          const preferences = {};
-          if (/kitchen|bathroom/i.test(message)) preferences.room = message.match(/kitchen|bathroom/i)[0];
-          if (/modern|traditional|rustic|contemporary/i.test(message)) preferences.style = message.match(/modern|traditional|rustic|contemporary/i)[0];
-          if (/(granite|quartz|marble|quartzite|porcelain|dekton)/i.test(message)) preferences.material = message.match(/(granite|quartz|marble|quartzite|porcelain|dekton)/i)[0];
-          await searchShopify('', preferences);
           showTypingIndicator(false);
           return;
         }
@@ -1185,61 +1108,42 @@
         if (/support|help|customer service|order|return|shipping|hours|faq/i.test(message)) {
           if (/faq/i.test(message)) {
             addMessage(CUSTOMER_SERVICE_RESPONSES.faqs, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/order status|track order/i.test(message)) {
+          } else if (/order status|track order/i.test(message)) {
             addMessage(CUSTOMER_SERVICE_RESPONSES.orderStatus, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/return|refund/i.test(message)) {
+          } else if (/return|refund/i.test(message)) {
             addMessage(CUSTOMER_SERVICE_RESPONSES.returns, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/shipping|delivery/i.test(message)) {
+          } else if (/shipping|delivery/i.test(message)) {
             addMessage(CUSTOMER_SERVICE_RESPONSES.shipping, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/hours|open|store hours/i.test(message)) {
+          } else if (/hours|open|store hours/i.test(message)) {
             addMessage(CUSTOMER_SERVICE_RESPONSES.storeHours, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/live agent|talk to someone/i.test(message)) {
+          } else if (/live agent|talk to someone/i.test(message)) {
             addMessage('Connecting you to a live agent. In the meantime, you can <a href="#" onclick="openContactModal()">contact us</a>.', false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/\b\d{5,}\b/.test(message)) {
+          } else if (/\b\d{5,}\b/.test(message)) {
             addMessage(`Thanks for providing order #${message.match(/\b\d{5,}\b/)[0]}. I’ll check the status and get back to you soon!`, false, 'support');
-            showTypingIndicator(false);
-            return;
-          }
-          if (/\b\d{5}\b/.test(message)) {
+          } else if (/\b\d{5}\b/.test(message)) {
             addMessage(`For ZIP ${message.match(/\b\d{5}\b/)[0]}, standard shipping is 5-7 days. Want a detailed quote?`, false, 'support');
-            showTypingIndicator(false);
-            return;
           }
+          showTypingIndicator(false);
+          return;
         }
 
         const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, sessionId, clientEmail: quoteState.user.email })
+          body: JSON.stringify({ message, sessionId, clientId, clientEmail: quoteState.user.email, quoteState })
         });
         const data = await response.json();
         if (response.ok) {
-          addMessage(data.message, false, 'initial');
+          addMessage(data.message, false, data.image, data.quickReplies ? data.quickReplies[0]?.toLowerCase() : 'initial');
           if (data.bid) {
             quoteState.quote = data.bid;
             quoteWizardStage = null;
             saveState();
           }
+          if (data.clientId) localStorage.setItem('clientId', data.clientId);
+          if (data.sessionId) sessionStorage.setItem('sessionId', data.sessionId);
         } else {
-          addMessage('Whoops, something broke. Try again or check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.', false, 'initial');
+          addMessage(`Whoops, something broke. Try again or check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, 'initial');
         }
       } catch (error) {
         addMessage(`Error: ${error.message}. Try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, 'initial');
@@ -1256,44 +1160,38 @@
           body: JSON.stringify(formData)
         });
         return response.ok;
-      } catch {
+      } catch (error) {
+        console.error(`Error sending ${type} email:`, error);
         return false;
       }
     }
 
     async function handleLeadSubmit(e) {
       e.preventDefault();
-      const name = document.getElementById('leadName').value;
-      const email = document.getElementById('leadEmail').value;
-      const phone = document.getElementById('leadPhone').value;
+      const name = document.getElementById('leadName').value.trim();
+      const email = document.getElementById('leadEmail').value.trim();
+      const phone = document.getElementById('leadPhone').value.trim();
       const projectType = document.getElementById('leadProjectType').value;
       if (!name || !email || !projectType) return;
-      try {
-        const response = await fetch(`${CONFIG.SERVER_URL}/api/lead`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone, projectType, sessionId })
-        });
-        const data = await response.json();
-        if (response.ok) {
-          quoteState.user = { name, email, phone };
-          quoteState.project.type = projectType;
-          addMessage(data.message, false, projectType.toLowerCase() === 'repair' ? 'damageType' : 'space');
-          quoteWizardStage = projectType.toLowerCase() === 'repair' ? 'damageType' : 'space';
-          saveState();
-          closeLeadModal();
-        } else {
-          throw new Error('Lead submission failed');
-        }
-      } catch {
-        addMessage(`Sorry, ${name}, we couldn’t save your info. Try again!`, false, 'initial');
+      const formData = { name, email, phone, projectType, quote: JSON.stringify(quoteState) };
+      if (await sendEmail(formData, 'lead')) {
+        quoteState.user = { name, email, phone };
+        quoteState.project.type = projectType;
+        const nextStage = projectType.toLowerCase() === 'repair' ? 'damageType' : 'space';
+        addMessage(`Thanks, ${name}! Your details are saved. Let’s start your ${projectType.toLowerCase()} quote. ${nextStage === 'damageType' ? 'What type of damage? Scratch, Crack, Stain, or Chip?' : 'Is this for a Kitchen, Bathroom, or Other space?'}`, false, nextStage);
+        quoteWizardStage = nextStage;
+        saveState();
+        closeLeadModal();
+      } else {
+        addMessage(`Sorry, ${name}, we couldn’t save your details. Please try again.`, false, 'initial');
       }
     }
 
     async function handleAppointmentSubmit(e) {
       e.preventDefault();
-      const name = document.getElementById('name').value;
-      const email = document.getElementById('email').value;
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const city = document.getElementById('city').value.trim();
       const date = document.getElementById('date').value;
       const time = document.getElementById('time').value;
       if (!name || !email || !date || !time) return;
@@ -1301,31 +1199,31 @@
         const response = await fetch(`${CONFIG.SERVER_URL}/api/appointment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, date, time, sessionId })
+          body: JSON.stringify({ name, email, city, date, time, sessionId })
         });
         const data = await response.json();
         if (response.ok) {
           addMessage(data.message, false, 'initial');
           closeAppointmentModal();
         } else {
-          throw new Error('Appointment failed');
+          throw new Error(data.error || 'Appointment failed');
         }
-      } catch {
-        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Try again!`, false, 'initial');
+      } catch (error) {
+        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Please try again.`, false, 'initial');
       }
     }
 
     async function handleContactSubmit(e) {
       e.preventDefault();
-      const name = document.getElementById('contactName').value;
-      const email = document.getElementById('contactEmail').value;
-      const message = document.getElementById('message').value;
+      const name = document.getElementById('contactName').value.trim();
+      const email = document.getElementById('contactEmail').value.trim();
+      const message = document.getElementById('message').value.trim();
       if (!name || !email || !message) return;
       if (await sendEmail({ name, email, message }, 'contact')) {
-        addMessage(`Thanks, ${name}! We’ll get back to ${email} soon!`, false, 'initial');
+        addMessage(`Thanks, ${name}! We’ll reply to ${email} soon.`, false, 'initial');
         closeContactModal();
       } else {
-        addMessage(`Sorry, ${name}, we couldn’t send your message. Try again!`, false, 'initial');
+        addMessage(`Sorry, ${name}, we couldn’t send your message. Please try again.`, false, 'initial');
       }
     }
 
@@ -1347,23 +1245,20 @@
         addMessage(`Dimensions locked in! Let’s ${nextStep === 'material' ? 'choose a material' : 'pick a backsplash'}.`, false, nextStep);
         quoteWizardStage = nextStep;
         saveState();
-        if (quoteState.material && quoteState.backsplash && quoteState.edge && quoteState.cutouts.length && quoteState.demo && quoteState.plumbing) {
-          const quote = calculateQuote();
-          addMessage(
-            `Here’s your quote for a ${quoteState.project.type.toLowerCase()} in ${quoteState.project.room || 'your space'}:
-            <ul>
-              <li><b>Total</b>: $${quote.total}</li>
-            </ul>
-            <a href="${NAV_LINKS.store.url}" target="_blank">Shop now</a>!`,
-            false,
-            'feedback'
-          );
-        }
       }
       closeEstimateModal();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      const userInput = document.getElementById('userInput');
+      userInput.addEventListener('focus', () => {
+        window.scrollTo(0, 0);
+        document.body.style.overflow = 'hidden';
+      });
+      userInput.addEventListener('blur', () => {
+        document.body.style.overflow = 'auto';
+      });
+
       document.getElementById('sendButton').addEventListener('click', sendMessage);
       document.getElementById('leadCancel').addEventListener('click', closeLeadModal);
       document.getElementById('appointmentCancel').addEventListener('click', closeAppointmentModal);
