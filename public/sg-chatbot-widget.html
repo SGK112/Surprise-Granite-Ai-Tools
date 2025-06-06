@@ -55,9 +55,9 @@
       gap: 1.5rem;
       z-index: 1000;
       padding: 1rem;
-      max-height: 65vh;      /* Allows chat to expand with viewport */
-      min-height: 240px;     /* Ensures chat isn't too small */
-      margin-bottom: 1.5rem; /* Adds space above input */
+      max-height: 65vh;
+      min-height: 240px;
+      margin-bottom: 1.5rem;
       transition: max-height 0.3s;
       overflow-y: auto;
       background: transparent;
@@ -84,6 +84,9 @@
       align-self: flex-end;
       border-bottom-right-radius: 0.5rem;
       border: 2px solid rgba(234, 179, 8, 0.5);
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+      font-size: 1rem;
+      padding: 0.8rem 1.2rem;
     }
 
     .message.user::before {
@@ -106,16 +109,9 @@
       align-self: flex-start;
       border-bottom-left-radius: 0.5rem;
       border-left: 5px solid var(--primary-blue);
-    }
-
-    .message.bot img.material-swatch {
-      max-width: 140px;
-      height: auto;
-      border-radius: 1rem;
-      margin: 0.75rem 0;
-      display: block;
-      box-shadow: var(--shadow);
-      filter: brightness(1.2);
+      box-shadow: 0 4px 15px rgba(30, 64, 175, 0.3);
+      font-size: 1rem;
+      padding: 0.8rem 1.2rem;
     }
 
     .message.bot a {
@@ -138,31 +134,43 @@
 
     .suggestions {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 0.5rem;
       margin-top: 0.5rem;
-      animation: floatIn 0.6s ease forwards;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      animation: slideIn 0.4s ease forwards;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .suggestions::-webkit-scrollbar {
+      display: none;
     }
 
     .suggestion-chip {
-      padding: 0.5rem 1.25rem;
+      padding: 0.4rem 1rem;
       background: rgba(30, 64, 175, 0.5);
       color: var(--text-white);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 2rem;
-      font-size: 0.9rem;
+      border-radius: 1.5rem;
+      font-size: 0.85rem;
       cursor: pointer;
       transition: var(--transition);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: var(--shadow);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .suggestion-chip:hover,
     .suggestion-chip:focus {
       background: var(--primary-blue);
-      transform: scale(1.05);
-      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.7);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
 
     .typing-indicator {
@@ -198,7 +206,6 @@
       border: 1px solid rgba(255, 255, 255, 0.15);
       box-shadow: var(--shadow);
       z-index: 1001;
-      /* No margin-top needed if .chat-messages has margin-bottom */
     }
 
     .chat-input input {
@@ -441,13 +448,14 @@
         padding: 0.75rem 1.25rem;
       }
 
-      .message.bot img.material-swatch {
-        max-width: 120px;
+      .suggestions {
+        gap: 0.4rem;
       }
 
       .suggestion-chip {
-        font-size: 0.8rem;
-        padding: 0.4rem 1rem;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.8rem;
+        min-height: 28px;
       }
 
       .chat-input {
@@ -534,6 +542,11 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
     @keyframes glowPulse {
       0% { opacity: 0.5; transform: scale(1); }
       50% { opacity: 0.7; transform: scale(1.03); }
@@ -549,12 +562,12 @@
 </head>
 <body>
   <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot" tabindex="0">
-    <i class="fas fa-message"></i>
+    <i class="fas fa-hat-wizard"></i>
   </div>
 
   <div class="chat-messages" id="chatMessages" aria-live="polite" style="display: none;" tabindex="0">
     <div class="message bot">
-      Welcome to Surprise Granite! 🌟 Let’s create something amazing! Want a quote, material prices, design ideas, or help?
+      Welcome to Surprise Granite! 🌟 Get a countertop quote, shop our store, or ask for design and repair tips!
       <div class="timestamp" id="welcomeTimestamp"></div>
       <div class="suggestions" id="initialSuggestions"></div>
     </div>
@@ -577,6 +590,12 @@
         <input type="email" id="leadEmail" name="email" required aria-required="true">
         <label for="leadPhone">Phone (Optional)</label>
         <input type="tel" id="leadPhone" name="phone">
+        <label for="leadProjectType">Project Type</label>
+        <select id="leadProjectType" name="projectType" required aria-required="true">
+          <option value="New Countertop">New Countertop</option>
+          <option value="Repair">Repair</option>
+          <option value="Remodel">Kitchen/Bath Remodel</option>
+        </select>
         <button type="submit">Submit</button>
         <button type="button" id="leadCancel">Cancel</button>
       </form>
@@ -619,12 +638,12 @@
 
   <div class="modal" id="estimateModal">
     <div class="modal-content">
-      <h2>Enter Dimensions</h2>
+      <h2>Enter Dimensions (Inches)</h2>
       <form id="estimateForm">
-        <label for="length">Length (inches)</label>
-        <input type="number" id="length" name="length" required aria-required="true" min="0">
-        <label for="width">Width (inches)</label>
-        <input type="number" id="width" name="width" required aria-required="true" min="0">
+        <label for="length">Length</label>
+        <input type="number" id="length" name="length" required aria-required="true" min="0" step="0.1">
+        <label for="width">Width</label>
+        <input type="number" id="width" name="width" required aria-required="true" min="0" step="0.1">
         <button type="submit">Add Section</button>
         <button type="button" id="estimateDone">Done</button>
         <button type="button" id="estimateCancel">Cancel</button>
@@ -645,35 +664,87 @@
       granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
       quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
       sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
-      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
+      cabinets: { url: 'https://store.surprisegranite.com/collections/cabinets', text: 'cabinets' },
+      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' },
+      liveChat: { url: '#', text: 'live chat', action: `sendQuickReply('Live Agent')` }
     };
 
     const QUICK_REPLY_SETS = {
-      initial: ['Get Quote', 'Material Prices', 'Design Tips', 'Support'],
-      countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite'],
-      style: ['Modern', 'Traditional', 'Rustic', 'Contemporary'],
+      initial: ['New Countertop', 'Repair', 'Remodel', 'Material Prices', 'Design Tips', 'Support'],
+      projectType: ['New Countertop', 'Repair', 'Remodel'],
+      damageType: ['Scratch', 'Crack', 'Stain', 'Chip'],
+      space: ['Kitchen', 'Bathroom', 'Other'],
+      countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Porcelain', 'Dekton'],
       countertop_layout: ['L-Shape', 'U-Shape', 'Galley', 'Island'],
-      countertop_dimensions: ['Enter Dimensions', 'Need Help?', 'Skip'],
+      countertop_dimensions: ['Enter Dimensions', 'Need Help?'],
       countertop_backsplash: ['4" Backsplash', '6" Backsplash', 'Full Height', 'None'],
       countertop_edge: ['Eased', 'Bullnose', 'Ogee', 'Waterfall'],
       countertop_cutouts: ['Sink', 'Faucet', 'Cooktop', 'None'],
-      countertop_demo: ['Demolition Needed', 'No Demolition', 'Unsure'],
-      feedback: ['Confirm Quote', 'Adjust Quote', 'New Quote', 'Book Consultation'],
-      support: ['FAQs', 'Live Agent', 'Contact Us', 'Store Hours']
+      countertop_demo: ['Light', 'Heavy', 'None'],
+      countertop_plumbing: ['Yes', 'No'],
+      countertop_sample: ['3x3"', '4x6"', '5x10"', 'None'],
+      feedback: ['Great', 'Too High', 'New Quote', 'Order Sample', 'Book Consultation'],
+      support: ['FAQs', 'Order Status', 'Returns', 'Shipping', 'Live Agent', 'Contact Us', 'Store Hours']
     };
 
     const DESIGN_TIPS = {
-      Modern: 'Opt for sleek quartz with minimal veining and a waterfall edge for a clean look. Pair with matte black fixtures.',
-      Traditional: 'Choose granite with warm tones and an ogee edge. Add a 4" backsplash for classic charm.',
-      Rustic: 'Go for quartzite with natural textures and a bullnose edge. Full-height backsplash adds rustic appeal.',
-      Contemporary: 'Select marble with bold veining and an eased edge. Combine with a sleek island layout.'
+      Modern: 'Opt for sleek Quartz with minimal veining and a waterfall edge for a clean look. Pair with matte black fixtures.',
+      Traditional: 'Choose Granite with warm tones and an Ogee edge. Add a 4" backsplash for classic charm.',
+      Rustic: 'Go for Quartzite with natural textures and a Bullnose edge. Full-height backsplash adds rustic appeal.',
+      Contemporary: 'Select Marble with bold veining and an Eased edge. Combine with a sleek island layout.',
+      Repair_Scratch: 'For minor scratches on Quartz or Granite, use a polishing compound and a soft cloth. Buff gently in circular motions.',
+      Repair_Crack: 'Cracks in Granite may require epoxy resin. Clean the area, apply resin, and clamp until dry. Consult a pro for large cracks.',
+      Repair_Stain: 'Remove stains from Quartz with a mix of baking soda and water. Apply, let sit for 10 minutes, then wipe clean.',
+      Repair_Chip: 'Small chips in Marble can be filled with color-matched epoxy. Sand lightly for a smooth finish.',
+      Replacement: 'If countertops are heavily damaged, consider replacing with durable Dekton or Porcelain. Measure carefully and consult our team for installation.',
+      Kitchen: 'Incorporate a Quartz island for extra prep space. Choose light colors to brighten the kitchen.',
+      Bathroom: 'Marble vanities add elegance. Pair with a 6" backsplash to protect walls from splashes.'
     };
 
-    const MATERIAL_PRICING = {
-      Granite: { pricePerSqFt: 45, image: 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b' },
-      Quartz: { pricePerSqFt: 60, image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c' },
-      Marble: { pricePerSqFt: 75, image: 'https://images.unsplash.com/photo-1580587771525-78b9f0f89f70' },
-      Quartzite: { pricePerSqFt: 65, image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d' }
+    const PRICE_SHEET = {
+      materials: {
+        Granite: { basePrice: 40, markup: 1.3 },
+        Quartz: { basePrice: 50, markup: 1.3 },
+        Marble: { basePrice: 60, markup: 1.3 },
+        Quartzite: { basePrice: 55, markup: 1.3 },
+        Porcelain: { basePrice: 45, markup: 1.3 },
+        Dekton: { basePrice: 70, markup: 1.3 }
+      },
+      backsplash: {
+        '4" Backsplash': { pricePerInch: 5, markup: 1.2 },
+        '6" Backsplash': { pricePerInch: 7, markup: 1.2 },
+        'Full Height': { pricePerInch: 10, markup: 1.2 },
+        'None': { pricePerInch: 0, markup: 1 }
+      },
+      edge: {
+        Eased: { pricePerInch: 3, markup: 1.2 },
+        Bullnose: { pricePerInch: 5, markup: 1.2 },
+        Ogee: { pricePerInch: 8, markup: 1.2 },
+        Waterfall: { pricePerInch: 10, markup: 1.2 }
+      },
+      cutouts: {
+        Sink: { price: 100, markup: 1.2 },
+        Faucet: { price: 50, markup: 1.2 },
+        Cooktop: { price: 150, markup: 1.2 },
+        None: { price: 0, markup: 1 }
+      },
+      demo: {
+        Light: { price: 200, markup: 1.2 },
+        Heavy: { price: 400, markup: 1.2 },
+        None: { price: 0, markup: 1 }
+      },
+      plumbing: {
+        Yes: { price: 150, markup: 1.2 },
+        No: { price: 0, markup: 1 }
+      }
+    };
+
+    const CUSTOMER_SERVICE_RESPONSES = {
+      faqs: 'Check our <a href="https://www.surprisegranite.com/faqs" target="_blank">FAQs</a> for common questions about countertops, installation, and care!',
+      orderStatus: 'Please provide your order number, and I’ll check the status for you!',
+      returns: 'Our return policy allows returns within 30 days for unused items. Visit <a href="https://store.surprisegranite.com/pages/returns" target="_blank">our returns page</a> or share your order number for assistance.',
+      shipping: 'Shipping times vary by location. Standard delivery is 5-7 business days. Provide your ZIP code for a precise estimate!',
+      storeHours: 'Our showroom is open Mon-Fri 9 AM-5 PM, Sat 10 AM-3 PM. Visit us at <a href="${NAV_LINKS.map.url}" target="_blank">11560 N Dysart Rd, Surprise, AZ</a>.'
     };
 
     let quoteState = JSON.parse(sessionStorage.getItem('quoteState')) || {
@@ -682,11 +753,13 @@
       material: null,
       layout: null,
       dimensions: [],
-      backsplash: { height: null, linearFeet: null },
+      backsplash: null,
       edge: null,
       cutouts: [],
       demo: null,
-      style: null,
+      plumbing: null,
+      sampleSize: null,
+      damageType: null,
       quote: null
     };
     let conversationStage = 'initial';
@@ -711,18 +784,6 @@
       return { name, email };
     }
 
-    function calculateEstimate() {
-      if (!quoteState.dimensions.length || !quoteState.material) return null;
-      const totalArea = quoteState.dimensions.reduce((sum, dim) => sum + (dim.length * dim.width / 144), 0);
-      const materialCost = totalArea * MATERIAL_PRICING[quoteState.material].pricePerSqFt;
-      const backsplashCost = quoteState.backsplash.height ? quoteState.backsplash.linearFeet * (quoteState.backsplash.height === 'Full Height' ? 15 : 5) : 0;
-      const edgeCost = totalArea * (quoteState.edge === 'Waterfall' ? 20 : 10);
-      const cutoutCost = quoteState.cutouts.length * 50;
-      const demoCost = quoteState.demo === 'Demolition Needed' ? 500 : 0;
-      const total = materialCost + backsplashCost + edgeCost + cutoutCost + demoCost;
-      return { totalArea, total: Math.round(total) };
-    }
-
     function sendQuickReply(message) {
       document.getElementById('userInput').value = message;
       sendMessage();
@@ -732,14 +793,17 @@
       window.open(NAV_LINKS.samples.url, '_blank');
     }
 
-    function startQuoteWizard(intent = 'quote') {
-      quoteState.project.intent = intent;
+    function startQuoteWizard(projectType = 'New Countertop') {
+      quoteState.project.type = projectType;
       if (!quoteState.user.email) {
         quoteWizardStage = 'lead';
         openLeadModal();
       } else {
-        quoteWizardStage = 'space';
-        addMessage(`Hey ${quoteState.user.name}! Let’s ${intent === 'design' ? 'spark some design ideas' : 'build your quote'}. Kitchen, bathroom, or another space?`, false, null, 'initial');
+        quoteWizardStage = projectType.toLowerCase() === 'repair' ? 'damageType' : 'space';
+        const message = projectType.toLowerCase() === 'repair'
+          ? `Let’s fix that countertop! What type of damage? Scratch, Crack, Stain, or Chip?`
+          : `Great, let’s start your ${projectType.toLowerCase()} quote. Is this for a Kitchen, Bathroom, or Other space?`;
+        addMessage(message, false, null, quoteWizardStage);
       }
       saveState();
     }
@@ -757,6 +821,8 @@
 
     function openAppointmentModal() {
       document.getElementById('appointmentModal').style.display = 'flex';
+      document.getElementById('name').value = quoteState.user.name || '';
+      document.getElementById('email').value = quoteState.user.email || '';
       document.getElementById('name').focus();
     }
 
@@ -768,6 +834,8 @@
 
     function openContactModal() {
       document.getElementById('contactModal').style.display = 'flex';
+      document.getElementById('contactName').value = quoteState.user.name || '';
+      document.getElementById('contactEmail').value = quoteState.user.email || '';
       document.getElementById('contactName').focus();
     }
 
@@ -806,6 +874,10 @@
           <i class="fas fa-headset"></i>
           <span class="tooltip">Live Support</span>
         </a>
+        <a href="${NAV_LINKS.liveChat.url}" class="footer-icon" onclick="${NAV_LINKS.liveChat.action}" aria-label="Live chat" title="Live Chat">
+          <i class="fas fa-comments"></i>
+          <span class="tooltip">Live Chat</span>
+        </a>
       `;
     }
 
@@ -814,7 +886,7 @@
       clearTimeout(abandonTimer);
       if (!quoteWizardStage) {
         inactivityTimer = setTimeout(() => {
-          addMessage('Still dreaming up your space? 😎 I’m here for quotes, prices, or ideas!', false, null, 'initial');
+          addMessage('Still planning your project? 😎 I’m here for quotes, repairs, or remodel ideas!', false, null, 'initial');
           abandonTimer = setTimeout(closeAbandonedChat, 15 * 60 * 1000);
         }, 15 * 60 * 1000);
       }
@@ -845,7 +917,7 @@
       chatMessages.style.display = isHidden ? 'flex' : 'none';
       chatInput.style.display = isHidden ? 'flex' : 'none';
       chatFooter.style.display = isHidden ? 'flex' : 'none';
-      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
+      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-hat-wizard"></i>';
       chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
       if (isHidden) {
         document.getElementById('userInput').focus();
@@ -867,10 +939,12 @@
       const suggestionsContainer = document.querySelector(`#${context}Suggestions`) || document.createElement('div');
       suggestionsContainer.className = 'suggestions';
       suggestionsContainer.id = `${context}Suggestions`;
-      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
+      const replies = (QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial).slice(0, 3); // Limit to top 3
       suggestionsContainer.innerHTML = replies.map(reply => {
-        let action = reply === 'Get Quote' ? `startQuoteWizard('quote')` :
-                     reply === 'Design Tips' ? `startQuoteWizard('design')` :
+        let action = reply === 'New Countertop' ? `startQuoteWizard('New Countertop')` :
+                     reply === 'Repair' ? `startQuoteWizard('Repair')` :
+                     reply === 'Remodel' ? `startQuoteWizard('Remodel')` :
+                     reply === 'Design Tips' ? `sendQuickReply('Design Tips')` :
                      reply === 'Material Prices' ? `sendQuickReply('Material Prices')` :
                      reply === 'Support' ? `sendQuickReply('Support')` :
                      reply === 'Book Consultation' ? 'openAppointmentModal()' :
@@ -893,7 +967,7 @@
       }
     }
 
-    function addMessage(content, isUser, imageUrl = null, quickReplyContext = null) {
+    function addMessage(content, isUser, quickReplyContext = null) {
       const chatMessages = document.getElementById('chatMessages');
       if (!chatMessages) return;
       const div = document.createElement('div');
@@ -901,14 +975,6 @@
       const contentDiv = document.createElement('div');
       contentDiv.innerHTML = content || 'Oops, something went wrong. Try again!';
       div.appendChild(contentDiv);
-      if (imageUrl && !isUser) {
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = 'Material swatch';
-        img.className = 'material-swatch';
-        img.onerror = () => img.remove();
-        div.appendChild(img);
-      }
       const timestamp = document.createElement('div');
       timestamp.className = 'timestamp';
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -935,20 +1001,77 @@
       scrollChatToBottom();
     }
 
-    async function fetchMaterialPricing(material) {
+    function calculateQuote() {
+      let total = 0;
+      const material = quoteState.material || 'Granite';
+      const materialPrice = PRICE_SHEET.materials[material]?.basePrice * PRICE_SHEET.materials[material]?.markup || 50;
+
+      const totalArea = quoteState.dimensions.reduce((sum, dim) => {
+        return sum + (dim.length * dim.width) / 144;
+      }, 0);
+      total += totalArea * materialPrice;
+
+      if (quoteState.backsplash && quoteState.backsplash !== 'None') {
+        const backsplashPrice = PRICE_SHEET.backsplash[quoteState.backsplash]?.pricePerInch * PRICE_SHEET.backsplash[quoteState.backsplash]?.markup || 0;
+        const totalLength = quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0);
+        total += totalLength * backsplashPrice;
+      }
+
+      if (quoteState.edge) {
+        const edgePrice = PRICE_SHEET.edge[quoteState.edge]?.pricePerInch * PRICE_SHEET.edge[quoteState.edge]?.markup || 0;
+        const totalLength = quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0);
+        total += totalLength * edgePrice;
+      }
+
+      if (quoteState.cutouts.length) {
+        quoteState.cutouts.forEach(cutout => {
+          const cutoutPrice = PRICE_SHEET.cutouts[cutout]?.price * PRICE_SHEET.cutouts[cutout]?.markup || 0;
+          total += cutoutPrice;
+        });
+      }
+
+      if (quoteState.demo && quoteState.demo !== 'None') {
+        total += PRICE_SHEET.demo[quoteState.demo]?.price * PRICE_SHEET.demo[quoteState.demo]?.markup || 0;
+      }
+
+      if (quoteState.plumbing === 'Yes') {
+        total += PRICE_SHEET.plumbing.Yes?.price * PRICE_SHEET.plumbing.Yes?.markup || 0;
+      }
+
+      return {
+        total: total.toFixed(2),
+        area: totalArea.toFixed(2),
+        material,
+        details: {
+          materialCost: (totalArea * materialPrice).toFixed(2),
+          backsplashCost: quoteState.backsplash ? ((quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0) * (PRICE_SHEET.backsplash[quoteState.backsplash]?.pricePerInch * PRICE_SHEET.backsplash[quoteState.backsplash]?.markup || 0)).toFixed(2)) : '0.00',
+          edgeCost: quoteState.edge ? ((quoteState.dimensions.reduce((sum, dim) => sum + dim.length, 0) * (PRICE_SHEET.edge[quoteState.edge]?.pricePerInch * PRICE_SHEET.edge[quoteState.edge]?.markup || 0)).toFixed(2)) : '0.00',
+          cutoutCost: quoteState.cutouts.reduce((sum, cutout) => sum + (PRICE_SHEET.cutouts[cutout]?.price * PRICE_SHEET.cutouts[cutout]?.markup || 0), 0).toFixed(2),
+          demoCost: quoteState.demo ? (PRICE_SHEET.demo[quoteState.demo]?.price * PRICE_SHEET.demo[quoteState.demo]?.markup || 0).toFixed(2) : '0.00',
+          plumbingCost: quoteState.plumbing === 'Yes' ? (PRICE_SHEET.plumbing.Yes?.price * PRICE_SHEET.plumbing.Yes?.markup || 0).toFixed(2) : '0.00'
+        }
+      };
+    }
+
+    async function searchShopify(query, filters = {}) {
       try {
-        const response = await fetch(`${CONFIG.SERVER_URL}/api/pricing`, {
+        const response = await fetch(`${CONFIG.SERVER_URL}/api/shopify-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ material })
+          body: JSON.stringify({ query, filters, sessionId })
         });
-        if (response.ok) {
-          const data = await response.json();
-          return data.pricePerSqFt || MATERIAL_PRICING[material].pricePerSqFt;
+        const products = await response.json();
+        if (response.ok && products.length) {
+          let message = 'Here are some products for you:<br>';
+          products.slice(0, 3).forEach(product => {
+            message += `<b>${product.title}</b>: $${product.price} <a href="${product.url}" target="_blank">View</a><br>`;
+          });
+          addMessage(message + 'Need more options or help choosing?', false, 'initial');
+        } else {
+          addMessage(`No products found for "${query}". Try another search or browse <a href="${NAV_LINKS.store.url}" target="_blank">our store</a>.`, false, 'initial');
         }
-        return MATERIAL_PRICING[material].pricePerSqFt;
       } catch {
-        return MATERIAL_PRICING[material].pricePerSqFt;
+        addMessage(`Sorry, I couldn’t search our store. Visit <a href="${NAV_LINKS.store.url}" target="_blank">our store</a> to browse!`, false, 'initial');
       }
     }
 
@@ -961,137 +1084,165 @@
       showTypingIndicator(true);
 
       try {
-        // MATERIAL PRICE DETECTION (robust)
-        const materialMatch = /(price|cost)[^\w]*(granite|quartz|marble|quartzite)/i.exec(message);
+        // QUOTE REQUEST DETECTION
+        if (/quote|price|cost/i.test(message) && quoteState.dimensions.length) {
+          const quote = calculateQuote();
+          const responseText = `
+            Here’s your quote for a ${quoteState.project.type.toLowerCase()} in ${quoteState.project.room || 'your space'}:
+            <ul>
+              <li><b>Material</b>: ${quote.material} ($${PRICE_SHEET.materials[quote.material]?.basePrice * PRICE_SHEET.materials[quote.material]?.markup}/sq.ft)</li>
+              <li><b>Area</b>: ${quote.area} sq.ft</li>
+              <li><b>Material Cost</b>: $${quote.details.materialCost}</li>
+              ${quoteState.backsplash && quoteState.backsplash !== 'None' ? `<li><b>Backsplash</b>: ${quoteState.backsplash} ($${quote.details.backsplashCost})</li>` : ''}
+              ${quoteState.edge ? `<li><b>Edge</b>: ${quoteState.edge} ($${quote.details.edgeCost})</li>` : ''}
+              ${quoteState.cutouts.length ? `<li><b>Cutouts</b>: ${quoteState.cutouts.join(', ')} ($${quote.details.cutoutCost})</li>` : ''}
+              ${quoteState.demo && quoteState.demo !== 'None' ? `<li><b>Demo</b>: ${quoteState.demo} ($${quote.details.demoCost})</li>` : ''}
+              ${quoteState.plumbing === 'Yes' ? `<li><b>Plumbing</b>: $${quote.details.plumbingCost}</li>` : ''}
+              <li><b>Total</b>: $${quote.total}</li>
+            </ul>
+            <a href="${NAV_LINKS.store.url}" target="_blank">Shop now</a> or book a consultation!
+          `;
+          addMessage(responseText, false, 'feedback');
+          showTypingIndicator(false);
+          return;
+        }
+
+        // MATERIAL PRICE DETECTION
+        const materialMatch = /(price|cost)[^\w]*(granite|quartz|marble|quartzite|porcelain|dekton)/i.exec(message);
         if (materialMatch) {
           const mat = materialMatch[2].charAt(0).toUpperCase() + materialMatch[2].slice(1).toLowerCase();
-          let price = MATERIAL_PRICING[mat]?.pricePerSqFt;
-          try {
-            const resp = await fetch(`${CONFIG.SERVER_URL}/api/pricing`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ material: mat })
-            });
-            if (resp.ok) {
-              const data = await resp.json();
-              if (data.pricePerSqFt) price = data.pricePerSqFt;
-            }
-          } catch {}
-          addMessage(
-            `<b>${mat}</b> is <b>$${price}/sq.ft</b> installed.<br>
-            Want a sample? <a href="${NAV_LINKS[mat.toLowerCase()]?.url || NAV_LINKS.countertops.url}" target="_blank">See our ${mat}</a>`,
-            false,
-            MATERIAL_PRICING[mat]?.image,
-            'countertops'
-          );
+          const materialData = PRICE_SHEET.materials[mat];
+          if (materialData) {
+            addMessage(
+              `<b>${mat}</b> is <b>$${materialData.basePrice * materialData.markup}/sq.ft</b> installed.<br>` +
+              `Want a sample? <a href="${NAV_LINKS[mat.toLowerCase()]?.url || NAV_LINKS.countertops.url}" target="_blank">See our ${mat}</a>`,
+              false,
+              'countertops'
+            );
+            showTypingIndicator(false);
+            return;
+          }
+          addMessage(`Sorry, I couldn’t find pricing for ${mat}. Try another material or browse <a href="${NAV_LINKS.countertops.url}" target="_blank">our collection</a>.`, false, 'countertops');
           showTypingIndicator(false);
           return;
         }
 
         // MATERIAL PRICES OVERVIEW
         if (/material (price|cost)/i.test(message)) {
-          let pricingText = 'Here are our material prices per square foot:<br>';
-          for (const [mat, data] of Object.entries(MATERIAL_PRICING)) {
-            let price = data.pricePerSqFt;
-            try {
-              const resp = await fetch(`${CONFIG.SERVER_URL}/api/pricing`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ material: mat })
-              });
-              if (resp.ok) {
-                const dat = await resp.json();
-                if (dat.pricePerSqFt) price = dat.pricePerSqFt;
-              }
-            } catch {}
-            pricingText += `<b>${mat}</b>: $${price}/sq.ft<br>`;
-          }
-          addMessage(pricingText + 'Ask for any material by name for details or a sample!', false, null, 'countertops');
+          let pricingText = 'Here are our material prices per square foot (installed):<br>';
+          Object.keys(PRICE_SHEET.materials).forEach(mat => {
+            pricingText += `<b>${mat}</b>: $${PRICE_SHEET.materials[mat].basePrice * PRICE_SHEET.materials[mat].markup}/sq.ft<br>`;
+          });
+          addMessage(pricingText + 'Ask for a specific material or start a quote!', false, 'countertops');
           showTypingIndicator(false);
           return;
         }
 
-        // Continue with your existing wizard logic...
-        if (conversationStage === 'collect_lead') {
-          const { name, email } = extractNameAndEmail(message);
-          if (email) {
-            quoteState.user = { name, email, phone: null };
-            await sendEmail({ name, email, quote: JSON.stringify(quoteState) }, 'lead');
-            addMessage(`Awesome, ${name}! Your details are saved. Let’s ${quoteState.project.intent === 'quote' ? 'build your quote' : 'get creative'}. Kitchen, bathroom, or another space?`, false, null, 'initial');
-            conversationStage = 'initial';
-            quoteWizardStage = 'space';
-            saveState();
-          } else {
-            addMessage('Please share a valid email, like "Josh B, joshb@example.com".', false, null, 'initial');
+        // DESIGN AND REPAIR TIPS
+        if (/(design tips|design ideas|repair|fix|replace)/i.test(message)) {
+          let tipKey = quoteState.project.type || 'Modern';
+          if (/kitchen/i.test(message)) tipKey = 'Kitchen';
+          if (/bathroom/i.test(message)) tipKey = 'Bathroom';
+          if (/scratch/i.test(message)) tipKey = 'Repair_Scratch';
+          if (/crack/i.test(message)) tipKey = 'Repair_Crack';
+          if (/stain/i.test(message)) tipKey = 'Repair_Stain';
+          if (/chip/i.test(message)) tipKey = 'Repair_Chip';
+          if (/replace|replacement/i.test(message)) tipKey = 'Replacement';
+          const tip = DESIGN_TIPS[tipKey] || DESIGN_TIPS.Modern;
+          addMessage(`${tip} Want more ideas, a repair quote, or a custom design?`, false, 'initial');
+          showTypingIndicator(false);
+          return;
+        }
+
+        // SHOPIFY SEARCH
+        if (/search|find|shop|browse/i.test(message)) {
+          const queryMatch = message.match(/(granite|quartz|marble|quartzite|porcelain|dekton|sink|cabinet)/i);
+          const query = queryMatch ? queryMatch[0] : message.replace(/search|find|shop|browse/i, '').trim();
+          const filters = {};
+          if (/modern|traditional|rustic|contemporary/i.test(message)) {
+            filters.style = message.match(/modern|traditional|rustic|contemporary/i)[0];
           }
-        } else if (message.toLowerCase().includes('support')) {
-          addMessage('I’m here to help! Pick an option or tell me what’s up.', false, null, 'support');
-        } else if (message.toLowerCase().includes('faqs')) {
-          addMessage('Quick answers:\n- Lead time: 7-10 days\n- Warranty: 5 years\n- Samples: Free shipping\nMore questions?', false, null, 'support');
-        } else if (message.toLowerCase().includes('live agent')) {
-          addMessage('Let’s get you to a human! Hold tight or <a href="#" onclick="openContactModal()">contact us</a>.', false, null, 'initial');
-        } else if (message.toLowerCase().includes('store hours')) {
-          addMessage('We’re open Mon-Fri 8 AM-5 PM, Sat 9 AM-3 PM. Swing by at <a href="${NAV_LINKS.map.url}" target="_blank">${NAV_LINKS.map.text}</a>!', false, null, 'initial');
-        } else if (QUICK_REPLY_SETS.countertops.includes(message)) {
-          quoteState.material = message;
-          const pricing = await fetchMaterialPricing(message);
-          addMessage(`Nice choice: ${message} ($${pricing}/sq.ft). ${DESIGN_TIPS[quoteState.style] || 'Looks great!'} What’s the layout?`, false, MATERIAL_PRICING[message].image, 'countertop_layout');
-          saveState();
-        } else if (QUICK_REPLY_SETS.style.includes(message)) {
-          quoteState.style = message;
-          addMessage(`Digging the ${message} style! ${DESIGN_TIPS[message]} What material do you like?`, false, null, 'countertops');
-          saveState();
-        } else if (QUICK_REPLY_SETS.countertop_layout.includes(message)) {
-          quoteState.layout = message;
-          addMessage(`${message} layout, got it! Let’s talk dimensions or I can guide you.`, false, null, 'countertop_dimensions');
-          saveState();
-        } else if (QUICK_REPLY_SETS.countertop_backsplash.includes(message)) {
-          quoteState.backsplash.height = message;
-          addMessage(`${message} backsplash selected. How many linear feet, or skip?`, false, null, 'countertop_dimensions');
-          saveState();
-        } else if (QUICK_REPLY_SETS.countertop_edge.includes(message)) {
-          quoteState.edge = message;
-          addMessage(`${message} edge looks sleek! Need any cutouts?`, false, null, 'countertop_cutouts');
-          saveState();
-        } else if (QUICK_REPLY_SETS.countertop_cutouts.includes(message)) {
-          if (message !== 'None') quoteState.cutouts.push(message);
-          addMessage(`${message} added. Need demolition services?`, false, null, 'countertop_demo');
-          saveState();
-        } else if (QUICK_REPLY_SETS.countertop_demo.includes(message)) {
-          quoteState.demo = message;
-          const estimate = calculateEstimate();
-          if (estimate) {
-            addMessage(`Your estimate:\n- Area: ${estimate.totalArea.toFixed(2)} sq.ft\n- Total: $${estimate.total}\nWhat’s next?`, false, null, 'feedback');
-            quoteState.quote = estimate;
-          } else {
-            addMessage('Need dimensions to crunch the numbers. Let’s add some!', false, null, 'countertop_dimensions');
+          if (/\$\d+|\d+\s*dollar/i.test(message)) {
+            filters.maxPrice = parseFloat(message.match(/\d+/)[0]);
           }
-          saveState();
-        } else {
-          const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, sessionId, quoteState })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            addMessage(data.message, false, data.image, data.quickReplies ? data.quickReplies[0]?.toLowerCase() : 'initial');
-            if (data.quoteWizardStage) {
-              quoteWizardStage = data.quoteWizardStage;
-              quoteState = { ...quoteState, ...data.quoteState };
-              saveState();
-            }
-            if (data.bid) {
-              quoteState.quote = data.bid;
-              quoteWizardStage = null;
-              saveState();
-            }
-          } else {
-            addMessage('Whoops, something broke. Try again or check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.', false, null, 'initial');
+          await searchShopify(query, filters);
+          showTypingIndicator(false);
+          return;
+        }
+
+        // PERSONAL SHOPPER
+        if (/recommend|suggest|personal shopper/i.test(message)) {
+          const preferences = {};
+          if (/kitchen|bathroom/i.test(message)) preferences.room = message.match(/kitchen|bathroom/i)[0];
+          if (/modern|traditional|rustic|contemporary/i.test(message)) preferences.style = message.match(/modern|traditional|rustic|contemporary/i)[0];
+          if (/(granite|quartz|marble|quartzite|porcelain|dekton)/i.test(message)) preferences.material = message.match(/(granite|quartz|marble|quartzite|porcelain|dekton)/i)[0];
+          await searchShopify('', preferences);
+          showTypingIndicator(false);
+          return;
+        }
+
+        // CUSTOMER SERVICE
+        if (/support|help|customer service|order|return|shipping|hours|faq/i.test(message)) {
+          if (/faq/i.test(message)) {
+            addMessage(CUSTOMER_SERVICE_RESPONSES.faqs, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/order status|track order/i.test(message)) {
+            addMessage(CUSTOMER_SERVICE_RESPONSES.orderStatus, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/return|refund/i.test(message)) {
+            addMessage(CUSTOMER_SERVICE_RESPONSES.returns, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/shipping|delivery/i.test(message)) {
+            addMessage(CUSTOMER_SERVICE_RESPONSES.shipping, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/hours|open|store hours/i.test(message)) {
+            addMessage(CUSTOMER_SERVICE_RESPONSES.storeHours, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/live agent|talk to someone/i.test(message)) {
+            addMessage('Connecting you to a live agent. In the meantime, you can <a href="#" onclick="openContactModal()">contact us</a>.', false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/\b\d{5,}\b/.test(message)) {
+            addMessage(`Thanks for providing order #${message.match(/\b\d{5,}\b/)[0]}. I’ll check the status and get back to you soon!`, false, 'support');
+            showTypingIndicator(false);
+            return;
+          }
+          if (/\b\d{5}\b/.test(message)) {
+            addMessage(`For ZIP ${message.match(/\b\d{5}\b/)[0]}, standard shipping is 5-7 days. Want a detailed quote?`, false, 'support');
+            showTypingIndicator(false);
+            return;
           }
         }
+
+        const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, sessionId, clientEmail: quoteState.user.email })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          addMessage(data.message, false, 'initial');
+          if (data.bid) {
+            quoteState.quote = data.bid;
+            quoteWizardStage = null;
+            saveState();
+          }
+        } else {
+          addMessage('Whoops, something broke. Try again or check out <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.', false, 'initial');
+        }
       } catch (error) {
-        addMessage(`Error: ${error.message}. Try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+        addMessage(`Error: ${error.message}. Try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, 'initial');
       } finally {
         showTypingIndicator(false);
       }
@@ -1115,17 +1266,27 @@
       const name = document.getElementById('leadName').value;
       const email = document.getElementById('leadEmail').value;
       const phone = document.getElementById('leadPhone').value;
-      if (!name || !email) return;
-      const formData = { name, email, phone, quote: JSON.stringify(quoteState) };
-      if (await sendEmail(formData, 'lead')) {
-        quoteState.user = { name, email, phone };
-        addMessage(`Thanks, ${name}! Your info’s saved. Let’s start your ${quoteState.project.intent || 'quote'}. Kitchen, bathroom, or another space?`, false, null, 'initial');
-        quoteWizardStage = 'space';
-        conversationStage = 'initial';
-        saveState();
-        closeLeadModal();
-      } else {
-        addMessage(`Sorry, ${name}, we couldn’t save your info. Try again!`, false, null, 'initial');
+      const projectType = document.getElementById('leadProjectType').value;
+      if (!name || !email || !projectType) return;
+      try {
+        const response = await fetch(`${CONFIG.SERVER_URL}/api/lead`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone, projectType, sessionId })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          quoteState.user = { name, email, phone };
+          quoteState.project.type = projectType;
+          addMessage(data.message, false, projectType.toLowerCase() === 'repair' ? 'damageType' : 'space');
+          quoteWizardStage = projectType.toLowerCase() === 'repair' ? 'damageType' : 'space';
+          saveState();
+          closeLeadModal();
+        } else {
+          throw new Error('Lead submission failed');
+        }
+      } catch {
+        addMessage(`Sorry, ${name}, we couldn’t save your info. Try again!`, false, 'initial');
       }
     }
 
@@ -1144,13 +1305,13 @@
         });
         const data = await response.json();
         if (response.ok) {
-          addMessage(data.message, false, null, 'initial');
+          addMessage(data.message, false, 'initial');
           closeAppointmentModal();
         } else {
           throw new Error('Appointment failed');
         }
       } catch {
-        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Try again!`, false, null, 'initial');
+        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Try again!`, false, 'initial');
       }
     }
 
@@ -1161,10 +1322,10 @@
       const message = document.getElementById('message').value;
       if (!name || !email || !message) return;
       if (await sendEmail({ name, email, message }, 'contact')) {
-        addMessage(`Thanks, ${name}! We’ll get back to ${email} soon!`, false, null, 'initial');
+        addMessage(`Thanks, ${name}! We’ll get back to ${email} soon!`, false, 'initial');
         closeContactModal();
       } else {
-        addMessage(`Sorry, ${name}, we couldn’t send your message. Try again!`, false, null, 'initial');
+        addMessage(`Sorry, ${name}, we couldn’t send your message. Try again!`, false, 'initial');
       }
     }
 
@@ -1173,17 +1334,31 @@
       const length = parseFloat(document.getElementById('length').value);
       const width = parseFloat(document.getElementById('width').value);
       if (!length || !width) return;
-      quoteState.dimensions.push({ length, width });
+      quoteState.dimensions.push({ length, width, isInches: true });
       saveState();
       document.getElementById('estimateForm').reset();
-      addMessage(`Added: ${length}" x ${width}". Add more or move on?`, false, null, 'countertop_dimensions');
+      addMessage(`Added: ${length}" x ${width}". Add more or move on?`, false, 'countertop_dimensions');
     }
 
     function handleEstimateDone() {
       if (quoteState.dimensions.length) {
-        addMessage('Dimensions locked in! Let’s pick a backsplash.', false, null, 'countertop_backsplash');
-        quoteWizardStage = 'backsplash';
+        const nextStep = quoteState.project.type.toLowerCase() === 'repair' ? 'material' :
+                         quoteState.project.type.toLowerCase() === 'remodel' ? 'material' : 'backsplash';
+        addMessage(`Dimensions locked in! Let’s ${nextStep === 'material' ? 'choose a material' : 'pick a backsplash'}.`, false, nextStep);
+        quoteWizardStage = nextStep;
         saveState();
+        if (quoteState.material && quoteState.backsplash && quoteState.edge && quoteState.cutouts.length && quoteState.demo && quoteState.plumbing) {
+          const quote = calculateQuote();
+          addMessage(
+            `Here’s your quote for a ${quoteState.project.type.toLowerCase()} in ${quoteState.project.room || 'your space'}:
+            <ul>
+              <li><b>Total</b>: $${quote.total}</li>
+            </ul>
+            <a href="${NAV_LINKS.store.url}" target="_blank">Shop now</a>!`,
+            false,
+            'feedback'
+          );
+        }
       }
       closeEstimateModal();
     }
@@ -1218,7 +1393,7 @@
       loadCompanyInfo();
       updateSuggestions('initial');
       if (quoteWizardStage) {
-        addMessage('Hey, let’s jump back in! What’s next?', false, null, quoteWizardStage);
+        addMessage('Hey, let’s jump back in! What’s next?', false, quoteWizardStage);
       }
     });
   </script>
