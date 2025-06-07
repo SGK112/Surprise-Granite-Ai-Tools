@@ -12,6 +12,41 @@ const fs = require('fs').promises;
 const nodemailer = require('nodemailer');
 const winston = require('winston');
 
+const PHRASE_DICTIONARY = {
+    'sq ft': 'square feet',
+    'sqft': 'square feet',
+    'no': 'no',
+    'nope': 'no',
+    'nah': 'no',
+    'not really': 'no',
+    'yes': 'yes',
+    'yea': 'yes',
+    'yeah': 'yes',
+    'yep': 'yes',
+    'sure': 'yes',
+    'how much': 'price',
+    'cost?': 'price',
+    'price?': 'price',
+    'thanks': 'thank you',
+    'thx': 'thank you',
+    'ty': 'thank you',
+    'idk': 'I don’t know',
+    'i dunno': 'I don’t know',
+    'pls': 'please',
+    'plz': 'please',
+    'asap': 'as soon as possible',
+    // Add more as you think of them!
+};
+
+const NAV_LINKS = {
+  store: { url: 'https://store.surprisegranite.com/', text: 'Surprise Granite online store' },
+  samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
+  // ...etc
+};
+
+const VALID_LAYOUTS = ['l-shape', 'u-shape', 'galley', 'island'];
+const VALID_MATERIALS = ['granite', 'quartz', 'marble', 'quartzite'];
+
 // Initialize App
 const app = express();
 const PORT = process.env.PORT || 3000;
