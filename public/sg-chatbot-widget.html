@@ -1000,13 +1000,56 @@
     }
 
     async function sendMessage() {
-      const userInput = document.getElementById('userInput');
-      if (!userInput || !userInput.value.trim()) return;
-      const message = userInput.value.trim();
-      addMessage(message, true);
-      userInput.value = '';
-      showTypingIndicator(true);
+    const userInput = document.getElementById('userInput');
+    if (!userInput || !userInput.value.trim()) return;
+    let message = userInput.value.trim().toLowerCase();
 
+    // Normalize phrases using dictionary
+    Object.keys(PHRASE_DICTIONARY).forEach(key => {
+        message = message.replace(new RegExp(`\\b${key}\\b`, 'gi'), PHRASE_DICTIONARY[key]);
+    });
+
+    // Use compromise for further NLP processing
+    const doc = nlp(message);
+    const normalizedMessage = doc.normalize().out('text');
+    addMessage(userInput.value, true); // Display original input
+    userInput.value = '';
+    showTypingIndicator(true);
+
+    // Save to conversation history
+    const conversationHistory = JSON.parse(localStorage.getItem('conversationHistory') || '[]');
+    conversationHistory.push({ role: 'user', content: normalizedMessage, timestamp: new Date().toISOString() });
+    localStorage.setItem('conversationHistory', JSON.stringify(conversationHistory.slice(-50))); // Limit to last 50 messages
+
+    // Proceed with existing logic, using normalizedMessage
+    try {
+        // Existing intent detection logic
+        if (/square feet|dimensions/i.test(normalizedMessage)) {
+            quoteWizardStage = 'countertop_dimensions';
+            addMessage('Please provide the dimensions (e.g., 72x36 inches or square feet).', false, null, 'countertop_dimensions');
+            openEstimateModal();
+            showTypingIndicator(false);
+            return;
+        }
+        // Add handling for "I don’t know"
+        if (/i don.?t know/i.test(normalizedMessage)) {
+            addMessage('No worries! Can you share more about your project, or would you like me to guide you with some options?', false, null, 'initial');
+            showTypingIndicator(false);
+            return;
+        }
+        // Add handling for "thank you"
+        if (/thank you/i.test(normalizedMessage)) {
+            addMessage('You’re very welcome! What’s next?', false, null, quoteWizardStage || 'initial');
+            showTypingIndicator(false);
+            return;
+        }
+        // Existing logic continues...
+    } catch (error) {
+        addMessage(`Error: ${error.message}. Try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
+    } finally {
+        showTypingIndicator(false);
+    }
+}
       try {
         // QUOTE REQUEST DETECTION
         if (/quote|price|cost|estimate/i.test(message)) {
