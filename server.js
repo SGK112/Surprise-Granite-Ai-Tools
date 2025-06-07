@@ -11,41 +11,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const nodemailer = require('nodemailer');
 const winston = require('winston');
-
-const PHRASE_DICTIONARY = {
-    'sq ft': 'square feet',
-    'sqft': 'square feet',
-    'no': 'no',
-    'nope': 'no',
-    'nah': 'no',
-    'not really': 'no',
-    'yes': 'yes',
-    'yea': 'yes',
-    'yeah': 'yes',
-    'yep': 'yes',
-    'sure': 'yes',
-    'how much': 'price',
-    'cost?': 'price',
-    'price?': 'price',
-    'thanks': 'thank you',
-    'thx': 'thank you',
-    'ty': 'thank you',
-    'idk': 'I don’t know',
-    'i dunno': 'I don’t know',
-    'pls': 'please',
-    'plz': 'please',
-    'asap': 'as soon as possible',
-    // Add more as you think of them!
-};
-
-const NAV_LINKS = {
-  store: { url: 'https://store.surprisegranite.com/', text: 'Surprise Granite online store' },
-  samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
-  // ...etc
-};
-
-const VALID_LAYOUTS = ['l-shape', 'u-shape', 'galley', 'island'];
-const VALID_MATERIALS = ['granite', 'quartz', 'marble', 'quartzite'];
+const { getShopifyProducts, getMaterialPrices } = require('./your-data-utils'); // You implement these
 
 // Initialize App
 const app = express();
@@ -82,7 +48,8 @@ const REQUIRED_ENV_VARS = [
   'SHOPIFY_SHOP',
   'OPENAI_API_KEY',
   'EMAIL_USER',
-  'EMAIL_PASS',
+  'EMAIL_PASS'
+  // Removed 'SHOPIFY_SF_TOKEN'
 ];
 REQUIRED_ENV_VARS.forEach((key) => {
   if (!process.env[key]) {
@@ -225,10 +192,11 @@ app.use(rateLimit({
   message: 'Too many requests, please try again later.',
 }));
 
-// Fetch Shopify Products
+// Fetch Shopify Products via Shopyflow (Client-Side Handled)
 async function fetchShopifyProducts() {
-  const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
   try {
+    // Removed Shopyflow reference, fetch directly from Shopify API
+    const url = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/products.json`;
     const response = await axios.get(url, {
       headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN },
       timeout: 10000,
@@ -276,23 +244,24 @@ async function fetchMaterials() {
   try {
     const csvData = await fetchCsvData(process.env.GOOGLE_SHEET_CSV_URL, 'price_list');
     return csvData.map(item => ({
-      name: item['Color Name'],
+      name: item['Color Name'] || item['name'] || '',
       material: item['Material'] || '',
       costPerSquare: parseFloat(item['Cost/SqFt']) || 0,
       thickness: item['Thickness'] || '',
-      imageUrl: item['image_url'] || ''
+      imageUrl: item['image_url'] || item['Image URL'] || ''
     })).filter(m => m.name && m.costPerSquare > 0);
   } catch (error) {
     logger.warn('Failed to fetch CSV, using fallback materials.json');
     try {
       const jsonData = await fs.readFile(path.join(__dirname, 'public', 'materials.json'), 'utf8');
-      return JSON.parse(jsonData).map(item => ({
-        name: item['Color Name'],
+      const parsedData = JSON.parse(jsonData);
+      return Array.isArray(parsedData) ? parsedData.map(item => ({
+        name: item['Color Name'] || item['name'] || '',
         material: item['Material'] || '',
         costPerSquare: parseFloat(item['Cost/SqFt']) || 0,
         thickness: item['Thickness'] || '',
-        imageUrl: item['image_url'] || ''
-      })).filter(m => m.name && m.costPerSquare > 0);
+        imageUrl: item['image_url'] || item['Image URL'] || ''
+      })).filter(m => m.name && m.costPerSquare > 0) : [];
     } catch (jsonError) {
       logger.error('Failed to load materials.json:', jsonError.message);
       return [];
@@ -333,7 +302,7 @@ function getLaborCostPerSqft(laborData, materialType) {
     return description.toLowerCase().includes(materialLower);
   });
   if (laborItem) {
-    const cost = parseFloat(laborItem[Object.keys(item)[3]]);
+    const cost = parseFloat(laborItem[Object.keys(laborItem)[3]]);
     if (!isNaN(cost)) {
       logger.info(`Labor cost for ${materialType}: $${cost}/sqft`);
       return cost;
@@ -380,8 +349,8 @@ app.get('/api/shopify-products', async (req, res) => {
 // Appointment Endpoint
 app.post('/api/appointment', async (req, res) => {
   const { name, email, city, date, time, sessionId } = req.body;
-  if (!name || !email || !date || !time) {
-    return res.status(400).json({ error: 'Name, email, date, and time are required.' });
+  if (!name || !email || !date || !time || !sessionId) {
+    return res.status(400).json({ error: 'Name, email, date, time, and sessionId are required.' });
   }
 
   try {
@@ -435,6 +404,9 @@ app.get('/api/chatlogs', async (req, res) => {
 // Close Chat Endpoint
 app.post('/api/close-chat', async (req, res) => {
   const { sessionId, abandoned } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId is required.' });
+  }
   try {
     const chatLog = await ChatLog.findOne({ sessionId });
     if (chatLog) {
@@ -507,7 +479,7 @@ app.post('/api/estimate', async (req, res) => {
     const margin = 0.50;
     const totalCost = subtotal / (1 - margin);
 
-    const sampleCost = sampleSize === '3x3"' ? 10 : sampleSize === '5x10"' ? 25 : 0;
+    const sampleCost = sampleSize === '3x3"' ? 10 : sampleSize === '4x6"' ? 15 : sampleSize === '5x10"' ? 25 : 0;
 
     const responseMessage = `Here’s your estimate for a ${layout} countertop using ${matchedMaterial.name} (${matchedMaterial.material}, ${matchedMaterial.thickness || 'unknown'}):\n` +
       `- Area: ${totalArea.toFixed(2)} sqft (+${(wasteFactor * 100).toFixed(0)}% waste = ${adjustedArea.toFixed(2)} sqft)\n` +
@@ -575,7 +547,31 @@ app.post(
     }
 
     try {
-      const userMessage = req.body.message.toLowerCase();
+      const userMessageRaw = req.body.message || '';
+      const userMessage = userMessageRaw.toLowerCase();
+      const greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'];
+      const isGreeting = greetings.some(greet => userMessage.trim() === greet);
+
+      const materialsList = await fetchMaterials();
+      let matchedMaterial = null;
+
+      // Only try to match if not a greeting and message is at least 3 characters
+      if (userMessage.length > 2 && !isGreeting) {
+        matchedMaterial = materialsList.find(item =>
+          item.name &&
+          item.name.length > 2 &&
+          fuzzyMatch(item.name.toLowerCase(), userMessage)
+        );
+      }
+
+      if (matchedMaterial) {
+        let priceReply = `✨ The mystical "${matchedMaterial.name}" (${matchedMaterial.material}, ${matchedMaterial.thickness}) is $${calculateInstalledPrice(matchedMaterial.costPerSquare)}/sq.ft.`;
+        if (!/(\d+(\.\d+)?\s?(ft|in|feet|inches|x))/i.test(userMessageRaw)) {
+          priceReply += `\n🧙‍♂️ Please provide your dimensions (e.g., "5x3 ft") for a full quote spell!`;
+        }
+        return res.json({ message: priceReply });
+      }
+
       const sessionId = req.body.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const clientId = req.body.clientId || `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const clientEmail = req.body.clientEmail || null;
@@ -609,18 +605,35 @@ app.post(
       const NAV_LINKS = {
         store: { url: 'https://store.surprisegranite.com/', text: 'Surprise Granite online store' },
         samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
-        countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
+        countertops: { url: 'https://store.surprisegranite.com/collections/countertops', text: 'countertops' },
         granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
         quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
         sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
         map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
       };
 
-      const materials = await fetchMaterials();
-      const matchedMaterial = materials.find(item => fuzzyMatch(item.name, userMessage));
-      if (matchedMaterial && !chatLog.estimateContext.step) {
-        const installedPrice = calculateInstalledPrice(matchedMaterial.costPerSquare);
-        const responseMessage = `${matchedMaterial.name} ${matchedMaterial.material} is $${installedPrice}/sqft installed. Want to start a quote with this material or explore others?`;
+      const systemPrompt = {
+        role: 'system',
+        content: `
+          You are Surprise Granite's AI assistant, located at our showroom and warehouse at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) and remodeling solutions like tile, semi-custom cabinetry, and kitchen/bath fixtures (sinks, faucets, shower heads, accessories). Your tasks include:
+          - Engaging users with a warm, conversational tone, like a friendly expert at our Surprise showroom.
+          - Personalizing responses using client data (e.g., name, past preferences) when available.
+          - Guiding users through countertop quotes (space, style, layout, dimensions, material, backsplash, edge, cutouts, demo, plumbing, sample) with clear steps.
+          - Promoting our online store at store.surprisegranite.com, linking products (e.g., sinks, faucets) with images and descriptions via Shopyflow integration.
+          - Providing accurate material pricing from GOOGLE_SHEET_CSV_URL or materials.json (cost * 3.25 + $26/sqft installed).
+          - Inviting users to visit our showroom at 11560 N Dysart Rd, Surprise, for consultations or to view samples, with directions at https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379.
+          - Saving bids in MongoDB and asking for feedback (e.g., "Does this quote work for you?").
+          - Offering sample sizes (3x3" for $10, 4x6" for $15, 5x10" for $25).
+          - Suggesting complementary products (e.g., sinks for countertops) with links to our online store.
+          - Referencing past chats for context (e.g., "You liked Quartz last time. Still interested?").
+          - Avoiding contact info; direct users to footer buttons for calling (602) 833-3189 or messaging.
+        `
+      };
+
+      const matchedMaterial2 = materialsList.find(item => fuzzyMatch(item.name, userMessage));
+      if (matchedMaterial2 && !chatLog.estimateContext.step) {
+        const installedPrice = calculateInstalledPrice(matchedMaterial2.costPerSquare);
+        const responseMessage = `${matchedMaterial2.name} ${matchedMaterial2.material} is $${installedPrice}/sqft installed. Want to start a quote with this material or explore others?`;
         chatLog.messages.push(
           { role: 'user', content: req.body.message },
           { role: 'assistant', content: responseMessage }
@@ -628,7 +641,7 @@ app.post(
         await chatLog.save();
         return res.json({
           message: responseMessage,
-          image: matchedMaterial.imageUrl,
+          image: matchedMaterial2.imageUrl,
           quickReplies: ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'],
           clientId,
           sessionId
@@ -729,6 +742,25 @@ app.post(
       if (chatLog.estimateContext?.step) {
         let responseMessage = '';
         let quickReplies = ['Start Quote', 'Browse Materials', 'View Sinks', 'Visit Showroom'];
+
+        // ADD THIS BLOCK AT THE TOP OF THE IF (chatLog.estimateContext?.step) SECTION:
+        const exitCommands = ['exit', 'stop', 'cancel', 'help', 'live agent', 'quit'];
+        if (exitCommands.some(cmd => userMessage.includes(cmd))) {
+          chatLog.estimateContext = {};
+          responseMessage = `No problem! You can start a new quote anytime, browse materials, or chat with a live agent.`;
+          quickReplies = ['Start Quote', 'Browse Materials', 'Live Agent', 'Shop Now'];
+          chatLog.messages.push(
+            { role: 'user', content: req.body.message },
+            { role: 'assistant', content: responseMessage }
+          );
+          await chatLog.save();
+          return res.json({
+            message: responseMessage,
+            quickReplies,
+            clientId,
+            sessionId
+          });
+        }
 
         if (chatLog.estimateContext.step === 'space') {
           const spaces = ['kitchen', 'bathroom', 'other'];
@@ -978,24 +1010,6 @@ app.post(
           sessionId
         });
       }
-
-      const systemPrompt = {
-        role: 'system',
-        content: `
-          You are Surprise Granite's AI assistant, located at our showroom and warehouse at 11560 N Dysart Rd, Surprise, AZ 85379. We specialize in custom countertops (Granite, Quartz, Marble, Quartzite) and remodeling solutions like tile, semi-custom cabinetry, and kitchen/bath fixtures (sinks, faucets, shower heads, accessories). Your tasks include:
-          - Engaging users with a warm, conversational tone, like a friendly expert at our Surprise showroom.
-          - Personalizing responses using client data (e.g., name, past preferences) when available.
-          - Guiding users through countertop quotes (space, style, layout, dimensions, material, backsplash, edge, cutouts, demo, plumbing, sample) with clear steps.
-          - Promoting our online store at store.surprisegranite.com, linking products (e.g., sinks, faucets) with images and descriptions.
-          - Providing accurate material pricing (cost * 3.25 + $26/sqft installed).
-          - Inviting users to visit our showroom at 11560 N Dysart Rd, Surprise, for consultations or to view samples, with directions at https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379.
-          - Saving bids in MongoDB and asking for feedback (e.g., "Does this quote work for you?").
-          - Offering sample sizes (3x3" for $10, 4x6" for $15, 5x10" for $25).
-          - Suggesting complementary products (e.g., sinks for countertops) with links to our online store.
-          - Referencing past chats for context (e.g., "You liked Quartz last time. Still interested?").
-          - Avoiding contact info; direct users to footer buttons for calling (602) 833-3189 or messaging.
-        `
-      };
 
       const messages = [
         systemPrompt,
