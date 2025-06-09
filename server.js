@@ -1,264 +1,167 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { OpenAI } = require('openai');
+const { google } = require('googleapis');
 const axios = require('axios');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const { v4: uuidv4 } = require('uuid');
-const winston = require('winston');
-const Redis = require('ioredis');
+const fs = require('fs').promises;
 
 const app = express();
-
-// Logger setup
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
-
-// Redis setup
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
-app.use(cors({
-  origin: ['https://store.surprisegranite.com', 'http://localhost:3000'],
-  methods: ['GET', 'POST'],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+// Initialize OpenAI
+const openAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Initialize Google Sheets
+const auth = new google.auth.GoogleAuth({
+  keyFile: process.env.GOOGLE_CREDENTIALS_PATH,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
 });
-app.use(limiter);
+const sheets = google.sheets({ version: 'v4', auth });
 
-// Shopify API configuration
-const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
-const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
-const SHOPIFY_STORE_URL = 'https://surprise-granite.myshopify.com/admin/api/2023-04';
-
-// Mock database for materials and pricing
-const materials = [
-  { material: 'Granite', name: 'Black Pearl', installedPrice: 65 },
-  { material: 'Quartz', name: 'Calacatta Nuvo', installedPrice: 75 },
-  { material: 'Marble', name: 'Carrara', installedPrice: 85 },
-  { material: 'Quartzite', name: 'Taj Mahal', installedPrice: 90 },
-  { material: 'Porcelain', name: 'Neolith', installedPrice: 80 },
-  { material: 'Dekton', name: 'Entzo', installedPrice: 95 }
-];
-
-// Cache middleware
-const cache = (duration) => async (req, res, next) => {
-  const key = `__express__${req.originalUrl}`;
-  const cached = await redis.get(key);
-  if (cached) {
-    res.json(JSON.parse(cached));
-    return;
-  }
-  res.sendResponse = res.json;
-  res.json = (body) => {
-    redis.setex(key, duration, JSON.stringify(body));
-    res.sendResponse(body);
-  };
-  next();
+// Shopify Configuration
+const shopifyConfig = {
+  shopName: process.env.SHOPIFY_SHOP_NAME,
+  apiKey: process.env.SHOPIFY_API_KEY,
+  password: process.env.SHOPIFY_PASSWORD,
+  apiVersion: '2023-10',
 };
 
-// Error handling middleware
-const errorHandler = (err, req, res, next) => {
-  logger.error({
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method
-  });
-  res.status(500).json({ error: 'Internal server error' });
-};
+// In-memory cache
+let materialsCache = [];
+let productsCache = [];
 
-// Chat endpoint
-app.post('/api/chat', async (req, res, next) => {
+// File-based cache
+const CACHE_FILE = 'cache.json';
+async function loadCache() {
   try {
-    const { message, sessionId, clientId, clientEmail, quoteState } = req.body;
-    if (!message || !sessionId || !clientId) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+    const data = await fs.readFile(CACHE_FILE, 'utf8');
+    const cache = JSON.parse(data);
+    materialsCache = cache.materials || [];
+    productsCache = cache.products || [];
+  } catch (e) {
+    console.log('No cache file found, starting fresh.');
+  }
+}
+async function saveCache() {
+  try {
+    await fs.writeFile(CACHE_FILE, JSON.stringify({ materials: materialsCache, products: productsCache }));
+  } catch (e) {
+    console.error('Error saving cache:', e.message);
+  }
+}
 
-    // Store conversation
-    await redis.lpush(`chat:${sessionId}`, JSON.stringify({
-      message,
-      clientId,
-      clientEmail,
-      timestamp: new Date().toISOString()
+// Helper: Fetch Materials from Google Sheets
+async function fetchMaterials() {
+  if (materialsCache.length) return materialsCache;
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: 'Materials!A2:D',
+    });
+    const rows = response.data.values || [];
+    materialsCache = rows.map(row => ({
+      name: row[0],
+      material: row[1],
+      installedPrice: parseFloat(row[2]),
+      description: row[3] || '',
     }));
-
-    // Basic response logic
-    let responseMessage = 'I’m conjuring a response! ✨ What else can I help with?';
-    let quickReplies = null;
-
-    if (/quote|estimate/i.test(message)) {
-      responseMessage = clientEmail
-        ? 'Let’s refine your quote. What dimensions or materials are you considering?'
-        : 'To start a quote, please provide your email via the lead form!';
-      quickReplies = ['countertop_dimensions'];
-    } else if (/design|style/i.test(message)) {
-      responseMessage = 'For a modern look, try Quartz with a waterfall edge. Want more style tips?';
-      quickReplies = ['initial'];
-    }
-
-    res.json({
-      message: responseMessage,
-      quickReplies,
-      sessionId,
-      clientId
-    });
-
-    logger.info({
-      event: 'chat_message',
-      sessionId,
-      clientId,
-      message,
-      response: responseMessage
-    });
-  } catch (err) {
-    next(err);
+    await saveCache();
+    return materialsCache;
+  } catch (error) {
+    console.error('Error fetching materials:', error.message);
+    return materialsCache;
   }
-});
+}
 
-// Materials endpoint
-app.get('/api/materials', cache(3600), async (req, res, next) => {
+// Helper: Fetch Shopify Products
+async function fetchShopifyProducts(query = '') {
+  if (!query && productsCache.length) return productsCache;
   try {
-    res.json(materials);
-    logger.info({ event: 'materials_fetched' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Shopify products endpoint
-app.get('/api/shopify-products', cache(1800), async (req, res, next) => {
-  try {
-    const response = await axios.get(`${SHOPIFY_STORE_URL}/products.json`, {
-      headers: {
-        'X-Shopify-Access-Token': SHOPIFY_API_SECRET
-      }
-    });
-
+    const url = `https://${shopifyConfig.apiKey}:${shopifyConfig.password}@${shopifyConfig.shopName}.myshopify.com/admin/api/${shopifyConfig.apiVersion}/products.json${query ? `?title=${encodeURIComponent(query)}` : ''}`;
+    const response = await axios.get(url);
     const products = response.data.products.map(product => ({
-      name: product.title,
-      price: product.variants[0].price,
-      url: `https://store.surprisegranite.com/products/${product.handle}`
+      title: product.title,
+      handle: product.handle,
+      variants: product.variants.map(variant => ({
+        price: parseFloat(variant.price),
+      })),
     }));
-
-    res.json(products);
-    logger.info({ event: 'shopify_products_fetched', count: products.length });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Appointment endpoint
-app.post('/api/appointment', async (req, res, next) => {
-  try {
-    const { name, email, city, date, time, sessionId } = req.body;
-    if (!name || !email || !date || !time || !sessionId) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!query) {
+      productsCache = products;
+      await saveCache();
     }
-
-    // Store appointment
-    const appointmentId = uuidv4();
-    await redis.set(`appointment:${appointmentId}`, JSON.stringify({
-      name,
-      email,
-      city,
-      date,
-      time,
-      sessionId,
-      timestamp: new Date().toISOString()
-    }));
-
-    res.json({ message: `Appointment booked for ${name} on ${date} at ${time}!` });
-    logger.info({ event: 'appointment_booked', appointmentId, sessionId });
-  } catch (err) {
-    next(err);
+    return products;
+  } catch (error) {
+    console.error('Error fetching Shopify products:', error.message);
+    return query ? [] : productsCache;
   }
-});
+}
 
-// Wizard submission endpoint
-app.post('/api/submit-wizard', async (req, res, next) => {
+// Initialize Cache
+async function initializeCache() {
+  await loadCache();
+  await fetchMaterials();
+  await fetchShopifyProducts();
+}
+initializeCache();
+
+// Endpoint: Chat with OpenAI
+app.post('/api/chat', async (req, res) => {
+  const { message, sessionId, clientId, clientEmail, quoteState } = req.body;
   try {
-    const { clientId, sessionId, responses } = req.body;
-    if (!clientId || !sessionId || !responses) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    // Store wizard responses
-    await redis.set(`wizard:${clientId}:${sessionId}`, JSON.stringify({
-      clientId,
-      sessionId,
-      responses,
-      timestamp: new Date().toISOString()
-    }));
-
-    res.json({ message: 'Wizard responses submitted successfully' });
-    logger.info({ event: 'wizard_submitted', clientId, sessionId });
-  } catch (err) {
-    next(err);
+    const context = `
+      You are a wizard-themed AI assistant for Surprise Granite.
+      - Use magical, whimsical language.
+      - Session ID: ${sessionId}, Client ID: ${clientId}, Client Email: ${clientEmail || 'N/A'}.
+      - Quote State: ${JSON.stringify(quoteState)}.
+    `;
+    const completion = await openAI.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: context },
+        { role: 'user', content: message },
+      ],
+      max_tokens: 500,
+    });
+    res.json({ message: completion.choices[0].message.content });
+  } catch (error) {
+    console.error('Chat error:', error.message);
+    res.status(500).json({ error: 'Failed to process chat request' });
   }
 });
 
-// Close chat endpoint
-app.post('/api/close-chat', async (req, res, next) => {
-  try {
-    const { sessionId, abandoned } = req.body;
-    if (!sessionId) {
-      return res.status(400).json({ error: 'Missing sessionId' });
-    }
-
-    // Archive chat
-    await redis.set(`closed_chat:${sessionId}`, JSON.stringify({
-      sessionId,
-      abandoned,
-      timestamp: new Date().toISOString()
-    }));
-
-    res.json({ message: 'Chat closed successfully' });
-    logger.info({ event: 'chat_closed', sessionId, abandoned });
-  } catch (err) {
-    next(err);
-  }
+// Endpoint: Fetch Materials
+app.get('/api/materials', async (req, res) => {
+  const materials = await fetchMaterials();
+  res.json(materials);
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', uptime: process.uptime() });
+// Endpoint: Fetch Shopify Products
+app.get('/api/shopify-products', async (req, res) => {
+  const query = req.query.q || '';
+  const products = await fetchShopifyProducts(query);
+  res.json(products);
 });
 
-// Error handler
-app.use(errorHandler);
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+// Endpoint: Close Chat Session
+app.post('/api/close-chat', async (req, res) => {
+  const { sessionId } = req.body;
+  console.log(`Chat session closed: ${sessionId}`);
+  res.json({ status: 'Session closed' });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received. Closing server...');
-  redis.quit();
-  process.exit(0);
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Start Server
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
 });
