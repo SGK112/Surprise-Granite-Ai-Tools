@@ -55,6 +55,7 @@ async function getMaterialPrices(query) {
 }
 
 // Example usage in an endpoint or chat logic:
+<<<<<<< HEAD
 async function testGetMaterialPrices() {
   const matches = await getMaterialPrices({
     vendor: 'MSI',
@@ -69,3 +70,13 @@ async function testGetMaterialPrices() {
 // testGetMaterialPrices();
 
 module.exports = { getMaterialPrices };
+=======
+const matches = await getMaterialPrices({
+  vendor: 'MSI',
+  material: 'Quartz',
+  color: 'Frost',
+  thickness: '3cm'
+});
+
+module.exports = { getMaterialPrices };
+>>>>>>> 95a0a1145cad68a2e67b726387fb8f7f38e5d8ae
