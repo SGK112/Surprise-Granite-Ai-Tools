@@ -2,24 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="Surprise Granite AI Chatbot">
-  <title>Surprise Granite AI Chatbot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Surprise Granite Wizard AI Chatbot">
+  <title>Surprise Granite Wizard AI</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <script src="https://unpkg.com/compromise@14.11.0/builds/compromise.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
   <style>
     :root {
-      --primary-blue: #1e3a8a;
-      --primary-yellow: #facc15;
-      --text-dark: #1f2937;
-      --text-light: #ffffff;
-      --bg-light: #f3f4f6;
-      --bg-message-user: #facc15;
-      --bg-message-bot: #f9fafb;
-      --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      --border-radius: 0.75rem;
-      --transition: all 0.2s ease;
+      --primary-blue: #1e2749;
+      --accent-gold: #feda00;
+      --accent-red: #e63946;
+      --accent-black: #111111;
+      --accent-white: #fff;
+      --text-light: #fff;
+      --text-dark: #222;
+      --border-radius: 1rem;
+      --transition: all 0.3s cubic-bezier(.68,-0.55,.27,1.55);
     }
 
     * {
@@ -31,644 +30,642 @@
 
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: var(--bg-light);
+      background: transparent;
       min-height: 100vh;
-      padding: 0;
       overflow-x: hidden;
-    }
-
-    .chat-container {
-      width: 100%;
-      max-width: 360px;
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      height: 65vh;
-      position: fixed;
-      bottom: calc(70px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      transition: opacity 0.3s ease;
-      z-index: 999;
-    }
-
-    .chat-container.hidden {
-      opacity: 0;
-      display: none;
-    }
-
-    .chat-header {
-      background: linear-gradient(135deg, var(--primary-blue), #3b82f6);
-      color: var(--text-light);
-      padding: 0.5rem;
-      text-align: center;
-      font-size: 1rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      border-top-left-radius: var(--border-radius);
-      border-top-right-radius: var(--border-radius);
-    }
-
-    .chat-header img {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-    }
-
-    .chat-messages {
-      flex: 1;
-      padding: 0.75rem;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      -webkit-overflow-scrolling: touch;
-      scroll-behavior: smooth;
-      padding-bottom: 60px;
-    }
-
-    .message {
-      max-width: 85%;
-      padding: 0.5rem 0.75rem;
-      border-radius: var(--border-radius);
-      font-size: 0.85rem;
-      line-height: 1.4;
-      animation: fadeIn 0.3s ease;
-      word-break: break-word;
-    }
-
-    .message.user {
-      background-color: var(--bg-message-user);
-      color: var(--text-dark);
-      align-self: flex-end;
-      border-bottom-right-radius: 0.25rem;
-      border: 2px solid var(--primary-yellow);
-    }
-
-    .message.bot {
-      background-color: var(--bg-message-bot);
-      color: var(--text-dark);
-      align-self: flex-start;
-      border-bottom-left-radius: 0.25rem;
-      border-left: 3px solid var(--primary-blue);
-      box-shadow: var(--shadow);
-    }
-
-    .message.bot img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 0.5rem;
-      margin-top: 0.5rem;
-      display: block;
-    }
-
-    .message.bot a {
-      color: var(--primary-blue);
-      text-decoration: underline;
-      font-weight: 500;
-    }
-
-    .message.bot a:hover,
-    .message.bot a:focus {
-      color: var(--primary-yellow);
-    }
-
-    .message .timestamp {
-      font-size: 0.65rem;
-      color: #6b7280;
-      margin-top: 0.25rem;
-      text-align: right;
-    }
-
-    .typing-indicator {
-      display: none;
-      padding: 0.5rem;
-      color: #6b7280;
-      font-style: italic;
-      font-size: 0.8rem;
-    }
-
-    .typing-indicator::after {
-      content: '...';
-      animation: dots 1s infinite;
-    }
-
-    .quick-replies {
-      display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem;
-      background: rgba(243, 244, 246, 0.9);
-      overflow-x: auto;
-      white-space: nowrap;
-      scroll-behavior: smooth;
-      position: sticky;
-      bottom: 0;
-      z-index: 11;
-    }
-
-    .quick-reply {
-      padding: 0.5rem 1rem;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      border: none;
-      border-radius: 0.5rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: var(--transition);
-      min-height: 36px;
-      min-width: 80px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: manipulation;
-    }
-
-    .quick-reply:hover,
-    .quick-reply:focus {
-      background-color: #1e40af;
-      transform: translateY(-2px);
-    }
-
-    .chat-input {
-      display: flex;
-      padding: 0.5rem;
-      background: rgba(255, 255, 255, 0.9);
-      border-top: 1px solid #d1d5db;
-      position: sticky;
-      bottom: 0;
-      z-index: 12;
-    }
-
-    .chat-input input {
-      flex: 1;
-      padding: 0.5rem;
-      border: 1px solid #d1d5db;
-      border-radius: 0.5rem;
-      font-size: 0.85rem;
-      outline: none;
-      transition: border-color 0.2s ease;
-      min-height: 36px;
-      touch-action: manipulation;
-    }
-
-    .chat-input input:focus {
-      border-color: var(--primary-yellow);
-    }
-
-    .chat-input button {
-      padding: 0.5rem 1rem;
-      margin-left: 0.5rem;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      border: none;
-      border-radius: 0.5rem;
-      cursor: pointer;
-      font-size: 0.85rem;
-      min-width: 80px;
-      min-height: 36px;
-      transition: var(--transition);
-      touch-action: manipulation;
-    }
-
-    .chat-input button:hover,
-    .chat-input button:focus {
-      background-color: #1e40af;
-      transform: translateY(-2px);
-    }
-
-    .chat-footer {
-      background-color: var(--primary-blue);
-      padding: 0.5rem;
-      display: flex;
-      justify-content: center;
-      gap: 0.75rem;
-      border-bottom-left-radius: var(--border-radius);
-      border-bottom-right-radius: var(--border-radius);
-    }
-
-    .footer-icon {
-      color: var(--text-light);
-      font-size: 1rem;
-      text-decoration: none;
-      padding: 0.5rem;
-      border: 2px solid var(--text-light);
-      border-radius: 0.5rem;
-      transition: var(--transition);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
       position: relative;
       touch-action: manipulation;
     }
 
-    .footer-icon:hover,
-    .footer-icon:focus {
-      color: var(--primary-yellow);
-      border-color: var(--primary-yellow);
-      transform: scale(1.1);
-    }
-
-    .footer-icon .tooltip {
-      visibility: hidden;
-      background-color: #374151;
-      color: var(--text-light);
-      text-align: center;
-      border-radius: 0.25rem;
-      padding: 0.25rem 0.5rem;
-      position: absolute;
-      z-index: 1;
-      bottom: 125%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.7rem;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-
-    .footer-icon:hover .tooltip,
-    .footer-icon:focus .tooltip {
-      visibility: visible;
-      opacity: 1;
-    }
-
-    .chat-toggle {
+    #particles-js {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      width: 48px;
-      height: 48px;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.5;
+    }
+
+    .chat-container {
+      position: fixed;
+      bottom: 70px;
+      right: 15px;
+      width: min(90%, 400px);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .chat-footer {
+      display: flex;
+      gap: 0.8rem;
+      justify-content: center; /* Center the icons horizontally under the chat */
+      padding: 0.5rem 0;
+      animation: sparkleIn 0.6s ease forwards;
+    }
+
+    .footer-icon {
+      background: #fffbe9;
+      color: #1e2749;
+      border: 2px solid #feda00;
+      box-shadow: 0 2px 8px 0 #feda0033;
+      font-size: 1.3rem;
+      padding: 0.6rem;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
-      cursor: pointer;
-      box-shadow: var(--shadow);
-      transition: background-color 0.2s ease, transform 0.2s ease;
-      z-index: 1000;
-      touch-action: manipulation;
+      transition: background 0.2s, color 0.2s, transform 0.2s;
     }
 
-    .chat-toggle:hover,
-    .chat-toggle:focus {
-      background-color: #1e40af;
+    .footer-icon:hover {
+      background: #feda00;
+      color: #1e2749;
+      transform: scale(1.08);
+    }
+
+    .footer-icon::after {
+      display: none !important;
+    }
+
+    .chat-messages {
+      max-height: 60vh;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent-gold) transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: var(--accent-gold);
+      border-radius: 3px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      border-radius: var(--border-radius);
+      font-size: 0.95rem;
+      line-height: 1.4;
+      margin: 0.3rem 0;
+      position: relative;
+      border: none;
+      box-shadow: 0 2px 12px 0 #1e274930;
+    }
+
+    .message.user {
+      background: linear-gradient(120deg, #feda00 90%, #fffbe9 100%);
+      color: #222;
+      align-self: flex-end;
+      border-radius: 1rem 1rem 0.3rem 1rem;
+      border: 2px solid #feda00;
+    }
+
+    .message.user::after {
+      content: "";
+      position: absolute;
+      right: 12px;
+      bottom: -10px;
+      width: 0;
+      height: 0;
+      border-top: 12px solid #feda00;
+      border-left: 12px solid transparent;
+    }
+
+    .message.bot {
+      background: linear-gradient(120deg, #1e2749 90%, #fff1 100%);
+      color: #fff;
+      align-self: flex-start;
+      border-radius: 1rem 1rem 1rem 0.3rem;
+      border: 2px solid #1e2749;
+    }
+
+    .message.bot::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      bottom: -10px;
+      width: 0;
+      height: 0;
+      border-top: 12px solid #1e2749;
+      border-right: 12px solid transparent;
+    }
+
+    .message.bot a {
+      color: #feda00;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .message.bot a:hover {
+      text-decoration: underline;
+    }
+
+    .message .timestamp {
+      font-size: 0.7rem;
+      color: var(--text-dark);
+      text-align: right;
+      margin-top: 0.3rem;
+    }
+
+    .suggestions {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+      background: none !important;
+      box-shadow: none !important;
+    }
+
+    .suggestions::-webkit-scrollbar {
+      display: none;
+    }
+
+    .suggestion-chip {
+      padding: 0.5rem 1.2rem;
+      background: #feda00;
+      color: #1e2749;
+      border: 2px solid #1e2749;
+      font-weight: 700;
+      border-radius: 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 1px 4px #1e274930;
+      margin-bottom: 0.2rem;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .suggestion-chip:hover {
+      background: #e63946;
+      color: #fff;
+    }
+
+    .chat-input {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.7rem 0.5rem 0.5rem 0.5rem;
+      padding: 0.5rem 0.7rem;
+      border-radius: 1rem;
+      width: calc(100% - 1.4rem);
+      position: relative;
+      z-index: 2;
+    }
+
+    .chat-input input {
+      flex: 1;
+      background: #fff;
+      color: #1e2749;
+      border-radius: 0.75rem;
+      border: 2px solid #feda00;
+      padding: 0.7rem 1rem;
+      font-size: 1rem;
+      outline: none;
+      box-shadow: 0 1px 4px #1e274930;
+    }
+
+    .chat-input input::placeholder {
+      color: #1e2749;
+      opacity: 0.7;
+    }
+
+    .chat-input button {
+      background: #feda00;
+      color: #1e2749;
+      border-radius: 0.75rem;
+      border: 2px solid #feda00;
+      font-size: 1.2rem;
+      font-weight: bold;
+      padding: 0.7rem 1.1rem;
+      margin-left: 0.3rem;
+      box-shadow: 0 1px 6px 0 #feda0033;
+      transition: background 0.2s, color 0.2s;
+      cursor: pointer;
+    }
+
+    .chat-input button:hover {
+      background: #e63946;
+      color: #fff;
+    }
+
+    .chat-toggle {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      background: linear-gradient(135deg, #1e2749 60%, #feda00 100%);
+      color: #fff;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      cursor: pointer;
+      box-shadow: 0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044;
+      border: 2px solid #feda00;
+      transition: background 0.3s, color 0.3s, transform 0.2s;
+      z-index: 1001;
+    }
+
+    .chat-toggle:hover {
+      background: #feda00;
+      color: #1e2749;
       transform: scale(1.1);
     }
 
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
+    /* Style the modal overlay */
+#leadModal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  background: rgba(30, 39, 73, 0.10);
+}
 
-    .modal-content {
-      background-color: var(--text-light);
-      padding: 1rem;
-      border-radius: var(--border-radius);
-      width: 90%;
-      max-width: 340px;
-      box-shadow: var(--shadow);
-    }
+/* Style the modal content to match chat bubbles */
+.modal-content {
+  background: #1e2749;
+  color: #fff;
+  border: 2px solid #feda00;
+  box-shadow: 0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044;
+  border-radius: 1.25rem;
+  padding: 1rem 0.8rem;
+  width: 95vw;
+  max-width: 340px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+  animation: fadeIn 0.4s;
+}
 
-    .modal-content h2 {
-      font-size: 1.1rem;
-      margin-bottom: 0.75rem;
-      color: var(--primary-blue);
-    }
+/* Style the form fields */
+#leadForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 
-    .modal-content label {
-      display: block;
-      margin-bottom: 0.25rem;
-      font-size: 0.8rem;
-      color: var(--text-dark);
-    }
+#leadForm label {
+  font-size: 1rem;
+  margin-bottom: 0.2rem;
+}
 
-    .modal-content input,
-    .modal-content textarea {
-      width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.75rem;
-      border: 1px solid #d1d5db;
-      border-radius: 0.25rem;
-      font-size: 0.85rem;
-      transition: border-color 0.2s ease;
-      min-height: 36px;
-      touch-action: manipulation;
-    }
+#leadForm input,
+#leadForm select {
+  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
+}
 
-    .modal-content input:focus,
-    .modal-content textarea:focus {
-      border-color: var(--primary-yellow);
-      outline: none;
-    }
+#leadForm input:focus,
+#leadForm select:focus {
+  border-color: #e63946;
+}
 
-    .modal-content textarea {
-      resize: vertical;
-      min-height: 80px;
-    }
+#leadForm button[type="submit"] {
+  font-size: 1rem;
+  padding: 0.6rem 1rem;
+}
 
-    .modal-content button {
-      padding: 0.5rem 1rem;
-      background-color: var(--primary-blue);
-      color: var(--text-light);
-      border: none;
-      border-radius: 0.25rem;
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: var(--transition);
-      min-height: 36px;
-      touch-action: manipulation;
-    }
+#leadForm button[type="submit"]:hover {
+  background: #e63946;
+  color: #fff;
+}
 
-    .modal-content button:hover,
-    .modal-content button:focus {
-      background-color: #1e40af;
-      transform: translateY(-2px);
-    }
+#leadForm button#leadCancel {
+  background: transparent;
+  color: #feda00;
+  border: none;
+  font-size: 1rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+  align-self: flex-end;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
 
-    .modal-content button[type="button"] {
-      background-color: #6b7280;
-      margin-left: 0.5rem;
-    }
+#leadForm button#leadCancel:hover {
+  color: #e63946;
+}
 
-    @media (max-width: 600px) {
-      .chat-container {
-        max-width: 90%;
-        height: 60vh;
-        bottom: calc(60px + env(safe-area-inset-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-      }
+/* Responsive for mobile */
+@media (max-width: 600px) {
+  .modal-content {
+    min-width: unset;
+    padding: 1rem 0.5rem;
+  }
+}
 
-      .chat-header {
-        font-size: 0.9rem;
-        padding: 0.4rem;
-      }
+@media (max-width: 400px) {
+  .modal-content {
+    max-width: 98vw;
+    padding: 0.7rem 0.2rem;
+  }
+}
 
-      .chat-messages {
-        padding: 0.5rem;
-        padding-bottom: 50px;
-      }
-
-      .message {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.6rem;
-      }
-
-      .message.bot img {
-        max-width: 90%;
-      }
-
-      .quick-reply {
-        font-size: 0.75rem;
-        padding: 0.4rem 0.8rem;
-        min-height: 32px;
-        min-width: 70px;
-      }
-
-      .chat-input input {
-        font-size: 0.8rem;
-        padding: 0.4rem;
-        min-height: 36px;
-      }
-
-      .chat-input button {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
-        min-height: 36px;
-        min-width: 70px;
-      }
-
-      .chat-footer {
-        gap: 0.5rem;
-        padding: 0.4rem;
-      }
-
-      .footer-icon {
-        font-size: 0.9rem;
-        width: 36px;
-        height: 36px;
-      }
-
-      .chat-toggle {
-        width: 44px;
-        height: 44px;
-        font-size: 1.1rem;
-        bottom: 15px;
-        right: 15px;
-      }
-
-      .modal-content {
-        max-width: 90%;
-        padding: 0.75rem;
-      }
-
-      .modal-content h2 {
-        font-size: 1rem;
-      }
-
-      .modal-content label {
-        font-size: 0.75rem;
-      }
-
-      .modal-content input,
-      .modal-content textarea {
-        font-size: 0.8rem;
-        padding: 0.4rem;
-        min-height: 36px;
-      }
-
-      .modal-content button {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
-        min-height: 36px;
-      }
-    }
-
-    .chat-input input:focus,
-    .chat-input button:focus,
-    .quick-reply:focus,
-    .footer-icon:focus,
-    .modal-content input:focus,
-    .modal-content textarea:focus,
-    .modal-content button:focus,
-    .chat-toggle:focus {
-      outline: 2px solid var(--primary-yellow);
-      outline-offset: 2px;
-    }
-
-    .quick-replies::-webkit-scrollbar,
-    .chat-messages::-webkit-scrollbar {
-      display: none;
-    }
-
-    .quick-replies,
-    .chat-messages {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes sparkleIn {
+      0% { opacity: 0; transform: scale(0.5) translateY(10px); }
+      50% { opacity: 0.5; transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes sparklePulse {
+      0% { opacity: 0; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+      100% { opacity: 0; transform: scale(1.5); }
     }
   </style>
 </head>
 <body>
-  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot" tabindex="0">
-    <i class="fas fa-message"></i>
-  </div>
-
-  <div class="chat-container hidden" id="chatContainer" role="region" aria-label="Surprise Granite AI Chatbot">
-    <div class="chat-header">
-      <img src="https://cdn.prod.website-files.com/6456ce4476abb25581fbad0c/64a70d4b30e87feb388f004f_surprise-granite-profile-logo.svg" alt="Surprise Granite Logo">
-      Surprise Granite AI
-    </div>
-    <div class="chat-messages" id="chatMessages" aria-live="polite">
+  <div id="particles-js"></div>
+  <div class="chat-container" id="chatContainer">
+    <div class="chat-messages" id="chatMessages">
       <div class="message bot">
-        Hello! Welcome to Surprise Granite, your partner in crafting stunning kitchens and baths in Arizona! 😊 I’m here to help with custom countertop quotes, design ideas, or browsing our online store. Would you like to start a quote, explore materials, or visit our showroom at 11560 N Dysart Rd, Surprise?
+        Welcome to Surprise Granite’s Wizard AI! ✨ Conjure a quote, shop our store, or weave remodeling dreams!
         <div class="timestamp" id="welcomeTimestamp"></div>
+        <div class="suggestions" id="initialSuggestions"></div>
       </div>
     </div>
-    <div class="quick-replies" id="quickReplies"></div>
-    <div class="chat-input">
-      <input type="text" id="userInput" placeholder="Tell me about your project..." aria-label="Chat input" autocomplete="off">
-      <button id="sendButton" aria-label="Send message">Send</button>
+    <div class="chat-input" id="chatInput">
+      <input type="text" id="userInput" placeholder="Cast your remodeling spell..." aria-label="Chat input">
+      <button id="sendButton" aria-label="Send message"><i class="fas fa-paper-plane"></i></button>
     </div>
-    <div class="chat-footer" id="chatFooter"></div>
+    <div class="chat-footer" id="chatFooter">
+      <a href="https://store.surprisegranite.com" class="footer-icon" target="_blank" aria-label="Visit store">
+        <i class="fas fa-shopping-cart"></i>
+      </a>
+      <a href="https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379" class="footer-icon" target="_blank" aria-label="Get directions">
+        <i class="fas fa-map-marker-alt"></i>
+      </a>
+      <a href="mailto:info@surprisegranite.com" class="footer-icon" aria-label="Contact us">
+        <i class="fas fa-envelope"></i>
+      </a>
+      <a href="#" class="footer-icon" onclick="sendQuickReply('Live Agent')" aria-label="Live support">
+        <i class="fas fa-headset"></i>
+      </a>
+    </div>
   </div>
-
+  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot">
+    <i class="fas fa-hat-wizard"></i>
+  </div>
   <div class="modal" id="leadModal">
     <div class="modal-content">
-      <h2>Let’s Get Started!</h2>
+      <h2>Summon a Quote</h2>
       <form id="leadForm">
         <label for="leadName">Name</label>
-        <input type="text" id="leadName" name="name" required aria-required="true">
+        <input type="text" id="leadName" name="name" required>
         <label for="leadEmail">Email</label>
-        <input type="email" id="leadEmail" name="email" required aria-required="true">
+        <input type="email" id="leadEmail" name="email" required>
         <label for="leadPhone">Phone (Optional)</label>
         <input type="tel" id="leadPhone" name="phone">
-        <button type="submit">Submit</button>
+        <label for="leadProjectType">Project Type</label>
+        <select id="leadProjectType" name="projectType" required>
+          <option value="Countertop Replacement">New Countertop</option>
+          <option value="Countertop Repair">Repair</option>
+          <option value="Kitchen Remodeling">Kitchen Remodel</option>
+          <option value="Bathroom Remodeling">Bathroom Remodel</option>
+        </select>
+        <button type="submit">Cast Spell</button>
         <button type="button" id="leadCancel">Cancel</button>
       </form>
     </div>
   </div>
-
-  <div class="modal" id="appointmentModal">
-    <div class="modal-content">
-      <h2>Book a Consultation</h2>
-      <form id="appointmentForm">
-        <label for="name">Name</label>
-        <input type="text" id="name" name="name" required aria-required="true">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required aria-required="true">
-        <label for="date">Preferred Date</label>
-        <input type="date" id="date" name="date" required aria-required="true">
-        <label for="time">Preferred Time</label>
-        <input type="time" id="time" name="time" required aria-required="true">
-        <button type="submit">Submit</button>
-        <button type="button" id="appointmentCancel">Cancel</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="modal" id="contactModal">
-    <div class="modal-content">
-      <h2>Contact Our Team</h2>
-      <form id="contactForm">
-        <label for="contactName">Name</label>
-        <input type="text" id="contactName" name="name" required aria-required="true">
-        <label for="contactEmail">Email</label>
-        <input type="email" id="contactEmail" name="email" required aria-required="true">
-        <label for="message">Message</label>
-        <textarea id="message" name="message" required aria-required="true"></textarea>
-        <button type="submit">Submit</button>
-        <button type="button" id="contactCancel">Cancel</button>
-      </form>
-    </div>
-  </div>
-
   <script>
     const CONFIG = {
-      SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com',
+      SERVER_URL: 'http://localhost:5000', // Use your local Flask server
       USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801'
     };
 
-    const NAV_LINKS = {
-      store: { url: 'https://store.surprisegranite.com/', text: 'Surprise Granite online store' },
-      samples: { url: 'https://store.surprisegranite.com/collections/countertop-samples', text: 'samples' },
-      countertops: { url: 'https://www.surprisegranite.com/materials/all-countertops', text: 'countertops' },
-      granite: { url: 'https://store.surprisegranite.com/collections/granite', text: 'granite collection' },
-      quartz: { url: 'https://store.surprisegranite.com/collections/quartz', text: 'quartz collection' },
-      sinks: { url: 'https://store.surprisegranite.com/collections/sinks', text: 'sinks' },
-      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'our location' }
-    };
+    const QUICK_REPLIES = [
+      'Countertop Quote',
+      'Repair Quote',
+      'Design Tips',
+      'Shop Now',
+      'Live Agent'
+    ];
 
-    const QUICK_REPLY_SETS = {
-      initial: ['Quote', 'Materials', 'Sinks', 'Visit Us', 'Book Estimate'],
-      countertops: ['Granite', 'Quartz', 'Marble', 'Quartzite', 'Browse Countertops'],
-      style: ['Modern', 'Traditional', 'Rustic', 'Contemporary'],
-      countertop_layout: ['L-Shape', 'U-Shape', 'Galley', 'Island'],
-      countertop_dimensions: ['Enter Dimensions', 'Need Help?', 'Skip'],
-      countertop_backsplash: ['4" Backsplash', '6" Backsplash', 'Full Height', 'None'],
-      countertop_edge: ['Eased', 'Bullnose', 'Ogee', 'Waterfall'],
-      countertop_cutouts: ['Sink', 'Faucet', 'Cooktop', 'None'],
-      countertop_demo: ['Demolition Needed', 'No Demolition', 'Unsure'],
-      feedback: ['Confirm Quote', 'Too High', 'New Quote', 'Change Material', 'Book Consultation'],
-      store: ['View Sinks', 'Browse Countertops', 'See Faucets', 'Back to Quote']
+    const NAV_LINKS = {
+      store: { url: 'https://store.surprisegranite.com', text: 'Shop Store' },
+      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'Our Location' },
+      contact: { url: 'mailto:info@surprisegranite.com', text: 'Contact Us' },
+      liveChat: { text: 'Live Agent' }
     };
 
     let quoteState = JSON.parse(sessionStorage.getItem('quoteState')) || {
       user: { name: null, email: null, phone: null },
-      project: { type: null, room: null, area: null },
-      material: null,
-      layout: null,
-      dimensions: [],
-      backsplash: { height: null, linearFeet: null },
-      edge: null,
-      cutouts: [],
-      demo: null,
-      style: null,
-      quote: null
+      project: { type: null }
     };
-    let conversationStage = 'initial';
-    let quoteWizardStage = sessionStorage.getItem('quoteWizardStage') || null;
-    let inactivityTimer;
-    let abandonTimer;
-    const sessionId = sessionStorage.getItem('sessionId') || `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const clientId = localStorage.getItem('clientId') || `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    sessionStorage.setItem('sessionId', sessionId);
+    const clientId = localStorage.getItem('clientId') || `client-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const sessionId = sessionStorage.getItem('sessionId') || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     localStorage.setItem('clientId', clientId);
-    let placeholders = ['Tell me about your project...', 'Need a countertop quote?', 'Explore our online store...'];
-    let placeholderIndex = 0;
+    sessionStorage.setItem('sessionId', sessionId);
+
+    let offlineCache = {
+      materials: [],
+      products: []
+    };
 
     function saveState() {
       sessionStorage.setItem('quoteState', JSON.stringify(quoteState));
-      sessionStorage.setItem('quoteWizardStage', quoteWizardStage);
     }
 
-    function extractNameAndEmail(message) {
-      const doc = nlp(message);
-      const emailMatch = message.match(/\b[\w\.-]+@[\w\.-]+\.\w+\b/);
-      let email = emailMatch ? emailMatch[0] : null;
-      let name = doc.people().out('text') || message.split(/my email is|email:|at|@|,/i)[0].replace(/[^a-zA-Z\s]/g, '').trim() || 'Customer';
-      return { name, email };
+    function toggleChat() {
+      const chatContainer = document.getElementById('chatContainer');
+      const chatToggle = document.getElementById('chatToggle');
+      const isHidden = chatContainer.style.display === 'none';
+      chatContainer.style.display = isHidden ? 'flex' : 'none';
+      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-hat-wizard"></i>';
+      if (isHidden) {
+        document.getElementById('userInput').focus();
+        adjustChatPosition();
+        scrollChatToBottom();
+      } else {
+        retryFetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+      }
+    }
+
+    function adjustChatPosition() {
+      const chatContainer = document.getElementById('chatContainer');
+      const input = document.getElementById('userInput');
+      input.addEventListener('focus', () => {
+        setTimeout(() => {
+          const keyboardHeight = window.innerHeight - document.documentElement.clientHeight;
+          chatContainer.style.bottom = `${70 + keyboardHeight}px`;
+        }, 100);
+      });
+      input.addEventListener('blur', () => {
+        chatContainer.style.bottom = '70px';
+      });
+    }
+
+    function addMessage(content, isUser) {
+      const chatMessages = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = `message ${isUser ? 'user' : 'bot'}`;
+      div.innerHTML = content;
+      const timestamp = document.createElement('div');
+      timestamp.className = 'timestamp';
+      timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      div.appendChild(timestamp);
+      chatMessages.appendChild(div);
+      if (!isUser) updateSuggestions();
+      scrollChatToBottom();
+    }
+
+    function updateSuggestions() {
+      const suggestions = document.createElement('div');
+      suggestions.className = 'suggestions';
+      suggestions.innerHTML = QUICK_REPLIES.map(reply => `
+        <button class="suggestion-chip" onclick="sendQuickReply('${reply}')">${reply}</button>
+      `).join('');
+      const lastBotMessage = document.querySelector('.message.bot:last-child');
+      if (lastBotMessage) {
+        const existingSuggestions = lastBotMessage.querySelector('.suggestions');
+        if (existingSuggestions) existingSuggestions.remove();
+        lastBotMessage.appendChild(suggestions);
+      }
+    }
+
+    function scrollChatToBottom() {
+      const chatMessages = document.getElementById('chatMessages');
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function retryFetch(url, options, retries = 3, delay = 1000) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await fetch(url, {
+            ...options,
+            mode: 'cors',
+            credentials: 'same-origin'
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+          }
+          return await response.json();
+        } catch (error) {
+          console.error(`Fetch attempt ${i + 1} failed:`, error.message);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          addMessage('Connection issue. Please try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
+          return null;
+        }
+      }
+    }
+
+    async function sendMessage() {
+      const userInput = document.getElementById('userInput');
+      if (!userInput.value.trim()) return;
+      addMessage(userInput.value, true);
+      const message = userInput.value.trim().toLowerCase();
+      userInput.value = '';
+
+      if (!navigator.onLine) {
+        if (/price|cost|quote/i.test(message)) {
+          const materialMatch = message.match(/granite|quartz|marble|quartzite|porcelain/i);
+          if (materialMatch && offlineCache.materials.length) {
+            const mat = offlineCache.materials.find(m => m.material.toLowerCase() === materialMatch[0].toLowerCase());
+            if (mat) {
+              addMessage(`${mat.name} (${mat.material}): $${mat.installedPrice.toFixed(2)}/sq.ft installed. Conjure a quote when online!`, false);
+            } else {
+              addMessage(`No pricing for ${materialMatch[0]}. Try again when online!`, false);
+            }
+          } else {
+            addMessage('Offline: Specify a material (e.g., Granite) for pricing!', false);
+          }
+        } else if (/shop|store|product/i.test(message)) {
+          if (offlineCache.products.length) {
+            const query = message.replace(/shop|product|store/i, '').trim().toLowerCase();
+            const products = offlineCache.products.filter(p => p.title.toLowerCase().includes(query));
+            if (products.length) {
+              const message = 'Cached products:<br>' + products.slice(0, 3).map(p => `<b>${p.title}</b>: $${p.variants[0].price} <a href="https://store.surprisegranite.com/products/${p.handle}" target="_blank">View</a><br>`).join('');
+              addMessage(message, false);
+            } else {
+              addMessage('No cached products found. Try again when online!', false);
+            }
+          } else {
+            addMessage('Offline: Product search unavailable. Try again when online!', false);
+          }
+        } else {
+          addMessage('Offline: I’m limited to cached responses. Try pricing or product queries!', false);
+        }
+        return;
+      }
+
+      try {
+        if (/quote|price|cost/i.test(message)) {
+          document.getElementById('leadModal').style.display = 'flex';
+          document.getElementById('leadName').focus();
+          return;
+        }
+
+        if (/design tips/i.test(message)) {
+          addMessage('For a magical kitchen, choose Quartz with a waterfall edge. Need more enchanting ideas?', false);
+          return;
+        }
+
+        if (/shop|store|product/i.test(message)) {
+          const query = message.replace(/shop|product|store/i, '').trim();
+          const data = await retryFetch(`${CONFIG.SERVER_URL}/api/shopify-products?q=${encodeURIComponent(query)}`);
+          if (data) {
+            if (data.length) {
+              offlineCache.products = data;
+              const message = 'Magical finds:<br>' + data.slice(0, 3).map(p => `<b>${p.title}</b>: $${p.variants[0].price} <a href="https://store.surprisegranite.com/products/${p.handle}" target="_blank">View</a><br>`).join('');
+              addMessage(message, false);
+            } else {
+              addMessage('No products found. Browse <a href="https://store.surprisegranite.com" target="_blank">our store</a>!', false);
+            }
+          }
+          return;
+        }
+
+        if (/live agent/i.test(message)) {
+          addMessage('Summoning a live wizard! Or email <a href="mailto:info@surprisegranite.com">info@surprisegranite.com</a>.', false);
+          return;
+        }
+
+        const data = await retryFetch(`${CONFIG.SERVER_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, sessionId, clientId, clientEmail: quoteState.user.email, quoteState })
+        });
+        if (data) {
+          addMessage(data.message, false);
+        }
+      } catch (error) {
+        addMessage('Error: Server not responding. Try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
+      }
     }
 
     function sendQuickReply(message) {
@@ -676,361 +673,95 @@
       sendMessage();
     }
 
-    function openSamples() {
-      window.open(NAV_LINKS.samples.url, '_blank');
-      updateQuickReplies('initial');
-    }
+    async function handleLeadSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('leadName').value.trim();
+      const email = document.getElementById('leadEmail').value.trim();
+      const phone = document.getElementById('leadPhone').value.trim();
+      const projectType = document.getElementById('leadProjectType').value;
 
-    function startQuoteWizard(intent = 'quote') {
-      quoteState.project.intent = intent;
-      if (!quoteState.user.email) {
-        quoteWizardStage = 'lead';
-        openLeadModal();
-      } else {
-        quoteWizardStage = 'space';
-        addMessage(`Great, ${quoteState.user.name}! Let’s start your ${intent === 'quote' ? 'countertop quote' : 'design journey'}. Is this for a kitchen, bathroom, or another space?`, false, null, 'space');
-      }
-      saveState();
-    }
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('email', email);
+      formData.append('phone', phone);
+      formData.append('projectType', projectType);
+      formData.append('quoteState', JSON.stringify(quoteState));
 
-    function openLeadModal() {
-      document.getElementById('leadModal').style.display = 'flex';
-      document.getElementById('leadName').focus();
-      updateQuickReplies('initial');
-    }
-
-    function closeLeadModal() {
-      document.getElementById('leadModal').style.display = 'none';
-      document.getElementById('leadForm').reset();
-      updateQuickReplies('initial');
-      document.getElementById('chatContainer').focus();
-    }
-
-    function openAppointmentModal() {
-      document.getElementById('appointmentModal').style.display = 'flex';
-      document.getElementById('name').focus();
-      updateQuickReplies('initial');
-    }
-
-    function closeAppointmentModal() {
-      document.getElementById('appointmentModal').style.display = 'none';
-      document.getElementById('appointmentForm').reset();
-      updateQuickReplies('initial');
-      document.getElementById('chatContainer').focus();
-    }
-
-    function openContactModal() {
-      document.getElementById('contactModal').style.display = 'flex';
-      document.getElementById('contactName').focus();
-      updateQuickReplies('initial');
-    }
-
-    function closeContactModal() {
-      document.getElementById('contactModal').style.display = 'none';
-      document.getElementById('contactForm').reset();
-      updateQuickReplies('initial');
-      document.getElementById('chatContainer').focus();
-    }
-
-    async function loadCompanyInfo() {
-      document.getElementById('chatFooter').innerHTML = `
-        <a href="#" class="footer-icon" onclick="openContactModal()" aria-label="Contact us" title="Contact">
-          <i class="fas fa-envelope"></i>
-          <span class="tooltip">Contact Us</span>
-        </a>
-        <a href="${NAV_LINKS.store.url}" class="footer-icon" target="_blank" aria-label="Visit online store" title="Shop">
-          <i class="fas fa-shopping-cart"></i>
-          <span class="tooltip">Shop Online</span>
-        </a>
-        <a href="${NAV_LINKS.map.url}" class="footer-icon" target="_blank" aria-label="Get directions" title="Location">
-          <i class="fas fa-map-marker-alt"></i>
-          <span class="tooltip">Showroom Location</span>
-        </a>
-      `;
-    }
-
-    function resetInactivityTimer() {
-      clearTimeout(inactivityTimer);
-      clearTimeout(abandonTimer);
-      if (!quoteWizardStage) {
-        inactivityTimer = setTimeout(() => {
-          addMessage('Still here? 😊 I can help with a quote, browse our online store, or book a visit to our showroom at 11560 N Dysart Rd, Surprise!', false, null, null, 'initial');
-          abandonTimer = setTimeout(closeAbandonedChat, 15 * 60 * 1000);
-        }, 15 * 60 * 1000);
-      }
-    }
-
-    async function closeAbandonedChat() {
-      if (quoteState.user.email) {
-        await sendEmail({ ...quoteState, status: 'abandoned' }, 'lead');
-      }
-      addMessage('Looks like you’ve stepped away. Chat closed for now, but come back anytime!', false);
-      document.getElementById('chatContainer').classList.add('hidden');
-      document.getElementById('chatToggle').innerHTML = '<i class="fas fa-message"></i>';
-      document.getElementById('chatToggle').setAttribute('aria-label', 'Open chatbot');
-      await fetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, abandoned: true })
-      });
-      clearTimeout(inactivityTimer);
-      clearTimeout(abandonTimer);
-      sessionStorage.clear();
-    }
-
-    function toggleChat() {
-      const chatContainer = document.getElementById('chatContainer');
-      const chatToggle = document.getElementById('chatToggle');
-      const isHidden = chatContainer.classList.contains('hidden');
-      chatContainer.classList.toggle('hidden', !isHidden);
-      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-message"></i>';
-      chatToggle.setAttribute('aria-label', isHidden ? 'Close chatbot' : 'Open chatbot');
-      if (isHidden) {
-        document.getElementById('userInput').focus();
-        resetInactivityTimer();
-        updateQuickReplies();
-        window.scrollTo(0, 0); // Prevent scroll shift
-      } else {
-        clearTimeout(inactivityTimer);
-        clearTimeout(abandonTimer);
-        fetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, abandoned: false })
-        });
-      }
-    }
-
-    function updateQuickReplies(context = quoteWizardStage || 'initial') {
-      const quickReplies = document.getElementById('quickReplies');
-      if (!quickReplies) return;
-      const replies = QUICK_REPLY_SETS[context] || QUICK_REPLY_SETS.initial;
-      quickReplies.innerHTML = replies.map(reply => {
-        let action = reply === 'Start Quote' ? `startQuoteWizard('quote')` :
-                     reply === 'Browse Materials' ? `sendQuickReply('Browse Materials')` :
-                     reply === 'View Sinks' ? `sendQuickReply('Show me sinks')` :
-                     reply === 'Browse Countertops' ? `sendQuickReply('Browse countertops')` :
-                     reply === 'See Faucets' ? `sendQuickReply('Show me faucets')` :
-                     reply === 'Visit Showroom' ? `sendQuickReply('Tell me about the showroom')` :
-                     reply === 'Book Consultation' ? 'openAppointmentModal()' :
-                     reply === 'Confirm Quote' ? `sendQuickReply('Confirm quote')` :
-                     reply === 'Change Material' ? `sendQuickReply('Change material')` :
-                     reply === 'Back to Quote' ? `startQuoteWizard('quote')` :
-                     `sendQuickReply('${reply.replace(/'/g, "\\'")}')`;
-        return `<button class="quick-reply" onclick="${action}">${reply}</button>`;
-      }).join('');
-    }
-
-    function addMessage(content, isUser, imageUrl = null, quickReplyContext = null) {
-      const chatMessages = document.getElementById('chatMessages');
-      if (!chatMessages) return;
-      const div = document.createElement('div');
-      div.className = `message ${isUser ? 'user' : 'bot'}`;
-      const contentDiv = document.createElement('div');
-      contentDiv.innerHTML = content || 'Sorry, no response received. Please try again!';
-      div.appendChild(contentDiv);
-      if (imageUrl && !isUser) {
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = 'Product image';
-        img.onerror = () => img.remove();
-        div.appendChild(img);
-      }
-      const timestamp = document.createElement('div');
-      timestamp.className = 'timestamp';
-      timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      div.appendChild(timestamp);
-      chatMessages.appendChild(div);
-      if (quickReplyContext) {
-        updateQuickReplies(quickReplyContext);
-      }
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-      if (isUser) resetInactivityTimer();
-    }
-
-    function showTypingIndicator(show) {
-      const chatMessages = document.getElementById('chatMessages');
-      let indicator = document.getElementById('typingIndicator');
-      if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'typingIndicator';
-        indicator.className = 'typing-indicator';
-        indicator.textContent = 'Surprise Granite AI is typing';
-        chatMessages.appendChild(indicator);
-      }
-      indicator.style.display = show ? 'block' : 'none';
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    async function sendMessage() {
-      const userInput = document.getElementById('userInput');
-      if (!userInput || !userInput.value.trim()) return;
-      const message = userInput.value.trim();
-      addMessage(message, true);
-      userInput.value = '';
-      document.getElementById('quickReplies').style.display = 'none';
-      showTypingIndicator(true);
-
-      try {
-        if (conversationStage === 'collect_lead') {
-          const { name, email } = extractNameAndEmail(message);
-          if (email) {
-            quoteState.user = { name, email, phone: null };
-            await sendEmail({ name, email, quote: JSON.stringify(quoteState) }, 'lead');
-            addMessage(`Thank you, ${name}! Your details are saved, and we’ll send a free sample to ${email}. Let’s start your quote. Is this for a kitchen, bathroom, or another space?`, false, null, 'space');
-            conversationStage = 'initial';
-            quoteWizardStage = 'space';
-            saveState();
-          } else {
-            addMessage('Please provide a valid email, like "Josh B, joshb@example.com".', false, null, 'initial');
-          }
-        } else {
-          const response = await fetch(`${CONFIG.SERVER_URL}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message,
-              sessionId,
-              clientId,
-              clientEmail: quoteState.user.email,
-              quoteState
-            })
-          });
-          const data = await response.json();
-          if (response.ok) {
-            addMessage(data.message, false, data.image, data.quickReplies ? data.quickReplies[0]?.toLowerCase() : 'initial');
-            if (data.quoteWizardStage) {
-              quoteWizardStage = data.quoteWizardStage;
-              quoteState = { ...quoteState, ...data.quoteState };
-              saveState();
-            }
-            if (data.bid) {
-              quoteState.quote = data.bid;
-              quoteWizardStage = null;
-              saveState();
-            }
-            if (data.clientId) localStorage.setItem('clientId', data.clientId);
-            if (data.sessionId) sessionStorage.setItem('sessionId', data.sessionId);
-          } else {
-            addMessage('Sorry, I couldn’t process your request. Please try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.', false, null, 'initial');
-          }
-        }
-      } catch (error) {
-        addMessage(`Error: ${error.message}. Please try again or visit <a href="${NAV_LINKS.store.url}" target="_blank">${NAV_LINKS.store.text}</a>.`, false, null, 'initial');
-      } finally {
-        showTypingIndicator(false);
-        document.getElementById('quickReplies').style.display = 'flex';
-      }
-    }
-
-    async function sendEmail(formData, type) {
       try {
         const response = await fetch(CONFIG.USEBASIN_ENDPOINT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: formData,
+          mode: 'cors'
         });
-        return response.ok;
-      } catch (error) {
-        return false;
-      }
-    }
-
-    async function handleLeadSubmit(e) {
-      e.preventDefault();
-      const name = document.getElementById('leadName').value;
-      const email = document.getElementById('leadEmail').value;
-      const phone = document.getElementById('leadPhone').value;
-      if (!name || !email) return;
-      const formData = { name, email, phone, quote: JSON.stringify(quoteState) };
-      if (await sendEmail(formData, 'lead')) {
-        quoteState.user = { name, email, phone };
-        addMessage(`Thanks, ${name}! Your details are saved, and we’ll send a free sample to ${email}. Let’s start your quote. Is this for a kitchen, bathroom, or another space?`, false, null, 'space');
-        quoteWizardStage = 'space';
-        conversationStage = 'initial';
-        saveState();
-        closeLeadModal();
-      } else {
-        addMessage(`Sorry, ${name}, we couldn’t save your details. Please try again.`, false, null, 'initial');
-      }
-    }
-
-    async function handleAppointmentSubmit(e) {
-      e.preventDefault();
-      const name = document.getElementById('name').value;
-      const email = document.getElementById('email').value;
-      const date = document.getElementById('date').value;
-      const time = document.getElementById('time').value;
-      if (!name || !email || !date || !time) return;
-      try {
-        const response = await fetch(`${CONFIG.SERVER_URL}/api/appointment`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, date, time, sessionId })
-        });
-        const data = await response.json();
         if (response.ok) {
-          addMessage(data.message, false, null, 'initial');
-          closeAppointmentModal();
+          quoteState.user = { name, email, phone };
+          quoteState.project.type = projectType;
+          saveState();
+          addMessage(`Thank you, ${name}! Your quote request for ${projectType} has been conjured. We’ll contact you soon!`, false);
+          document.getElementById('leadModal').style.display = 'none';
+          document.getElementById('leadForm').reset();
         } else {
-          throw new Error('Appointment failed');
+          addMessage(`Sorry, ${name}, we couldn’t process your request. Try again or contact support.`, false);
         }
       } catch (error) {
-        addMessage(`Sorry, ${name}, we couldn’t book your appointment. Please try again.`, false, null, 'initial');
+        addMessage('Error submitting form. Please try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
       }
     }
 
-    async function handleContactSubmit(e) {
-      e.preventDefault();
-      const name = document.getElementById('contactName').value;
-      const email = document.getElementById('contactEmail').value;
-      const message = document.getElementById('message').value;
-      if (!name || !email || !message) return;
-      if (await sendEmail({ name, email, message }, 'contact')) {
-        addMessage(`Thanks, ${name}! We’ll reply to ${email} soon.`, false, null, 'initial');
-        closeContactModal();
-      } else {
-        addMessage(`Sorry, ${name}, we couldn’t send your message. Please try again.`, false, null, 'initial');
+    async function cacheData() {
+      if (navigator.onLine) {
+        const materialsData = await retryFetch(`${CONFIG.SERVER_URL}/api/materials`);
+        if (materialsData) offlineCache.materials = materialsData;
+
+        const productsData = await retryFetch(`${CONFIG.SERVER_URL}/api/shopify-products`);
+        if (productsData) offlineCache.products = productsData;
       }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      const userInput = document.getElementById('userInput');
-      userInput.addEventListener('focus', () => {
-        window.scrollTo(0, 0);
-        document.body.style.overflow = 'hidden';
-      });
-      userInput.addEventListener('blur', () => {
-        document.body.style.overflow = 'auto';
+      particlesJS('particles-js', {
+        particles: {
+          number: { value: 50, density: { enable: true, value_area: 1000 } },
+          color: { value: ['#facc15', '#6d28d9'] },
+          shape: { type: 'circle' },
+          opacity: { value: 0.5, random: true },
+          size: { value: 2, random: true },
+          move: { enable: true, speed: 1, direction: 'none', random: true }
+        },
+        interactivity: {
+          events: { onhover: { enable: true, mode: 'repulse' } },
+          modes: { repulse: { distance: 100, duration: 0.4 } }
+        }
       });
 
       document.getElementById('sendButton').addEventListener('click', sendMessage);
-      document.getElementById('leadCancel').addEventListener('click', closeLeadModal);
-      document.getElementById('appointmentCancel').addEventListener('click', closeAppointmentModal);
-      document.getElementById('contactCancel').addEventListener('click', closeContactModal);
-      document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
-      document.getElementById('appointmentForm').addEventListener('submit', handleAppointmentSubmit);
-      document.getElementById('contactForm').addEventListener('submit', handleContactSubmit);
       document.getElementById('userInput').addEventListener('keypress', e => {
         if (e.key === 'Enter') sendMessage();
       });
       document.getElementById('chatToggle').addEventListener('click', toggleChat);
-      document.getElementById('chatToggle').addEventListener('keypress', e => {
-        if (e.key === 'Enter' || e.key === ' ') toggleChat();
+      document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
+      document.getElementById('leadCancel').addEventListener('click', () => {
+        document.getElementById('leadModal').style.display = 'none';
       });
-
       document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      updateSuggestions();
+      cacheData();
 
-      setInterval(() => {
-        document.getElementById('userInput').placeholder = placeholders[placeholderIndex];
-        placeholderIndex = (placeholderIndex + 1) % placeholders.length;
-      }, 3000);
-
-      document.getElementById('userInput').focus();
-      loadCompanyInfo();
-      updateQuickReplies();
-      if (quoteWizardStage) {
-        addMessage('Let’s continue your quote! Where were we?', false, null, quoteWizardStage);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(reg => {
+            console.log('Service Worker registered:', reg);
+          })
+          .catch(err => {
+            console.error('Service Worker registration failed:', err.message);
+            if (err.message.includes('HTTPS')) {
+              console.warn('Service Workers require HTTPS or localhost. Ensure your server is configured correctly.');
+            } else if (err.message.includes('404')) {
+              console.warn('sw.js not found. Verify the file exists in the root directory.');
+            }
+          });
+      } else {
+        console.warn('Service Workers not supported in this browser.');
       }
     });
   </script>
