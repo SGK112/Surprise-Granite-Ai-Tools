@@ -1,0 +1,88 @@
+<!-- Surprise Granite Wizard AI Chatbot Include File -->
+<!-- Include this file on any web page to add the chatbot functionality -->
+
+<!-- Add the chatbot container -->
+<div id="sg-chatbot-container"></div>
+
+<!-- Load the necessary scripts -->
+<script>
+  (function() {
+    // Create link to load styles
+    const styles = document.createElement('link');
+    styles.rel = 'stylesheet';
+    styles.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap';
+    document.head.appendChild(styles);
+
+    const fontAwesome = document.createElement('link');
+    fontAwesome.rel = 'stylesheet';
+    fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+    document.head.appendChild(fontAwesome);
+
+    // Load particles.js
+    const particles = document.createElement('script');
+    particles.src = 'https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js';
+    document.head.appendChild(particles);
+
+    // Function to load the chatbot
+    function loadChatbot() {
+      const container = document.getElementById('sg-chatbot-container');
+      
+      // Create an iframe for the chatbot
+      const iframe = document.createElement('iframe');
+      iframe.src = 'https://your-server.com/sg-chatbot-widget.html'; // Update with your actual server URL
+      iframe.style.position = 'fixed';
+      iframe.style.bottom = '0';
+      iframe.style.right = '0';
+      iframe.style.border = 'none';
+      iframe.style.width = '450px';
+      iframe.style.height = '600px';
+      iframe.style.maxHeight = '80vh';
+      iframe.style.maxWidth = '95vw';
+      iframe.style.zIndex = '9999';
+      iframe.style.display = 'none';
+      iframe.id = 'sg-chatbot-iframe';
+      
+      container.appendChild(iframe);
+      
+      // Create toggle button
+      const toggleBtn = document.createElement('button');
+      toggleBtn.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+      toggleBtn.style.position = 'fixed';
+      toggleBtn.style.bottom = '15px';
+      toggleBtn.style.right = '15px';
+      toggleBtn.style.background = 'linear-gradient(135deg, #1e2749 60%, #feda00 100%)';
+      toggleBtn.style.color = '#fff';
+      toggleBtn.style.width = '50px';
+      toggleBtn.style.height = '50px';
+      toggleBtn.style.borderRadius = '50%';
+      toggleBtn.style.display = 'flex';
+      toggleBtn.style.alignItems = 'center';
+      toggleBtn.style.justifyContent = 'center';
+      toggleBtn.style.fontSize = '1.5rem';
+      toggleBtn.style.cursor = 'pointer';
+      toggleBtn.style.boxShadow = '0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044';
+      toggleBtn.style.border = '2px solid #feda00';
+      toggleBtn.style.zIndex = '10000';
+      toggleBtn.style.transition = 'all 0.3s';
+      toggleBtn.addEventListener('click', function() {
+        const iframe = document.getElementById('sg-chatbot-iframe');
+        if (iframe.style.display === 'none') {
+          iframe.style.display = 'block';
+          toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+        } else {
+          iframe.style.display = 'none';
+          toggleBtn.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+        }
+      });
+      
+      container.appendChild(toggleBtn);
+    }
+
+    // Load the chatbot when everything is ready
+    if (document.readyState === 'complete') {
+      loadChatbot();
+    } else {
+      window.addEventListener('load', loadChatbot);
+    }
+  })();
+</script>

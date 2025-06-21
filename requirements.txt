@@ -1,0 +1,7 @@
+flask==2.3.2
+pymongo==4.4.1
+requests==2.30.0
+Werkzeug==2.3.6
+Pillow==10.0.1
+openai==0.28.0
+python-dotenv==1.0.0

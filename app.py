@@ -15,11 +15,23 @@ app = Flask(__name__)
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-DB_NAME = "countertops"
-COLLECTION_NAME = "images"
-client = MongoClient(MONGO_URI)
-db = client[DB_NAME]
-collection = db[COLLECTION_NAME]
+DB_NAME = os.getenv("DB_NAME", "countertops")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "images")
+
+# Initialize MongoDB connection with error handling
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client.server_info()  # Test the connection
+    db = client[DB_NAME]
+    collection = db[COLLECTION_NAME]
+    mongo_connected = True
+    print("MongoDB connection successful")
+except Exception as e:
+    print(f"MongoDB connection error: {e}")
+    print("Using fallback data storage")
+    mongo_connected = False
+    # Create in-memory fallback data storage
+    fallback_collection = []
 
 UPLOAD_FOLDER = 'countertop_images'
 STATIC_FOLDER = 'dist'
@@ -122,13 +134,118 @@ def serve_manifest():
 def serve_fallback(filename):
     return send_from_directory(IMAGES_FOLDER, filename)
 
+@app.route('/api/images', methods=['GET'])
+def get_images():
+    try:
+        image_id = request.args.get('id')
+        
+        # Use MongoDB if connected, otherwise use fallback collection
+        if mongo_connected:
+            if image_id:
+                # Find a specific image by ID
+                image = collection.find_one({"_id": image_id}, {'_id': 0})
+                if image:
+                    if 'imageUrl' in image and image['imageUrl']:
+                        image['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(image['imageUrl'])}"
+                    return jsonify(image)
+                else:
+                    # Generate a sample image if not found
+                    return jsonify({
+                        "name": "Sample Material",
+                        "vendor": "Sample Vendor",
+                        "material": "Sample",
+                        "description": "This is a sample material since MongoDB is not available or the requested image was not found",
+                        "imageUrl": f"{BASE_URL}/countertop_images/absolute_black_closeup.avif"
+                    })
+            else:
+                # Return all images
+                images = list(collection.find({}, {'_id': 0}))
+                for image in images:
+                    if 'imageUrl' in image and image['imageUrl']:
+                        image['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(image['imageUrl'])}"
+                return jsonify(images)
+        else:
+            # Use fallback data
+            if image_id:
+                # Return a sample image since we don't have a real database
+                return jsonify({
+                    "name": "Sample Material",
+                    "vendor": "Sample Vendor",
+                    "material": "Sample",
+                    "description": "This is a sample material since MongoDB is not available",
+                    "imageUrl": f"{BASE_URL}/countertop_images/absolute_black_closeup.avif"
+                })
+            else:
+                # Return sample images
+                return jsonify([
+                    {
+                        "name": "Absolute Black",
+                        "vendor": "Sample Vendor",
+                        "material": "Granite",
+                        "description": "Rich black granite with consistent color",
+                        "imageUrl": f"{BASE_URL}/countertop_images/absolute_black_closeup.avif"
+                    },
+                    {
+                        "name": "Absolute White",
+                        "vendor": "Sample Vendor",
+                        "material": "Quartz",
+                        "description": "Pure white engineered quartz",
+                        "imageUrl": f"{BASE_URL}/countertop_images/absolute_white_closeup.avif"
+                    }
+                ])
+    except Exception as e:
+        print(f"Error in get_images: {e}")
+        # Return sample data if there's an error
+        return jsonify([
+            {
+                "name": "Error Fallback",
+                "vendor": "System",
+                "material": "Sample",
+                "description": f"Error occurred: {str(e)}",
+                "imageUrl": f"{BASE_URL}/countertop_images/absolute_black_closeup.avif"
+            }
+        ])
+
 @app.route('/api/countertops', methods=['GET'])
 def get_countertops():
-    countertops = list(collection.find({}, {'_id': 0}))
-    for countertop in countertops:
-        if 'imageUrl' in countertop and countertop['imageUrl']:
-            countertop['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(countertop['imageUrl'])}"
-    return jsonify(countertops)
+    try:
+        if mongo_connected:
+            countertops = list(collection.find({}, {'_id': 0}))
+            for countertop in countertops:
+                if 'imageUrl' in countertop and countertop['imageUrl']:
+                    countertop['imageUrl'] = f"{BASE_URL}/countertop_images/{quote(countertop['imageUrl'])}"
+            return jsonify(countertops)
+        else:
+            # Use fallback data if MongoDB is not available
+            return jsonify([
+                {
+                    "name": "Absolute Black",
+                    "vendor": "Sample Vendor",
+                    "material": "Granite",
+                    "description": "Rich black granite with consistent color",
+                    "price": 79.99,
+                    "imageUrl": f"{BASE_URL}/countertop_images/absolute_black_closeup.avif"
+                },
+                {
+                    "name": "Absolute White",
+                    "vendor": "Sample Vendor",
+                    "material": "Quartz",
+                    "description": "Pure white engineered quartz",
+                    "price": 89.99,
+                    "imageUrl": f"{BASE_URL}/countertop_images/absolute_white_closeup.avif"
+                },
+                {
+                    "name": "Acacia",
+                    "vendor": "Sample Vendor",
+                    "material": "Quartzite",
+                    "description": "Natural stone with unique patterns",
+                    "price": 99.99,
+                    "imageUrl": f"{BASE_URL}/countertop_images/acacia_closeup.avif"
+                }
+            ])
+    except Exception as e:
+        print(f"Error in get_countertops: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-image', methods=['POST'])
 def upload_image():
@@ -415,22 +532,44 @@ def fetch_materials_from_google():
 
 def fetch_materials_from_csv():
     url = os.getenv("GOOGLE_SHEET_CSV_URL")
-    response = requests.get(url)
-    response.raise_for_status()
-    decoded = response.content.decode('utf-8')
-    reader = csv.DictReader(decoded.splitlines())
-    materials = []
-    for row in reader:
-        # Convert price to float if present
-        if "installedPrice" in row:
-            try:
-                row["installedPrice"] = float(row["installedPrice"])
-            except Exception:
-                row["installedPrice"] = 0.0
-        materials.append(row)
-    return materials
+    if not url:
+        print("Warning: GOOGLE_SHEET_CSV_URL environment variable is not set.")
+        return load_sample_materials()
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        decoded = response.content.decode('utf-8')
+        reader = csv.DictReader(decoded.splitlines())
+        materials = []
+        for row in reader:
+            # Convert price to float if present
+            if "installedPrice" in row:
+                try:
+                    row["installedPrice"] = float(row["installedPrice"])
+                except Exception:
+                    row["installedPrice"] = 0.0
+            materials.append(row)
+        return materials
+    except Exception as e:
+        print(f"Error fetching materials from CSV: {e}")
+        return load_sample_materials()
 
-materials = fetch_materials_from_csv()
+def load_sample_materials():
+    # Create a few sample materials as fallback
+    return [
+        {"name": "Absolute Black", "material": "Granite", "primary_color": "Black", "installedPrice": 89.99},
+        {"name": "Calacatta Gold", "material": "Marble", "primary_color": "White", "installedPrice": 129.99},
+        {"name": "Silestone Arctic", "material": "Quartz", "primary_color": "White", "installedPrice": 79.99},
+        {"name": "Blue Pearl", "material": "Granite", "primary_color": "Blue", "installedPrice": 99.99},
+        {"name": "Desert Bloom", "material": "Quartzite", "primary_color": "Beige", "installedPrice": 109.99}
+    ]
+
+try:
+    materials = fetch_materials_from_csv()
+except Exception as e:
+    print(f"Error initializing materials: {e}")
+    materials = load_sample_materials()
 
 def load_llms_context():
     try:

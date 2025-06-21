@@ -55,7 +55,6 @@ async function getMaterialPrices(query) {
 }
 
 // Example usage in an endpoint or chat logic:
-<<<<<<< HEAD
 async function testGetMaterialPrices() {
   const matches = await getMaterialPrices({
     vendor: 'MSI',
@@ -69,14 +68,84 @@ async function testGetMaterialPrices() {
 // Uncomment the next line to test directly:
 // testGetMaterialPrices();
 
-module.exports = { getMaterialPrices };
-=======
-const matches = await getMaterialPrices({
-  vendor: 'MSI',
-  material: 'Quartz',
-  color: 'Frost',
-  thickness: '3cm'
-});
+/**
+ * Get products from Shopify store with optional search
+ * @param {string} query - Search query for products 
+ * @returns {Promise<Array>} - Array of Shopify products
+ */
+async function getShopifyProducts(query = '') {
+  try {
+    // Get configuration from environment variables
+    const shopifyShop = process.env.SHOPIFY_SHOP;
+    const shopifyToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    
+    if (!shopifyShop || !shopifyToken) {
+      console.error('Missing Shopify configuration');
+      return [];
+    }
+    
+    // Create the GraphQL query to search products
+    const graphqlQuery = `
+    {
+      products(first: 10, query: "${query}") {
+        edges {
+          node {
+            id
+            title
+            handle
+            description
+            featuredImage {
+              url
+            }
+            variants(first: 1) {
+              edges {
+                node {
+                  price
+                  compareAtPrice
+                  sku
+                }
+              }
+            }
+          }
+        }
+      }
+    }`;
+    
+    // Make request to Shopify GraphQL API
+    const response = await axios({
+      url: `https://${shopifyShop}/api/2024-07/graphql.json`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': shopifyToken
+      },
+      data: { query: graphqlQuery }
+    });
+    
+    // Process the response
+    if (response.data && response.data.data && response.data.data.products) {
+      return response.data.data.products.edges.map(edge => {
+        const product = edge.node;
+        const variant = product.variants.edges[0]?.node;
+        
+        return {
+          id: product.id,
+          title: product.title,
+          handle: product.handle,
+          description: product.description,
+          image: product.featuredImage?.url || '',
+          price: variant?.price || '0.00',
+          compareAtPrice: variant?.compareAtPrice || null,
+          sku: variant?.sku || ''
+        };
+      });
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error fetching Shopify products:', error.message);
+    return [];
+  }
+}
 
-module.exports = { getMaterialPrices };
->>>>>>> 95a0a1145cad68a2e67b726387fb8f7f38e5d8ae
+module.exports = { getMaterialPrices, getShopifyProducts };
