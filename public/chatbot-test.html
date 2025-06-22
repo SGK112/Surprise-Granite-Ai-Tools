@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Test</title>
+  <style>
+    .error-log {
+      background-color: #ffeeee;
+      border: 1px solid red;
+      padding: 10px;
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .success {
+      background-color: #e7f7e7;
+      border: 1px solid green;
+    }
+    .error {
+      background-color: #ffeeee;
+      border: 1px solid red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Surprise Granite Chatbot Test</h1>
+  <p>This is a simple test page to verify the chatbot is working correctly.</p>
+  
+  <div class="status" id="status-container">Checking chatbot status...</div>
+  <div class="error-log" id="error-log"></div>
+  
+  <!-- Include the chatbot widget -->
+  <div id="sg-chatbot-container"></div>  <script>
+    // Error logging
+    function logError(message, error) {
+      console.error(message, error);
+      const errorLog = document.getElementById('error-log');
+      const timestamp = new Date().toLocaleTimeString();
+      errorLog.innerHTML += `<p><strong>${timestamp}:</strong> ${message} ${error ? '- ' + (error.message || error) : ''}</p>`;
+    }
+
+    function updateStatus(message, isError = false) {
+      const statusContainer = document.getElementById('status-container');
+      statusContainer.textContent = message;
+      statusContainer.className = `status ${isError ? 'error' : 'success'}`;
+    }
+
+    // Override console.error to log to our error div
+    const originalError = console.error;
+    console.error = function() {
+      const errorLog = document.getElementById('error-log');
+      const timestamp = new Date().toLocaleTimeString();
+      const errorMessage = Array.from(arguments).join(' ');
+      errorLog.innerHTML += `<p><strong>${timestamp} (console):</strong> ${errorMessage}</p>`;
+      originalError.apply(console, arguments);
+    };
+
+    (function() {
+      try {
+        updateStatus("Loading required resources...");
+        
+        // Create link to load styles
+        const styles = document.createElement('link');
+        styles.rel = 'stylesheet';
+        styles.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap';
+        document.head.appendChild(styles);
+
+        const fontAwesome = document.createElement('link');
+        fontAwesome.rel = 'stylesheet';
+        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(fontAwesome);
+
+        // Load particles.js
+        const particles = document.createElement('script');
+        particles.src = 'https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js';
+        particles.onload = () => {
+          updateStatus("Particles.js loaded successfully");
+        };
+        particles.onerror = (error) => {
+          logError("Failed to load particles.js", error);        };
+        document.head.appendChild(particles);
+      } catch (error) {
+        logError("Error in resource loading", error);
+      }      // Function to load the chatbot
+      function loadChatbot() {
+        try {
+          updateStatus("Loading chatbot widget...");
+          const container = document.getElementById('sg-chatbot-container');
+          if (!container) {
+            throw new Error("Container element not found");
+          }
+            // Create an iframe for the chatbot
+          const iframe = document.createElement('iframe');
+          iframe.src = '/sg-chatbot-widget.html'; // Try direct path instead of /public/ prefix
+          iframe.style.position = 'fixed';
+          iframe.style.bottom = '0';
+          iframe.style.right = '0';
+          iframe.style.border = '2px solid blue'; // Make border visible for debugging
+          iframe.style.width = '450px';
+          iframe.style.height = '600px';
+          iframe.style.maxHeight = '80vh';
+          iframe.style.maxWidth = '95vw';
+          iframe.style.zIndex = '9999';
+          iframe.style.display = 'block'; // Changed from 'none' to 'block' for initial testing
+          iframe.id = 'sg-chatbot-iframe';
+          
+          // Add onload and onerror handlers
+          iframe.onload = () => {
+            updateStatus("Chatbot iframe loaded successfully");
+          };
+          iframe.onerror = (error) => {
+            logError("Failed to load chatbot iframe", error);
+          };
+          
+          container.appendChild(iframe);
+          
+          // Create toggle button
+          const toggleBtn = document.createElement('button');
+          toggleBtn.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+          toggleBtn.style.position = 'fixed';
+          toggleBtn.style.bottom = '15px';
+          toggleBtn.style.right = '15px';
+          toggleBtn.style.background = 'linear-gradient(135deg, #1e2749 60%, #feda00 100%)';
+          toggleBtn.style.color = '#fff';
+          toggleBtn.style.width = '60px'; // Increased size
+          toggleBtn.style.height = '60px'; // Increased size
+          toggleBtn.style.borderRadius = '50%';
+          toggleBtn.style.display = 'flex';
+          toggleBtn.style.alignItems = 'center';
+          toggleBtn.style.justifyContent = 'center';
+          toggleBtn.style.fontSize = '1.8rem'; // Increased size
+          toggleBtn.style.cursor = 'pointer';
+          toggleBtn.style.boxShadow = '0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044';
+          toggleBtn.style.border = '3px solid #feda00'; // More visible border
+          toggleBtn.style.zIndex = '10000';
+          toggleBtn.style.transition = 'all 0.3s';
+          
+          toggleBtn.addEventListener('click', function() {
+            try {
+              const iframe = document.getElementById('sg-chatbot-iframe');
+              if (!iframe) {
+                throw new Error("Iframe not found when toggle button clicked");
+              }
+              
+              if (iframe.style.display === 'none') {
+                iframe.style.display = 'block';
+                toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+                updateStatus("Chatbot opened");
+              } else {
+                iframe.style.display = 'none';
+                toggleBtn.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+                updateStatus("Chatbot closed");
+              }
+            } catch (error) {
+              logError("Error toggling chatbot", error);
+            }
+          });
+          
+          container.appendChild(toggleBtn);
+          updateStatus("Chatbot widget and toggle button added successfully");
+        } catch (error) {
+          logError("Error loading chatbot", error);
+          updateStatus("Failed to load chatbot. See error log for details.", true);
+        }
+      }
+
+      // Add debug buttons
+      function addDebugControls() {
+        try {
+          const debugContainer = document.createElement('div');
+          debugContainer.style.position = 'fixed';
+          debugContainer.style.top = '15px';
+          debugContainer.style.left = '15px';
+          debugContainer.style.zIndex = '10001';
+          debugContainer.style.background = 'rgba(255, 255, 255, 0.9)';
+          debugContainer.style.padding = '10px';
+          debugContainer.style.borderRadius = '5px';
+          debugContainer.style.border = '1px solid #ccc';
+          
+          // Debug button
+          const debugBtn = document.createElement('button');
+          debugBtn.innerHTML = 'Check Status';
+          debugBtn.style.padding = '5px 10px';
+          debugBtn.style.marginRight = '5px';
+          debugBtn.addEventListener('click', function() {
+            const iframe = document.getElementById('sg-chatbot-iframe');
+            if (iframe) {
+              updateStatus(`Iframe exists: Yes | Display: ${iframe.style.display}`);
+            } else {
+              updateStatus("Iframe does not exist", true);
+            }
+          });
+          debugContainer.appendChild(debugBtn);
+          
+          // Force show button
+          const showBtn = document.createElement('button');
+          showBtn.innerHTML = 'Force Show';
+          showBtn.style.padding = '5px 10px';
+          showBtn.style.marginRight = '5px';
+          showBtn.addEventListener('click', function() {
+            const iframe = document.getElementById('sg-chatbot-iframe');
+            if (iframe) {
+              iframe.style.display = 'block';
+              updateStatus("Forced iframe to show");
+            } else {
+              updateStatus("Cannot show iframe - it does not exist", true);
+            }
+          });
+          debugContainer.appendChild(showBtn);
+          
+          // Force reload button
+          const reloadBtn = document.createElement('button');
+          reloadBtn.innerHTML = 'Reload Page';
+          reloadBtn.style.padding = '5px 10px';
+          reloadBtn.addEventListener('click', function() {
+            window.location.reload();
+          });
+          debugContainer.appendChild(reloadBtn);
+          
+          document.body.appendChild(debugContainer);
+        } catch (error) {
+          logError("Error adding debug controls", error);
+        }
+      }
+
+      // Add the debug controls
+      addDebugControls();
+
+      // Load the chatbot when everything is ready
+      if (document.readyState === 'complete') {
+        loadChatbot();
+      } else {
+        window.addEventListener('load', loadChatbot);
+      }
+    })();
+  </script>
+</body>
+</html>

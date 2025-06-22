@@ -50,41 +50,32 @@
       right: 15px;
       width: min(90%, 400px);
       z-index: 1000;
-      display: none;
+      display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+      border: 2px solid var(--accent-gold);
     }
 
-    .chat-footer {
+    .chat-header {
+      background: var(--primary-blue);
+      color: var(--text-light);
+      padding: 15px;
+      border-radius: 10px 10px 0 0;
+      font-weight: 600;
       display: flex;
-      gap: 0.8rem;
-      justify-content: center; /* Center the icons horizontally under the chat */
-      padding: 0.5rem 0;
-      animation: sparkleIn 0.6s ease forwards;
-    }
-
-    .footer-icon {
-      background: #fffbe9;
-      color: #1e2749;
-      border: 2px solid #feda00;
-      box-shadow: 0 2px 8px 0 #feda0033;
-      font-size: 1.3rem;
-      padding: 0.6rem;
-      border-radius: 50%;
-      display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      transition: background 0.2s, color 0.2s, transform 0.2s;
     }
 
-    .footer-icon:hover {
-      background: #feda00;
-      color: #1e2749;
-      transform: scale(1.08);
-    }
-
-    .footer-icon::after {
-      display: none !important;
+    .chat-header .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.2rem;
+      cursor: pointer;
     }
 
     .chat-messages {
@@ -127,17 +118,6 @@
       border: 2px solid #feda00;
     }
 
-    .message.user::after {
-      content: "";
-      position: absolute;
-      right: 12px;
-      bottom: -10px;
-      width: 0;
-      height: 0;
-      border-top: 12px solid #feda00;
-      border-left: 12px solid transparent;
-    }
-
     .message.bot {
       background: linear-gradient(120deg, #1e2749 90%, #fff1 100%);
       color: #fff;
@@ -146,122 +126,57 @@
       border: 2px solid #1e2749;
     }
 
-    .message.bot::after {
-      content: "";
-      position: absolute;
-      left: 12px;
-      bottom: -10px;
-      width: 0;
-      height: 0;
-      border-top: 12px solid #1e2749;
-      border-right: 12px solid transparent;
-    }
-
-    .message.bot a {
-      color: #feda00;
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .message.bot a:hover {
-      text-decoration: underline;
-    }
-
     .message .timestamp {
       font-size: 0.7rem;
-      color: var(--text-dark);
+      color: rgba(255,255,255,0.7);
       text-align: right;
       margin-top: 0.3rem;
     }
 
-    .suggestions {
-      display: flex;
-      gap: 0.5rem;
-      overflow-x: auto;
-      padding: 0.5rem 0;
-      background: none !important;
-      box-shadow: none !important;
-    }
-
-    .suggestions::-webkit-scrollbar {
-      display: none;
-    }
-
-    .suggestion-chip {
-      padding: 0.5rem 1.2rem;
-      background: #feda00;
-      color: #1e2749;
-      border: 2px solid #1e2749;
-      font-weight: 700;
-      border-radius: 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-      box-shadow: 0 1px 4px #1e274930;
-      margin-bottom: 0.2rem;
-      transition: background 0.2s, color 0.2s;
-    }
-
-    .suggestion-chip:hover {
-      background: #e63946;
-      color: #fff;
-    }
-
     .chat-input {
       display: flex;
+      padding: 1rem;
       gap: 0.5rem;
-      align-items: center;
-      margin: 0.7rem 0.5rem 0.5rem 0.5rem;
-      padding: 0.5rem 0.7rem;
-      border-radius: 1rem;
-      width: calc(100% - 1.4rem);
-      position: relative;
-      z-index: 2;
+      border-top: 2px solid #f0f0f0;
     }
 
     .chat-input input {
       flex: 1;
-      background: #fff;
-      color: #1e2749;
-      border-radius: 0.75rem;
-      border: 2px solid #feda00;
-      padding: 0.7rem 1rem;
-      font-size: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 2rem;
+      border: 2px solid #ddd;
+      font-family: inherit;
       outline: none;
-      box-shadow: 0 1px 4px #1e274930;
     }
 
-    .chat-input input::placeholder {
-      color: #1e2749;
-      opacity: 0.7;
+    .chat-input input:focus {
+      border-color: var(--accent-gold);
     }
 
     .chat-input button {
-      background: #feda00;
-      color: #1e2749;
-      border-radius: 0.75rem;
-      border: 2px solid #feda00;
-      font-size: 1.2rem;
-      font-weight: bold;
-      padding: 0.7rem 1.1rem;
-      margin-left: 0.3rem;
-      box-shadow: 0 1px 6px 0 #feda0033;
-      transition: background 0.2s, color 0.2s;
+      padding: 0.75rem 1.5rem;
+      border-radius: 2rem;
+      border: none;
+      background: var(--primary-blue);
+      color: white;
+      font-weight: 600;
       cursor: pointer;
+      transition: var(--transition);
     }
 
     .chat-input button:hover {
-      background: #e63946;
-      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 3px 10px rgba(30, 39, 73, 0.3);
     }
 
-    .chat-toggle {
+    #chatToggle {
       position: fixed;
       bottom: 15px;
       right: 15px;
       background: linear-gradient(135deg, #1e2749 60%, #feda00 100%);
       color: #fff;
-      width: 50px;
-      height: 50px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -269,500 +184,190 @@
       font-size: 1.5rem;
       cursor: pointer;
       box-shadow: 0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044;
-      border: 2px solid #feda00;
-      transition: background 0.3s, color 0.3s, transform 0.2s;
-      z-index: 1001;
+      border: 3px solid #feda00;
+      z-index: 10000;
+      transition: var(--transition);
     }
 
-    .chat-toggle:hover {
-      background: #feda00;
-      color: #1e2749;
+    #chatToggle:hover {
       transform: scale(1.1);
-    }
-
-    /* Style the modal overlay */
-#leadModal {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  background: rgba(30, 39, 73, 0.10);
-}
-
-/* Style the modal content to match chat bubbles */
-.modal-content {
-  background: #1e2749;
-  color: #fff;
-  border: 2px solid #feda00;
-  box-shadow: 0 4px 24px 0 #1e274988, 0 1.5px 8px 0 #feda0044;
-  border-radius: 1.25rem;
-  padding: 1rem 0.8rem;
-  width: 95vw;
-  max-width: 340px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.7rem;
-  animation: fadeIn 0.4s;
-}
-
-/* Style the form fields */
-#leadForm {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-#leadForm label {
-  font-size: 1rem;
-  margin-bottom: 0.2rem;
-}
-
-#leadForm input,
-#leadForm select {
-  font-size: 1rem;
-  padding: 0.6rem 0.8rem;
-}
-
-#leadForm input:focus,
-#leadForm select:focus {
-  border-color: #e63946;
-}
-
-#leadForm button[type="submit"] {
-  font-size: 1rem;
-  padding: 0.6rem 1rem;
-}
-
-#leadForm button[type="submit"]:hover {
-  background: #e63946;
-  color: #fff;
-}
-
-#leadForm button#leadCancel {
-  background: transparent;
-  color: #feda00;
-  border: none;
-  font-size: 1rem;
-  margin-top: 0.2rem;
-  cursor: pointer;
-  align-self: flex-end;
-  text-decoration: underline;
-  transition: color 0.2s;
-}
-
-#leadForm button#leadCancel:hover {
-  color: #e63946;
-}
-
-/* Responsive for mobile */
-@media (max-width: 600px) {
-  .modal-content {
-    min-width: unset;
-    padding: 1rem 0.5rem;
-  }
-}
-
-@media (max-width: 400px) {
-  .modal-content {
-    max-width: 98vw;
-    padding: 0.7rem 0.2rem;
-  }
-}
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes sparkleIn {
-      0% { opacity: 0; transform: scale(0.5) translateY(10px); }
-      50% { opacity: 0.5; transform: scale(1.1); }
-      100% { opacity: 1; transform: scale(1) translateY(0); }
-    }
-
-    @keyframes sparkle {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-
-    @keyframes sparklePulse {
-      0% { opacity: 0; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.3); }
-      100% { opacity: 0; transform: scale(1.5); }
     }
   </style>
 </head>
 <body>
+  <!-- Debug Controls (only for development) -->
+  <div style="position: fixed; top: 10px; left: 10px; z-index: 2000; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 5px;">
+    <button id="debugOpenChat" style="padding: 5px;">Force Open Chat</button>
+    <button id="debugCloseChat" style="padding: 5px; margin-left: 5px;">Force Close Chat</button>
+    <button id="debugRefresh" style="padding: 5px; margin-left: 5px;">Reload Page</button>
+    <div id="debugInfo" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
+  </div>
+
   <div id="particles-js"></div>
-  <div class="chat-container" id="chatContainer">
+  
+  <!-- Chat Container -->
+  <div class="chat-container" id="chatContainer" style="display: none;">
+    <div class="chat-header">
+      <span>Surprise Granite Wizard AI</span>
+      <button class="close-btn" id="closeChat"><i class="fas fa-times"></i></button>
+    </div>
     <div class="chat-messages" id="chatMessages">
       <div class="message bot">
-        Welcome to Surprise Granite’s Wizard AI! ✨ Conjure a quote, shop our store, or weave remodeling dreams!
+        Welcome to Surprise Granite's Wizard AI!  How can I help you today?
         <div class="timestamp" id="welcomeTimestamp"></div>
-        <div class="suggestions" id="initialSuggestions"></div>
       </div>
     </div>
-    <div class="chat-input" id="chatInput">
-      <input type="text" id="userInput" placeholder="Cast your remodeling spell..." aria-label="Chat input">
-      <button id="sendButton" aria-label="Send message"><i class="fas fa-paper-plane"></i></button>
-    </div>
-    <div class="chat-footer" id="chatFooter">
-      <a href="https://store.surprisegranite.com" class="footer-icon" target="_blank" aria-label="Visit store">
-        <i class="fas fa-shopping-cart"></i>
-      </a>
-      <a href="https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379" class="footer-icon" target="_blank" aria-label="Get directions">
-        <i class="fas fa-map-marker-alt"></i>
-      </a>
-      <a href="mailto:info@surprisegranite.com" class="footer-icon" aria-label="Contact us">
-        <i class="fas fa-envelope"></i>
-      </a>
-      <a href="#" class="footer-icon" onclick="sendQuickReply('Live Agent')" aria-label="Live support">
-        <i class="fas fa-headset"></i>
-      </a>
+    <div class="chat-input">
+      <input type="text" id="userInput" placeholder="Ask me about countertops, quotes, or designs...">
+      <button id="sendButton"><i class="fas fa-paper-plane"></i></button>
     </div>
   </div>
-  <div class="chat-toggle" id="chatToggle" aria-label="Open chatbot">
-    <i class="fas fa-hat-wizard"></i>
-  </div>
-  <div class="modal" id="leadModal">
-    <div class="modal-content">
-      <h2>Summon a Quote</h2>
-      <form id="leadForm">
-        <label for="leadName">Name</label>
-        <input type="text" id="leadName" name="name" required>
-        <label for="leadEmail">Email</label>
-        <input type="email" id="leadEmail" name="email" required>
-        <label for="leadPhone">Phone (Optional)</label>
-        <input type="tel" id="leadPhone" name="phone">
-        <label for="leadProjectType">Project Type</label>
-        <select id="leadProjectType" name="projectType" required>
-          <option value="Countertop Replacement">New Countertop</option>
-          <option value="Countertop Repair">Repair</option>
-          <option value="Kitchen Remodeling">Kitchen Remodel</option>
-          <option value="Bathroom Remodeling">Bathroom Remodel</option>
-        </select>
-        <button type="submit">Cast Spell</button>
-        <button type="button" id="leadCancel">Cancel</button>
-      </form>
-    </div>
-  </div>
+
+  <!-- Chat Toggle Button -->
+  <div id="chatToggle"><i class="fas fa-hat-wizard"></i></div>
+
   <script>
+    // Configuration
     const CONFIG = {
-  SERVER_URL: 'https://surprise-granite-connections-dev.onrender.com', // Replace with actual production endpoint
-  USEBASIN_ENDPOINT: 'https://usebasin.com/f/0e9742fed801'
-};
-
-    const QUICK_REPLIES = [
-      'Countertop Quote',
-      'Repair Quote',
-      'Design Tips',
-      'Shop Now',
-      'Live Agent'
-    ];
-
-    const NAV_LINKS = {
-      store: { url: 'https://store.surprisegranite.com', text: 'Shop Store' },
-      map: { url: 'https://maps.google.com/?q=11560+N+Dysart+Rd,+Surprise,+AZ+85379', text: 'Our Location' },
-      contact: { url: 'mailto:info@surprisegranite.com', text: 'Contact Us' },
-      liveChat: { text: 'Live Agent' }
+      SERVER_URL: 'http://localhost:3000',
+      API_URL: 'http://localhost:5000',
+      USEBASIN_ENDPOINT: 'https://usebasin.com/f/your-form-id'
     };
-
-    let quoteState = JSON.parse(sessionStorage.getItem('quoteState')) || {
-      user: { name: null, email: null, phone: null },
-      project: { type: null }
-    };
-    const clientId = localStorage.getItem('clientId') || `client-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    const sessionId = sessionStorage.getItem('sessionId') || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    localStorage.setItem('clientId', clientId);
-    sessionStorage.setItem('sessionId', sessionId);
-
-    let offlineCache = {
-      materials: [],
-      products: []
-    };
-
-    function saveState() {
-      sessionStorage.setItem('quoteState', JSON.stringify(quoteState));
+    
+    // Debug info function
+    function debugLog(message) {
+      console.log(message);
+      const debugInfo = document.getElementById('debugInfo');
+      if (debugInfo) {
+        const time = new Date().toLocaleTimeString();
+        debugInfo.innerHTML += <div>[] </div>;
+        debugInfo.scrollTop = debugInfo.scrollHeight;
+      }
     }
 
-    function toggleChat() {
+    // Main function
+    document.addEventListener('DOMContentLoaded', () => {
+      debugLog('DOM loaded');
+      
+      // Initialize particles.js
+      try {
+        particlesJS('particles-js', {
+          particles: {
+            number: { value: 50, density: { enable: true, value_area: 1000 } },
+            color: { value: ['#facc15', '#6d28d9'] },
+            shape: { type: 'circle' },
+            opacity: { value: 0.5, random: true },
+            size: { value: 2, random: true },
+            move: { enable: true, speed: 1, direction: 'none', random: true }
+          },
+          interactivity: {
+            events: { onhover: { enable: true, mode: 'repulse' } },
+            modes: { repulse: { distance: 100, duration: 0.4 } }
+          }
+        });
+        debugLog('Particles initialized');
+      } catch (error) {
+        debugLog('Particles error: ' + error.message);
+      }
+      
+      // Set welcome timestamp
+      const welcomeTimestamp = document.getElementById('welcomeTimestamp');
+      if (welcomeTimestamp) {
+        welcomeTimestamp.textContent = new Date().toLocaleTimeString();
+        debugLog('Welcome timestamp set');
+      }
+      
+      // Get chat elements
       const chatContainer = document.getElementById('chatContainer');
       const chatToggle = document.getElementById('chatToggle');
-      const isHidden = chatContainer.style.display === 'none';
-      chatContainer.style.display = isHidden ? 'flex' : 'none';
-      chatToggle.innerHTML = isHidden ? '<i class="fas fa-times"></i>' : '<i class="fas fa-hat-wizard"></i>';
-      if (isHidden) {
-        document.getElementById('userInput').focus();
-        adjustChatPosition();
-        scrollChatToBottom();
-      } else {
-        retryFetch(`${CONFIG.SERVER_URL}/api/close-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId })
-        });
-      }
-    }
-
-    function adjustChatPosition() {
-      const chatContainer = document.getElementById('chatContainer');
-      const input = document.getElementById('userInput');
-      input.addEventListener('focus', () => {
-        setTimeout(() => {
-          const keyboardHeight = window.innerHeight - document.documentElement.clientHeight;
-          chatContainer.style.bottom = `${70 + keyboardHeight}px`;
-        }, 100);
-      });
-      input.addEventListener('blur', () => {
-        chatContainer.style.bottom = '70px';
-      });
-    }
-
-    function addMessage(content, isUser) {
+      const closeChat = document.getElementById('closeChat');
       const chatMessages = document.getElementById('chatMessages');
-      const div = document.createElement('div');
-      div.className = `message ${isUser ? 'user' : 'bot'}`;
-      div.innerHTML = content;
-      const timestamp = document.createElement('div');
-      timestamp.className = 'timestamp';
-      timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      div.appendChild(timestamp);
-      chatMessages.appendChild(div);
-      if (!isUser) updateSuggestions();
-      scrollChatToBottom();
-    }
-
-    function updateSuggestions() {
-      const suggestions = document.createElement('div');
-      suggestions.className = 'suggestions';
-      suggestions.innerHTML = QUICK_REPLIES.map(reply => `
-        <button class="suggestion-chip" onclick="sendQuickReply('${reply}')">${reply}</button>
-      `).join('');
-      const lastBotMessage = document.querySelector('.message.bot:last-child');
-      if (lastBotMessage) {
-        const existingSuggestions = lastBotMessage.querySelector('.suggestions');
-        if (existingSuggestions) existingSuggestions.remove();
-        lastBotMessage.appendChild(suggestions);
-      }
-    }
-
-    function scrollChatToBottom() {
-      const chatMessages = document.getElementById('chatMessages');
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    async function retryFetch(url, options, retries = 3, delay = 1000) {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const response = await fetch(url, {
-            ...options,
-            mode: 'cors',
-            credentials: 'same-origin'
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
-          }
-          return await response.json();
-        } catch (error) {
-          console.error(`Fetch attempt ${i + 1} failed:`, error.message);
-          if (i < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          addMessage('Connection issue. Please try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
-          return null;
-        }
-      }
-    }
-
-    async function sendMessage() {
       const userInput = document.getElementById('userInput');
-      if (!userInput.value.trim()) return;
-      addMessage(userInput.value, true);
-      const message = userInput.value.trim().toLowerCase();
-      userInput.value = '';
-
-      if (!navigator.onLine) {
-        if (/price|cost|quote/i.test(message)) {
-          const materialMatch = message.match(/granite|quartz|marble|quartzite|porcelain/i);
-          if (materialMatch && offlineCache.materials.length) {
-            const mat = offlineCache.materials.find(m => m.material.toLowerCase() === materialMatch[0].toLowerCase());
-            if (mat) {
-              addMessage(`${mat.name} (${mat.material}): $${mat.installedPrice.toFixed(2)}/sq.ft installed. Conjure a quote when online!`, false);
-            } else {
-              addMessage(`No pricing for ${materialMatch[0]}. Try again when online!`, false);
-            }
-          } else {
-            addMessage('Offline: Specify a material (e.g., Granite) for pricing!', false);
-          }
-        } else if (/shop|store|product/i.test(message)) {
-          if (offlineCache.products.length) {
-            const query = message.replace(/shop|product|store/i, '').trim().toLowerCase();
-            const products = offlineCache.products.filter(p => p.title.toLowerCase().includes(query));
-            if (products.length) {
-              const message = 'Cached products:<br>' + products.slice(0, 3).map(p => `<b>${p.title}</b>: $${p.variants[0].price} <a href="https://store.surprisegranite.com/products/${p.handle}" target="_blank">View</a><br>`).join('');
-              addMessage(message, false);
-            } else {
-              addMessage('No cached products found. Try again when online!', false);
-            }
-          } else {
-            addMessage('Offline: Product search unavailable. Try again when online!', false);
-          }
+      const sendButton = document.getElementById('sendButton');
+      
+      debugLog('Chat elements retrieved');
+      
+      // Toggle chat function
+      function toggleChat() {
+        debugLog('Toggle chat called');
+        
+        if (chatContainer.style.display === 'none' || !chatContainer.style.display) {
+          chatContainer.style.display = 'flex';
+          chatToggle.innerHTML = '<i class="fas fa-times"></i>';
+          debugLog('Chat opened');
         } else {
-          addMessage('Offline: I’m limited to cached responses. Try pricing or product queries!', false);
+          chatContainer.style.display = 'none';
+          chatToggle.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+          debugLog('Chat closed');
         }
-        return;
       }
-
-      try {
-        if (/quote|price|cost/i.test(message)) {
-          document.getElementById('leadModal').style.display = 'flex';
-          document.getElementById('leadName').focus();
-          return;
-        }
-
-        if (/design tips/i.test(message)) {
-          addMessage('For a magical kitchen, choose Quartz with a waterfall edge. Need more enchanting ideas?', false);
-          return;
-        }
-
-        if (/shop|store|product/i.test(message)) {
-          const query = message.replace(/shop|product|store/i, '').trim();
-          const data = await retryFetch(`${CONFIG.SERVER_URL}/api/shopify-products?q=${encodeURIComponent(query)}`);
-          if (data) {
-            if (data.length) {
-              offlineCache.products = data;
-              const message = 'Magical finds:<br>' + data.slice(0, 3).map(p => `<b>${p.title}</b>: $${p.variants[0].price} <a href="https://store.surprisegranite.com/products/${p.handle}" target="_blank">View</a><br>`).join('');
-              addMessage(message, false);
-            } else {
-              addMessage('No products found. Browse <a href="https://store.surprisegranite.com" target="_blank">our store</a>!', false);
-            }
-          }
-          return;
-        }
-
-        if (/live agent/i.test(message)) {
-          addMessage('Summoning a live wizard! Or email <a href="mailto:info@surprisegranite.com">info@surprisegranite.com</a>.', false);
-          return;
-        }
-
-        const data = await retryFetch(`${CONFIG.SERVER_URL}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, sessionId, clientId, clientEmail: quoteState.user.email, quoteState })
-        });
-        if (data) {
-          addMessage(data.message, false);
-        }
-      } catch (error) {
-        addMessage('Error: Server not responding. Try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
+      
+      // Send message function
+      function sendMessage() {
+        const message = userInput.value.trim();
+        if (!message) return;
+        
+        debugLog(Sending message: );
+        
+        // Add user message
+        const msgElement = document.createElement('div');
+        msgElement.className = 'message user';
+        msgElement.textContent = message;
+        chatMessages.appendChild(msgElement);
+        
+        // Add timestamp
+        const timestamp = document.createElement('div');
+        timestamp.className = 'timestamp';
+        timestamp.textContent = new Date().toLocaleTimeString();
+        msgElement.appendChild(timestamp);
+        
+        // Clear input and scroll to bottom
+        userInput.value = '';
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Simulate response (would be replaced with actual API call)
+        setTimeout(() => {
+          const botMsg = document.createElement('div');
+          botMsg.className = 'message bot';
+          botMsg.textContent = You asked: "". This is just a test response while we're fixing the chatbot connection.;
+          
+          const botTimestamp = document.createElement('div');
+          botTimestamp.className = 'timestamp';
+          botTimestamp.textContent = new Date().toLocaleTimeString();
+          botMsg.appendChild(botTimestamp);
+          
+          chatMessages.appendChild(botMsg);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          debugLog('Bot responded');
+        }, 1000);
       }
-    }
-
-    function sendQuickReply(message) {
-      document.getElementById('userInput').value = message;
-      sendMessage();
-    }
-
-    async function handleLeadSubmit(e) {
-      e.preventDefault();
-      const name = document.getElementById('leadName').value.trim();
-      const email = document.getElementById('leadEmail').value.trim();
-      const phone = document.getElementById('leadPhone').value.trim();
-      const projectType = document.getElementById('leadProjectType').value;
-
-      const formData = new FormData();
-      formData.append('name', name);
-      formData.append('email', email);
-      formData.append('phone', phone);
-      formData.append('projectType', projectType);
-      formData.append('quoteState', JSON.stringify(quoteState));
-
-      try {
-        const response = await fetch(CONFIG.USEBASIN_ENDPOINT, {
-          method: 'POST',
-          body: formData,
-          mode: 'cors'
-        });
-        if (response.ok) {
-          quoteState.user = { name, email, phone };
-          quoteState.project.type = projectType;
-          saveState();
-          addMessage(`Thank you, ${name}! Your quote request for ${projectType} has been conjured. We’ll contact you soon!`, false);
-          document.getElementById('leadModal').style.display = 'none';
-          document.getElementById('leadForm').reset();
-        } else {
-          addMessage(`Sorry, ${name}, we couldn’t process your request. Try again or contact support.`, false);
-        }
-      } catch (error) {
-        addMessage('Error submitting form. Please try again or contact <a href="mailto:info@surprisegranite.com">support</a>.', false);
-      }
-    }
-
-    async function cacheData() {
-      if (navigator.onLine) {
-        const materialsData = await retryFetch(`${CONFIG.SERVER_URL}/api/materials`);
-        if (materialsData) offlineCache.materials = materialsData;
-
-        const productsData = await retryFetch(`${CONFIG.SERVER_URL}/api/shopify-products`);
-        if (productsData) offlineCache.products = productsData;
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      particlesJS('particles-js', {
-        particles: {
-          number: { value: 50, density: { enable: true, value_area: 1000 } },
-          color: { value: ['#facc15', '#6d28d9'] },
-          shape: { type: 'circle' },
-          opacity: { value: 0.5, random: true },
-          size: { value: 2, random: true },
-          move: { enable: true, speed: 1, direction: 'none', random: true }
-        },
-        interactivity: {
-          events: { onhover: { enable: true, mode: 'repulse' } },
-          modes: { repulse: { distance: 100, duration: 0.4 } }
-        }
-      });
-
-      document.getElementById('sendButton').addEventListener('click', sendMessage);
-      document.getElementById('userInput').addEventListener('keypress', e => {
+      
+      // Add event listeners
+      chatToggle.addEventListener('click', toggleChat);
+      closeChat.addEventListener('click', toggleChat);
+      sendButton.addEventListener('click', sendMessage);
+      userInput.addEventListener('keypress', e => {
         if (e.key === 'Enter') sendMessage();
       });
-      document.getElementById('chatToggle').addEventListener('click', toggleChat);
-      document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
-      document.getElementById('leadCancel').addEventListener('click', () => {
-        document.getElementById('leadModal').style.display = 'none';
+      
+      // Debug buttons
+      document.getElementById('debugOpenChat').addEventListener('click', () => {
+        chatContainer.style.display = 'flex';
+        chatToggle.innerHTML = '<i class="fas fa-times"></i>';
+        debugLog('Debug: Force open chat');
       });
-      document.getElementById('welcomeTimestamp').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      updateSuggestions();
-      cacheData();
-
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .then(reg => {
-            console.log('Service Worker registered:', reg);
-          })
-          .catch(err => {
-            console.error('Service Worker registration failed:', err.message);
-            if (err.message.includes('HTTPS')) {
-              console.warn('Service Workers require HTTPS or localhost. Ensure your server is configured correctly.');
-            } else if (err.message.includes('404')) {
-              console.warn('sw.js not found. Verify the file exists in the root directory.');
-            }
-          });
-      } else {
-        console.warn('Service Workers not supported in this browser.');
-      }
+      
+      document.getElementById('debugCloseChat').addEventListener('click', () => {
+        chatContainer.style.display = 'none';
+        chatToggle.innerHTML = '<i class="fas fa-hat-wizard"></i>';
+        debugLog('Debug: Force close chat');
+      });
+      
+      document.getElementById('debugRefresh').addEventListener('click', () => {
+        window.location.reload();
+      });
+      
+      debugLog('Event listeners attached');
     });
   </script>
 </body>
